@@ -7,3 +7,4 @@
 | Search returns nothing when every word is a stopword ("Who is Jesus?") | Rare and harmless; the model still answers in principle. Fall back to names if users ask | 2026-10-11 | packages/harness/lib/src/bible_db.dart:141 |
 | iOS preferences (reader position, settings, optional Hugging Face token) can reach iCloud backup | shared_preferences stores them in Library/Preferences, outside the excluded support folder; move the token to the Keychain with a this-device-only accessibility class | 2026-10-11 | lib/app_state.dart:80 |
 | PBKDF2 at 600,000 rounds in pure Dart | Runs on a background isolate; switch to Argon2id if a vetted native binding is added | 2026-10-11 | lib/backup.dart:17 |
+| Site download links and version text are pinned to v0.2.0 by hand | Kept the site static with no build-time templating | 2026-10-11 | site/index.html:52 |

@@ -1,0 +1,259 @@
+/* Tokens mirror the app's theme (lib/theme.dart): parchment and ink by day, a lamp-lit study by
+   night, with the same lamp gold. No web fonts: the page makes no third-party requests. */
+:root {
+  --parchment: #f6f1e8;
+  --parchment-deep: #ebe3d3;
+  --ink: #1e1a15;
+  --ink-muted: #6b6257;
+  --gold: #9e7628;
+  --ember: #9b3b2e;
+  --night: #161310;
+  --night-raised: #231f19;
+  --linen: #eae2d4;
+  --linen-muted: #9c9183;
+  --gold-night: #d4a94e;
+  --ember-night: #d8705f;
+
+  --bg: var(--parchment);
+  --bg-raised: var(--parchment-deep);
+  --fg: var(--ink);
+  --fg-muted: var(--ink-muted);
+  --accent: var(--gold);
+  --flag: var(--ember);
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --greek: "Gentium Plus", "SBL Greek", "Palatino Linotype", Palatino, "Times New Roman", serif;
+
+  --step--1: 0.875rem;
+  --step-0: 1.0625rem;
+  --step-1: 1.3rem;
+  --step-2: 1.65rem;
+  --step-3: 2.2rem;
+  --step-4: clamp(2.4rem, 5.5vw, 3.6rem);
+  --measure: 38rem;
+  --margin: 15rem;
+  --gutter: clamp(1rem, 4vw, 2.5rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--night);
+    --bg-raised: var(--night-raised);
+    --fg: var(--linen);
+    --fg-muted: var(--linen-muted);
+    --accent: var(--gold-night);
+    --flag: var(--ember-night);
+  }
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 4.5rem; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: var(--step-0) / 1.65 var(--serif);
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: var(--accent); text-underline-offset: 0.18em; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+.skip {
+  position: absolute; left: 1rem; top: -4rem; z-index: 10;
+  background: var(--fg); color: var(--bg); padding: 0.5rem 0.9rem; border-radius: 6px;
+}
+.skip:focus { top: 1rem; }
+
+h1, h2, h3 { font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: var(--step-3); margin: 0 0 1.25rem; }
+h3 { font-size: var(--step-1); margin: 1.75rem 0 0.4rem; }
+p { margin: 0 0 1em; text-wrap: pretty; }
+.small { font-family: var(--sans); font-size: var(--step--1); color: var(--fg-muted); }
+
+/* The top bar */
+.top {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: baseline; gap: 2rem; flex-wrap: wrap;
+  padding: 0.85rem var(--gutter);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.wordmark { font-size: var(--step-1); font-weight: 600; color: var(--fg); text-decoration: none; }
+.top nav { display: flex; gap: 1.25rem; flex-wrap: wrap; font-family: var(--sans); font-size: var(--step--1); }
+.top nav a { color: var(--fg-muted); text-decoration: none; }
+.top nav a:hover { color: var(--fg); }
+
+/* The hero: an interlinear word card, as the app shows it, beside the claim */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 24rem) minmax(0, 36rem);
+  gap: clamp(2rem, 6vw, 5rem);
+  align-items: center;
+  justify-content: center;
+  padding: clamp(3rem, 9vw, 7rem) var(--gutter) clamp(3rem, 7vw, 5rem);
+}
+.word {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  padding: 2.5rem 1.5rem 1.75rem;
+  background: var(--bg-raised);
+  border-radius: 22px;
+}
+.word-greek { font-family: var(--greek); font-size: clamp(2.2rem, 6vw, 2.9rem); line-height: 1.15; }
+.word-translit { font-family: var(--sans); color: var(--fg-muted); }
+.word-gloss { font-family: var(--sans); color: var(--accent); font-size: var(--step-1); }
+.word figcaption {
+  margin-top: 1.5rem; padding-top: 1.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--fg) 14%, transparent);
+  font-style: italic; text-align: left; line-height: 1.55;
+}
+.word cite { display: block; margin-top: 0.4rem; font-style: normal; font-family: var(--sans); font-size: var(--step--1); color: var(--accent); }
+.hero h1 { font-size: var(--step-4); margin: 0 0 1.25rem; }
+.lede { font-size: var(--step-1); line-height: 1.55; max-width: var(--measure); }
+.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.75rem 0 0.75rem; }
+.button {
+  display: inline-block; padding: 0.8rem 1.35rem; border-radius: 999px;
+  font-family: var(--sans); font-weight: 600; font-size: var(--step-0); text-decoration: none;
+  border: 1.5px solid var(--accent); color: var(--accent);
+}
+.button.primary { background: var(--accent); color: var(--bg); }
+.button:hover { text-decoration: none; filter: brightness(1.06); }
+
+/* The reading layout: a text column with study-Bible margin notes that point to the source */
+.reading { padding: clamp(2.5rem, 6vw, 4.5rem) var(--gutter); max-width: calc(var(--measure) + var(--margin) + 4rem); margin: 0 auto; }
+.reading > h2 { max-width: var(--measure); }
+.column {
+  display: grid;
+  grid-template-columns: minmax(0, var(--measure)) var(--margin);
+  gap: 3rem;
+  align-items: start;
+}
+.margin {
+  font-family: var(--sans);
+  font-size: var(--step--1);
+  line-height: 1.5;
+  color: var(--fg-muted);
+  border-left: 2px solid var(--accent);
+  padding-left: 1rem;
+  position: sticky;
+  top: 5rem;
+}
+.margin p { margin-bottom: 0.9em; }
+
+.promises { margin: 0; }
+.promises div { margin-bottom: 1.4rem; }
+.promises dt { font-weight: 600; font-size: var(--step-1); }
+.promises dd { margin: 0.2rem 0 0; }
+
+/* Screens: a horizontal shelf of phone shots */
+.screens { padding: clamp(2.5rem, 6vw, 4.5rem) 0; }
+/* Same box as .reading, with the margin column held empty, so headings line up across sections */
+.screens h2, .screens .intro { padding: 0 calc(var(--gutter) + var(--margin) + 3rem) 0 var(--gutter); max-width: calc(var(--measure) + var(--margin) + 4rem); margin-left: auto; margin-right: auto; }
+.screens .intro { font-size: var(--step-1); margin-bottom: 2rem; }
+.shots {
+  list-style: none; margin: 0; padding: 0.5rem var(--gutter) 1.5rem;
+  display: flex; gap: 1.5rem; overflow-x: auto;
+  scroll-snap-type: x mandatory; scroll-padding: 0 var(--gutter);
+}
+.shots li { flex: 0 0 auto; scroll-snap-align: start; }
+.shots figure { margin: 0; width: clamp(12rem, 42vw, 15rem); }
+.shots img {
+  display: block; width: 100%; height: auto; border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.shots figcaption { margin-top: 0.7rem; font-family: var(--sans); font-size: var(--step--1); color: var(--fg-muted); }
+
+/* The five steps are a real sequence, numbered like verses */
+.steps { list-style: none; counter-reset: step; margin: 1.5rem 0 0; padding: 0; }
+.steps li { counter-increment: step; position: relative; padding-left: 2.2rem; margin-bottom: 1.4rem; }
+.steps li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 0.15rem;
+  font-family: var(--sans); font-weight: 700; font-size: var(--step-0); color: var(--accent);
+}
+.steps h3 { margin: 0 0 0.3rem; }
+.steps p { margin: 0; }
+
+.diagram { margin: 3rem auto 0; max-width: 56rem; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.diagram .box rect { fill: var(--bg-raised); stroke: color-mix(in srgb, var(--fg) 25%, transparent); stroke-width: 1.5; }
+.diagram .box.accent rect { stroke: var(--accent); stroke-width: 2.5; }
+.diagram .box.quiet rect { fill: none; stroke-dasharray: 5 5; }
+.diagram text { fill: var(--fg); font-family: var(--sans); font-size: 17px; font-weight: 600; text-anchor: middle; }
+.diagram text.sub { font-size: 13.5px; font-weight: 400; fill: var(--fg-muted); }
+.diagram .line { stroke: var(--fg); stroke-width: 1.5; fill: none; }
+.diagram .fill-ink { fill: var(--fg); }
+.diagram figcaption { margin-top: 0.8rem; text-align: center; font-family: var(--sans); font-size: var(--step--1); color: var(--fg-muted); }
+
+/* The check, shown on a real sentence */
+.sample { margin: 0 0 1.25rem; padding: 1.1rem 1.3rem; border-radius: 14px; background: var(--bg-raised); }
+.sample p { margin: 0; }
+.sample.before { border-left: 4px solid var(--flag); }
+.sample.after { border-left: 4px solid var(--accent); }
+mark { font-family: var(--sans); font-size: 0.85em; padding: 0.05em 0.4em; border-radius: 5px; white-space: nowrap; }
+mark.ok { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--fg); }
+mark.flag { background: color-mix(in srgb, var(--flag) 22%, transparent); color: var(--fg); }
+a.ref { color: var(--accent); text-decoration: underline; }
+
+table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-family: var(--sans); font-size: var(--step--1); }
+caption { text-align: left; font-family: var(--serif); font-size: var(--step-0); font-weight: 600; margin-bottom: 0.5rem; }
+th, td { text-align: left; padding: 0.65rem 0.75rem 0.65rem 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 14%, transparent); vertical-align: top; }
+thead th { color: var(--fg-muted); font-weight: 600; }
+.numbers td { font-size: var(--step-1); font-weight: 700; text-align: right; color: var(--accent); white-space: nowrap; }
+.numbers th { font-weight: 400; }
+
+/* Your data: the app's night palette, as when the study lamp is on */
+.night {
+  --bg: var(--night);
+  --bg-raised: var(--night-raised);
+  --fg: var(--linen);
+  --fg-muted: var(--linen-muted);
+  --accent: var(--gold-night);
+  background: var(--bg);
+  color: var(--fg);
+}
+@media (prefers-color-scheme: dark) {
+  .night { --bg: var(--night-raised); --bg-raised: #2e2820; }
+}
+.night ul { padding-left: 1.2rem; }
+.night li { margin-bottom: 0.45rem; }
+
+ol.plain { padding-left: 1.3rem; }
+ol.plain li { margin-bottom: 0.6rem; }
+
+.foot {
+  padding: 2.5rem var(--gutter) 3.5rem;
+  font-family: var(--sans); font-size: var(--step--1); color: var(--fg-muted);
+  border-top: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
+  max-width: calc(var(--measure) + var(--margin) + 4rem); margin: 0 auto;
+}
+.foot p { max-width: var(--measure); }
+
+@media (max-width: 860px) {
+  .hero { grid-template-columns: minmax(0, 1fr); }
+  .word { max-width: 24rem; width: 100%; margin: 0 auto; }
+  .column { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  .margin { position: static; }
+  .screens h2, .screens .intro { padding-right: var(--gutter); }
+}
+
+@media (max-width: 520px) {
+  .top { gap: 0.6rem 1.2rem; }
+  .top nav { gap: 0.9rem; }
+  .numbers td { font-size: var(--step-0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}

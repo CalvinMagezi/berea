@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Berea: an offline study Bible that shows its work</title>
+<meta name="description" content="Berea is a free, open-source study Bible and assistant that runs entirely on your phone or computer. No account, no tracking, nothing leaves your device. Every answer is checked against the Bible text before you see it.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239E7628'/%3E%3Cpath d='M9 8h9a5 5 0 0 1 0 10H9zM9 18h10a5 5 0 0 1 0 10H9z' fill='none' stroke='%23F6F1E8' stroke-width='2.4'/%3E%3C/svg%3E">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="top">
+  <a class="wordmark" href="#">Berea</a>
+  <nav aria-label="Sections">
+    <a href="#screens">The app</a>
+    <a href="#how">How an answer is made</a>
+    <a href="#data">Your data</a>
+    <a href="#try">Try it</a>
+    <a href="https://github.com/CalvinMagezi/berea">Source</a>
+  </nav>
+</header>
+
+<main id="main">
+
+<section class="hero" aria-labelledby="hero-title">
+  <figure class="word" aria-label="The Greek word anakrinontes from Acts 17:11, meaning examining">
+    <span class="word-greek" lang="grc">ἀνακρίνοντες</span>
+    <span class="word-translit">anakrinontes</span>
+    <span class="word-gloss">examining</span>
+    <figcaption>
+      “They received the message with great eagerness and examined the Scriptures every day to see
+      if these teachings were true.” <cite>Acts 17:11, BSB</cite>
+    </figcaption>
+  </figure>
+
+  <div class="hero-text">
+    <h1 id="hero-title">A study Bible that shows its work.</h1>
+    <p class="lede">
+      Berea is a free Bible and study assistant that runs entirely on your own phone or computer.
+      Ask about a passage, a word or a question of life. The answer is built from the Bible text,
+      the Hebrew and Greek behind it, and the passages it points to, then checked against that text
+      before you see it.
+    </p>
+    <p class="lede">
+      There is no account and no tracking, and nothing you write leaves your device. This page
+      explains exactly how it works, so you can examine it the way the Bereans examined Paul.
+    </p>
+    <div class="actions">
+      <a class="button primary" href="https://github.com/CalvinMagezi/berea/releases/download/v0.2.0/berea-0.2.0-android-arm64.apk">Download for Android</a>
+      <a class="button" href="https://github.com/CalvinMagezi/berea">Read the source</a>
+    </div>
+    <p class="small">Version 0.2.0 for 64-bit phones on Android 11 or later. Free and open source.</p>
+  </div>
+</section>
+
+<section class="reading" aria-labelledby="promises-title">
+  <h2 id="promises-title">What Berea promises</h2>
+  <div class="column">
+    <dl class="promises">
+      <div>
+        <dt>Nothing about you is collected.</dt>
+        <dd>No account, no analytics, no crash reports, no sync. Your notes, studies and highlights
+          live in one file on your device.</dd>
+      </div>
+      <div>
+        <dt>It works with no connection.</dt>
+        <dd>The Bible, the Hebrew and Greek, the lexicon, the cross references and the language
+          model are all on the device. After the one-time model download, flight mode is fine.</dd>
+      </div>
+      <div>
+        <dt>Scripture comes first.</dt>
+        <dd>The language model never quotes from memory. It is given the verses and told to use
+          only those, and every reference in its answer is looked up afterwards. Anything it made
+          up is marked, not hidden.</dd>
+      </div>
+      <div>
+        <dt>Everything is open.</dt>
+        <dd>The app, the data pipeline and the tests are published under the MIT licence. The Bible
+          text and study data are public domain or openly licensed.</dd>
+      </div>
+    </dl>
+    <aside class="margin">
+      <p>The promise is enforced in code, not policy. The only network calls are the ones you
+        start: the model download, the optional lexicon download, and, on a Mac, your own Ollama
+        server. <a href="https://github.com/CalvinMagezi/berea/blob/main/lib/app_state.dart">app_state.dart</a></p>
+    </aside>
+  </div>
+</section>
+
+<section id="screens" class="screens" aria-labelledby="screens-title">
+  <h2 id="screens-title">The app</h2>
+  <p class="intro">Three places: Study for questions, Bible for reading, Notes for everything you keep.
+    A chat button is on every screen.</p>
+  <ul class="shots" role="list">
+    <li><figure><img src="screenshots/home-android.png" alt="Study tab with the verse of the day, today's reading from a plan, and suggested questions" width="450" height="1000" loading="lazy"><figcaption>Verse of the day and today's reading</figcaption></figure></li>
+    <li><figure><img src="screenshots/study-android.png" alt="An answer about John 3:16 in sections, citing John 3:16 in the Berean Standard Bible" width="450" height="1000" loading="lazy"><figcaption>An answer built from the passage</figcaption></figure></li>
+    <li><figure><img src="screenshots/parallel-android.png" alt="John 3 in the Berean Standard Bible with the World English Bible beneath each verse" width="450" height="1000" loading="lazy"><figcaption>Two translations side by side</figcaption></figure></li>
+    <li><figure><img src="screenshots/interlinear-android.png" alt="The Greek words of John 3:18 with transliteration and English gloss" width="450" height="1000" loading="lazy"><figcaption>The Greek or Hebrew behind a verse</figcaption></figure></li>
+    <li><figure><img src="screenshots/study-page-android.png" alt="A study page for Psalm 23:1 with observation and interpretation drafted from the text and lexicon" width="450" height="1000" loading="lazy"><figcaption>A study page you can edit</figcaption></figure></li>
+    <li><figure><img src="screenshots/plan-android.png" alt="The New Testament in 90 days reading plan, day one Matthew 1 to 3" width="450" height="1000" loading="lazy"><figcaption>Reading plans</figcaption></figure></li>
+    <li><figure><img src="screenshots/notes-android.png" alt="Notes tab listing saved studies, a study page and a note on Genesis 1:3" width="450" height="1000" loading="lazy"><figcaption>Everything you keep, in one place</figcaption></figure></li>
+    <li><figure><img src="screenshots/settings-android.png" alt="Settings showing the on-device model, a memory-based recommendation, the optional lexicon and the encrypted backup" width="450" height="1000" loading="lazy"><figcaption>Model, lexicon and your backup</figcaption></figure></li>
+  </ul>
+</section>
+
+<section id="how" class="reading" aria-labelledby="how-title">
+  <h2 id="how-title">How an answer is made</h2>
+  <div class="column">
+    <div>
+      <p>
+        Small language models that fit on a phone are fluent but forgetful. Asked to quote the
+        Bible from memory they will sometimes invent a verse, merge two, or cite a book that does
+        not exist. Berea is built so that this does not depend on the model being good. Every
+        question goes through the same five steps.
+      </p>
+      <ol class="steps">
+        <li>
+          <h3>Find the passages you asked about.</h3>
+          <p>References are read from your question in every common form (John 3:16, Jn 3.16-18,
+            1 Cor 13, II Timothy 3:16) and the verses are fetched word for word from the Bible on
+            your device.</p>
+        </li>
+        <li>
+          <h3>Gather what a careful reader would open.</h3>
+          <p>The Hebrew or Greek words of the passage with their dictionary entries, the passages
+            other readers most often link to it, and a search of the whole Bible for your
+            question's words. A question with no reference, such as one about forgiveness, follows
+            those links to the passages Scripture keeps returning to.</p>
+        </li>
+        <li>
+          <h3>Hand the model only that material.</h3>
+          <p>The model receives a fixed set of study rules and the gathered passages, trimmed to
+            what it can hold. It is told to quote only from them and to say plainly when something
+            is not in the Bible.</p>
+        </li>
+        <li>
+          <h3>Let the model write.</h3>
+          <p>The answer is written on your device by Gemma, Google's open model, through the same
+            engine as Google AI Edge Gallery. On a Mac it can use Ollama instead.</p>
+        </li>
+        <li>
+          <h3>Check every reference and quotation.</h3>
+          <p>Each reference in the answer is looked up. A chapter, verse or book that does not
+            exist is marked unverified. A quotation that is not word for word is replaced with the
+            exact words when one verse is clearly its source, and marked otherwise. Verified
+            references become links that open the passage.</p>
+        </li>
+      </ol>
+    </div>
+    <aside class="margin">
+      <p>Step 1: <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/ref_parser.dart">ref_parser.dart</a></p>
+      <p>Step 2: <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/retriever.dart">retriever.dart</a></p>
+      <p>Step 3: <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/prompt_builder.dart">prompt_builder.dart</a> and the rules in <a href="https://github.com/CalvinMagezi/berea/blob/main/prompts/system.md">system.md</a></p>
+      <p>Step 4: <a href="https://github.com/CalvinMagezi/berea/blob/main/lib/edge_engine.dart">edge_engine.dart</a></p>
+      <p>Step 5: <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/citation_guard.dart">citation_guard.dart</a></p>
+    </aside>
+  </div>
+
+  <figure class="diagram" aria-labelledby="diagram-caption">
+    <svg viewBox="0 0 880 300" role="img" aria-labelledby="diagram-title diagram-desc">
+      <title id="diagram-title">The parts of Berea and how they connect</title>
+      <desc id="diagram-desc">The app passes your question to the harness. The harness reads the Bible database, builds a prompt for the language model on your device, and checks the model's answer against the database before the app shows it. Your notes are kept in a separate file.</desc>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="fill-ink"/></marker>
+      </defs>
+      <g class="box"><rect x="10" y="110" width="150" height="80" rx="10"/><text x="85" y="145">The app</text><text x="85" y="167" class="sub">Study, Bible, Notes</text></g>
+      <g class="box accent"><rect x="250" y="90" width="210" height="120" rx="10"/><text x="355" y="128">Harness</text><text x="355" y="152" class="sub">find, gather, prompt,</text><text x="355" y="172" class="sub">check</text></g>
+      <g class="box"><rect x="550" y="20" width="310" height="80" rx="10"/><text x="705" y="55">Bible database</text><text x="705" y="77" class="sub">3 translations, Hebrew and Greek, lexicon, links</text></g>
+      <g class="box"><rect x="550" y="200" width="310" height="80" rx="10"/><text x="705" y="235">Language model on your device</text><text x="705" y="257" class="sub">Gemma via LiteRT-LM, or Ollama on a Mac</text></g>
+      <g class="box quiet"><rect x="10" y="230" width="150" height="56" rx="10"/><text x="85" y="263" class="sub">Your notes file</text></g>
+      <path d="M160 140h88" class="line" marker-end="url(#arrow)"/>
+      <path d="M248 165h-86" class="line" marker-end="url(#arrow)"/>
+      <path d="M460 120 548 70" class="line" marker-end="url(#arrow)"/>
+      <path d="M460 180 548 230" class="line" marker-end="url(#arrow)"/>
+      <path d="M85 190v38" class="line" marker-end="url(#arrow)"/>
+    </svg>
+    <figcaption id="diagram-caption">Nothing in this picture talks to the internet. The two boxes on the right are files on your device.</figcaption>
+  </figure>
+</section>
+
+<section class="reading" aria-labelledby="check-title">
+  <h2 id="check-title">What the check catches</h2>
+  <div class="column">
+    <div>
+      <p>An example of the last step at work. Suppose a model wrote this:</p>
+      <blockquote class="sample before">
+        <p>Paul says “God so loved the world that He gave His only Son” (John 3:16), and 2 Hezekiah
+          4:1 adds that God helps those who help themselves.</p>
+      </blockquote>
+      <p>Berea shows it like this, with the exact words restored and the invented book marked:</p>
+      <blockquote class="sample after">
+        <p>Paul says “For God so loved the world that He gave His one and only Son”
+          <mark class="ok">quote corrected</mark> (<a class="ref">John 3:16</a>), and
+          <mark class="flag">unverified: 2 Hezekiah 4:1</mark> adds that God helps those who help
+          themselves.</p>
+      </blockquote>
+      <p>
+        The rules also ask the model to say plainly when a saying is not in the Bible. A test set of
+        40 questions is run before every release, eight of them deliberately misleading: a chapter
+        that does not exist, Psalm 151, “the verse that says God helps those who help themselves”.
+      </p>
+      <table class="numbers">
+        <caption>Latest run, Gemma 4 E2B</caption>
+        <tbody>
+          <tr><th scope="row">References the model invented</th><td>0</td></tr>
+          <tr><th scope="row">Sayings wrongly attributed to Scripture</th><td>0</td></tr>
+          <tr><th scope="row">Misleading questions handled correctly</th><td>8 of 8</td></tr>
+          <tr><th scope="row">Expected passages cited</th><td>27 or 28 of 28</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <aside class="margin">
+      <p>The questions and the scoring are public: <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/eval/golden.json">golden.json</a> and <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/bin/eval.dart">eval.dart</a>. Run them yourself with Ollama.</p>
+      <p>No check is perfect. A model can still misread a passage it was given. Berea's aim is that it cannot quietly put words in Scripture's mouth.</p>
+    </aside>
+  </div>
+</section>
+
+<section class="reading" aria-labelledby="library-title">
+  <h2 id="library-title">What is in the box</h2>
+  <div class="column">
+    <div>
+      <table class="library">
+        <thead><tr><th scope="col">On your device</th><th scope="col">Source and licence</th></tr></thead>
+        <tbody>
+          <tr><td>Berean Standard Bible</td><td>Public domain</td></tr>
+          <tr><td>King James Version</td><td>Public domain</td></tr>
+          <tr><td>World English Bible</td><td>Public domain, from eBible.org</td></tr>
+          <tr><td>Every Hebrew and Greek word, with transliteration, gloss and grammar</td><td>STEPBible TAHOT and TAGNT, CC BY 4.0</td></tr>
+          <tr><td>Hebrew and Greek dictionary entries</td><td>STEPBible TBESH and TBESG, CC BY 4.0</td></tr>
+          <tr><td>345,000 cross references, ranked by how often readers link them</td><td>OpenBible.info, CC BY</td></tr>
+          <tr><td>Full Greek lexicon (Liddell, Scott, Jones), optional 9 MB download</td><td>STEPBible TFLSJ, CC BY 4.0</td></tr>
+          <tr><td>Gemma 4 language model, downloaded once (2.6 GB)</td><td>Google, through the LiteRT community</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Translations under copyright, such as the NIV and NLT, cannot be included. If you own one in
+        a common Bible format (CSV, USFM, OSIS or Zefania) you can import it, and it stays on your
+        device.
+      </p>
+    </div>
+    <aside class="margin">
+      <p>The whole library is built from these sources by one script, so anyone can rebuild it and compare. <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/bin/build_db.dart">build_db.dart</a></p>
+    </aside>
+  </div>
+</section>
+
+<section id="data" class="night" aria-labelledby="data-title">
+  <div class="reading">
+    <h2 id="data-title">Your data, exactly</h2>
+    <div class="column">
+      <div>
+        <p>Here is everything Berea stores and everything it sends.</p>
+        <h3>Stored on your device</h3>
+        <ul>
+          <li>The Bible library described above.</li>
+          <li>One file for what you write: notes, highlights, saved studies, study pages and reading
+            plan progress.</li>
+          <li>Translations you import, and your settings.</li>
+        </ul>
+        <h3>Sent over the internet</h3>
+        <ul>
+          <li>A request to Hugging Face for the language model, once, when you tap Download.</li>
+          <li>A request to GitHub for the optional Greek lexicon, only if you tap Download. Its
+            fingerprint is checked before it is used.</li>
+          <li>On a Mac using Ollama, your questions go to the Ollama address you set, which is your
+            own computer unless you change it.</li>
+        </ul>
+        <p>Nothing else. No analytics, no crash reports, no account, no sync.</p>
+        <h3>Backups</h3>
+        <p>
+          Berea opts out of Android and iCloud backups on purpose, so your notes never sit on
+          someone else's server. The cost is that a lost or reset phone loses them unless you keep a
+          Berea backup: one file, encrypted with a passphrase only you know, saved wherever you
+          choose. Without the passphrase nobody can open it, including you.
+        </p>
+      </div>
+      <aside class="margin">
+        <p>Backup encryption: AES-256-GCM with a key derived from your passphrase (PBKDF2, 600,000 rounds). <a href="https://github.com/CalvinMagezi/berea/blob/main/lib/backup.dart">backup.dart</a></p>
+        <p>Android backup opt-out: <a href="https://github.com/CalvinMagezi/berea/blob/main/android/app/src/main/res/xml/data_extraction_rules.xml">data_extraction_rules.xml</a></p>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<section class="reading" aria-labelledby="models-title">
+  <h2 id="models-title">Which model runs</h2>
+  <div class="column">
+    <div>
+      <p>
+        Berea reads how much memory your device has and recommends a model. A larger model writes
+        better answers; the checks are the same for all of them.
+      </p>
+      <table class="library">
+        <thead><tr><th scope="col">Model</th><th scope="col">Size</th><th scope="col">Recommended for</th></tr></thead>
+        <tbody>
+          <tr><td>Gemma 4 E2B</td><td>2.6 GB</td><td>Most phones, 5 to 10 GB of memory</td></tr>
+          <tr><td>Gemma 4 E4B</td><td>4.3 GB</td><td>Phones and computers with 10 GB or more</td></tr>
+          <tr><td>Gemma 3 1B</td><td>0.5 GB</td><td>Phones with less memory (needs a free Hugging Face token)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <aside class="margin">
+      <p>On a phone's processor alone, a first answer takes about a minute on a mid-range device; a phone's graphics chip is much faster. These numbers come from an emulator and will be updated from real devices.</p>
+    </aside>
+  </div>
+</section>
+
+<section id="try" class="reading" aria-labelledby="try-title">
+  <h2 id="try-title">Try it</h2>
+  <div class="column">
+    <div>
+      <h3>Android</h3>
+      <ol class="plain">
+        <li>On a 64-bit Android phone running Android 11 or later, open this page and tap
+          <a href="https://github.com/CalvinMagezi/berea/releases/download/v0.2.0/berea-0.2.0-android-arm64.apk">Download for Android</a>.</li>
+        <li>Open the downloaded file. Android will ask you to allow installs from your browser;
+          allow it for this install.</li>
+        <li>Open Berea, tap the settings icon, and tap Download to fetch the model (2.6 GB, best on
+          Wi-Fi). From then on it works offline.</li>
+      </ol>
+      <p class="small">Berea is not on Google Play yet. The download above is signed by the
+        project, and later versions will install over it.</p>
+      <h3>iPhone, Mac, Windows and Linux</h3>
+      <p>
+        These build from the source today. The <a href="https://github.com/CalvinMagezi/berea#build-and-run">build guide</a>
+        takes a few commands with Flutter installed. Store releases will follow.
+      </p>
+    </div>
+    <aside class="margin">
+      <p>Found a wrong answer, or something that is not checked? <a href="https://github.com/CalvinMagezi/berea/issues">Open an issue</a>. Questions that trip the model become new test cases.</p>
+    </aside>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <p>Berea is free software under the MIT licence. Bible text and study data come from the
+    sources named above, with thanks to STEPBible, OpenBible.info and eBible.org.</p>
+  <p>This page has no analytics, cookies or third-party requests.</p>
+</footer>
+</body>
+</html>

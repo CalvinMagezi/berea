@@ -7,6 +7,9 @@ before you see it. Nothing is sent anywhere.
 Named for Acts 17:11: the Bereans "received the message with great eagerness and examined the
 Scriptures every day to see if these teachings were true."
 
+Try it on Android: [download the latest APK](https://github.com/CalvinMagezi/berea/releases/latest).
+How it works, in plain language: [calvinmagezi.github.io/berea](https://calvinmagezi.github.io/berea/).
+
 <p align="center">
   <img src="docs/screenshots/home-android.png" width="180" alt="Study tab with the verse of the day and today's reading">
   <img src="docs/screenshots/study-android.png" width="180" alt="A grounded answer about John 3:16">
@@ -212,6 +215,8 @@ packages/harness/
   bin/retrieval_check.dart  topical retrieval check, no model needed
   eval/golden.json     questions with expected references and adversarial bait
 tool/release.sh        local release
+tool/build_site.sh     builds the public site from site/ into build/site
+site/                  the public page, deployed to GitHub Pages
 prompts/system.md      the system prompt (grounding rules first, then the study guide)
 prompts/gem-original.md the Gemini gem this started from
 docs/screenshots/
