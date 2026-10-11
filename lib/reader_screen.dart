@@ -9,6 +9,10 @@ import 'study_page_screen.dart';
 import 'search_screen.dart';
 import 'theme.dart';
 
+/// Where a jumped-to verse lands: a little below the top so the one before is visible.
+const verseJumpAlignment = 0.08;
+const maxVerseJumpAttempts = 3;
+
 /// Wide enough to set two translations side by side instead of stacked.
 const parallelSideBySideWidth = 560.0;
 
@@ -55,19 +59,30 @@ class _ReaderScreenState extends State<ReaderScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(target));
   }
 
-  /// Item heights vary, so this estimates from the average and lands close to the verse.
-  void _scrollToVerse(int verse) {
+  /// Keys for the verses currently built, so a jump can align to the real widget.
+  final _verseKeys = <int, GlobalKey>{};
+
+  /// Item heights vary and the list builds lazily, so this jumps to an estimate first (which
+  /// builds the verse) and then aligns exactly once the verse's widget exists.
+  void _scrollToVerse(int verse, [int attempt = 0]) {
     if (!_scroll.hasClients) return;
+    final ctx = _verseKeys[verse]?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx, alignment: verseJumpAlignment);
+      return;
+    }
+    if (attempt >= maxVerseJumpAttempts) return;
     final count = s.db.passage(Ref(book, chapter), translation: s.settings.translation).length;
     if (count < 2) return;
     final pos = _scroll.position;
     final perVerse = (pos.maxScrollExtent + pos.viewportDimension) / count;
-    final lead = pos.viewportDimension * 0.15;
-    _scroll.jumpTo(((verse - 1) * perVerse - lead).clamp(0, pos.maxScrollExtent));
+    _scroll.jumpTo(((verse - 1) * perVerse).clamp(0, pos.maxScrollExtent));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(verse, attempt + 1));
   }
 
   void _go(Book b, int c) {
     _selected.clear();
+    _verseKeys.clear();
     if (_scroll.hasClients) _scroll.jumpTo(0);
     s.setReader(b, c);
   }
@@ -169,6 +184,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     final on = _selected.contains(v.verse);
                     final other = second[v.verse];
                     return InkWell(
+                      key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
                       onTap: () =>
                           setState(() => on ? _selected.remove(v.verse) : _selected.add(v.verse)),
                       onLongPress: () => showInterlinear(context, s, Ref(book, chapter, v.verse)),

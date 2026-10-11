@@ -8,10 +8,15 @@ Named for Acts 17:11: the Bereans "received the message with great eagerness and
 Scriptures every day to see if these teachings were true."
 
 <p align="center">
-  <img src="docs/screenshots/study-android.png" width="180" alt="Study tab answering a question about John 3:16">
-  <img src="docs/screenshots/bible-android.png" width="180" alt="Bible reader with a highlight and a note">
-  <img src="docs/screenshots/quick-chat-android.png" width="180" alt="Quick chat sheet over the reader">
-  <img src="docs/screenshots/notes-android.png" width="180" alt="Notes tab with a saved study and a note">
+  <img src="docs/screenshots/home-android.png" width="180" alt="Study tab with the verse of the day and today's reading">
+  <img src="docs/screenshots/study-android.png" width="180" alt="A grounded answer about John 3:16">
+  <img src="docs/screenshots/parallel-android.png" width="180" alt="Reader with a parallel translation">
+  <img src="docs/screenshots/interlinear-android.png" width="180" alt="Greek words of John 3:18 with glosses">
+</p>
+<p align="center">
+  <img src="docs/screenshots/study-page-android.png" width="180" alt="A study page drafted on device">
+  <img src="docs/screenshots/plan-android.png" width="180" alt="New Testament in 90 days reading plan">
+  <img src="docs/screenshots/notes-android.png" width="180" alt="Notes tab with saved studies and a note">
   <img src="docs/screenshots/study-ios.png" width="180" alt="Study tab on iOS">
 </p>
 
@@ -33,13 +38,26 @@ questions, in the voice of the "Bible Study Guide" prompt in `prompts/system.md`
 reference is verified against the local Bible and shown as a chip that opens the passage.
 Unverified references or quotes are called out in red. Every study is saved and can be reopened.
 
-**Bible.** An offline reader with the Berean Standard Bible and the King James Version built in.
-Pick any book and chapter, switch translation, select verses to ask Berea about them, add a note
-or highlight them. Import a translation you own as a CSV; it stays on your device.
+**Bible.** An offline reader with the Berean Standard Bible, the King James Version and the World
+English Bible built in. Search the whole Bible or type a reference to jump to it. Show a second
+translation beside or below the text. Select verses to ask Berea about them, write a note, make a
+study page or highlight them. Long-press a verse for its Hebrew or Greek words with
+transliteration, gloss and lexicon entry. Import a translation you own (CSV, USFM, OSIS, Zefania
+or a zip); it stays on your device.
 
-**Notes.** Saved studies, notes and highlights in one searchable place.
+**Plans.** Bible in a year, New Testament in 90 days, the Gospels in 30, Psalms and Proverbs in
+60. Today's reading and a verse of the day sit on the Study tab.
 
-**Quick chat.** A chat button on every tab opens the same study in a sheet.
+**Study pages.** Observation, interpretation and application for a passage, drafted by Berea from
+the retrieved Scripture, lexicon and cross references, then edited and kept by you.
+
+**Notes.** Saved studies, study pages, notes and highlights in one searchable place. Export a study
+or everything to Markdown.
+
+**Backup.** One encrypted file (AES-256-GCM, key from your passphrase) that you keep wherever you
+like. Restore checks the file before it replaces anything.
+
+**Quick chat.** A chat button on every tab opens the same study.
 
 ## How it works
 
@@ -63,15 +81,18 @@ Each turn runs a fixed pipeline, not a free agent loop:
 1. **RefParser** finds references in the question ("John 3:16", "Jn 3.16-18", "1 Cor 13",
    "II Timothy 3:16") and fetches those passages verbatim.
 2. **Retriever** adds the tagged Hebrew or Greek words of the primary passage, the lexicon entries
-   for their Strong's numbers, the top cross references by vote, and an FTS5 search over the
-   whole Bible for the question's terms.
+   for their Strong's numbers, the top cross references by vote, and a stemmed FTS5 search over
+   the whole Bible for the question's terms. A topical question with no reference follows the
+   cross-reference graph from its search hits to the passages most of them point to.
 3. **PromptBuilder** assembles a static system prompt (so the on-device prefix cache hits) and
    PASSAGES, LEXICON, WORDS, CROSS REFERENCES and RELATED VERSES blocks trimmed to the model tier's
    token budget, then the last two turns and the question.
 4. **LlmEngine** streams the answer from LiteRT-LM or Ollama.
-5. **CitationGuard** re-parses every reference in the answer and looks it up. Unknown references
-   become `[unverified: ...]`. Quoted phrases of 30+ characters that do not appear verbatim in any
-   passage the model was shown are marked `[unverified quote]`.
+5. **CitationGuard** re-parses every reference in the answer and looks it up. Unknown chapters and
+   verses, and citations of books that do not exist, become `[unverified: ...]`. A quoted phrase
+   of 30+ characters that is not verbatim in any passage the model was shown is replaced with the
+   exact words when one shown verse is clearly its source (`[quote corrected]`), and otherwise
+   marked `[unverified quote]`.
 
 ### Model tiers
 
@@ -91,10 +112,14 @@ gated. Gemma 3 1B needs a Hugging Face token after accepting its licence.
 cd packages/harness && dart run bin/eval.dart --tier mid --model gemma4:e2b
 ```
 
-Runs 25 golden questions through the harness against Ollama and reports invented references,
-expected reference coverage and unverified quotes. A release needs zero invented references.
-Last run on gemma4:e2b: 0 invented, 21 of 21 expected references covered, 2 flagged quotes
-(paraphrases).
+Runs 40 golden questions through the harness against Ollama, 8 of them adversarial (a chapter or
+book that does not exist, Psalm 151, popular sayings that are not in the Bible), and reports
+invented references, expected reference coverage, unverified quotes and misattributed sayings. A
+release needs zero invented references and zero misattributions. Last run on gemma4:e2b: 0
+invented, 28 of 28 expected references, 0 misattributed, 8 of 8 adversarial.
+
+`dart run bin/retrieval_check.dart` checks topical retrieval without a model: 7 of 8 topical
+questions put a well-known passage on the topic in front of the model.
 
 ## Data
 
@@ -102,19 +127,25 @@ Last run on gemma4:e2b: 0 invented, 21 of 21 expected references covered, 2 flag
 |---------|---------|------|
 | Berean Standard Bible | Public domain (CC0) | Default translation |
 | King James Version | Public domain | Second translation |
+| World English Bible | Public domain | Third translation, from the ebible.org USFM |
 | STEPBible TAHOT and TAGNT | CC BY 4.0 | Every Hebrew and Greek word with transliteration, gloss, Strong's number and morphology |
 | STEPBible TBESH and TBESG | CC BY 4.0 | Hebrew and Greek lexicon keyed by Strong's |
 | OpenBible.info cross references | CC BY | Cross references ranked by votes |
 
-`packages/harness/bin/build_db.dart` downloads these and writes `assets/berea.sqlite` (about 60 MB:
-62k verses, 447k tagged words, 21k lexicon entries, 345k cross references). The file is built,
-not committed.
+| STEPBible TFLSJ | CC BY 4.0 | Optional full Greek lexicon pack (about 9 MB), downloaded only on request |
 
-Copyrighted translations such as the NIV and NLT are not bundled. Import one you own from a
-`Book,Chapter,Verse,Text` CSV through the engine settings. The copy is kept under the app's
-support folder, re-imported after a database rebuild, and never leaves the device.
+`packages/harness/bin/build_db.dart` downloads these and writes `assets/berea.sqlite` (about 67 MB:
+93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k cross references,
+366 daily verses) and a small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
+the optional lexicon pack, which is published with each release. None of these are committed.
 
-User data lives in `study.sqlite` next to the Bible database.
+Copyrighted translations such as the NIV and NLT are not bundled. Import one you own through the
+engine settings from CSV (`Book,Chapter,Verse,Text`), USFM, OSIS, Zefania XML or a zip of those.
+A normalised copy is kept under the app's support folder, re-imported after a database rebuild,
+and never leaves the device.
+
+User data (notes, highlights, saved studies, study pages and plan progress) lives in
+`study.sqlite` next to the Bible database.
 
 ## Build and run
 
@@ -143,26 +174,44 @@ Tests:
 cd packages/harness && dart test && cd ../.. && flutter test
 ```
 
+Release (builds the data, runs every check and the eval, builds Android and macOS, tags):
+
+```bash
+tool/release.sh 0.2.0
+```
+
+Android release signing reads `android/key.properties`; see `android/key.properties.example`.
+
 ## Project layout
 
 ```
 lib/
   main.dart            boots the app
   home_shell.dart      Study, Bible and Notes tabs, quick chat sheet
-  chat_screen.dart     streamed answers, citation chips, engine notice
-  reader_screen.dart   offline reader, selection bar, chapter picker
-  notes_screen.dart    saved studies and notes
-  app_state.dart       settings, engines, study persistence, reader position
+  chat_screen.dart     streamed answers, citation chips, verse of the day, today's reading
+  reader_screen.dart   offline reader, parallel text, selection bar, chapter picker
+  search_screen.dart   full-text Bible search
+  interlinear_sheet.dart  Hebrew and Greek words with lexicon entries
+  study_page_screen.dart  observation, interpretation, application
+  plans.dart, plans_screen.dart  reading plans
+  notes_screen.dart    saved studies, study pages and notes
+  export.dart          Markdown export
+  backup.dart          encrypted backup and restore
+  device.dart          device memory for the model recommendation
+  app_state.dart       settings, engines, persistence, reader position
   edge_engine.dart     LiteRT-LM engine via flutter_edge_ai
-  models.dart          on-device model catalog
-  study_store.dart     local SQLite for notes, highlights and saved studies
+  models.dart          on-device model catalog and recommendation
+  study_store.dart     local SQLite for everything the user writes
   theme.dart           colour tokens, parchment and ink with a lamp-gold accent
 packages/harness/
-  lib/src/             RefParser, BibleDb, Retriever, PromptBuilder, CitationGuard, engines
+  lib/src/             RefParser, BibleDb, Retriever, PromptBuilder, CitationGuard, importers, engines
   bin/build_db.dart    builds assets/berea.sqlite from the datasets above
+  bin/build_lexicon_pack.dart  builds the optional LSJ pack
   bin/berea.dart       CLI chat against Ollama
   bin/eval.dart        golden eval
-  eval/golden.json     questions with expected references
+  bin/retrieval_check.dart  topical retrieval check, no model needed
+  eval/golden.json     questions with expected references and adversarial bait
+tool/release.sh        local release
 prompts/system.md      the system prompt (grounding rules first, then the study guide)
 prompts/gem-original.md the Gemini gem this started from
 docs/screenshots/
@@ -178,34 +227,33 @@ docs/screenshots/
   on it before `main` runs.
 - **macOS**: the Podfile `post_install` stages the LiteRT-LM companion dylibs into the app so the
   on-device engine can load; Ollama is the default engine.
+- **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time; GPU on
+  Linux needs a vendor Vulkan driver.
+- A small method channel reports device memory so the settings can recommend a model.
 - Debug builds read `BEREA_AUTORUN` or `autorun.txt` in the app's documents folder and run that
   question on launch, so a headless simulator or emulator can exercise the on-device path.
 
 ## Privacy
 
-Berea makes no network request on its own. The model download goes to huggingface.co when you tap
-Download. The Ollama engine talks to the URL you configure, `localhost` by default. There is no
-telemetry, no account, and no cloud copy of anything you write. Deleting the app deletes the data.
+Berea makes no network request on its own. The model download goes to huggingface.co, and the
+optional lexicon pack to github.com, only when you tap Download. The Ollama engine talks to the URL
+you configure, `localhost` by default. There is no telemetry, no account, and no cloud copy of
+anything you write. Backups are files you choose where to keep. Deleting the app deletes the
+data.
 
 ## Roadmap
 
 Everything below keeps the core: zero data, fully offline, fully private.
 
-- **Grounding**: replace flagged quotes with the verbatim verse instead of marking them; one
-  optional tool round for strong models (`lookup_passage`, `search_bible`, `search_lexicon`);
-  keep one LiteRT-LM conversation open across turns so the system prompt is prefilled once.
-- **Reader**: search the Bible from the Bible tab (the FTS5 index already exists); parallel
-  translations side by side; tap a word to see its Hebrew or Greek, gloss and lexicon entry;
-  reading plans stored locally.
-- **Data**: World English Bible and other public domain translations via a USFM importer; OSIS and
-  Zefania import for translations the user owns; a small non-gated low-tier model once a community
-  export works in LiteRT-LM.
-- **Study**: export a study or all notes to Markdown; encrypted local backup file the user keeps
-  themselves; on-device embeddings (EmbeddingGemma) for semantic search over notes and studies.
-- **Platforms**: Windows and Linux desktop through the same LiteRT-LM engine; real-device
-  performance numbers for GPU backends; a model picker that reads device memory.
+- Real-device performance numbers for GPU backends on Android and iPhone.
+- Keep one on-device conversation open across turns, if a real GPU phone shows a net win (the
+  emulator did not; see `TECHDEBT.md`).
+- On-device embeddings for semantic search, if the retrieval check falls short.
+- Hebrew lexicon depth comparable to the optional Greek LSJ pack, when an openly licensed source
+  exists.
+- Store releases (TestFlight, Play) once signing keys are in place.
 
-Open items with reasons are tracked in `TECHDEBT.md`.
+Open items with reasons are tracked in `TECHDEBT.md`. Changes are in `CHANGELOG.md`.
 
 ## Contributing
 
