@@ -216,7 +216,7 @@
       if (on && !started) { started = true; go(1); return; }
       if (on && autoplay) go(step);
       if (!on) go(step, false);
-    }, 0.35);
+    }, 0.15);
   }
 
   function deviceMap() {
