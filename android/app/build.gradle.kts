@@ -30,8 +30,9 @@ android {
 
     defaultConfig {
         applicationId = "com.magezi.berea"
-        // LiteRT-LM needs API 30 and ships arm64 only.
+        // LiteRT-LM needs API 30 and ships arm64 only, so the app installs only where it can run.
         minSdk = 30
+        ndk { abiFilters += listOf("arm64-v8a") }
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
