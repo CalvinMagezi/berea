@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'export.dart';
 import 'note_dialog.dart';
 import 'theme.dart';
 
@@ -49,6 +50,17 @@ class _NotesScreenState extends State<NotesScreen> {
           'Notes',
           style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 24),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Export all as Markdown',
+            icon: const Icon(Icons.ios_share),
+            onPressed: () => saveMarkdown(
+              'berea-notes.md',
+              allNotesMarkdown(s.study, s.db, s.settings.translation),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(

@@ -2,12 +2,20 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
+import 'search_screen.dart';
 import 'theme.dart';
+
+/// Wide enough to set two translations side by side instead of stacked.
+const parallelSideBySideWidth = 560.0;
 
 class ReaderScreen extends StatefulWidget {
   final AppState state;
-  const ReaderScreen({super.key, required this.state});
+
+  /// Opens the quick chat; shown in the chapter bar so it never covers the reader's buttons.
+  final VoidCallback? onQuickChat;
+  const ReaderScreen({super.key, required this.state, this.onQuickChat});
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -34,12 +42,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
     super.dispose();
   }
 
-  void _refresh() => setState(() {});
+  void _refresh() {
+    setState(() {});
+    final target = s.readerTargetVerse;
+    if (target == null) return;
+    s.readerTargetVerse = null;
+    _selected
+      ..clear()
+      ..add(target);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(target));
+  }
+
+  /// Item heights vary, so this estimates from the average and lands close to the verse.
+  void _scrollToVerse(int verse) {
+    if (!_scroll.hasClients) return;
+    final count = s.db.passage(Ref(book, chapter), translation: s.settings.translation).length;
+    if (count < 2) return;
+    final pos = _scroll.position;
+    final perVerse = (pos.maxScrollExtent + pos.viewportDimension) / count;
+    final lead = pos.viewportDimension * 0.15;
+    _scroll.jumpTo(((verse - 1) * perVerse - lead).clamp(0, pos.maxScrollExtent));
+  }
 
   void _go(Book b, int c) {
     _selected.clear();
-    s.setReader(b, c);
     if (_scroll.hasClients) _scroll.jumpTo(0);
+    s.setReader(b, c);
   }
 
   Ref get _selection {
@@ -60,6 +88,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final scheme = Theme.of(context).colorScheme;
     final translation = s.settings.translation;
     final verses = s.db.passage(Ref(book, chapter), translation: translation);
+    final parallel = s.parallelTranslation;
+    final second = parallel == null || parallel == translation
+        ? const <int, String>{}
+        : {
+            for (final v in s.db.passage(Ref(book, chapter), translation: parallel))
+              v.verse: v.text,
+          };
     final chapters = s.db.chapterCount(book, translation: translation);
     final highlights = s.study.highlights(book, chapter);
     final noted = {
@@ -76,6 +111,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Search',
+            icon: const Icon(Icons.search),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => SearchScreen(state: s)),
+            ),
+          ),
+          PopupMenuButton<String?>(
+            tooltip: 'Parallel translation',
+            icon: Icon(parallel == null ? Icons.view_agenda_outlined : Icons.view_agenda),
+            onSelected: (t) => s.setParallel(t == '' ? null : t),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: '', child: Text('No parallel')),
+              for (final t in s.db.translations())
+                if (t != translation) PopupMenuItem(value: t, child: Text('Parallel $t')),
+            ],
+          ),
           DropdownButton<String>(
             value: translation,
             underline: const SizedBox.shrink(),
@@ -104,9 +157,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   itemBuilder: (_, i) {
                     final v = verses[i];
                     final on = _selected.contains(v.verse);
+                    final other = second[v.verse];
                     return InkWell(
                       onTap: () =>
                           setState(() => on ? _selected.remove(v.verse) : _selected.add(v.verse)),
+                      onLongPress: () => showInterlinear(context, s, Ref(book, chapter, v.verse)),
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -118,32 +173,36 @@ class _ReaderScreenState extends State<ReaderScreen> {
                               ? Border(left: BorderSide(color: scheme.primary, width: 3))
                               : null,
                         ),
-                        child: Text.rich(
-                          TextSpan(
-                            style: scriptureStyle(context).copyWith(fontSize: 18, height: 1.6),
-                            children: [
-                              TextSpan(
-                                text: '${v.verse} ',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: scheme.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              TextSpan(text: v.text),
-                              if (noted.contains(v.verse))
-                                WidgetSpan(
-                                  alignment: PlaceholderAlignment.middle,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(left: 6),
-                                    child: Icon(
-                                      Icons.sticky_note_2_outlined,
-                                      size: 14,
-                                      color: scheme.onSurfaceVariant,
-                                    ),
+                        child: _ParallelRow(
+                          other: other,
+                          otherLabel: parallel,
+                          primary: Text.rich(
+                            TextSpan(
+                              style: scriptureStyle(context).copyWith(fontSize: 18, height: 1.6),
+                              children: [
+                                TextSpan(
+                                  text: '${v.verse} ',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: scheme.primary,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                            ],
+                                TextSpan(text: v.text),
+                                if (noted.contains(v.verse))
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.middle,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 6),
+                                      child: Icon(
+                                        Icons.sticky_note_2_outlined,
+                                        size: 14,
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -154,6 +213,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
       bottomNavigationBar: _selected.isEmpty
           ? _ChapterNav(
+              onQuickChat: widget.onQuickChat,
               canPrev: chapter > 1 || book.id > 1,
               canNext: chapter < chapters || book.id < books.length,
               onPrev: () =>
@@ -190,12 +250,54 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _goLastChapter(Book b) => _go(b, s.db.chapterCount(b, translation: s.settings.translation));
 }
 
+/// The primary verse with the parallel translation beside it on wide screens, below it on phones.
+class _ParallelRow extends StatelessWidget {
+  final Widget primary;
+  final String? other;
+  final String? otherLabel;
+  const _ParallelRow({required this.primary, this.other, this.otherLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = other;
+    if (text == null) return primary;
+    final scheme = Theme.of(context).colorScheme;
+    final secondary = Text(
+      text,
+      style: scriptureStyle(
+        context,
+      ).copyWith(fontSize: 16, height: 1.5, color: scheme.onSurfaceVariant),
+      semanticsLabel: '$otherLabel: $text',
+    );
+    return LayoutBuilder(
+      builder: (_, c) => c.maxWidth >= parallelSideBySideWidth
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: primary),
+                const SizedBox(width: 16),
+                Expanded(child: secondary),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                primary,
+                Padding(padding: const EdgeInsets.only(top: 4, left: 12), child: secondary),
+              ],
+            ),
+    );
+  }
+}
+
 class _ChapterNav extends StatelessWidget {
   final bool canPrev;
   final bool canNext;
   final VoidCallback onPrev;
   final VoidCallback onNext;
+  final VoidCallback? onQuickChat;
   const _ChapterNav({
+    this.onQuickChat,
     required this.canPrev,
     required this.canNext,
     required this.onPrev,
@@ -215,6 +317,12 @@ class _ChapterNav extends StatelessWidget {
               icon: const Icon(Icons.chevron_left),
               label: const Text('Previous'),
             ),
+            if (onQuickChat != null)
+              FilledButton.tonalIcon(
+                onPressed: onQuickChat,
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text('Ask'),
+              ),
             TextButton.icon(
               onPressed: canNext ? onNext : null,
               icon: const Icon(Icons.chevron_right),

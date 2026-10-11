@@ -4,6 +4,7 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'export.dart';
 import 'markdown_lite.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
@@ -95,6 +96,15 @@ class _ChatScreenState extends State<ChatScreen> {
             icon: const Icon(Icons.edit_note_outlined),
             onPressed: s.turns.isEmpty ? null : s.clear,
           ),
+          if (s.conversationId != null)
+            IconButton(
+              tooltip: 'Export study as Markdown',
+              icon: const Icon(Icons.ios_share),
+              onPressed: () => saveMarkdown(
+                'berea-study.md',
+                studyMarkdown(s.study, s.db, s.conversationId!, s.settings.translation),
+              ),
+            ),
           IconButton(
             tooltip: 'Settings',
             icon: const Icon(Icons.tune),

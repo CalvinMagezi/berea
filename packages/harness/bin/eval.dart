@@ -7,9 +7,15 @@ import 'package:berea_harness/berea_harness.dart';
 import 'berea.dart';
 
 /// Unverified citations that only repeat the question's own bait are correct behaviour.
+/// References compare as references, so "Psalms 151" matches the bait "Psalm 151".
 bool _isBait(String citation, List<String> bait) {
   final c = CitationGuard.normalize(citation);
-  return bait.any((b) => c.contains(CitationGuard.normalize(b)));
+  final cRefs = RefParser.parse(citation);
+  return bait.any((b) {
+    final bRefs = RefParser.parse(b);
+    if (cRefs.isNotEmpty && bRefs.isNotEmpty) return cRefs.any((r) => bRefs.any(r.overlaps));
+    return c.contains(CitationGuard.normalize(b));
+  });
 }
 
 final _negation = RegExp(
@@ -18,15 +24,15 @@ final _negation = RegExp(
 );
 
 /// A forbidden saying attributed to Scripture: it appears, without a denial, in the same sentence
-/// as a real verse.
-bool _misattributed(String text, List<String> forbid) {
+/// as a real verse. Returns that sentence.
+String? _misattributed(String text, List<String> forbid) {
   for (final sentence in text.split(RegExp(r'(?<=[.!?])\s+'))) {
     if (_negation.hasMatch(sentence)) continue;
     final s = CitationGuard.normalize(sentence);
     final hasRef = RefParser.parse(sentence).isNotEmpty;
-    if (hasRef && forbid.any((f) => s.contains(CitationGuard.normalize(f)))) return true;
+    if (hasRef && forbid.any((f) => s.contains(CitationGuard.normalize(f)))) return sentence;
   }
-  return false;
+  return null;
 }
 
 Future<void> main(List<String> args) async {
@@ -47,7 +53,8 @@ Future<void> main(List<String> args) async {
       ...r.guard.unverified.map((e) => e.label),
       ...r.guard.unknownBooks,
     ].where((x) => !_isBait(x, bait)).toList();
-    final misattr = forbid.isNotEmpty && _misattributed(r.text, forbid);
+    final misSentence = forbid.isEmpty ? null : _misattributed(r.text, forbid);
+    final misattr = misSentence != null;
     expected += want.length;
     covered += hit;
     invented += inventedHere.length;
@@ -61,7 +68,7 @@ Future<void> main(List<String> args) async {
     stdout.writeln(
       '${ok ? 'ok ' : 'MISS'} ${c['q']}  expect ${want.length} got $hit'
       '${inventedHere.isEmpty ? '' : '  invented: ${inventedHere.join(', ')}'}'
-      '${misattr ? '  misattributed' : ''}'
+      '${misattr ? '  misattributed: "${misSentence.trim()}"' : ''}'
       '${r.guard.unverifiedQuotes.isEmpty ? '' : '  bad quotes: ${r.guard.unverifiedQuotes.length}'}',
     );
   }

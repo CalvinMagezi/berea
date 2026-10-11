@@ -113,6 +113,12 @@ class AppState extends ChangeNotifier {
   int readerBook = 1;
   int readerChapter = 1;
 
+  /// Verse the reader should scroll to and mark once, then clear.
+  int? readerTargetVerse;
+
+  /// Second translation shown under or beside the first in the reader. Null when off.
+  String? parallelTranslation;
+
   DeviceModelState deviceState = DeviceModelState.notInstalled;
   int downloadProgress = 0;
   String? deviceError;
@@ -128,6 +134,7 @@ class AppState extends ChangeNotifier {
     s.settings = Settings.load(s.prefs);
     s.readerBook = s.prefs.getInt('readerBook') ?? 1;
     s.readerChapter = s.prefs.getInt('readerChapter') ?? 1;
+    s.parallelTranslation = s.prefs.getString('parallelTranslation');
     s._restoreImports();
     await s._rebuildHarness();
     if (kDebugMode) unawaited(s._autorun());
@@ -197,11 +204,20 @@ class AppState extends ChangeNotifier {
     return n;
   }
 
-  void setReader(Book book, int chapter) {
+  void setReader(Book book, int chapter, [int? verse]) {
     readerBook = book.id;
     readerChapter = chapter;
+    readerTargetVerse = verse;
     prefs.setInt('readerBook', book.id);
     prefs.setInt('readerChapter', chapter);
+    notifyListeners();
+  }
+
+  void setParallel(String? translation) {
+    parallelTranslation = translation;
+    translation == null
+        ? prefs.remove('parallelTranslation')
+        : prefs.setString('parallelTranslation', translation);
     notifyListeners();
   }
 
