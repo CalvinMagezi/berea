@@ -108,6 +108,12 @@ class _WordCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   SelectableText(e.definition, style: const TextStyle(height: 1.45)),
+                  if (s.db.fullLexicon(e.key) case final full?)
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('Full LSJ entry'),
+                      children: [SelectableText(full, style: const TextStyle(height: 1.45))],
+                    ),
                   const SizedBox(height: 12),
                 ],
               ],

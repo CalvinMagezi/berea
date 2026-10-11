@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:sqlite3/sqlite3.dart';
 
 import 'books.dart';
@@ -215,6 +217,41 @@ class BibleDb {
           r['morph'] as String,
         ),
     ];
+  }
+
+  bool _hasFullLexicon = false;
+
+  /// True once the optional full lexicon pack is attached.
+  bool get hasFullLexicon => _hasFullLexicon;
+
+  /// Attaches the optional LSJ pack built by `bin/build_lexicon_pack.dart`. Returns false when
+  /// the file is missing or not a pack.
+  bool attachFullLexicon(String path) {
+    if (_hasFullLexicon || !File(path).existsSync()) return _hasFullLexicon;
+    try {
+      db.execute('ATTACH DATABASE ? AS lsj', [path]);
+      db.select('SELECT 1 FROM lsj.lexicon_full LIMIT 1');
+      _hasFullLexicon = true;
+    } on SqliteException {
+      try {
+        db.execute('DETACH DATABASE lsj');
+      } on SqliteException {
+        // Never attached; nothing to undo.
+      }
+    }
+    return _hasFullLexicon;
+  }
+
+  /// The full LSJ entry for a Greek Strong's number, when the pack is attached.
+  String? fullLexicon(String strongs) {
+    if (!_hasFullLexicon) return null;
+    final base = strongs.replaceAll(RegExp(r'[A-Za-z]$'), '');
+    final rows = db.select(
+      'SELECT definition FROM lsj.lexicon_full WHERE key = ? OR base = ? '
+      'ORDER BY (key = ?) DESC LIMIT 1',
+      [strongs, base, strongs],
+    );
+    return rows.isEmpty ? null : rows.first['definition'] as String;
   }
 
   LexEntry? lexicon(String strongs) {

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:berea_harness/berea_harness.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -143,6 +145,23 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     );
   }
 
+  Future<void> _installLexicon(BuildContext context, {required bool fromFile}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    Uint8List? bytes;
+    if (fromFile) {
+      final picked = await FilePicker.pickFiles();
+      if (picked.isEmpty) return;
+      bytes = await picked.single.readAsBytes();
+    }
+    try {
+      await widget.state.installLexiconPack(bytes: bytes);
+      setState(() {});
+      messenger.showSnackBar(const SnackBar(content: Text('Full lexicon installed.')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Lexicon install failed: $e')));
+    }
+  }
+
   Future<void> _backup(BuildContext context) async {
     final pass = await _askPassphrase(context, confirm: true);
     if (pass == null || !context.mounted) return;
@@ -286,6 +305,36 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                   onPressed: () => _importTranslation(context),
                 ),
               ),
+              const Divider(height: 24),
+              Text('Full Greek lexicon', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
+              Text(
+                widget.state.db.hasFullLexicon
+                    ? 'Installed. Long-press a New Testament verse and tap a word to read it.'
+                    : 'Optional, about 9 MB: the complete Liddell-Scott-Jones entries for every '
+                          'Greek word in the New Testament (STEPBible, CC BY). Downloaded only if you '
+                          'ask, from the Berea releases on GitHub.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (!widget.state.db.hasFullLexicon)
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.download_outlined),
+                      label: const Text('Download'),
+                      onPressed: () => _installLexicon(context, fromFile: false),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.upload_file_outlined),
+                      label: const Text('From a file'),
+                      onPressed: () => _installLexicon(context, fromFile: true),
+                    ),
+                  ],
+                ),
               const Divider(height: 24),
               Text('Your data', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),

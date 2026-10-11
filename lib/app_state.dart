@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:berea_harness/berea_harness.dart';
+import 'package:http/http.dart' as http;
+import 'package:sqlite3/sqlite3.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -148,6 +150,7 @@ class AppState extends ChangeNotifier {
     s.readerChapter = s.prefs.getInt('readerChapter') ?? 1;
     s.parallelTranslation = s.prefs.getString('parallelTranslation');
     s._restoreImports();
+    s.db.attachFullLexicon(s.lexiconPackPath);
     await s._rebuildHarness();
     if (kDebugMode) unawaited(s._autorun());
     return s;
@@ -265,6 +268,29 @@ class AppState extends ChangeNotifier {
   List<Ref>? get todaysReading {
     final plan = activePlan;
     return plan == null ? null : planSchedule(plan)[planDay(plan) - 1];
+  }
+
+  /// The optional full Greek lexicon, published with each GitHub release of Berea.
+  static const lexiconPackUrl =
+      'https://github.com/CalvinMagezi/berea/releases/latest/download/lexicon-lsj.sqlite';
+
+  String get lexiconPackPath => '${supportDir.path}/lexicon-lsj.sqlite';
+
+  /// Downloads the pack only when the user asks, or installs one they picked from a file.
+  /// The file is checked by attaching it before it replaces anything.
+  Future<void> installLexiconPack({Uint8List? bytes}) async {
+    final data = bytes ?? (await http.get(Uri.parse(lexiconPackUrl))).bodyBytes;
+    final tmp = File('$lexiconPackPath.part')..writeAsBytesSync(data);
+    final probe = BibleDb(sqlite3.open(tmp.path));
+    final ok = probe.attachFullLexicon(tmp.path);
+    probe.close();
+    if (!ok) {
+      tmp.deleteSync();
+      throw const FormatException('That file is not a Berea lexicon pack.');
+    }
+    tmp.renameSync(lexiconPackPath);
+    db.attachFullLexicon(lexiconPackPath);
+    notifyListeners();
   }
 
   /// Imported translations as code to CSV, for backups.
