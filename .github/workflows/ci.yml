@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: sudo apt-get install -y libsqlite3-dev
+      - run: dart pub get
+        working-directory: packages/harness
+      - run: dart analyze --fatal-infos
+        working-directory: packages/harness
+      - run: dart test
+        working-directory: packages/harness
+
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: sudo apt-get install -y libsqlite3-dev
+      # The Bible database is built, not committed; tests do not open it.
+      - run: mkdir -p assets && touch assets/berea.sqlite
+      - run: flutter pub get
+      - run: flutter analyze --fatal-infos
+      - run: flutter test

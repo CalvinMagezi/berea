@@ -10,7 +10,10 @@ import 'theme.dart';
 
 class ChatScreen extends StatefulWidget {
   final AppState state;
-  const ChatScreen({super.key, required this.state});
+
+  /// Set when shown as the quick-chat sheet; adds a close button.
+  final VoidCallback? onClose;
+  const ChatScreen({super.key, required this.state, this.onClose});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -67,6 +70,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: widget.onClose == null,
         title: Row(
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
@@ -76,9 +80,12 @@ class _ChatScreenState extends State<ChatScreen> {
               style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 24),
             ),
             const SizedBox(width: 12),
-            Text(
-              '${s.engineLabel} · ${s.settings.tier.name} · ${s.settings.translation}',
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            Flexible(
+              child: Text(
+                '${s.engineLabel} · ${s.settings.tier.name} · ${s.settings.translation}',
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -93,6 +100,8 @@ class _ChatScreenState extends State<ChatScreen> {
             icon: const Icon(Icons.tune),
             onPressed: () => showSettingsSheet(context, s),
           ),
+          if (widget.onClose != null)
+            IconButton(tooltip: 'Close', icon: const Icon(Icons.close), onPressed: widget.onClose),
           const SizedBox(width: 8),
         ],
       ),

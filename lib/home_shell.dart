@@ -38,6 +38,28 @@ class _HomeShellState extends State<HomeShell> {
 
   void _select(HomeTab t) => setState(() => _tab = t);
 
+  /// The same study, same history, from any tab.
+  void _quickChat() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) => FractionallySizedBox(
+        heightFactor: 0.92,
+        child: ChatScreen(state: widget.state, onClose: () => Navigator.pop(ctx)),
+      ),
+    );
+  }
+
+  Widget? get _fab => _tab == HomeTab.study
+      ? null
+      : FloatingActionButton(
+          tooltip: 'Ask Berea',
+          onPressed: _quickChat,
+          child: const Icon(Icons.chat_bubble_outline),
+        );
+
   @override
   Widget build(BuildContext context) {
     final s = widget.state;
@@ -58,6 +80,7 @@ class _HomeShellState extends State<HomeShell> {
       builder: (context, c) {
         if (c.maxWidth >= wideLayoutBreakpoint) {
           return Scaffold(
+            floatingActionButton: _fab,
             body: Row(
               children: [
                 NavigationRail(
@@ -80,6 +103,7 @@ class _HomeShellState extends State<HomeShell> {
           );
         }
         return Scaffold(
+          floatingActionButton: _fab,
           body: body,
           bottomNavigationBar: NavigationBar(
             selectedIndex: _tab.index,

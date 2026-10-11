@@ -99,7 +99,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 )
               : ListView.builder(
                   controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
                   itemCount: verses.length,
                   itemBuilder: (_, i) {
                     final v = verses[i];
