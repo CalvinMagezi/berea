@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:berea_harness/berea_harness.dart';
 import 'package:http/http.dart' as http;
@@ -199,22 +200,43 @@ class AppState extends ChangeNotifier {
 
   Directory get importsDir => Directory('${supportDir.path}/imports')..createSync(recursive: true);
 
-  /// A rebuilt bundled database drops imported translations; the kept CSVs bring them back. A
-  /// copy that no longer imports is set aside so it cannot stop the app from starting.
+  /// Imported translations that could not be loaded, shown in settings.
+  final setAsideImports = <String>[];
+
+  /// A rebuilt bundled database drops imported translations; the kept CSVs bring them back. Codes
+  /// from older versions are normalised. A copy that no longer parses is set aside and reported,
+  /// so it cannot stop the app from starting.
   void _restoreImports() {
     final have = db.translations().toSet();
     for (final f in importsDir.listSync().whereType<File>()) {
       if (!f.path.endsWith('.csv')) continue;
-      final code = f.uri.pathSegments.last.replaceAll('.csv', '');
-      if (have.contains(code)) continue;
+      final stored = f.uri.pathSegments.last.replaceAll('.csv', '');
+      final code = normalizeImportCode(stored);
+      if (have.contains(code) && code == stored) continue;
       try {
-        validateImportCode(code);
-        db.importCsv(f.readAsStringSync(), code);
+        final csv = f.readAsStringSync();
+        if (!have.contains(code)) db.importCsv(csv, code);
+        if (code != stored) f.renameSync('${importsDir.path}/$code.csv');
+        have.add(code);
       } on Object catch (e) {
-        debugPrint('Setting aside imported translation $code: $e');
+        debugPrint('Setting aside imported translation $stored: $e');
+        setAsideImports.add(stored);
         f.renameSync('${f.path}.invalid');
       }
     }
+  }
+
+  /// A valid code for [raw]: capitals and digits, at most 8, never a built-in translation's code.
+  /// Older versions accepted any text.
+  String normalizeImportCode(String raw) {
+    var code = raw.toUpperCase().replaceAll(RegExp('[^A-Z0-9]'), '');
+    if (code.isEmpty) code = 'IMPORT';
+    if (code.length > translationCodeMax) code = code.substring(0, translationCodeMax);
+    if (db.bundledTranslations().contains(code)) {
+      code = 'MY$code';
+      if (code.length > translationCodeMax) code = code.substring(0, translationCodeMax);
+    }
+    return code;
   }
 
   /// Throws [FormatException] unless [code] is a valid name that does not replace a bundled
@@ -229,25 +251,26 @@ class AppState extends ChangeNotifier {
   }
 
   /// Imports a user-owned translation from CSV, USFM, OSIS, Zefania or a zip of those, and keeps
-  /// a normalised CSV copy so it survives database rebuilds. Parsing runs off the UI isolate.
-  /// Returns the verse count.
+  /// a normalised CSV copy so it survives database rebuilds. Parsing runs off the UI isolate, and
+  /// an existing copy is only replaced once the new one has imported. Returns the verse count.
   Future<int> importTranslation(List<({String name, Uint8List bytes})> files, String code) async {
     validateImportCode(code);
     final rows = await Isolate.run(
       () => [for (final f in files) ...parseBibleFile(f.name, f.bytes)],
     );
+    if (rows.isEmpty) throw const FormatException('No verses were found in those files.');
     final csv = toCsv([
       ['Book', 'Chapter', 'Verse', 'Text'],
       for (final r in rows) [r.book.name, '${r.chapter}', '${r.verse}', r.text],
     ]);
-    final copy = File('${importsDir.path}/$code.csv')..writeAsStringSync(csv);
+    final staged = File('${importsDir.path}/$code.csv.part')..writeAsStringSync(csv);
     try {
       final n = db.importRows(rows, code);
+      staged.renameSync('${importsDir.path}/$code.csv');
       notifyListeners();
       return n;
-    } catch (_) {
-      copy.deleteSync();
-      rethrow;
+    } finally {
+      if (staged.existsSync()) staged.deleteSync();
     }
   }
 
@@ -332,12 +355,31 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Streams the pack and stops past [maxLexiconPackBytes], so a wrong or hostile response can
+  /// never fill memory.
   static Future<Uint8List> _downloadLexiconPack() async {
-    final r = await http.get(Uri.parse(lexiconPackUrl)).timeout(lexiconDownloadTimeout);
-    if (r.statusCode != 200) {
-      throw HttpException('The lexicon download failed (HTTP ${r.statusCode}).');
+    final client = http.Client();
+    try {
+      final r = await client
+          .send(http.Request('GET', Uri.parse(lexiconPackUrl)))
+          .timeout(lexiconDownloadTimeout);
+      if (r.statusCode != 200) {
+        throw HttpException('The lexicon download failed (HTTP ${r.statusCode}).');
+      }
+      if ((r.contentLength ?? 0) > maxLexiconPackBytes) {
+        throw const FormatException('The lexicon download is too large.');
+      }
+      final out = BytesBuilder();
+      await for (final chunk in r.stream.timeout(lexiconDownloadTimeout)) {
+        out.add(chunk);
+        if (out.length > maxLexiconPackBytes) {
+          throw const FormatException('The lexicon download is too large.');
+        }
+      }
+      return out.takeBytes();
+    } finally {
+      client.close();
     }
-    return r.bodyBytes;
   }
 
   /// Imported translations as code to CSV, for backups.
@@ -350,25 +392,36 @@ class AppState extends ChangeNotifier {
   Future<Uint8List> backup(String passphrase) =>
       createBackup(study, importedTranslations, passphrase);
 
-  /// Decrypts first; only a backup that opened and checked out replaces the current data.
-  Future<void> restore(Uint8List bytes, String passphrase) async {
+  /// Decrypts and checks a backup without changing anything, so the user can confirm what it
+  /// holds. Throws [BackupException] or [FormatException] if it cannot be used.
+  Future<BackupContents> openBackup(Uint8List bytes, String passphrase) async {
     final contents = await readBackup(bytes, passphrase);
-    // Check everything before changing anything: the codes, every imported translation and
-    // every row. Only then replace the notes and studies and bring the translations in.
-    final imports = <String, List<VerseRow>>{};
-    for (final e in contents.imports.entries) {
-      validateImportCode(e.key);
-      final rows = parseCsvBible(e.value);
-      if (rows.isEmpty) throw FormatException('Imported translation ${e.key} is empty.');
-      imports[e.key] = rows;
-    }
     study.validateTables(contents.tables);
-    study.importTables(contents.tables);
-    for (final e in imports.entries) {
-      db.importRows(e.value, e.key);
-      File('${importsDir.path}/${e.key}.csv').writeAsStringSync(contents.imports[e.key]!);
+    return contents;
+  }
+
+  /// Applies a checked backup. Translations go in first and notes and studies last, so a late
+  /// failure leaves the old notes in place and is safe to retry. Returns the imported
+  /// translations that were skipped because they no longer parse.
+  List<String> applyBackup(BackupContents contents) {
+    final imports = <String, ({List<VerseRow> rows, String csv})>{};
+    final skipped = <String>[];
+    for (final e in contents.imports.entries) {
+      try {
+        final rows = parseCsvBible(e.value);
+        if (rows.isEmpty) throw const FormatException('empty');
+        imports[normalizeImportCode(e.key)] = (rows: rows, csv: e.value);
+      } on FormatException {
+        skipped.add(e.key);
+      }
     }
+    for (final e in imports.entries) {
+      db.importRows(e.value.rows, e.key);
+      File('${importsDir.path}/${e.key}.csv').writeAsStringSync(e.value.csv);
+    }
+    study.importTables(contents.tables);
     clear();
+    return skipped;
   }
 
   /// Asks the shell to show the Bible tab at [ref].

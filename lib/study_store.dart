@@ -269,16 +269,59 @@ class StudyStore {
       t: [for (final r in db.select('SELECT * FROM $t')) Map<String, Object?>.from(r)],
   };
 
-  /// Throws [FormatException] when a row has a column the table lacks or a book outside the 66.
+  /// What each column must hold for the readers in this class not to fail. Every listed column
+  /// is required; columns not listed (created) may be absent.
+  static const _columnTypes = <String, Map<String, Type>>{
+    'notes': {
+      'id': int,
+      'book': int,
+      'chapter': int,
+      'verse_start': int,
+      'verse_end': int,
+      'text': String,
+      'updated': int,
+    },
+    'highlights': {'book': int, 'chapter': int, 'verse': int},
+    'conversations': {'id': int, 'title': String, 'updated': int},
+    'messages': {'conversation_id': int, 'role': String, 'text': String, 'refs': String},
+    'plan_progress': {'plan_id': String, 'day': int},
+    'study_pages': {
+      'id': int,
+      'book': int,
+      'chapter': int,
+      'verse_start': int,
+      'verse_end': int,
+      'observation': String,
+      'interpretation': String,
+      'application': String,
+      'updated': int,
+    },
+  };
+
+  /// Throws [FormatException] when a row has a column the table lacks, a missing or mistyped
+  /// value, a book outside the 66, or saved references that are not a list.
   void validateTables(Map<String, List<Map<String, Object?>>> tables) {
     for (final t in userTables) {
       final columns = {for (final r in db.select('PRAGMA table_info($t)')) r['name'] as String};
+      final types = _columnTypes[t]!;
       for (final row in tables[t] ?? const <Map<String, Object?>>[]) {
         final unknown = row.keys.where((c) => !columns.contains(c));
         if (unknown.isNotEmpty) throw FormatException('unknown column ${unknown.first} in $t');
+        for (final e in types.entries) {
+          final v = row[e.key];
+          final ok = e.value == int ? v is int : v is String;
+          if (!ok) throw FormatException('$t.${e.key} must be ${e.value}, not $v');
+        }
         final book = row['book'];
-        if (columns.contains('book') && (book is! int || book < 1 || book > books.length)) {
+        if (book is int && (book < 1 || book > books.length)) {
           throw FormatException('bad book $book in $t');
+        }
+        if (t == 'messages') {
+          try {
+            if (jsonDecode(row['refs'] as String) is! List) throw const FormatException('');
+          } on FormatException {
+            throw const FormatException('messages.refs must be a JSON list');
+          }
         }
       }
     }

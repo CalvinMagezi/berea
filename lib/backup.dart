@@ -16,6 +16,9 @@ const backupVersion = 1;
 const pbkdf2Iterations = 600000;
 const _legacyMagic = 'BEREA-BACKUP-1';
 const _legacyIterations = 210000;
+
+/// The header is not authenticated, so a damaged or crafted count could otherwise hang the app.
+const maxPbkdf2Iterations = 10000000;
 const _saltBytes = 16;
 const _iterationBytes = 4;
 const _keyBits = 256;
@@ -93,7 +96,9 @@ Future<BackupContents> readBackup(Uint8List bytes, String passphrase) async {
     throw const BackupException('This is not a Berea backup file.');
   }
   final minimum = headerLength + _saltBytes + _cipher.nonceLength + _cipher.macAlgorithm.macLength;
-  if (bytes.length < minimum || iterations < _legacyIterations) {
+  if (bytes.length < minimum ||
+      iterations < _legacyIterations ||
+      iterations > maxPbkdf2Iterations) {
     throw const BackupException('The backup file is damaged.');
   }
   final salt = bytes.sublist(headerLength, headerLength + _saltBytes);

@@ -52,6 +52,14 @@ void main() {
       }),
       throwsFormatException,
     );
+    expect(
+      () => store.importTables({
+        'notes': [
+          {'id': 1, 'book': 1, 'chapter': 'one', 'verse_start': 1, 'verse_end': 1, 'text': null},
+        ],
+      }),
+      throwsFormatException,
+    );
     expect(store.notes().single.text, 'Keep me.');
   });
 
@@ -61,6 +69,13 @@ void main() {
       readBackup(Uint8List.fromList(bytes.sublist(0, 30)), 'correct horse'),
       throwsA(isA<BackupException>()),
     );
+  });
+
+  test('an absurd round count in the header is rejected without deriving a key', () async {
+    final bytes = await createBackup(StudyStore(sqlite3.openInMemory()), const {}, 'correct horse');
+    final header = 'BEREA-BACKUP-2\n'.length;
+    ByteData.sublistView(bytes).setUint32(header, 0xFFFFFFFF);
+    await expectLater(readBackup(bytes, 'correct horse'), throwsA(isA<BackupException>()));
   });
 
   test('a file that is not a backup is rejected', () async {

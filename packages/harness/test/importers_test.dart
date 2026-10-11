@@ -83,7 +83,14 @@ void main() {
         '\uFEFF\\id JHN\n\\c 1\n\\v 1 In the beginning\\f + note never closed\n'
         '\\v 2 He was with God.\n';
     final rows = parseUsfm(usfm);
-    expect(rows.map((r) => r.text), ['In the beginning', 'He was with God.']);
+    expect(rows.map((r) => r.text), ['In the beginning + note never closed', 'He was with God.']);
+  });
+
+  test('an unclosed note never deletes the verse text after it', () {
+    const usfm =
+        '\\id GEN\n\\c 1\n\\v 1 In the beginning \\f + \\ft note\n'
+        'God created the heavens and the earth.\n\\v 2 Now the earth was formless.\n';
+    expect(parseUsfm(usfm).first.text, endsWith('God created the heavens and the earth.'));
   });
 
   test('OSIS with odd ids and single-quoted attributes', () {

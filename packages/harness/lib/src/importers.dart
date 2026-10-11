@@ -29,12 +29,10 @@ List<VerseRow> parseCsvBible(String csv) {
   ];
 }
 
-/// A footnote or cross reference, closed by its marker before the next verse or chapter. An
-/// unclosed one stops at the next verse instead of eating the rest of the book.
-final _usfmNotes = RegExp(
-  r'\\(f|fe|x|ef|ex)\s(?:(?!\\[vc]\s).)*?(?:\\\1\*|(?=\\[vc]\s)|$)',
-  dotAll: true,
-);
+/// A footnote or cross reference closed by its own marker before the next verse or chapter. An
+/// unclosed opener is not matched, so its following text is kept rather than scripture deleted;
+/// the stray marker itself is removed with the other markers.
+final _usfmNotes = RegExp(r'\\(f|fe|x|ef|ex)\s(?:(?!\\[vc]\s).)*?\\\1\*', dotAll: true);
 final _usfmWord = RegExp(r'\\\+?w\s+([^|\\]*?)(?:\|[^\\]*?)?\\\+?w\*');
 final _usfmLineMarker = RegExp(r'^\\([a-z]+)(\d*)\b');
 final _usfmChapterVerse = RegExp(r'\\(c|v)\s+(\d+)(?:-\d+)?\s?');
@@ -274,7 +272,7 @@ Map<String, Uint8List> _readZip(Uint8List bytes) {
 
 /// Inflates at most [declared] bytes, so a lying header cannot expand without bound.
 Uint8List _inflate(Uint8List raw, int declared) {
-  final sink = BytesBuilder(copy: false);
+  final sink = BytesBuilder();
   final out = _CappedSink(sink, declared);
   final input = ZLibDecoder(raw: true).startChunkedConversion(out)..add(raw);
   input.close();

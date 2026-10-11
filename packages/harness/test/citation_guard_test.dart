@@ -66,6 +66,18 @@ void main() {
     expect(r.unverifiedQuotes.single, startsWith('For God so loved'));
   });
 
+  test('an attribution before the quote also blocks a wrong correction', () {
+    const output = 'John 3:17 says "For God so loved the world that He gave His only Son" today.';
+    final r = CitationGuard(db).apply(output, ctx);
+    expect(r.correctedQuotes, isEmpty);
+    expect(r.unverifiedQuotes, hasLength(1));
+  });
+
+  test('prose words before an invented book do not hide it', () {
+    const output = 'See Jasher 3:2. Compare Hezekiah 4:1. In Jasher 3:2 we read.';
+    expect(CitationGuard(db).apply(output, ctx).unknownBooks, hasLength(3));
+  });
+
   test('a quote of mostly small words is never rewritten', () {
     const output = 'He said "and the world that He was in and of the world" to them.';
     final r = CitationGuard(db).apply(output, ctx);

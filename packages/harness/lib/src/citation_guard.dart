@@ -232,6 +232,27 @@ class CitationGuard {
     'Gate',
   };
   static const _ordinals = {'First': '1', 'Second': '2', 'Third': '3'};
+  static const _leadingProse = {
+    'See',
+    'Cf',
+    'Compare',
+    'Also',
+    'Read',
+    'In',
+    'From',
+    'And',
+    'Or',
+    'The',
+    'By',
+    'On',
+    'At',
+    'To',
+    'About',
+    'Before',
+    'After',
+    'Since',
+    'Until',
+  };
   static final _spaces = RegExp(r'\s+');
 
   /// Shortest name that can be judged: shorter ones ("Is", "Gn", "Am") are abbreviations or
@@ -244,6 +265,11 @@ class CitationGuard {
   static String? _unknownBook(Match m) {
     var words = m[2]!.split(_spaces);
     var numeral = m[1] ?? '';
+    // Leading prose words ("See Jasher 3:2") are dropped and the rest judged; a name made of
+    // prose words, or with one anywhere after that, is not a citation.
+    while (words.length > 1 && _leadingProse.contains(words.first)) {
+      words = words.sublist(1);
+    }
     if (words.any(_notBooks.contains)) return null;
     final ordinal = _ordinals[words.first];
     if (ordinal != null && words.length > 1) {
@@ -324,8 +350,12 @@ class CitationGuard {
     for (final (start, end) in quoteSpans(withRefs)) {
       final quoted = withRefs.substring(start, end);
       if (quoted.length < minQuoteChars || shown.contains(normalize(quoted))) continue;
+      // The attribution is the nearest reference after the quote, else the nearest before it.
       final after = withRefs.substring(end, min(withRefs.length, end + quoteCitationWindow));
-      final citedAs = RefParser.matches(after).firstOrNull?.ref;
+      final beforeStart = max(0, start - 1 - quoteCitationWindow);
+      final before = withRefs.substring(beforeStart, max(beforeStart, start - 1));
+      final citedAs =
+          RefParser.matches(after).firstOrNull?.ref ?? RefParser.matches(before).lastOrNull?.ref;
       final fix = correctQuote(quoted, ctx.allVerses, citedAs: citedAs);
       if (fix != null) {
         corrected.add(quoted);

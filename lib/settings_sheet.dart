@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'backup.dart';
 import 'models.dart';
 
 const minPassphraseLength = 8;
@@ -43,6 +44,13 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   }
 
   void _refresh() => setState(() {});
+
+  /// Result of the last action, shown inside the dialog where it cannot be hidden.
+  String? _message;
+
+  void _say(String message) {
+    if (mounted) setState(() => _message = message);
+  }
 
   /// A translation the user owns: CSV, USFM book files, OSIS, Zefania, or a zip of those.
   /// Stays on this device.
@@ -83,13 +91,12 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       },
     );
     if (code == null || code.isEmpty || !context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final n = await widget.state.importTranslation(files, code);
       setState(() => draft = draft.copyWith(translation: code));
-      messenger.showSnackBar(SnackBar(content: Text('Imported $code: $n verses')));
+      _say('Imported $code: $n verses');
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Import failed: $e')));
+      _say('Import failed: $e');
     }
   }
 
@@ -147,7 +154,6 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   }
 
   Future<void> _installLexicon(BuildContext context, {required bool fromFile}) async {
-    final messenger = ScaffoldMessenger.of(context);
     Uint8List? bytes;
     if (fromFile) {
       final picked = await FilePicker.pickFiles();
@@ -157,23 +163,22 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     try {
       await widget.state.installLexiconPack(bytes: bytes);
       setState(() {});
-      messenger.showSnackBar(const SnackBar(content: Text('Full lexicon installed.')));
+      _say('Full lexicon installed.');
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Lexicon install failed: $e')));
+      _say('Lexicon install failed: $e');
     }
   }
 
   Future<void> _backup(BuildContext context) async {
     final pass = await _askPassphrase(context, confirm: true);
     if (pass == null || !context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
     final bytes = await widget.state.backup(pass);
     final saved = await FilePicker.saveFile(
       fileName: 'berea-backup.berea',
       bytes: bytes,
       type: FileType.any,
     );
-    if (saved != null) messenger.showSnackBar(const SnackBar(content: Text('Backup saved.')));
+    if (saved != null) _say('Backup saved.');
   }
 
   Future<void> _restore(BuildContext context) async {
@@ -183,14 +188,34 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     if (!context.mounted) return;
     final pass = await _askPassphrase(context, confirm: false);
     if (pass == null || !context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
+    _say('Checking the backup\u2026');
+    final BackupContents contents;
+    try {
+      contents = await widget.state.openBackup(bytes, pass);
+    } catch (e) {
+      _say('$e');
+      return;
+    }
+    if (!context.mounted) return;
+    String count(String t, String one, String many) {
+      final n = contents.tables[t]?.length ?? 0;
+      return '$n ${n == 1 ? one : many}';
+    }
+
+    final summary = [
+      count('notes', 'note', 'notes'),
+      count('conversations', 'saved study', 'saved studies'),
+      count('study_pages', 'study page', 'study pages'),
+      count('highlights', 'highlight', 'highlights'),
+      if (contents.imports.isNotEmpty) 'translations ${contents.imports.keys.join(', ')}',
+    ].join(', ');
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Replace your data?'),
-        content: const Text(
-          'Restoring replaces every note, study, plan and highlight on this device with the '
-          "backup's contents. This cannot be undone.",
+        content: Text(
+          'This backup holds $summary. Restoring replaces every note, study, plan and highlight '
+          'on this device with it. This cannot be undone.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
@@ -198,12 +223,20 @@ class _SettingsDialogState extends State<_SettingsDialog> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true) {
+      _say('Restore cancelled. Nothing changed.');
+      return;
+    }
     try {
-      await widget.state.restore(bytes, pass);
-      messenger.showSnackBar(const SnackBar(content: Text('Backup restored.')));
+      final skipped = widget.state.applyBackup(contents);
+      _say(
+        skipped.isEmpty
+            ? 'Backup restored.'
+            : 'Backup restored. These imported translations could not be read: '
+                  '${skipped.join(', ')}.',
+      );
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      _say('$e');
     }
   }
 
@@ -306,6 +339,12 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                   onPressed: () => _importTranslation(context),
                 ),
               ),
+              if (widget.state.setAsideImports.isNotEmpty)
+                Text(
+                  'Could not load imported translations: ${widget.state.setAsideImports.join(', ')}. '
+                  'Import them again from the original files.',
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.error),
+                ),
               const Divider(height: 24),
               Text('Full Greek lexicon', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),
@@ -362,6 +401,16 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                   ),
                 ],
               ),
+              if (_message != null)
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(_message!),
+                ),
             ],
           ),
         ),

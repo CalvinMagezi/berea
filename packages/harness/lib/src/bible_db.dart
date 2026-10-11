@@ -43,7 +43,8 @@ class XRef {
 const defaultTranslation = 'BSB';
 
 /// Translation codes are short uppercase identifiers; they also name files on disk.
-final translationCode = RegExp(r'^[A-Z0-9]{1,8}$');
+const translationCodeMax = 8;
+final translationCode = RegExp('^[A-Z0-9]{1,$translationCodeMax}\$');
 const maxPassageVerses = 40;
 
 class BibleDb {
