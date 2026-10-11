@@ -45,6 +45,20 @@ void main() {
     expect(r.text, output);
   });
 
+  test('flags citations of books that do not exist without touching prose', () {
+    const output =
+        'Compare 2 Hezekiah 4:1 and Jasher 3:2 with John 3:16. '
+        'In John 3:16 we read this. Verse 3:16 and At 3:30 are not citations. '
+        'See 1 John 4:8 and Song of Solomon 2:1.';
+    final r = CitationGuard(db).apply(output, ctx);
+    expect(r.unknownBooks, ['2 Hezekiah 4:1', 'Jasher 3:2']);
+    expect(r.inventedCount, 2 + r.unverified.length);
+    expect(r.text, contains('[unverified: 2 Hezekiah 4:1]'));
+    expect(r.text, contains('In John 3:16 we read'));
+    expect(r.text, contains('Verse 3:16 and At 3:30'));
+    expect(r.text, contains('Song of Solomon 2:1'));
+  });
+
   test('a range split into single verses still overlaps', () {
     final range = RefParser.parse('Philippians 4:6-7').first;
     expect(range.overlaps(RefParser.parse('Philippians 4:7').first), isTrue);

@@ -149,11 +149,17 @@ class AppState extends ChangeNotifier {
   }
 
   /// Copies the bundled database next to the app once. Length doubles as a version check.
+  /// The copy grows when the user imports a translation, so the bundled asset's length is kept
+  /// in a sidecar file and compared to that instead of the copy's own length.
   static Future<String> _ensureDb(Directory dir) async {
     final file = File('${dir.path}/berea.sqlite');
+    final stamp = File('${dir.path}/berea.sqlite.asset');
     final data = await rootBundle.load('assets/berea.sqlite');
-    if (!file.existsSync() || file.lengthSync() != data.lengthInBytes) {
+    final assetId = '${data.lengthInBytes}';
+    final current = stamp.existsSync() ? stamp.readAsStringSync() : null;
+    if (!file.existsSync() || current != assetId) {
       await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      await stamp.writeAsString(assetId);
     }
     return file.path;
   }
