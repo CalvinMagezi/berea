@@ -30,9 +30,8 @@ android {
 
     defaultConfig {
         applicationId = "com.magezi.berea"
-        // LiteRT-LM needs API 30 and ships arm64 only, so the app installs only where it can run.
+        // LiteRT-LM needs API 30 and ships arm64 only.
         minSdk = 30
-        ndk { abiFilters += listOf("arm64-v8a") }
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -46,6 +45,14 @@ android {
                 keyAlias = keyProperties.getProperty("keyAlias")
                 keyPassword = keyProperties.getProperty("keyPassword")
             }
+        }
+    }
+
+    // Ship arm64 only, so the app installs only on phones where the on-device engine can run.
+    // Some plugins bundle 32-bit and x86 libraries that ndk.abiFilters does not remove.
+    packaging {
+        jniLibs {
+            excludes += listOf("lib/armeabi-v7a/**", "lib/armeabi/**", "lib/x86/**", "lib/x86_64/**")
         }
     }
 
