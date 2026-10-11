@@ -12,15 +12,35 @@
   const SAMPLE_LOOP_MS = 9000;
   const COUNT_MS = 900;
   const LAST_STEP = 5;
+  const MOTION_KEY = 'berea-motion-off';
 
+  const html = document.documentElement;
+  html.classList.add('motion');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // One page-wide switch for every looping animation, remembered for this browser only.
+  const motion = {
+    off: reduced,
+    listeners: [],
+    set(off) {
+      this.off = off;
+      html.classList.toggle('motion-off', off);
+      try { localStorage.setItem(MOTION_KEY, off ? '1' : '0'); } catch { /* storage may be blocked */ }
+      this.listeners.forEach((fn) => fn(off));
+    },
+    onChange(fn) { this.listeners.push(fn); },
+  };
+  if (!reduced) {
+    try { motion.off = localStorage.getItem(MOTION_KEY) === '1'; } catch { /* storage may be blocked */ }
+    html.classList.toggle('motion-off', motion.off);
+  }
+
   // Runs onChange(true/false) as the element enters and leaves the viewport.
-  const watch = (el, onChange, threshold = 0.25) => {
+  const watch = (el, onChange, threshold = 0.25, rootMargin = '0px') => {
     if (!el) return;
     new IntersectionObserver(
       (entries) => entries.forEach((e) => onChange(e.isIntersecting)),
-      { threshold },
+      { threshold, rootMargin },
     ).observe(el);
   };
 
@@ -34,6 +54,17 @@
       clear() { ids.forEach(clearTimeout); ids.clear(); },
     };
   };
+
+  function motionToggles() {
+    const buttons = [...document.querySelectorAll('[data-motion-toggle]')];
+    if (reduced) return;
+    const label = () => buttons.forEach((b) => { b.textContent = motion.off ? 'Play motion' : 'Pause motion'; });
+    buttons.forEach((b) => {
+      b.hidden = false;
+      b.addEventListener('click', () => { motion.set(!motion.off); label(); });
+    });
+    label();
+  }
 
   function menu() {
     const details = document.querySelector('.menu');
@@ -52,6 +83,7 @@
     const gloss = root.querySelector('[data-focus="gloss"]');
     const t = timers();
     let i = words.findIndex((w) => w.classList.contains('is-on'));
+    let inView = false;
     let running = false;
 
     const holdFor = (w) => {
@@ -67,24 +99,26 @@
       focus.classList.add('is-changing');
     };
     const tick = () => {
-      if (!running) return;
       i = (i + 1) % words.length;
       show(words[i]);
       t.later(tick, holdFor(words[i]));
     };
-    const setRunning = (on) => {
-      if (on === running) return;
-      running = on;
+    const sync = () => {
+      const should = inView && !document.hidden && !motion.off;
+      if (should === running) return;
+      running = should;
       t.clear();
-      if (on) t.later(tick, holdFor(words[i]));
+      if (should) t.later(tick, holdFor(words[i]));
     };
-    watch(root, setRunning, 0.2);
-    document.addEventListener('visibilitychange', () => setRunning(!document.hidden && root.getBoundingClientRect().top < innerHeight));
+    watch(root, (on) => { inView = on; sync(); }, 0.2);
+    document.addEventListener('visibilitychange', sync);
+    motion.onChange(sync);
   }
 
   function promises() {
     const section = document.querySelector('.promises');
-    watch(section, (on) => { if (on) section.classList.add('is-seen'); }, 0.3);
+    const grid = section?.querySelector('.promise-grid');
+    watch(grid, (on) => { if (on) section.classList.add('is-seen'); }, 0, '0px 0px -15% 0px');
   }
 
   function shelf() {
@@ -107,7 +141,7 @@
 
   // Shows text one unit at a time, then restores the original markup.
   function reveal(el, units, joiner, ms, busyClass, t, done) {
-    const html = el.innerHTML;
+    const original = el.innerHTML;
     let n = 0;
     el.classList.add(busyClass);
     el.textContent = '';
@@ -115,7 +149,7 @@
       n += 1;
       el.textContent = units.slice(0, n).join(joiner);
       if (n < units.length) return t.later(step, ms);
-      el.innerHTML = html;
+      el.innerHTML = original;
       el.classList.remove(busyClass);
       done?.();
     };
@@ -139,34 +173,37 @@
     let step = 1;
     let autoplay = !reduced;
     let visible = false;
+    let started = false;
 
     root.querySelectorAll('.chips').forEach((list) => {
       [...list.children].forEach((chip, k) => chip.style.setProperty('--d', `${k * CHIP_STAGGER_MS}ms`));
     });
 
-    const enter = (n) => {
-      if (n === 1) {
-        ask.classList.remove('is-done');
-        if (reduced) return ask.classList.add('is-done');
-        reveal(ask, [...askText], '', TYPE_CHAR_MS, 'is-typing', t, () => {
-          requestAnimationFrame(() => ask.classList.add('is-done'));
-        });
-      }
-      if (n === 4 && !reduced) reveal(answer, answerText.split(' '), ' ', STREAM_WORD_MS, 'is-streaming', t);
-    };
-
     // Puts both animated texts back to their full markup, so an interrupted animation never
     // leaves half a sentence behind.
-    const resetTexts = () => {
+    const settle = () => {
+      t.clear();
       ask.innerHTML = askHTML;
       ask.classList.remove('is-typing');
+      ask.classList.add('is-done');
       answer.innerHTML = answerHTML;
       answer.classList.remove('is-streaming');
     };
 
+    const enter = (n) => {
+      if (n === 1) {
+        ask.classList.remove('is-done');
+        reveal(ask, [...askText], '', TYPE_CHAR_MS, 'is-typing', t, () => {
+          requestAnimationFrame(() => ask.classList.add('is-done'));
+        });
+      }
+      if (n === 4) reveal(answer, answerText.split(' '), ' ', STREAM_WORD_MS, 'is-streaming', t);
+    };
+
+    const running = () => autoplay && visible && !motion.off;
+
     const go = (n, animate = true) => {
-      t.clear();
-      resetTexts();
+      settle();
       step = n;
       stage.dataset.step = String(n);
       label.textContent = `Step ${n} of ${LAST_STEP}`;
@@ -179,43 +216,55 @@
       const active = items[n - 1];
       active.classList.add('is-active');
       active.querySelector('.step-btn').setAttribute('aria-current', 'step');
-      if (animate) enter(n);
-      else ask.classList.add('is-done');
-      if (animate && autoplay && visible) t.later(() => go(n % LAST_STEP + 1), STEP_MS[n]);
+      if (animate && !reduced) enter(n);
+      if (animate && running()) t.later(() => go(n % LAST_STEP + 1), STEP_MS[n]);
     };
 
-    const setAutoplay = (on) => {
-      autoplay = on;
-      root.classList.toggle('is-manual', !on);
-      play.textContent = on ? 'Pause' : 'Play';
-      play.setAttribute('aria-pressed', String(!on));
-      go(step);
+    const showManual = (manual) => {
+      root.classList.toggle('is-manual', manual);
+      play.textContent = manual ? 'Play' : 'Pause';
     };
 
-    items.forEach((li) => li.querySelector('.step-btn').addEventListener('click', () => {
-      autoplay = false;
-      root.classList.add('is-manual');
-      play.textContent = 'Play';
-      play.setAttribute('aria-pressed', 'true');
-      go(Number(li.dataset.stepItem));
-    }));
+    items.forEach((li) => {
+      const button = li.querySelector('.step-btn');
+      button.disabled = false;
+      button.addEventListener('click', () => {
+        autoplay = false;
+        started = true;
+        showManual(true);
+        go(Number(li.dataset.stepItem));
+        const box = stage.getBoundingClientRect();
+        if (box.bottom < 0 || box.top > innerHeight) stage.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+      });
+    });
 
     if (reduced) {
-      root.classList.add('is-manual');
-      go(LAST_STEP);
+      showManual(true);
+      go(LAST_STEP, false);
       return;
     }
 
     play.hidden = false;
-    play.addEventListener('click', () => setAutoplay(!autoplay));
+    play.addEventListener('click', () => {
+      autoplay = !autoplay;
+      showManual(!autoplay);
+      // Pausing freezes the current step where it is; playing moves on from it.
+      if (autoplay) go(step % LAST_STEP + 1);
+      else settle();
+    });
+    motion.onChange((off) => {
+      root.classList.toggle('is-paused', off || !visible);
+      if (off) settle();
+      else if (running()) go(step);
+    });
+
     go(1, false);
-    let started = false;
     watch(stage, (on) => {
       visible = on;
-      root.classList.toggle('is-paused', !on);
-      if (on && !started) { started = true; go(1); return; }
-      if (on && autoplay) go(step);
-      if (!on) go(step, false);
+      root.classList.toggle('is-paused', !on || motion.off);
+      if (!on) return settle();
+      if (!started && running()) { started = true; return go(1); }
+      if (running()) go(step);
     }, 0.15);
   }
 
@@ -223,7 +272,11 @@
     document.querySelectorAll('[data-map]').forEach((svg) => {
       if (typeof svg.pauseAnimations !== 'function') return;
       svg.pauseAnimations();
-      if (!reduced) watch(svg, (on) => (on ? svg.unpauseAnimations() : svg.pauseAnimations()), 0.2);
+      if (reduced) return;
+      let inView = false;
+      const sync = () => (inView && !motion.off ? svg.unpauseAnimations() : svg.pauseAnimations());
+      watch(svg, (on) => { inView = on; sync(); }, 0.2);
+      motion.onChange(sync);
     });
   }
 
@@ -233,6 +286,7 @@
     const buttons = [...card.querySelectorAll('[data-show]')];
     const t = timers();
     let looping = !reduced;
+    let inView = false;
 
     const show = (state) => {
       card.dataset.state = state;
@@ -244,18 +298,19 @@
       t.later(() => { card.classList.remove('is-scanning'); show('after'); }, SAMPLE_BEFORE_MS + SAMPLE_SCAN_MS);
       t.later(cycle, SAMPLE_LOOP_MS);
     };
+    const sync = () => {
+      t.clear();
+      card.classList.remove('is-scanning');
+      if (looping && inView && !motion.off) cycle();
+      else if (looping) show('after');
+    };
     buttons.forEach((b) => b.addEventListener('click', () => {
       looping = false;
-      t.clear();
-      card.classList.remove('is-scanning');
+      sync();
       show(b.dataset.show);
     }));
-    watch(card, (on) => {
-      t.clear();
-      card.classList.remove('is-scanning');
-      if (on && looping) cycle();
-      if (!on && looping) show('after');
-    }, 0.5);
+    watch(card, (on) => { inView = on; sync(); }, 0.5);
+    motion.onChange(sync);
   }
 
   function counters() {
@@ -276,6 +331,7 @@
     }, 0.4);
   }
 
+  motionToggles();
   menu();
   reader();
   promises();

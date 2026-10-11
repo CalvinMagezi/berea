@@ -18,7 +18,6 @@
 <link rel="preload" as="image" href="images/hero-1200.webp" imagesrcset="images/hero-1200.webp 1200w, images/hero-2400.webp 2400w" imagesizes="100vw" fetchpriority="high">
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239E7628'/%3E%3Cpath d='M9 8h9a5 5 0 0 1 0 10H9zM9 18h10a5 5 0 0 1 0 10H9z' fill='none' stroke='%23F6F1E8' stroke-width='2.4'/%3E%3C/svg%3E">
-<script>document.documentElement.classList.add("js")</script>
 <script src="motion.js" defer></script>
 </head>
 <body>
@@ -72,8 +71,8 @@
         points to, then checked against that text before you see it.
       </p>
       <p class="lede quiet">
-        No account, no tracking, and nothing you write leaves your device. This page explains how it
-        works, so you can examine it the way the Bereans examined Paul.
+        No account and no tracking. On a phone, nothing you write ever leaves the device. This page
+        explains how it works, so you can examine it the way the Bereans examined Paul.
       </p>
       <div class="actions">
         <a class="button primary" href="https://github.com/CalvinMagezi/berea/releases/download/v0.2.0/berea-0.2.0-android-arm64.apk">Download for Android</a>
@@ -116,6 +115,7 @@
       <figcaption id="reader-caption">
         “They received the message with great eagerness and examined the Scriptures every day to see
         if these teachings were true.” <cite>Acts 17:11, BSB. Greek and glosses from STEPBible, as the app shows them.</cite>
+        <button class="motion-toggle" type="button" data-motion-toggle hidden>Pause motion</button>
       </figcaption>
     </figure>
   </div>
@@ -198,7 +198,7 @@
       <div class="stage glass" data-step="5">
         <div class="stage-head">
           <span class="stage-label" data-stage-label>Step 5 of 5</span>
-          <button class="play" type="button" data-play hidden aria-pressed="false">Pause</button>
+          <button class="play" type="button" data-play hidden>Pause</button>
         </div>
 
         <div class="scene" data-scene="1">
@@ -251,32 +251,32 @@
 
       <ol class="steps" role="list" data-steps>
         <li data-step-item="1">
-          <h3><button type="button" class="step-btn"><span class="step-n" aria-hidden="true">1</span>Find the passages you asked about.</button></h3>
+          <h3><button type="button" class="step-btn" disabled><span class="step-n" aria-hidden="true">1</span>Find the passages you asked about.</button></h3>
           <p>References are read from your question in every common form (John 3:16, Jn 3.16-18,
             1 Cor 13, II Timothy 3:16) and the verses are fetched word for word from the Bible on
             your device. <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/ref_parser.dart">ref_parser.dart</a></p>
         </li>
         <li data-step-item="2">
-          <h3><button type="button" class="step-btn"><span class="step-n" aria-hidden="true">2</span>Gather what a careful reader would open.</button></h3>
+          <h3><button type="button" class="step-btn" disabled><span class="step-n" aria-hidden="true">2</span>Gather what a careful reader would open.</button></h3>
           <p>The Hebrew or Greek words with their dictionary entries, the passages other readers most
             often link to it, and a search of the whole Bible for your question's words. A question
             with no reference follows those links to the passages Scripture keeps returning to.
             <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/retriever.dart">retriever.dart</a></p>
         </li>
         <li data-step-item="3">
-          <h3><button type="button" class="step-btn"><span class="step-n" aria-hidden="true">3</span>Hand the model only that material.</button></h3>
+          <h3><button type="button" class="step-btn" disabled><span class="step-n" aria-hidden="true">3</span>Hand the model only that material.</button></h3>
           <p>The model receives a fixed set of study rules and the gathered passages, trimmed to what
             it can hold. It is told to quote only from them and to say plainly when something is not
             in the Bible. <a href="https://github.com/CalvinMagezi/berea/blob/main/prompts/system.md">system.md</a></p>
         </li>
         <li data-step-item="4">
-          <h3><button type="button" class="step-btn"><span class="step-n" aria-hidden="true">4</span>Let the model write.</button></h3>
+          <h3><button type="button" class="step-btn" disabled><span class="step-n" aria-hidden="true">4</span>Let the model write.</button></h3>
           <p>On a phone the answer is written by Gemma, Google's open model, through the same engine
             as Google AI Edge Gallery. On a Mac it can use Ollama instead.
             <a href="https://github.com/CalvinMagezi/berea/blob/main/lib/edge_engine.dart">edge_engine.dart</a></p>
         </li>
         <li data-step-item="5">
-          <h3><button type="button" class="step-btn"><span class="step-n" aria-hidden="true">5</span>Check every reference and quotation.</button></h3>
+          <h3><button type="button" class="step-btn" disabled><span class="step-n" aria-hidden="true">5</span>Check every reference and quotation.</button></h3>
           <p>A chapter, verse or book that does not exist is marked unverified. A quotation that is
             not word for word is replaced with the exact words when one verse is clearly its source,
             and marked otherwise. Verified references become links that open the passage.
@@ -324,6 +324,9 @@
       </div>
       <svg class="map-v" viewBox="0 0 360 580" role="img" aria-labelledby="map-title-v map-desc" data-map>
         <title id="map-title-v">The parts of Berea and how they connect</title>
+        <defs>
+          <radialGradient id="packet-glow-v"><stop offset="0" stop-color="#f6dfa0"/><stop offset="0.45" stop-color="#d4a94e"/><stop offset="1" stop-color="#d4a94e" stop-opacity="0"/></radialGradient>
+        </defs>
         <rect class="boundary" x="10" y="26" width="340" height="474" rx="24"/>
         <text class="boundary-label" x="32" y="58">Your phone or computer</text>
 
@@ -344,12 +347,12 @@
         <g class="cloud"><rect x="110" y="524" width="140" height="44" rx="22"/><text x="180" y="551" class="sub">The internet</text></g>
 
         <g class="packets">
-          <circle r="8" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="v1.begin" end="v1.end"/><animateMotion dur="1.2s" begin="0s;v6.end+0.6s" id="v1"><mpath href="#v-app-h"/></animateMotion></circle>
-          <circle r="8" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="v2.begin" end="v2.end"/><animateMotion dur="1.1s" begin="v1.end" id="v2"><mpath href="#v-h-db"/></animateMotion></circle>
-          <circle r="8" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="v3.begin" end="v3.end"/><animateMotion dur="1.1s" begin="v2.end" id="v3"><mpath href="#v-db-h"/></animateMotion></circle>
-          <circle r="8" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="v4.begin" end="v4.end"/><animateMotion dur="1.1s" begin="v3.end" id="v4"><mpath href="#v-h-m"/></animateMotion></circle>
-          <circle r="8" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="v5.begin" end="v5.end"/><animateMotion dur="1.6s" begin="v4.end" id="v5"><mpath href="#v-m-h"/></animateMotion></circle>
-          <circle r="8" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="v6.begin" end="v6.end"/><animateMotion dur="1.2s" begin="v5.end" id="v6"><mpath href="#v-h-app"/></animateMotion></circle>
+          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v1.begin" end="v1.end"/><animateMotion dur="1.2s" begin="0s;v6.end+0.6s" id="v1"><mpath href="#v-app-h"/></animateMotion></circle>
+          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v2.begin" end="v2.end"/><animateMotion dur="1.1s" begin="v1.end" id="v2"><mpath href="#v-h-db"/></animateMotion></circle>
+          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v3.begin" end="v3.end"/><animateMotion dur="1.1s" begin="v2.end" id="v3"><mpath href="#v-db-h"/></animateMotion></circle>
+          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v4.begin" end="v4.end"/><animateMotion dur="1.1s" begin="v3.end" id="v4"><mpath href="#v-h-m"/></animateMotion></circle>
+          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v5.begin" end="v5.end"/><animateMotion dur="1.6s" begin="v4.end" id="v5"><mpath href="#v-m-h"/></animateMotion></circle>
+          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v6.begin" end="v6.end"/><animateMotion dur="1.2s" begin="v5.end" id="v6"><mpath href="#v-h-app"/></animateMotion></circle>
         </g>
       </svg>
       <figcaption id="map-caption">One question, one round trip, all inside your device. Nothing in this picture talks to the internet.</figcaption>
@@ -507,6 +510,7 @@
     named above, with thanks to STEPBible, OpenBible.info and eBible.org.</p>
   <p>The background photographs on this page were generated with Google Gemini for it. This page has
     no analytics, cookies or third-party requests.</p>
+  <p><button class="motion-toggle" type="button" data-motion-toggle hidden>Pause motion</button></p>
 </footer>
 </body>
 </html>
