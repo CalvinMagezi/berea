@@ -1,0 +1,6 @@
+# Copy to android/key.properties (gitignored) and fill in. Create a keystore with:
+#   keytool -genkey -v -keystore ~/berea-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias berea
+storeFile=/absolute/path/to/berea-release.jks
+storePassword=
+keyAlias=berea
+keyPassword=
