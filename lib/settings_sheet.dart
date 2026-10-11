@@ -1,4 +1,5 @@
 import 'package:berea_harness/berea_harness.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
@@ -38,6 +39,46 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   }
 
   void _refresh() => setState(() {});
+
+  /// Book,Chapter,Verse,Text CSV of a translation the user owns. Stays on this device.
+  Future<void> _importTranslation(BuildContext context) async {
+    final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
+    if (picked.isEmpty || !context.mounted) return;
+    final path = picked.single.path;
+    if (path == null) return;
+    final guess = picked.single.name.replaceAll('.csv', '').toUpperCase();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final c = TextEditingController(text: guess.length > 8 ? guess.substring(0, 8) : guess);
+        return AlertDialog(
+          title: const Text('Translation code'),
+          content: TextField(
+            controller: c,
+            autofocus: true,
+            maxLength: 8,
+            decoration: const InputDecoration(hintText: 'NIV, NLT, ESV'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, c.text.trim().toUpperCase()),
+              child: const Text('Import'),
+            ),
+          ],
+        );
+      },
+    );
+    if (code == null || code.isEmpty || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final n = widget.state.importTranslation(path, code);
+      setState(() => draft = draft.copyWith(translation: code));
+      messenger.showSnackBar(SnackBar(content: Text('Imported $code: $n verses')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Import failed: $e')));
+    }
+  }
 
   Settings get _merged => draft.copyWith(
     ollamaUrl: _url.text.trim(),
@@ -116,6 +157,15 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 decoration: const InputDecoration(labelText: 'Translation'),
                 items: [for (final t in translations) DropdownMenuItem(value: t, child: Text(t))],
                 onChanged: (t) => setState(() => draft = draft.copyWith(translation: t)),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.upload_file_outlined),
+                  label: const Text('Import a translation (CSV)'),
+                  onPressed: () => _importTranslation(context),
+                ),
               ),
             ],
           ),

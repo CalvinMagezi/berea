@@ -7,6 +7,15 @@ The model never recalls Scripture from memory. The harness retrieves verbatim te
 database, the model reasons over it, and a validator strips anything the model invents. Grounding
 strength is therefore independent of model strength.
 
+## What it does
+
+- **Study**: ask about a passage, a word or a question of life. Answers are grounded in retrieved
+  Scripture and every citation is checked. Every study is saved locally and can be reopened.
+- **Bible**: an offline reader with BSB and KJV built in. Select verses to ask Berea about them,
+  add a note or highlight them. Import a translation you own as a CSV; it stays on the device.
+- **Notes**: your saved studies, notes and highlights. One local SQLite file, no account, no sync,
+  nothing leaves the device.
+
 ## Locked build
 
 | Layer | Choice | Why |
@@ -73,13 +82,21 @@ LiteRT-LM prefix cache hits; retrieved chunks come after.
 `dart run bin/build_db.dart` in `packages/harness` downloads these and writes `assets/berea.sqlite`
 (about 60 MB). The file is gitignored; CI or a release step builds it.
 
-The gem also used the NLT, which is Tyndale copyright and is excluded. Users may import their own
-licensed translation locally; it is never committed.
+The gem also used the NLT, which is Tyndale copyright and is excluded, as is the NIV (Biblica).
+Both can be imported from a `Book,Chapter,Verse,Text` CSV you own through the engine settings;
+the file is stored under the app's support folder and re-imported after a database rebuild. It is
+never committed and never uploaded.
+
+User data lives in `study.sqlite` next to the Bible database: notes on verse ranges, highlights,
+and every conversation with Berea.
 
 ## Repository layout
 
 ```
 lib/ android/ ios/ macos/   Flutter app (repo root)
+lib/home_shell.dart         Study, Bible and Notes tabs
+lib/reader_screen.dart      Offline reader with selection, notes and highlights
+lib/study_store.dart        Local SQLite for notes, highlights and saved studies
 packages/harness/    Pure Dart: RefParser, Retriever, PromptBuilder, CitationGuard, LlmEngine
 packages/harness/bin/build_db.dart   Downloads datasets, builds assets/berea.sqlite
 packages/harness/bin/berea.dart      CLI chat against Ollama

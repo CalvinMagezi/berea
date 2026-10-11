@@ -1,6 +1,9 @@
 PODS:
   - connectivity_plus (0.0.1):
     - FlutterMacOS
+  - file_picker_darwin (1.0.0):
+    - Flutter
+    - FlutterMacOS
   - flutter_edge_ai (2.1.3):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
@@ -37,6 +40,7 @@ PODS:
 
 DEPENDENCIES:
   - connectivity_plus (from `Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos`)
+  - file_picker_darwin (from `Flutter/ephemeral/.symlinks/plugins/file_picker_darwin/darwin`)
   - flutter_edge_ai (from `Flutter/ephemeral/.symlinks/plugins/flutter_edge_ai/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - large_file_handler (from `Flutter/ephemeral/.symlinks/plugins/large_file_handler/macos`)
@@ -50,6 +54,8 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   connectivity_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos
+  file_picker_darwin:
+    :path: Flutter/ephemeral/.symlinks/plugins/file_picker_darwin/darwin
   flutter_edge_ai:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_edge_ai/macos
   FlutterMacOS:
@@ -63,6 +69,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   connectivity_plus: 4adf20a405e25b42b9c9f87feff8f4b6fde18a4e
+  file_picker_darwin: 4c2b9a50ea44cb3b071381ea0cf48591bdd80251
   flutter_edge_ai: cebf10050a7b6cf387074543845c12635de02c2d
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
   large_file_handler: b337fef756ae925be9c28112a81c7c4275d91c45

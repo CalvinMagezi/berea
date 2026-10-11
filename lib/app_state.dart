@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'edge_engine.dart';
 import 'models.dart';
+import 'study_store.dart';
 
 enum EngineKind { ollama, device }
 
@@ -80,10 +81,12 @@ class Settings {
 class ChatTurn {
   final String question;
   String answer = '';
-  TurnResult? result;
+  List<Ref> verified = const [];
+  List<Ref> unverified = const [];
+  int unverifiedQuotes = 0;
+  bool done = false;
   String? error;
   ChatTurn(this.question);
-  bool get done => result != null || error != null;
 }
 
 enum DeviceModelState { notInstalled, downloading, loading, ready, failed }
@@ -93,9 +96,20 @@ class AppState extends ChangeNotifier {
   late final String systemPrompt;
   late final SharedPreferences prefs;
   late Settings settings;
+  late final StudyStore study;
+  late final Directory supportDir;
   Harness? harness;
   final turns = <ChatTurn>[];
   bool busy = false;
+
+  /// The saved study the current turns belong to. Null until the first answer.
+  int? conversationId;
+
+  /// Set by the reader; the study tab picks it up and sends it.
+  final pendingQuestion = ValueNotifier<String?>(null);
+
+  int readerBook = 1;
+  int readerChapter = 1;
 
   DeviceModelState deviceState = DeviceModelState.notInstalled;
   int downloadProgress = 0;
@@ -104,10 +118,15 @@ class AppState extends ChangeNotifier {
 
   static Future<AppState> bootstrap() async {
     final s = AppState();
-    s.db = BibleDb.open(await _ensureDb());
+    s.supportDir = await getApplicationSupportDirectory();
+    s.db = BibleDb.open(await _ensureDb(s.supportDir));
+    s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
     s.prefs = await SharedPreferences.getInstance();
     s.settings = Settings.load(s.prefs);
+    s.readerBook = s.prefs.getInt('readerBook') ?? 1;
+    s.readerChapter = s.prefs.getInt('readerChapter') ?? 1;
+    s._restoreImports();
     await s._rebuildHarness();
     if (kDebugMode) unawaited(s._autorun());
     return s;
@@ -130,8 +149,7 @@ class AppState extends ChangeNotifier {
   }
 
   /// Copies the bundled database next to the app once. Length doubles as a version check.
-  static Future<String> _ensureDb() async {
-    final dir = await getApplicationSupportDirectory();
+  static Future<String> _ensureDb(Directory dir) async {
     final file = File('${dir.path}/berea.sqlite');
     final data = await rootBundle.load('assets/berea.sqlite');
     if (!file.existsSync() || file.lengthSync() != data.lengthInBytes) {
@@ -143,6 +161,69 @@ class AppState extends ChangeNotifier {
   static String _stripFrontMatter(String raw) {
     final i = raw.indexOf('\n---\n');
     return (i < 0 ? raw : raw.substring(i + 5)).trim();
+  }
+
+  Directory get importsDir => Directory('${supportDir.path}/imports')..createSync(recursive: true);
+
+  /// A rebuilt bundled database drops imported translations; the kept CSVs bring them back.
+  void _restoreImports() {
+    final have = db.translations().toSet();
+    for (final f in importsDir.listSync().whereType<File>()) {
+      if (!f.path.endsWith('.csv')) continue;
+      final code = f.uri.pathSegments.last.replaceAll('.csv', '');
+      if (!have.contains(code)) db.importCsv(f.readAsStringSync(), code);
+    }
+  }
+
+  /// Imports a user-owned translation CSV and keeps a copy so it survives database rebuilds.
+  /// Returns the verse count.
+  int importTranslation(String path, String code) {
+    final csv = File(path).readAsStringSync();
+    final n = db.importCsv(csv, code);
+    File('${importsDir.path}/$code.csv').writeAsStringSync(csv);
+    notifyListeners();
+    return n;
+  }
+
+  void setReader(Book book, int chapter) {
+    readerBook = book.id;
+    readerChapter = chapter;
+    prefs.setInt('readerBook', book.id);
+    prefs.setInt('readerChapter', chapter);
+    notifyListeners();
+  }
+
+  void askAbout(Ref ref) =>
+      pendingQuestion.value = 'Study ${ref.label}. What does it mean and how does it apply?';
+
+  /// Notes and highlights change outside this class; callers poke listeners through here.
+  void touch() => notifyListeners();
+
+  void openConversation(int id) {
+    turns.clear();
+    harness?.history.clear();
+    conversationId = id;
+    ChatTurn? current;
+    for (final m in study.messages(id)) {
+      if (m.isUser) {
+        current = ChatTurn(m.text);
+        turns.add(current);
+        harness?.history.add(ChatMessage.user(m.text));
+      } else if (current != null) {
+        current
+          ..answer = m.text
+          ..verified = m.refs
+          ..done = true;
+        harness?.history.add(ChatMessage.assistant(m.text));
+      }
+    }
+    notifyListeners();
+  }
+
+  void deleteConversation(int id) {
+    study.deleteConversation(id);
+    if (conversationId == id) clear();
+    notifyListeners();
   }
 
   String get engineLabel => harness?.engine.name ?? 'no engine';
@@ -244,14 +325,22 @@ class AppState extends ChangeNotifier {
     busy = true;
     notifyListeners();
     try {
-      turn.result = await h.ask(
+      final result = await h.ask(
         question,
         onToken: (t) {
           turn.answer += t;
           notifyListeners();
         },
       );
-      turn.answer = turn.result!.text;
+      turn
+        ..answer = result.text
+        ..verified = result.guard.verified
+        ..unverified = result.guard.unverified
+        ..unverifiedQuotes = result.guard.unverifiedQuotes.length
+        ..done = true;
+      conversationId ??= study.createConversation(question);
+      study.addMessage(conversationId!, 'user', question, const []);
+      study.addMessage(conversationId!, 'assistant', turn.answer, turn.verified);
     } catch (e) {
       turn.error = e.toString();
     } finally {
@@ -263,6 +352,7 @@ class AppState extends ChangeNotifier {
   void clear() {
     turns.clear();
     harness?.history.clear();
+    conversationId = null;
     notifyListeners();
   }
 }

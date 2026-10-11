@@ -3,6 +3,7 @@
 import 'dart:io';
 
 import 'package:berea_harness/src/books.dart';
+import 'package:berea_harness/src/csv.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 
@@ -99,7 +100,7 @@ Future<String> _fetch(String url, String path) async {
 }
 
 void _loadTranslation(Database db, String translation, String csv) {
-  final rows = _parseCsv(csv);
+  final rows = parseCsv(csv);
   final stmt = db.prepare(
     'INSERT INTO verses(translation, book, chapter, verse, text) VALUES (?, ?, ?, ?, ?)',
   );
@@ -247,43 +248,4 @@ void _loadXrefs(Database db, String text) {
   db.execute('COMMIT');
   stmt.dispose();
   stdout.writeln('xrefs: $n (skipped $skipped)');
-}
-
-List<List<String>> _parseCsv(String s) {
-  final rows = <List<String>>[];
-  var row = <String>[];
-  final field = StringBuffer();
-  var quoted = false;
-  for (var i = 0; i < s.length; i++) {
-    final ch = s[i];
-    if (quoted) {
-      if (ch == '"' && i + 1 < s.length && s[i + 1] == '"') {
-        field.write('"');
-        i++;
-      } else if (ch == '"') {
-        quoted = false;
-      } else {
-        field.write(ch);
-      }
-      continue;
-    }
-    if (ch == '"') {
-      quoted = true;
-    } else if (ch == ',') {
-      row.add(field.toString());
-      field.clear();
-    } else if (ch == '\n') {
-      row.add(field.toString());
-      field.clear();
-      rows.add(row);
-      row = <String>[];
-    } else if (ch != '\r') {
-      field.write(ch);
-    }
-  }
-  if (field.isNotEmpty || row.isNotEmpty) {
-    row.add(field.toString());
-    rows.add(row);
-  }
-  return rows;
 }

@@ -25,11 +25,13 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     widget.state.addListener(_onChange);
+    widget.state.pendingQuestion.addListener(_onPending);
   }
 
   @override
   void dispose() {
     widget.state.removeListener(_onChange);
+    widget.state.pendingQuestion.removeListener(_onPending);
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
@@ -41,6 +43,14 @@ class _ChatScreenState extends State<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
     });
+  }
+
+  void _onPending() {
+    final q = widget.state.pendingQuestion.value;
+    if (q == null) return;
+    widget.state.pendingQuestion.value = null;
+    _input.text = q;
+    widget.state.ready ? _send() : _focus.requestFocus();
   }
 
   void _send() {
@@ -199,7 +209,7 @@ class _TurnView extends StatelessWidget {
             )
           else
             MarkdownLite(turn.answer),
-          if (turn.result != null) _Citations(turn.result!, db, translation),
+          if (turn.done) _Citations(turn, db, translation),
         ],
       ),
     );
@@ -207,16 +217,15 @@ class _TurnView extends StatelessWidget {
 }
 
 class _Citations extends StatelessWidget {
-  final TurnResult result;
+  final ChatTurn g;
   final BibleDb db;
   final String translation;
-  const _Citations(this.result, this.db, this.translation);
+  const _Citations(this.g, this.db, this.translation);
 
   @override
   Widget build(BuildContext context) {
-    final g = result.guard;
     final scheme = Theme.of(context).colorScheme;
-    if (g.verified.isEmpty && g.unverified.isEmpty && g.unverifiedQuotes.isEmpty) {
+    if (g.verified.isEmpty && g.unverified.isEmpty && g.unverifiedQuotes == 0) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -236,15 +245,15 @@ class _Citations extends StatelessWidget {
                 ),
             ],
           ),
-          if (g.unverified.isNotEmpty || g.unverifiedQuotes.isNotEmpty)
+          if (g.unverified.isNotEmpty || g.unverifiedQuotes > 0)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 [
                   if (g.unverified.isNotEmpty)
                     'Not in Scripture: ${g.unverified.map((e) => e.label).join(', ')}',
-                  if (g.unverifiedQuotes.isNotEmpty)
-                    '${g.unverifiedQuotes.length} quoted phrase(s) not found verbatim',
+                  if (g.unverifiedQuotes > 0)
+                    '${g.unverifiedQuotes} quoted phrase(s) not found verbatim',
                 ].join(' · '),
                 style: TextStyle(color: scheme.error, fontSize: 13),
               ),

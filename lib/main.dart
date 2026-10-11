@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
-import 'chat_screen.dart';
+import 'home_shell.dart';
 import 'theme.dart';
 
 void main() {
@@ -28,7 +28,7 @@ class BereaApp extends StatelessWidget {
           if (!snap.hasData) {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
-          return ChatScreen(state: snap.data!);
+          return HomeShell(state: snap.data!);
         },
       ),
     );

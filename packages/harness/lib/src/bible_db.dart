@@ -1,6 +1,7 @@
 import 'package:sqlite3/sqlite3.dart';
 
 import 'books.dart';
+import 'csv.dart';
 import 'ref_parser.dart';
 
 class Verse {
@@ -44,14 +45,55 @@ class BibleDb {
   final Database db;
   BibleDb(this.db);
 
-  factory BibleDb.open(String path) => BibleDb(sqlite3.open(path, mode: OpenMode.readOnly));
+  /// Read-write so user-imported translations can live in the same file.
+  factory BibleDb.open(String path) => BibleDb(sqlite3.open(path));
 
   void close() => db.dispose();
 
   List<String> translations() => [
-    for (final r in db.select('SELECT DISTINCT translation FROM verses'))
+    for (final r in db.select('SELECT DISTINCT translation FROM verses ORDER BY translation'))
       r['translation'] as String,
   ];
+
+  int chapterCount(Book book, {String translation = defaultTranslation}) {
+    final row = db.select(
+      'SELECT MAX(chapter) AS n FROM verses WHERE translation = ? AND book = ?',
+      [translation, book.id],
+    ).first;
+    return (row['n'] as int?) ?? 0;
+  }
+
+  /// Imports a `Book,Chapter,Verse,Text` CSV (the scrollmapper layout) as [code]. Replaces any
+  /// existing rows for that code. Returns the verse count. Throws on an unknown book name.
+  int importCsv(String csv, String code) {
+    final rows = parseCsv(csv);
+    if (rows.isEmpty || rows.first.length < 4) {
+      throw const FormatException('expected a Book,Chapter,Verse,Text header');
+    }
+    final insert = db.prepare(
+      'INSERT INTO verses(translation, book, chapter, verse, text) VALUES (?, ?, ?, ?, ?)',
+    );
+    db.execute('BEGIN');
+    try {
+      db.execute('DELETE FROM verses WHERE translation = ?', [code]);
+      var n = 0;
+      for (final r in rows.skip(1)) {
+        if (r.length < 4 || r[0].trim().isEmpty) continue;
+        final book = bookFor(r[0]);
+        if (book == null) throw FormatException('unknown book "${r[0]}"');
+        insert.execute([code, book.id, int.parse(r[1]), int.parse(r[2]), r[3].trim()]);
+        n++;
+      }
+      db.execute("INSERT INTO verses_fts(verses_fts) VALUES('rebuild')");
+      db.execute('COMMIT');
+      return n;
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    } finally {
+      insert.dispose();
+    }
+  }
 
   Verse _verse(Row r) => Verse(
     bookById(r['book'] as int),
