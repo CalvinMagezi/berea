@@ -41,6 +41,9 @@ class XRef {
 }
 
 const defaultTranslation = 'BSB';
+
+/// Translation codes are short uppercase identifiers; they also name files on disk.
+final translationCode = RegExp(r'^[A-Z0-9]{1,8}$');
 const maxPassageVerses = 40;
 
 class BibleDb {
@@ -51,6 +54,12 @@ class BibleDb {
   factory BibleDb.open(String path) => BibleDb(sqlite3.open(path));
 
   void close() => db.dispose();
+
+  /// Translations the database was built with, from its meta table.
+  Set<String> bundledTranslations() {
+    final rows = db.select("SELECT value FROM meta WHERE key = 'translations'");
+    return rows.isEmpty ? const {} : (rows.first['value'] as String).split(',').toSet();
+  }
 
   List<String> translations() => [
     for (final r in db.select('SELECT DISTINCT translation FROM verses ORDER BY translation'))
@@ -66,7 +75,11 @@ class BibleDb {
     if (has.isEmpty) return null;
     final count = db.select('SELECT COUNT(*) AS n FROM daily_verses').first['n'] as int;
     if (count == 0) return null;
-    final dayOfYear = date.difference(DateTime(date.year)).inDays;
+    final dayOfYear = DateTime.utc(
+      date.year,
+      date.month,
+      date.day,
+    ).difference(DateTime.utc(date.year)).inDays;
     final r = db.select('SELECT book, chapter, verse FROM daily_verses WHERE day = ?', [
       dayOfYear % count + 1,
     ]).first;
@@ -87,7 +100,14 @@ class BibleDb {
   /// Stores [rows] as translation [code], replacing any existing rows for that code, and rebuilds
   /// the search index. Returns the verse count. Nothing changes if [rows] is empty.
   int importRows(List<VerseRow> rows, String code) {
+    if (!translationCode.hasMatch(code)) {
+      throw FormatException('translation code must be 1 to 8 letters or digits, not "$code"');
+    }
     if (rows.isEmpty) throw const FormatException('no verses found');
+    final unique = <String, VerseRow>{
+      for (final r in rows) '${r.book.id}:${r.chapter}:${r.verse}': r,
+    };
+    rows = unique.values.toList();
     final insert = db.prepare(
       'INSERT INTO verses(translation, book, chapter, verse, text) VALUES (?, ?, ?, ?, ?)',
     );
@@ -131,7 +151,7 @@ class BibleDb {
     final vs = ref.verseStart ?? 1;
     final ve = ref.verseEnd ?? vs;
     final row = db.select(
-      'SELECT COUNT(*) AS n FROM verses WHERE translation = ? AND book = ? AND chapter = ? AND verse IN (?, ?)',
+      'SELECT COUNT(DISTINCT verse) AS n FROM verses WHERE translation = ? AND book = ? AND chapter = ? AND verse IN (?, ?)',
       [translation, ref.book.id, ref.chapter, vs, ve],
     ).first;
     return (row['n'] as int) == (vs == ve ? 1 : 2);
@@ -288,7 +308,7 @@ class BibleDb {
     if (_hasFullLexicon || !File(path).existsSync()) return _hasFullLexicon;
     try {
       db.execute('ATTACH DATABASE ? AS lsj', [path]);
-      db.select('SELECT 1 FROM lsj.lexicon_full LIMIT 1');
+      db.select('SELECT key, base, definition FROM lsj.lexicon_full LIMIT 1');
       _hasFullLexicon = true;
     } on SqliteException {
       try {
@@ -300,16 +320,27 @@ class BibleDb {
     return _hasFullLexicon;
   }
 
+  /// Detaches the pack so its file can be replaced.
+  void detachFullLexicon() {
+    if (!_hasFullLexicon) return;
+    db.execute('DETACH DATABASE lsj');
+    _hasFullLexicon = false;
+  }
+
   /// The full LSJ entry for a Greek Strong's number, when the pack is attached.
   String? fullLexicon(String strongs) {
     if (!_hasFullLexicon) return null;
     final base = strongs.replaceAll(RegExp(r'[A-Za-z]$'), '');
-    final rows = db.select(
-      'SELECT definition FROM lsj.lexicon_full WHERE key = ? OR base = ? '
-      'ORDER BY (key = ?) DESC LIMIT 1',
-      [strongs, base, strongs],
-    );
-    return rows.isEmpty ? null : rows.first['definition'] as String;
+    try {
+      final rows = db.select(
+        'SELECT definition FROM lsj.lexicon_full WHERE key = ? OR base = ? '
+        'ORDER BY (key = ?) DESC LIMIT 1',
+        [strongs, base, strongs],
+      );
+      return rows.isEmpty ? null : rows.first['definition'] as String?;
+    } on SqliteException {
+      return null;
+    }
   }
 
   LexEntry? lexicon(String strongs) {
@@ -340,7 +371,9 @@ class BibleDb {
       '(from_book = ? AND from_chapter = ? AND from_verse = ?)',
     ).join(' OR ');
     final rows = db.select(
-      'SELECT to_book, to_chapter, to_verse_start, COUNT(*) AS n, SUM(votes) AS v FROM xrefs '
+      "SELECT to_book, to_chapter, to_verse_start, "
+      "COUNT(DISTINCT from_book || ':' || from_chapter || ':' || from_verse) AS n, "
+      'SUM(votes) AS v FROM xrefs '
       'WHERE ($where) AND votes > 0 GROUP BY to_book, to_chapter, to_verse_start '
       'ORDER BY n DESC, v DESC LIMIT ?',
       [

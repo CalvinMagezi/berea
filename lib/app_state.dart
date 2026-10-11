@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:berea_harness/berea_harness.dart';
 import 'package:http/http.dart' as http;
@@ -135,6 +136,7 @@ class AppState extends ChangeNotifier {
   static Future<AppState> bootstrap() async {
     final s = AppState();
     s.supportDir = await getApplicationSupportDirectory();
+    await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir));
     s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
@@ -197,28 +199,56 @@ class AppState extends ChangeNotifier {
 
   Directory get importsDir => Directory('${supportDir.path}/imports')..createSync(recursive: true);
 
-  /// A rebuilt bundled database drops imported translations; the kept CSVs bring them back.
+  /// A rebuilt bundled database drops imported translations; the kept CSVs bring them back. A
+  /// copy that no longer imports is set aside so it cannot stop the app from starting.
   void _restoreImports() {
     final have = db.translations().toSet();
     for (final f in importsDir.listSync().whereType<File>()) {
       if (!f.path.endsWith('.csv')) continue;
       final code = f.uri.pathSegments.last.replaceAll('.csv', '');
-      if (!have.contains(code)) db.importCsv(f.readAsStringSync(), code);
+      if (have.contains(code)) continue;
+      try {
+        validateImportCode(code);
+        db.importCsv(f.readAsStringSync(), code);
+      } on Object catch (e) {
+        debugPrint('Setting aside imported translation $code: $e');
+        f.renameSync('${f.path}.invalid');
+      }
+    }
+  }
+
+  /// Throws [FormatException] unless [code] is a valid name that does not replace a bundled
+  /// translation; a bundled one would otherwise be overwritten and the citation check with it.
+  void validateImportCode(String code) {
+    if (!translationCode.hasMatch(code)) {
+      throw FormatException('Use 1 to 8 capital letters or digits for the code, not "$code".');
+    }
+    if (db.bundledTranslations().contains(code)) {
+      throw FormatException('$code is built in. Choose another code.');
     }
   }
 
   /// Imports a user-owned translation from CSV, USFM, OSIS, Zefania or a zip of those, and keeps
-  /// a normalised CSV copy so it survives database rebuilds. Returns the verse count.
-  int importTranslation(List<({String name, Uint8List bytes})> files, String code) {
-    final rows = [for (final f in files) ...parseBibleFile(f.name, f.bytes)];
-    final n = db.importRows(rows, code);
+  /// a normalised CSV copy so it survives database rebuilds. Parsing runs off the UI isolate.
+  /// Returns the verse count.
+  Future<int> importTranslation(List<({String name, Uint8List bytes})> files, String code) async {
+    validateImportCode(code);
+    final rows = await Isolate.run(
+      () => [for (final f in files) ...parseBibleFile(f.name, f.bytes)],
+    );
     final csv = toCsv([
       ['Book', 'Chapter', 'Verse', 'Text'],
       for (final r in rows) [r.book.name, '${r.chapter}', '${r.verse}', r.text],
     ]);
-    File('${importsDir.path}/$code.csv').writeAsStringSync(csv);
-    notifyListeners();
-    return n;
+    final copy = File('${importsDir.path}/$code.csv')..writeAsStringSync(csv);
+    try {
+      final n = db.importRows(rows, code);
+      notifyListeners();
+      return n;
+    } catch (_) {
+      copy.deleteSync();
+      rethrow;
+    }
   }
 
   void setReader(Book book, int chapter, [int? verse]) {
@@ -269,6 +299,9 @@ class AppState extends ChangeNotifier {
     return plan == null ? null : planSchedule(plan)[planDay(plan) - 1];
   }
 
+  static const maxLexiconPackBytes = 64 * 1024 * 1024;
+  static const lexiconDownloadTimeout = Duration(minutes: 5);
+
   /// The optional full Greek lexicon, published with each GitHub release of Berea.
   static const lexiconPackUrl =
       'https://github.com/CalvinMagezi/berea/releases/latest/download/lexicon-lsj.sqlite';
@@ -278,18 +311,33 @@ class AppState extends ChangeNotifier {
   /// Downloads the pack only when the user asks, or installs one they picked from a file.
   /// The file is checked by attaching it before it replaces anything.
   Future<void> installLexiconPack({Uint8List? bytes}) async {
-    final data = bytes ?? (await http.get(Uri.parse(lexiconPackUrl))).bodyBytes;
-    final tmp = File('$lexiconPackPath.part')..writeAsBytesSync(data);
-    final probe = BibleDb(sqlite3.open(tmp.path));
-    final ok = probe.attachFullLexicon(tmp.path);
-    probe.close();
-    if (!ok) {
-      tmp.deleteSync();
-      throw const FormatException('That file is not a Berea lexicon pack.');
+    final data = bytes ?? await _downloadLexiconPack();
+    if (data.length > maxLexiconPackBytes) {
+      throw const FormatException('That file is too large to be a Berea lexicon pack.');
     }
-    tmp.renameSync(lexiconPackPath);
-    db.attachFullLexicon(lexiconPackPath);
-    notifyListeners();
+    final tmp = File('$lexiconPackPath.part');
+    try {
+      tmp.writeAsBytesSync(data);
+      final probe = BibleDb(sqlite3.openInMemory());
+      final ok = probe.attachFullLexicon(tmp.path);
+      probe.close();
+      if (!ok) throw const FormatException('That file is not a Berea lexicon pack.');
+      // The old pack is held open while attached; let go of it before replacing the file.
+      db.detachFullLexicon();
+      tmp.renameSync(lexiconPackPath);
+    } finally {
+      if (tmp.existsSync()) tmp.deleteSync();
+      db.attachFullLexicon(lexiconPackPath);
+      notifyListeners();
+    }
+  }
+
+  static Future<Uint8List> _downloadLexiconPack() async {
+    final r = await http.get(Uri.parse(lexiconPackUrl)).timeout(lexiconDownloadTimeout);
+    if (r.statusCode != 200) {
+      throw HttpException('The lexicon download failed (HTTP ${r.statusCode}).');
+    }
+    return r.bodyBytes;
   }
 
   /// Imported translations as code to CSV, for backups.
@@ -305,10 +353,20 @@ class AppState extends ChangeNotifier {
   /// Decrypts first; only a backup that opened and checked out replaces the current data.
   Future<void> restore(Uint8List bytes, String passphrase) async {
     final contents = await readBackup(bytes, passphrase);
-    study.importTables(contents.tables);
+    // Check everything before changing anything: the codes, every imported translation and
+    // every row. Only then replace the notes and studies and bring the translations in.
+    final imports = <String, List<VerseRow>>{};
     for (final e in contents.imports.entries) {
-      File('${importsDir.path}/${e.key}.csv').writeAsStringSync(e.value);
-      db.importCsv(e.value, e.key);
+      validateImportCode(e.key);
+      final rows = parseCsvBible(e.value);
+      if (rows.isEmpty) throw FormatException('Imported translation ${e.key} is empty.');
+      imports[e.key] = rows;
+    }
+    study.validateTables(contents.tables);
+    study.importTables(contents.tables);
+    for (final e in imports.entries) {
+      db.importRows(e.value, e.key);
+      File('${importsDir.path}/${e.key}.csv').writeAsStringSync(contents.imports[e.key]!);
     }
     clear();
   }

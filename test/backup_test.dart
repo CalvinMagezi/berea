@@ -33,6 +33,36 @@ void main() {
     expect(contents.imports.keys, ['NIV']);
   });
 
+  test('rows with unknown columns or impossible books are rejected before anything changes', () {
+    final store = StudyStore(sqlite3.openInMemory());
+    store.addNote(RefParser.parse('John 3:16').first, 'Keep me.');
+    expect(
+      () => store.importTables({
+        'notes': [
+          {'id': 1, 'book': 99, 'chapter': 1, 'verse_start': 1, 'verse_end': 1, 'text': 'x'},
+        ],
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => store.importTables({
+        'notes': [
+          {'id': 1, 'book': 1, 'chapter': 1, 'evil); DROP TABLE notes; --': 1},
+        ],
+      }),
+      throwsFormatException,
+    );
+    expect(store.notes().single.text, 'Keep me.');
+  });
+
+  test('a truncated backup is reported as damaged', () async {
+    final bytes = await createBackup(StudyStore(sqlite3.openInMemory()), const {}, 'correct horse');
+    await expectLater(
+      readBackup(Uint8List.fromList(bytes.sublist(0, 30)), 'correct horse'),
+      throwsA(isA<BackupException>()),
+    );
+  });
+
   test('a file that is not a backup is rejected', () async {
     await expectLater(
       readBackup(Uint8List.fromList('hello'.codeUnits), 'x'),

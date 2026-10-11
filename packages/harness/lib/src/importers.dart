@@ -29,7 +29,12 @@ List<VerseRow> parseCsvBible(String csv) {
   ];
 }
 
-final _usfmNotes = RegExp(r'\\(f|fe|x|ef|ex)\s.*?\\\1\*', dotAll: true);
+/// A footnote or cross reference, closed by its marker before the next verse or chapter. An
+/// unclosed one stops at the next verse instead of eating the rest of the book.
+final _usfmNotes = RegExp(
+  r'\\(f|fe|x|ef|ex)\s(?:(?!\\[vc]\s).)*?(?:\\\1\*|(?=\\[vc]\s)|$)',
+  dotAll: true,
+);
 final _usfmWord = RegExp(r'\\\+?w\s+([^|\\]*?)(?:\|[^\\]*?)?\\\+?w\*');
 final _usfmLineMarker = RegExp(r'^\\([a-z]+)(\d*)\b');
 final _usfmChapterVerse = RegExp(r'\\(c|v)\s+(\d+)(?:-\d+)?\s?');
@@ -64,6 +69,7 @@ const _usfmSkipLines = {
 
 /// One USFM book file. Books outside the 66 (deuterocanon, front matter, glossary) return empty.
 List<VerseRow> parseUsfm(String usfm) {
+  if (usfm.startsWith('\uFEFF')) usfm = usfm.substring(1);
   final id = RegExp(r'^\\id\s+([A-Z0-9]{3})', multiLine: true).firstMatch(usfm);
   final book = id == null ? null : bookFor(id[1]!);
   if (book == null) return const [];
@@ -104,7 +110,13 @@ List<VerseRow> parseUsfm(String usfm) {
 final _xmlToken = RegExp(r'<[^>]+>|[^<]+');
 final _xmlName = RegExp(r'^</?\s*([A-Za-z:]+)');
 
-String? _attr(String tag, String name) => RegExp('\\b$name\\s*=\\s*"([^"]*)"').firstMatch(tag)?[1];
+/// An attribute value in double or single quotes.
+String? _attr(String tag, String name) {
+  final m = RegExp('\\b$name\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\')').firstMatch(tag);
+  return m == null ? null : (m[1] ?? m[2]);
+}
+
+final _leadingDigits = RegExp(r'^\d+');
 
 String _unescape(String s) => s
     .replaceAll('&lt;', '<')
@@ -124,13 +136,15 @@ List<VerseRow> parseOsis(String xml) {
     final id = current;
     current = null;
     if (id == null) return;
-    final parts = id.split(' ').first.split('.');
-    if (parts.length < 3) return;
-    final book = bookFor(parts[0]);
+    final parts = id.split(' ').first.split('-').first.split('.');
     final text = _clean(_unescape(buf.toString()));
     buf.clear();
-    if (book == null || text.isEmpty) return;
-    out.add((book: book, chapter: int.parse(parts[1]), verse: int.parse(parts[2]), text: text));
+    if (parts.length < 3) return;
+    final book = bookFor(parts[0]);
+    final chapter = int.tryParse(_leadingDigits.firstMatch(parts[1])?[0] ?? '');
+    final verse = int.tryParse(_leadingDigits.firstMatch(parts[2])?[0] ?? '');
+    if (book == null || chapter == null || verse == null || text.isEmpty) return;
+    out.add((book: book, chapter: chapter, verse: verse, text: text));
   }
 
   for (final m in _xmlToken.allMatches(xml)) {
@@ -193,8 +207,23 @@ List<VerseRow> parseZefania(String xml) {
   return out;
 }
 
-/// Entries of a zip archive, stored or deflated. Enough for ebible.org USFM bundles.
+/// Limits for untrusted zips: a whole Bible in USFM is about 15 MB uncompressed.
+const maxZipEntryBytes = 64 * 1024 * 1024;
+const maxZipTotalBytes = 256 * 1024 * 1024;
+const maxZipEntries = 2000;
+const _zip64Sentinel = 0xFFFFFFFF;
+
+/// Entries of a zip archive, stored or deflated. Enough for ebible.org USFM bundles. Rejects
+/// zip64, oversized or truncated archives with a [FormatException] instead of exhausting memory.
 Map<String, Uint8List> readZip(Uint8List bytes) {
+  try {
+    return _readZip(bytes);
+  } on RangeError {
+    throw const FormatException('not a valid zip file');
+  }
+}
+
+Map<String, Uint8List> _readZip(Uint8List bytes) {
   final d = ByteData.sublistView(bytes);
   const eocdSig = 0x06054b50, centralSig = 0x02014b50;
   var eocd = bytes.length - 22;
@@ -203,33 +232,70 @@ Map<String, Uint8List> readZip(Uint8List bytes) {
   }
   if (eocd < 0) throw const FormatException('not a zip file');
   final count = d.getUint16(eocd + 10, Endian.little);
+  if (count > maxZipEntries) throw const FormatException('zip has too many entries');
   var p = d.getUint32(eocd + 16, Endian.little);
   final out = <String, Uint8List>{};
+  var total = 0;
   for (var i = 0; i < count; i++) {
     if (d.getUint32(p, Endian.little) != centralSig) throw const FormatException('bad zip');
     final method = d.getUint16(p + 10, Endian.little);
     final compressed = d.getUint32(p + 20, Endian.little);
+    final size = d.getUint32(p + 24, Endian.little);
     final nameLen = d.getUint16(p + 28, Endian.little);
     final extraLen = d.getUint16(p + 30, Endian.little);
     final commentLen = d.getUint16(p + 32, Endian.little);
     final local = d.getUint32(p + 42, Endian.little);
+    if (compressed == _zip64Sentinel || size == _zip64Sentinel || local == _zip64Sentinel) {
+      throw const FormatException('zip64 archives are not supported');
+    }
     final name = utf8.decode(bytes.sublist(p + 46, p + 46 + nameLen), allowMalformed: true);
+    p += 46 + nameLen + extraLen + commentLen;
+    if (name.endsWith('/')) continue;
+    total += size;
+    if (size > maxZipEntryBytes || total > maxZipTotalBytes) {
+      throw FormatException('zip entry $name is too large');
+    }
     final dataStart =
         local +
         30 +
         d.getUint16(local + 26, Endian.little) +
         d.getUint16(local + 28, Endian.little);
     final raw = bytes.sublist(dataStart, dataStart + compressed);
-    if (!name.endsWith('/')) {
-      out[name] = switch (method) {
-        0 => raw,
-        8 => Uint8List.fromList(ZLibDecoder(raw: true).convert(raw)),
-        _ => throw FormatException('unsupported zip compression $method in $name'),
-      };
-    }
-    p += 46 + nameLen + extraLen + commentLen;
+    final data = switch (method) {
+      0 => raw,
+      8 => _inflate(raw, size),
+      _ => throw FormatException('unsupported zip compression $method in $name'),
+    };
+    if (data.length != size) throw FormatException('zip entry $name is damaged');
+    out[name] = data;
   }
   return out;
+}
+
+/// Inflates at most [declared] bytes, so a lying header cannot expand without bound.
+Uint8List _inflate(Uint8List raw, int declared) {
+  final sink = BytesBuilder(copy: false);
+  final out = _CappedSink(sink, declared);
+  final input = ZLibDecoder(raw: true).startChunkedConversion(out)..add(raw);
+  input.close();
+  return sink.takeBytes();
+}
+
+class _CappedSink implements Sink<List<int>> {
+  final BytesBuilder builder;
+  final int cap;
+  _CappedSink(this.builder, this.cap);
+
+  @override
+  void add(List<int> chunk) {
+    if (builder.length + chunk.length > cap) {
+      throw const FormatException('zip entry is larger than it declares');
+    }
+    builder.add(chunk);
+  }
+
+  @override
+  void close() {}
 }
 
 /// Picks the parser from the file name and contents. Zips may hold USFM, OSIS or Zefania files.
@@ -238,10 +304,13 @@ List<VerseRow> parseBibleFile(String name, Uint8List bytes) {
   if (lower.endsWith('.zip')) {
     return [
       for (final e in readZip(bytes).entries)
-        if (!e.key.startsWith('__MACOSX')) ...parseBibleFile(e.key, e.value),
+        // Nested zips are not opened: one level is all a Bible bundle needs.
+        if (!e.key.startsWith('__MACOSX') && !e.key.toLowerCase().endsWith('.zip'))
+          ...parseBibleFile(e.key, e.value),
     ];
   }
-  final text = utf8.decode(bytes, allowMalformed: true);
+  var text = utf8.decode(bytes, allowMalformed: true);
+  if (text.startsWith('\uFEFF')) text = text.substring(1);
   if (lower.endsWith('.csv')) return parseCsvBible(text);
   if (lower.endsWith('.usfm') || lower.endsWith('.sfm')) return parseUsfm(text);
   if (lower.endsWith('.xml') || lower.endsWith('.osis')) {

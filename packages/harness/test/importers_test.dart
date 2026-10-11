@@ -77,4 +77,50 @@ void main() {
     expect(utf8.decode(readZip(File(zip).readAsBytesSync()).values.single), contains(r'\id JHN'));
     dir.deleteSync(recursive: true);
   });
+
+  test('USFM with a byte-order mark and an unclosed note keeps its verses', () {
+    const usfm =
+        '\uFEFF\\id JHN\n\\c 1\n\\v 1 In the beginning\\f + note never closed\n'
+        '\\v 2 He was with God.\n';
+    final rows = parseUsfm(usfm);
+    expect(rows.map((r) => r.text), ['In the beginning', 'He was with God.']);
+  });
+
+  test('OSIS with odd ids and single-quoted attributes', () {
+    const xml =
+        "<osis><verse osisID='Gen.1.1'>One.</verse>"
+        '<verse osisID="Gen.1.2-Gen.1.3">Two and three.</verse>'
+        '<verse osisID="Gen.1.4!a">Four.</verse><verse osisID="Gen.x.5">Bad.</verse></osis>';
+    expect(parseOsis(xml).map((r) => '${r.verse} ${r.text}'), [
+      '1 One.',
+      '2 Two and three.',
+      '4 Four.',
+    ]);
+  });
+
+  test('a zip that lies about its size or is damaged is rejected, not inflated', () {
+    final dir = Directory.systemTemp.createTempSync('berea_bomb');
+    final big = File('${dir.path}/big.usfm')..writeAsBytesSync(List.filled(4 * 1024 * 1024, 0x20));
+    final zip = '${dir.path}/b.zip';
+    final res = Process.runSync('zip', ['-q', '-j', zip, big.path]);
+    if (res.exitCode != 0) return markTestSkipped('zip tool not available');
+    final bytes = File(zip).readAsBytesSync();
+    // Shrink the declared uncompressed size in the central directory to 16 bytes.
+    final central = _indexOf(bytes, [0x50, 0x4b, 0x01, 0x02]);
+    ByteData.sublistView(bytes).setUint32(central + 24, 16, Endian.little);
+    expect(() => readZip(bytes), throwsFormatException);
+    expect(() => readZip(Uint8List.fromList(bytes.sublist(0, 40))), throwsFormatException);
+    dir.deleteSync(recursive: true);
+  });
+}
+
+int _indexOf(List<int> data, List<int> pattern) {
+  for (var i = 0; i <= data.length - pattern.length; i++) {
+    var ok = true;
+    for (var j = 0; j < pattern.length && ok; j++) {
+      ok = data[i + j] == pattern[j];
+    }
+    if (ok) return i;
+  }
+  return -1;
 }

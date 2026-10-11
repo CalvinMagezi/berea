@@ -5,7 +5,8 @@
 Grounding
 - Citations of books that do not exist (2 Hezekiah 4:1) are flagged, not only unknown chapters.
 - A misquote that clearly comes from one shown verse is replaced with that verse's exact words;
-  anything less certain stays flagged.
+  anything less certain stays flagged. When the quote is attributed to a reference, only that
+  passage can supply the correction.
 - Two new prompt rules for sayings that are not in the Bible and for passages that do not exist.
 - Topical questions follow the cross-reference graph from their search hits, with stemmed search
   and wider stopwords: well-known passages now reach the model for 7 of 8 topical checks, up from 4.
@@ -14,7 +15,8 @@ Grounding
 
 Bible
 - World English Bible built in alongside BSB and KJV.
-- Import a translation you own from CSV, USFM, OSIS, Zefania or a zip of those.
+- Import a translation you own from CSV, USFM, OSIS, Zefania or a zip of those. Zips are size
+  capped and parsing runs in the background; built-in translation codes cannot be replaced.
 - Search the Bible; a typed reference jumps straight to its verse.
 - Parallel translation beside or below the text.
 - Long-press a verse for its Hebrew or Greek words with transliteration, gloss and lexicon entry.
@@ -26,7 +28,10 @@ Study
 - Study pages: observation, interpretation and application drafted from Scripture and edited by
   you.
 - Export a study or all notes to Markdown.
-- Encrypted backup and restore with a passphrase.
+- Encrypted backup and restore with a passphrase. Restore checks every row and imported translation
+  before replacing anything.
+- Android cloud backup and device transfer are off, and the iOS data folder is excluded from
+  iCloud backup, so the app's own encrypted file is the only copy that leaves the device.
 
 Platforms
 - The bundled database is recopied only when its build stamp changes, instead of loading the full

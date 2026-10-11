@@ -69,6 +69,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
             controller: c,
             autofocus: true,
             maxLength: 8,
+            textCapitalization: TextCapitalization.characters,
             decoration: const InputDecoration(hintText: 'NIV, NLT, ESV'),
           ),
           actions: [
@@ -84,7 +85,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     if (code == null || code.isEmpty || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final n = widget.state.importTranslation(files, code);
+      final n = await widget.state.importTranslation(files, code);
       setState(() => draft = draft.copyWith(translation: code));
       messenger.showSnackBar(SnackBar(content: Text('Imported $code: $n verses')));
     } catch (e) {

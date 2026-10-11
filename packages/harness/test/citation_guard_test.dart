@@ -59,6 +59,28 @@ void main() {
     expect(r.text, contains('[unverified quote]'));
   });
 
+  test('a correction never confirms a wrong attribution', () {
+    const output = 'Paul wrote "For God so loved the world that He gave His only Son" (John 3:17).';
+    final r = CitationGuard(db).apply(output, ctx);
+    expect(r.correctedQuotes, isEmpty);
+    expect(r.unverifiedQuotes.single, startsWith('For God so loved'));
+  });
+
+  test('a quote of mostly small words is never rewritten', () {
+    const output = 'He said "and the world that He was in and of the world" to them.';
+    final r = CitationGuard(db).apply(output, ctx);
+    expect(r.correctedQuotes, isEmpty);
+  });
+
+  test('real citations and prose are not marked invented', () {
+    const output =
+        'See First Corinthians 13:4, Second Timothy 3:16, Peter 1:3 and Samuel 3:10. '
+        'We met Monday 3:30 with John Smith 3:30 at a ratio of Ratio 3:1, Is 53:5, Gn 1:1, '
+        'and read Genesis Chapter 3:16 on Day 3:5.';
+    final r = CitationGuard(db).apply(output, ctx);
+    expect(r.unknownBooks, isEmpty);
+  });
+
   test('flags citations of books that do not exist without touching prose', () {
     const output =
         'Compare 2 Hezekiah 4:1 and Jasher 3:2 with John 3:16. '

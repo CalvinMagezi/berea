@@ -18,6 +18,18 @@ import UIKit
       channel.setMethodCallHandler { call, result in
         if call.method == "totalMemory" {
           result(Int(ProcessInfo.processInfo.physicalMemory))
+        } else if call.method == "excludeFromBackup", let path = call.arguments as? String {
+          // Keeps notes, studies and imports out of iCloud backups. Everything inside the folder
+          // inherits the flag.
+          var url = URL(fileURLWithPath: path)
+          var values = URLResourceValues()
+          values.isExcludedFromBackup = true
+          do {
+            try url.setResourceValues(values)
+            result(true)
+          } catch {
+            result(FlutterError(code: "backup", message: error.localizedDescription, details: nil))
+          }
         } else {
           result(FlutterMethodNotImplemented)
         }

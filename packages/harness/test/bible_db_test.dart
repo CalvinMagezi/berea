@@ -47,6 +47,13 @@ void main() {
       throwsFormatException,
     );
     expect(db.translations(), ['TEST']);
+    expect(
+      () => db.importCsv('Book,Chapter,Verse,Text\nJohn,1,1,x\n', '../x'),
+      throwsFormatException,
+    );
+    db.importCsv('Book,Chapter,Verse,Text\nJohn,1,1,a\nJohn,1,1,b\n', 'DUP');
+    expect(db.passage(RefParser.parse('John 1:1').first, translation: 'DUP').length, 1);
+    expect(db.exists(RefParser.parse('John 1:1').first, translation: 'DUP'), isTrue);
     const tricky = 'He said, "go", then left.';
     expect(
       parseCsv(

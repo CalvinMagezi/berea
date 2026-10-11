@@ -24,3 +24,14 @@ int? _linuxMemory() {
   final kb = int.tryParse(RegExp(r'\d+').firstMatch(line)?[0] ?? '');
   return kb == null ? null : kb * 1024;
 }
+
+/// Keeps [dir] out of iCloud backups on iOS. Android opts out in its manifest; desktops back up
+/// only where their owner chooses.
+Future<void> excludeFromBackup(Directory dir) async {
+  if (!Platform.isIOS) return;
+  try {
+    await _channel.invokeMethod<bool>('excludeFromBackup', dir.path);
+  } on PlatformException {
+    return;
+  }
+}

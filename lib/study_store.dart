@@ -269,8 +269,24 @@ class StudyStore {
       t: [for (final r in db.select('SELECT * FROM $t')) Map<String, Object?>.from(r)],
   };
 
+  /// Throws [FormatException] when a row has a column the table lacks or a book outside the 66.
+  void validateTables(Map<String, List<Map<String, Object?>>> tables) {
+    for (final t in userTables) {
+      final columns = {for (final r in db.select('PRAGMA table_info($t)')) r['name'] as String};
+      for (final row in tables[t] ?? const <Map<String, Object?>>[]) {
+        final unknown = row.keys.where((c) => !columns.contains(c));
+        if (unknown.isNotEmpty) throw FormatException('unknown column ${unknown.first} in $t');
+        final book = row['book'];
+        if (columns.contains('book') && (book is! int || book < 1 || book > books.length)) {
+          throw FormatException('bad book $book in $t');
+        }
+      }
+    }
+  }
+
   /// Replaces every user table with [tables] in one transaction; on any error nothing changes.
   void importTables(Map<String, List<Map<String, Object?>>> tables) {
+    validateTables(tables);
     db.execute('BEGIN');
     try {
       for (final t in userTables) {
