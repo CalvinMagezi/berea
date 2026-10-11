@@ -24,11 +24,15 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     widget.state.pendingQuestion.addListener(_jumpToStudy);
+    widget.state.openReaderRequest.addListener(_jumpToBible);
   }
+
+  void _jumpToBible() => _select(HomeTab.bible);
 
   @override
   void dispose() {
     widget.state.pendingQuestion.removeListener(_jumpToStudy);
+    widget.state.openReaderRequest.removeListener(_jumpToBible);
     super.dispose();
   }
 

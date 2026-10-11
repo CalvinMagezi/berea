@@ -82,6 +82,7 @@ Future<void> main(List<String> args) async {
   final unzip = await Process.run('unzip', ['-o', '-q', zip, '-d', '$cache/xrefs']);
   if (unzip.exitCode != 0) throw StateError('unzip failed: ${unzip.stderr}');
   _loadXrefs(db, File('$cache/xrefs/cross_references.txt').readAsStringSync());
+  _buildDailyVerses(db);
 
   db.execute("INSERT INTO meta VALUES('built', '${DateTime.now().toUtc().toIso8601String()}')");
   db.execute("INSERT INTO meta VALUES('translations', '${[...translations, 'WEB'].join(',')}')");
@@ -137,6 +138,22 @@ void _loadRows(Database db, String translation, List<VerseRow> rows) {
   db.execute('COMMIT');
   stmt.dispose();
   stdout.writeln('$translation: ${rows.length} verses');
+}
+
+/// One verse per day of the year: the single verses Scripture itself points to most, by
+/// OpenBible cross-reference votes. Data driven, nothing hand picked.
+const daysInLeapYear = 366;
+
+void _buildDailyVerses(Database db) {
+  db.execute('''
+    CREATE TABLE daily_verses(day INTEGER PRIMARY KEY, book INTEGER, chapter INTEGER, verse INTEGER);
+    INSERT INTO daily_verses(day, book, chapter, verse)
+      SELECT ROW_NUMBER() OVER (ORDER BY total DESC), to_book, to_chapter, to_verse_start FROM (
+        SELECT to_book, to_chapter, to_verse_start, SUM(votes) AS total FROM xrefs
+        WHERE to_verse_start = to_verse_end
+        GROUP BY to_book, to_chapter, to_verse_start ORDER BY total DESC LIMIT $daysInLeapYear);
+  ''');
+  stdout.writeln('daily verses: ${db.select('SELECT COUNT(*) AS n FROM daily_verses').first['n']}');
 }
 
 final _stepRef = RegExp(r'^([1-3]?[A-Za-z]{2,3})\.(\d+)\.(\d+)(?:\(\d+\.\d+\))?#(\d+)');

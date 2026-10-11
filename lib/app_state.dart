@@ -7,8 +7,11 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'device.dart';
+import 'backup.dart';
 import 'edge_engine.dart';
 import 'models.dart';
+import 'plans.dart';
 import 'study_store.dart';
 
 enum EngineKind { ollama, device }
@@ -119,6 +122,9 @@ class AppState extends ChangeNotifier {
   /// Second translation shown under or beside the first in the reader. Null when off.
   String? parallelTranslation;
 
+  /// Device RAM in GB, or null when the platform does not say.
+  double? deviceGb;
+
   DeviceModelState deviceState = DeviceModelState.notInstalled;
   int downloadProgress = 0;
   String? deviceError;
@@ -131,7 +137,13 @@ class AppState extends ChangeNotifier {
     s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
     s.prefs = await SharedPreferences.getInstance();
+    final bytes = await totalMemoryBytes();
+    s.deviceGb = bytes == null ? null : bytes / bytesPerGb;
     s.settings = Settings.load(s.prefs);
+    if (!s.prefs.containsKey('deviceModelId')) {
+      final m = recommendedModel(s.deviceGb);
+      s.settings = s.settings.copyWith(deviceModelId: m.id, tier: m.tier);
+    }
     s.readerBook = s.prefs.getInt('readerBook') ?? 1;
     s.readerChapter = s.prefs.getInt('readerChapter') ?? 1;
     s.parallelTranslation = s.prefs.getString('parallelTranslation');
@@ -141,9 +153,9 @@ class AppState extends ChangeNotifier {
     return s;
   }
 
-  /// Debug builds only: a question in `BEREA_AUTORUN` or in `autorun.txt` under the app's
-  /// documents folder downloads the model if needed and asks it. Lets a headless simulator or
-  /// emulator exercise the on-device path without tapping.
+  /// Debug builds only: questions in `BEREA_AUTORUN` or `autorun.txt` (one per line) under the
+  /// app's documents folder download the model if needed and are asked in order. Lets a headless
+  /// simulator or emulator exercise the on-device path without tapping.
   Future<void> _autorun() async {
     var q = Platform.environment['BEREA_AUTORUN'];
     if (q == null || q.isEmpty) {
@@ -154,7 +166,10 @@ class AppState extends ChangeNotifier {
     if (settings.engine == EngineKind.device && deviceState == DeviceModelState.notInstalled) {
       await downloadDeviceModel();
     }
-    if (harness != null) await send(q);
+    for (final line in q.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty)) {
+      if (harness == null) return;
+      await send(line);
+    }
   }
 
   /// Copies the bundled database next to the app once. Length doubles as a version check.
@@ -192,8 +207,8 @@ class AppState extends ChangeNotifier {
 
   /// Imports a user-owned translation from CSV, USFM, OSIS, Zefania or a zip of those, and keeps
   /// a normalised CSV copy so it survives database rebuilds. Returns the verse count.
-  int importTranslation(List<String> paths, String code) {
-    final rows = [for (final p in paths) ...parseBibleFile(p, File(p).readAsBytesSync())];
+  int importTranslation(List<({String name, Uint8List bytes})> files, String code) {
+    final rows = [for (final f in files) ...parseBibleFile(f.name, f.bytes)];
     final n = db.importRows(rows, code);
     final csv = toCsv([
       ['Book', 'Chapter', 'Verse', 'Text'],
@@ -221,6 +236,66 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  ReadingPlan? get activePlan => planById(prefs.getString('activePlan'));
+
+  void startPlan(ReadingPlan plan) {
+    study.clearPlan(plan.id);
+    prefs.setString('activePlan', plan.id);
+    prefs.setString('activePlanStart', DateTime.now().toIso8601String());
+    notifyListeners();
+  }
+
+  void stopPlan() {
+    prefs.remove('activePlan');
+    prefs.remove('activePlanStart');
+    notifyListeners();
+  }
+
+  List<List<Ref>> planSchedule(ReadingPlan plan) =>
+      plan.schedule((b) => db.chapterCount(b, translation: defaultTranslation));
+
+  /// Day of [plan] for today, counting the start day as day 1 and stopping at the last day.
+  int planDay(ReadingPlan plan) {
+    final start = DateTime.tryParse(prefs.getString('activePlanStart') ?? '') ?? DateTime.now();
+    final days = DateTime.now().difference(DateTime(start.year, start.month, start.day)).inDays;
+    return (days + 1).clamp(1, plan.days);
+  }
+
+  /// Today's chapters if a plan is running.
+  List<Ref>? get todaysReading {
+    final plan = activePlan;
+    return plan == null ? null : planSchedule(plan)[planDay(plan) - 1];
+  }
+
+  /// Imported translations as code to CSV, for backups.
+  Map<String, String> get importedTranslations => {
+    for (final f in importsDir.listSync().whereType<File>())
+      if (f.path.endsWith('.csv'))
+        f.uri.pathSegments.last.replaceAll('.csv', ''): f.readAsStringSync(),
+  };
+
+  Future<Uint8List> backup(String passphrase) =>
+      createBackup(study, importedTranslations, passphrase);
+
+  /// Decrypts first; only a backup that opened and checked out replaces the current data.
+  Future<void> restore(Uint8List bytes, String passphrase) async {
+    final contents = await readBackup(bytes, passphrase);
+    study.importTables(contents.tables);
+    for (final e in contents.imports.entries) {
+      File('${importsDir.path}/${e.key}.csv').writeAsStringSync(e.value);
+      db.importCsv(e.value, e.key);
+    }
+    clear();
+  }
+
+  /// Asks the shell to show the Bible tab at [ref].
+  final openReaderRequest = ValueNotifier<int>(0);
+
+  void openInReader(Ref ref) {
+    setReader(ref.book, ref.chapter, ref.verseStart);
+    openReaderRequest.value++;
+  }
+
   void askAbout(Ref ref) =>
       pendingQuestion.value = 'Study ${ref.label}. What does it mean and how does it apply?';
 
@@ -229,7 +304,7 @@ class AppState extends ChangeNotifier {
 
   void openConversation(int id) {
     turns.clear();
-    harness?.history.clear();
+    harness?.resetConversation();
     conversationId = id;
     ChatTurn? current;
     for (final m in study.messages(id)) {
@@ -381,7 +456,7 @@ class AppState extends ChangeNotifier {
 
   void clear() {
     turns.clear();
-    harness?.history.clear();
+    harness?.resetConversation();
     conversationId = null;
     notifyListeners();
   }

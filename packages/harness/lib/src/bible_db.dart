@@ -55,6 +55,22 @@ class BibleDb {
       r['translation'] as String,
   ];
 
+  /// Verse of the day for [date], cycling through the database's daily list. Null on databases
+  /// built before the list existed.
+  Ref? dailyVerse(DateTime date) {
+    final has = db.select(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'daily_verses'",
+    );
+    if (has.isEmpty) return null;
+    final count = db.select('SELECT COUNT(*) AS n FROM daily_verses').first['n'] as int;
+    if (count == 0) return null;
+    final dayOfYear = date.difference(DateTime(date.year)).inDays;
+    final r = db.select('SELECT book, chapter, verse FROM daily_verses WHERE day = ?', [
+      dayOfYear % count + 1,
+    ]).first;
+    return Ref(bookById(r['book'] as int), r['chapter'] as int, r['verse'] as int);
+  }
+
   int chapterCount(Book book, {String translation = defaultTranslation}) {
     final row = db.select(
       'SELECT MAX(chapter) AS n FROM verses WHERE translation = ? AND book = ?',

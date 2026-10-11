@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'app_state.dart';
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
+import 'plans_screen.dart';
+import 'study_page_screen.dart';
 import 'search_screen.dart';
 import 'theme.dart';
 
@@ -111,6 +113,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Reading plans',
+            icon: const Icon(Icons.calendar_month_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => PlansScreen(state: s)),
+            ),
+          ),
           IconButton(
             tooltip: 'Search',
             icon: const Icon(Icons.search),
@@ -236,6 +246,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 await showNoteDialog(context, s, ref: ref, note: existing);
                 setState(_selected.clear);
               },
+              onStudyPage: () {
+                final ref = _selection;
+                setState(_selected.clear);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => StudyPageScreen(state: s, ref: ref),
+                  ),
+                );
+              },
               onHighlight: () {
                 for (final v in _selected) {
                   s.study.toggleHighlight(book, chapter, v);
@@ -340,9 +360,11 @@ class _SelectionBar extends StatelessWidget {
   final String label;
   final VoidCallback onAsk;
   final VoidCallback onNote;
+  final VoidCallback onStudyPage;
   final VoidCallback onHighlight;
   final VoidCallback onClear;
   const _SelectionBar({
+    required this.onStudyPage,
     required this.label,
     required this.onAsk,
     required this.onNote,
@@ -375,6 +397,11 @@ class _SelectionBar extends StatelessWidget {
                 tooltip: 'Note',
                 icon: const Icon(Icons.sticky_note_2_outlined),
                 onPressed: onNote,
+              ),
+              IconButton(
+                tooltip: 'Study page',
+                icon: const Icon(Icons.article_outlined),
+                onPressed: onStudyPage,
               ),
               IconButton(
                 tooltip: 'Highlight',

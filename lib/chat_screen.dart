@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'app_state.dart';
 import 'export.dart';
 import 'markdown_lite.dart';
+import 'plans.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
 
@@ -123,6 +124,7 @@ class _ChatScreenState extends State<ChatScreen> {
               Expanded(
                 child: s.turns.isEmpty
                     ? _Empty(
+                        state: s,
                         db: s.db,
                         translation: s.settings.translation,
                         onPick: (q) {
@@ -148,10 +150,16 @@ class _ChatScreenState extends State<ChatScreen> {
 }
 
 class _Empty extends StatelessWidget {
+  final AppState state;
   final BibleDb db;
   final String translation;
   final void Function(String) onPick;
-  const _Empty({required this.db, required this.translation, required this.onPick});
+  const _Empty({
+    required this.state,
+    required this.db,
+    required this.translation,
+    required this.onPick,
+  });
 
   static const prompts = [
     'Study Acts 17:11. Why were the Bereans called noble?',
@@ -163,19 +171,49 @@ class _Empty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final motto = db.passage(RefParser.parse('Acts 17:11').first, translation: translation);
+    final daily = db.dailyVerse(DateTime.now()) ?? RefParser.parse('Acts 17:11').first;
+    final verse = db.passage(daily, translation: translation);
+    final reading = state.todaysReading;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(28, 48, 28, 24),
+      padding: const EdgeInsets.fromLTRB(28, 40, 28, 24),
       children: [
         Text(
-          motto.map((v) => v.text).join(' '),
+          'VERSE OF THE DAY',
+          style: TextStyle(fontSize: 11, letterSpacing: 1.4, color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          verse.map((v) => v.text).join(' '),
           style: scriptureStyle(context).copyWith(fontSize: 18, fontStyle: FontStyle.italic),
         ),
         const SizedBox(height: 6),
-        Text(
-          'Acts 17:11, $translation',
-          style: TextStyle(color: scheme.primary, letterSpacing: 0.5),
+        Row(
+          children: [
+            Text(
+              '${daily.label}, $translation',
+              style: TextStyle(color: scheme.primary, letterSpacing: 0.5),
+            ),
+            const Spacer(),
+            TextButton(
+              onPressed: () =>
+                  onPick('Study ${daily.label}. What does it mean and how does it apply?'),
+              child: const Text('Study it'),
+            ),
+          ],
         ),
+        if (reading != null) ...[
+          const SizedBox(height: 16),
+          Card(
+            elevation: 0,
+            color: scheme.surfaceContainerHighest,
+            child: ListTile(
+              leading: const Icon(Icons.calendar_month_outlined),
+              title: Text('Today: ${readingLabel(reading)}'),
+              subtitle: Text(state.activePlan!.name),
+              onTap: () => state.openInReader(reading.first),
+            ),
+          ),
+        ],
         const SizedBox(height: 32),
         Wrap(
           spacing: 8,
