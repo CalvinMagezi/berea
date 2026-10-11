@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'export.dart';
 import 'note_dialog.dart';
+import 'study_page_screen.dart';
 import 'theme.dart';
 
 class NotesScreen extends StatefulWidget {
@@ -39,6 +41,12 @@ class _NotesScreenState extends State<NotesScreen> {
         .conversations()
         .where((c) => c.title.toLowerCase().contains(q))
         .toList();
+    final pages = s.study
+        .studyPages()
+        .where(
+          (p) => p.ref.label.toLowerCase().contains(q) || p.observation.toLowerCase().contains(q),
+        )
+        .toList();
     final notes = s.study
         .notes()
         .where((n) => n.text.toLowerCase().contains(q) || n.ref.label.toLowerCase().contains(q))
@@ -49,6 +57,17 @@ class _NotesScreenState extends State<NotesScreen> {
           'Notes',
           style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 24),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Export all as Markdown',
+            icon: const Icon(Icons.ios_share),
+            onPressed: () => saveMarkdown(
+              'berea-notes.md',
+              allNotesMarkdown(s.study, s.db, s.settings.translation),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(
@@ -67,7 +86,7 @@ class _NotesScreenState extends State<NotesScreen> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-          child: studies.isEmpty && notes.isEmpty
+          child: studies.isEmpty && notes.isEmpty && pages.isEmpty
               ? Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
@@ -93,6 +112,29 @@ class _NotesScreenState extends State<NotesScreen> {
                           s.openConversation(c.id);
                           widget.onOpenStudy();
                         },
+                      ),
+                    if (pages.isNotEmpty) _Header('Study pages'),
+                    for (final p in pages)
+                      ListTile(
+                        leading: const Icon(Icons.article_outlined),
+                        title: Text(
+                          p.ref.label,
+                          style: TextStyle(fontFamilyFallback: scriptureFontFallback),
+                        ),
+                        subtitle: Text(p.observation, maxLines: 2, overflow: TextOverflow.ellipsis),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () {
+                            s.study.deleteStudyPage(p.id);
+                            s.touch();
+                          },
+                        ),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => StudyPageScreen(state: s, ref: p.ref),
+                          ),
+                        ),
                       ),
                     if (notes.isNotEmpty) _Header('Notes'),
                     for (final n in notes)

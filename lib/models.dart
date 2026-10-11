@@ -61,3 +61,16 @@ const edgeModels = <EdgeModel>[
 
 EdgeModel edgeModelById(String id) =>
     edgeModels.firstWhere((m) => m.id == id, orElse: () => edgeModels.first);
+
+/// Below this, Gemma 4 E2B leaves too little room for the OS and the app.
+const minGbForE2b = 5.0;
+
+/// At or above this, Gemma 4 E4B is comfortable.
+const minGbForE4b = 10.0;
+
+/// Best model for [gb] of RAM; null [gb] (unknown) picks the default.
+EdgeModel recommendedModel(double? gb) {
+  if (gb == null || gb >= minGbForE2b && gb < minGbForE4b) return edgeModelById('gemma-4-e2b');
+  if (gb >= minGbForE4b) return edgeModelById('gemma-4-e4b');
+  return edgeModelById('gemma-3-1b');
+}

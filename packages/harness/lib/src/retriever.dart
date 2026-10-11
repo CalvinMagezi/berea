@@ -53,10 +53,24 @@ class Retriever {
       }
     }
 
+    final hits = db.search(userText, translation: translation, k: tier.searchK);
     final searchHits = [
-      for (final v in db.search(userText, translation: translation, k: tier.searchK))
+      for (final v in hits)
         if (seen.add(v.label)) v,
     ];
+
+    // With no reference to anchor on, follow the cross-reference graph from the search hits: the
+    // passages most of them point to are usually the canonical ones on the topic.
+    if (refs.isEmpty && hits.isNotEmpty) {
+      final hubs = db.crossReferenceHubs([
+        for (final v in hits) Ref(v.book, v.chapter, v.verse, v.verse),
+      ], k: tier.xrefK);
+      for (final r in hubs) {
+        for (final v in db.passage(r, translation: translation)) {
+          if (seen.add(v.label)) xrefVerses.add(v);
+        }
+      }
+    }
 
     return StudyContext(
       refs: refs,

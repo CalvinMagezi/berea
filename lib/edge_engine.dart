@@ -21,7 +21,8 @@ Future<void> ensureEdgeAiInitialized() =>
       },
     );
 
-/// Harness engine backed by a LiteRT-LM model loaded through flutter_edge_ai.
+/// Harness engine backed by a LiteRT-LM model loaded through flutter_edge_ai. Each turn opens a
+/// fresh conversation; keeping one open measured slower overall on a phone-sized context.
 class EdgeAiEngine implements LlmEngine {
   final InferenceModel model;
   final EdgeModel spec;
@@ -58,8 +59,6 @@ class EdgeAiEngine implements LlmEngine {
 
   @override
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) async* {
-    // ponytail: a fresh chat per turn re-prefills the system prompt; keep one conversation
-    // open across turns once prefix caching matters on phones.
     final system = messages.where((m) => m.role == 'system').map((m) => m.content).join('\n');
     final chat = await model.createChat(
       systemInstruction: system.isEmpty ? null : system,

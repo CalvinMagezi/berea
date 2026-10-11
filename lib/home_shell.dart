@@ -24,11 +24,15 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     widget.state.pendingQuestion.addListener(_jumpToStudy);
+    widget.state.openReaderRequest.addListener(_jumpToBible);
   }
+
+  void _jumpToBible() => _select(HomeTab.bible);
 
   @override
   void dispose() {
     widget.state.pendingQuestion.removeListener(_jumpToStudy);
+    widget.state.openReaderRequest.removeListener(_jumpToBible);
     super.dispose();
   }
 
@@ -52,7 +56,7 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  Widget? get _fab => _tab == HomeTab.study
+  Widget? get _fab => _tab != HomeTab.notes
       ? null
       : FloatingActionButton(
           tooltip: 'Ask Berea',
@@ -67,7 +71,7 @@ class _HomeShellState extends State<HomeShell> {
       index: _tab.index,
       children: [
         ChatScreen(state: s),
-        ReaderScreen(state: s),
+        ReaderScreen(state: s, onQuickChat: _quickChat),
         NotesScreen(state: s, onOpenStudy: () => _select(HomeTab.study)),
       ],
     );

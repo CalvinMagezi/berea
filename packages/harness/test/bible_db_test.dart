@@ -1,8 +1,28 @@
+import 'dart:io';
+
 import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('the optional lexicon pack attaches and answers by Strong number', () {
+    final dir = Directory.systemTemp.createTempSync('berea_lsj');
+    final pack = '${dir.path}/lsj.sqlite';
+    sqlite3.open(pack)
+      ..execute('''
+        CREATE TABLE lexicon_full(key TEXT PRIMARY KEY, base TEXT, definition TEXT);
+        INSERT INTO lexicon_full VALUES ('G0025', 'G0025', 'to love, full entry');
+      ''')
+      ..dispose();
+    final db = BibleDb(sqlite3.openInMemory());
+    expect(db.fullLexicon('G0025'), isNull);
+    expect(db.attachFullLexicon('${dir.path}/missing.sqlite'), isFalse);
+    expect(db.attachFullLexicon(pack), isTrue);
+    expect(db.fullLexicon('G0025'), 'to love, full entry');
+    expect(db.fullLexicon('G9999'), isNull);
+    dir.deleteSync(recursive: true);
+  });
+
   test('imports a CSV translation and makes it searchable', () {
     final raw = sqlite3.openInMemory();
     raw.execute('''
@@ -27,5 +47,21 @@ void main() {
       throwsFormatException,
     );
     expect(db.translations(), ['TEST']);
+    expect(
+      () => db.importCsv('Book,Chapter,Verse,Text\nJohn,1,1,x\n', '../x'),
+      throwsFormatException,
+    );
+    db.importCsv('Book,Chapter,Verse,Text\nJohn,1,1,a\nJohn,1,1,b\n', 'DUP');
+    expect(db.passage(RefParser.parse('John 1:1').first, translation: 'DUP').length, 1);
+    expect(db.exists(RefParser.parse('John 1:1').first, translation: 'DUP'), isTrue);
+    const tricky = 'He said, "go", then left.';
+    expect(
+      parseCsv(
+        toCsv([
+          ['a', tricky],
+        ]),
+      ).single,
+      ['a', tricky],
+    );
   });
 }

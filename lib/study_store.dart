@@ -13,6 +13,23 @@ class Note {
   const Note(this.id, this.ref, this.text, this.updated);
 }
 
+class StudyPageRecord {
+  final int id;
+  final Ref ref;
+  final String observation;
+  final String interpretation;
+  final String application;
+  final DateTime updated;
+  const StudyPageRecord(
+    this.id,
+    this.ref,
+    this.observation,
+    this.interpretation,
+    this.application,
+    this.updated,
+  );
+}
+
 class Conversation {
   final int id;
   final String title;
@@ -46,6 +63,11 @@ class StudyStore {
       CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY, conversation_id INTEGER, role TEXT,
         text TEXT, refs TEXT, created INTEGER);
       CREATE INDEX IF NOT EXISTS messages_conv ON messages(conversation_id);
+      CREATE TABLE IF NOT EXISTS plan_progress(plan_id TEXT, day INTEGER, done_at INTEGER,
+        PRIMARY KEY(plan_id, day)) WITHOUT ROWID;
+      CREATE TABLE IF NOT EXISTS study_pages(id INTEGER PRIMARY KEY, book INTEGER, chapter INTEGER,
+        verse_start INTEGER, verse_end INTEGER, observation TEXT, interpretation TEXT,
+        application TEXT, created INTEGER, updated INTEGER);
     ''');
   }
 
@@ -160,6 +182,172 @@ class StudyStore {
           ...RefParser.parse(label),
       ]),
   ];
+
+  Set<int> planDaysDone(String planId) => {
+    for (final r in db.select('SELECT day FROM plan_progress WHERE plan_id = ?', [planId]))
+      r['day'] as int,
+  };
+
+  void setPlanDay(String planId, int day, bool done) => db.execute(
+    done
+        ? 'INSERT OR REPLACE INTO plan_progress VALUES (?, ?, ?)'
+        : 'DELETE FROM plan_progress WHERE plan_id = ? AND day = ?',
+    done ? [planId, day, _now()] : [planId, day],
+  );
+
+  void clearPlan(String planId) =>
+      db.execute('DELETE FROM plan_progress WHERE plan_id = ?', [planId]);
+
+  StudyPageRecord _page(Row r) => StudyPageRecord(
+    r['id'] as int,
+    Ref(
+      bookById(r['book'] as int),
+      r['chapter'] as int,
+      r['verse_start'] as int,
+      r['verse_end'] as int,
+    ),
+    r['observation'] as String,
+    r['interpretation'] as String,
+    r['application'] as String,
+    DateTime.fromMillisecondsSinceEpoch(r['updated'] as int),
+  );
+
+  List<StudyPageRecord> studyPages() =>
+      db.select('SELECT * FROM study_pages ORDER BY updated DESC').map(_page).toList();
+
+  StudyPageRecord? studyPageFor(Ref ref) {
+    final vs = ref.verseStart ?? 1;
+    final rows = db.select(
+      'SELECT * FROM study_pages WHERE book = ? AND chapter = ? AND verse_start = ? AND verse_end = ?',
+      [ref.book.id, ref.chapter, vs, ref.verseEnd ?? vs],
+    );
+    return rows.isEmpty ? null : _page(rows.first);
+  }
+
+  /// Inserts or updates the page for exactly [ref].
+  void saveStudyPage(Ref ref, String observation, String interpretation, String application) {
+    final existing = studyPageFor(ref);
+    final vs = ref.verseStart ?? 1;
+    if (existing == null) {
+      db.execute(
+        'INSERT INTO study_pages(book, chapter, verse_start, verse_end, observation, interpretation, '
+        'application, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          ref.book.id,
+          ref.chapter,
+          vs,
+          ref.verseEnd ?? vs,
+          observation,
+          interpretation,
+          application,
+          _now(),
+          _now(),
+        ],
+      );
+    } else {
+      db.execute(
+        'UPDATE study_pages SET observation = ?, interpretation = ?, application = ?, updated = ? WHERE id = ?',
+        [observation, interpretation, application, _now(), existing.id],
+      );
+    }
+  }
+
+  void deleteStudyPage(int id) => db.execute('DELETE FROM study_pages WHERE id = ?', [id]);
+
+  /// Every user-written table, for backup.
+  static const userTables = [
+    'notes',
+    'highlights',
+    'conversations',
+    'messages',
+    'plan_progress',
+    'study_pages',
+  ];
+
+  Map<String, List<Map<String, Object?>>> exportTables() => {
+    for (final t in userTables)
+      t: [for (final r in db.select('SELECT * FROM $t')) Map<String, Object?>.from(r)],
+  };
+
+  /// What each column must hold for the readers in this class not to fail. Every listed column
+  /// is required; columns not listed (created) may be absent.
+  static const _columnTypes = <String, Map<String, Type>>{
+    'notes': {
+      'id': int,
+      'book': int,
+      'chapter': int,
+      'verse_start': int,
+      'verse_end': int,
+      'text': String,
+      'updated': int,
+    },
+    'highlights': {'book': int, 'chapter': int, 'verse': int},
+    'conversations': {'id': int, 'title': String, 'updated': int},
+    'messages': {'conversation_id': int, 'role': String, 'text': String, 'refs': String},
+    'plan_progress': {'plan_id': String, 'day': int},
+    'study_pages': {
+      'id': int,
+      'book': int,
+      'chapter': int,
+      'verse_start': int,
+      'verse_end': int,
+      'observation': String,
+      'interpretation': String,
+      'application': String,
+      'updated': int,
+    },
+  };
+
+  /// Throws [FormatException] when a row has a column the table lacks, a missing or mistyped
+  /// value, a book outside the 66, or saved references that are not a list.
+  void validateTables(Map<String, List<Map<String, Object?>>> tables) {
+    for (final t in userTables) {
+      final columns = {for (final r in db.select('PRAGMA table_info($t)')) r['name'] as String};
+      final types = _columnTypes[t]!;
+      for (final row in tables[t] ?? const <Map<String, Object?>>[]) {
+        final unknown = row.keys.where((c) => !columns.contains(c));
+        if (unknown.isNotEmpty) throw FormatException('unknown column ${unknown.first} in $t');
+        for (final e in types.entries) {
+          final v = row[e.key];
+          final ok = e.value == int ? v is int : v is String;
+          if (!ok) throw FormatException('$t.${e.key} must be ${e.value}, not $v');
+        }
+        final book = row['book'];
+        if (book is int && (book < 1 || book > books.length)) {
+          throw FormatException('bad book $book in $t');
+        }
+        if (t == 'messages') {
+          try {
+            if (jsonDecode(row['refs'] as String) is! List) throw const FormatException('');
+          } on FormatException {
+            throw const FormatException('messages.refs must be a JSON list');
+          }
+        }
+      }
+    }
+  }
+
+  /// Replaces every user table with [tables] in one transaction; on any error nothing changes.
+  void importTables(Map<String, List<Map<String, Object?>>> tables) {
+    validateTables(tables);
+    db.execute('BEGIN');
+    try {
+      for (final t in userTables) {
+        db.execute('DELETE FROM $t');
+        for (final row in tables[t] ?? const <Map<String, Object?>>[]) {
+          final cols = row.keys.toList();
+          db.execute(
+            'INSERT INTO $t(${cols.join(', ')}) VALUES (${List.filled(cols.length, '?').join(', ')})',
+            [for (final c in cols) row[c]],
+          );
+        }
+      }
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
 
   void deleteConversation(int id) {
     db.execute('DELETE FROM messages WHERE conversation_id = ?', [id]);
