@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
@@ -43,7 +45,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _send() {
     final q = _input.text.trim();
-    if (q.isEmpty || widget.state.busy) return;
+    if (q.isEmpty || !widget.state.ready) return;
     _input.clear();
     widget.state.send(q);
     _focus.requestFocus();
@@ -65,7 +67,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             const SizedBox(width: 12),
             Text(
-              '${s.harness.engine.name} · ${s.settings.tier.name} · ${s.settings.translation}',
+              '${s.engineLabel} · ${s.settings.tier.name} · ${s.settings.translation}',
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
           ],
@@ -106,6 +108,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         itemBuilder: (_, i) => _TurnView(s.turns[i], s.db, s.settings.translation),
                       ),
               ),
+              if (s.harness == null) _EngineNotice(state: s),
               _InputBar(controller: _input, focus: _focus, busy: s.busy, onSend: _send),
             ],
           ),
@@ -132,31 +135,27 @@ class _Empty extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final motto = db.passage(RefParser.parse('Acts 17:11').first, translation: translation);
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            motto.map((v) => v.text).join(' '),
-            style: scriptureStyle(context).copyWith(fontSize: 20, fontStyle: FontStyle.italic),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Acts 17:11, $translation',
-            style: TextStyle(color: scheme.primary, letterSpacing: 0.5),
-          ),
-          const SizedBox(height: 32),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final p in prompts) ActionChip(label: Text(p), onPressed: () => onPick(p)),
-            ],
-          ),
-        ],
-      ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(28, 48, 28, 24),
+      children: [
+        Text(
+          motto.map((v) => v.text).join(' '),
+          style: scriptureStyle(context).copyWith(fontSize: 18, fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Acts 17:11, $translation',
+          style: TextStyle(color: scheme.primary, letterSpacing: 0.5),
+        ),
+        const SizedBox(height: 32),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final p in prompts) ActionChip(label: Text(p), onPressed: () => onPick(p)),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -286,6 +285,39 @@ class _Citations extends StatelessWidget {
   }
 }
 
+class _EngineNotice extends StatelessWidget {
+  final AppState state;
+  const _EngineNotice({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = switch (state.deviceState) {
+      DeviceModelState.downloading =>
+        'Downloading ${state.settings.deviceModel.label}: ${state.downloadProgress}%',
+      DeviceModelState.loading => 'Loading ${state.settings.deviceModel.label}\u2026',
+      DeviceModelState.failed => 'Model failed to load. Open settings for details.',
+      _ => 'No model yet. Open settings to download ${state.settings.deviceModel.label}.',
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(text, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
+          ),
+          if (state.deviceState != DeviceModelState.downloading &&
+              state.deviceState != DeviceModelState.loading)
+            TextButton(
+              onPressed: () => showSettingsSheet(context, state),
+              child: const Text('Settings'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focus;
@@ -308,7 +340,7 @@ class _InputBar extends StatelessWidget {
             child: TextField(
               controller: controller,
               focusNode: focus,
-              autofocus: true,
+              autofocus: !(Platform.isAndroid || Platform.isIOS),
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => onSend(),
               decoration: const InputDecoration(

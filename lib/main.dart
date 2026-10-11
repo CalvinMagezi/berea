@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
 import 'app_state.dart';
 import 'chat_screen.dart';
 import 'theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await FlutterEdgeAi.initialize(inferenceEngines: const [LiteRtLmEngine()]);
   runApp(const BereaApp());
 }
 

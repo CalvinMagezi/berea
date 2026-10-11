@@ -6,36 +6,71 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'edge_engine.dart';
+import 'models.dart';
+
+enum EngineKind { ollama, device }
+
+/// Phones default to on-device, desktops to Ollama.
+final defaultEngine = Platform.isAndroid || Platform.isIOS ? EngineKind.device : EngineKind.ollama;
+
 class Settings {
+  final EngineKind engine;
   final String ollamaUrl;
   final String model;
+  final String deviceModelId;
+  final String hfToken;
   final Tier tier;
   final String translation;
-  const Settings({
+  Settings({
+    EngineKind? engine,
     this.ollamaUrl = 'http://localhost:11434',
     this.model = 'gemma4:e2b',
+    this.deviceModelId = 'gemma-4-e2b',
+    this.hfToken = '',
     this.tier = Tier.mid,
     this.translation = defaultTranslation,
-  });
+  }) : engine = engine ?? defaultEngine;
 
-  Settings copyWith({String? ollamaUrl, String? model, Tier? tier, String? translation}) =>
-      Settings(
-        ollamaUrl: ollamaUrl ?? this.ollamaUrl,
-        model: model ?? this.model,
-        tier: tier ?? this.tier,
-        translation: translation ?? this.translation,
-      );
+  EdgeModel get deviceModel => edgeModelById(deviceModelId);
 
-  static Settings load(SharedPreferences p) => Settings(
-    ollamaUrl: p.getString('ollamaUrl') ?? 'http://localhost:11434',
-    model: p.getString('model') ?? 'gemma4:e2b',
-    tier: Tier.values.byName(p.getString('tier') ?? Tier.mid.name),
-    translation: p.getString('translation') ?? defaultTranslation,
+  Settings copyWith({
+    EngineKind? engine,
+    String? ollamaUrl,
+    String? model,
+    String? deviceModelId,
+    String? hfToken,
+    Tier? tier,
+    String? translation,
+  }) => Settings(
+    engine: engine ?? this.engine,
+    ollamaUrl: ollamaUrl ?? this.ollamaUrl,
+    model: model ?? this.model,
+    deviceModelId: deviceModelId ?? this.deviceModelId,
+    hfToken: hfToken ?? this.hfToken,
+    tier: tier ?? this.tier,
+    translation: translation ?? this.translation,
   );
 
+  static Settings load(SharedPreferences p) {
+    final engineName = p.getString('engine');
+    return Settings(
+      engine: engineName == null ? null : EngineKind.values.byName(engineName),
+      ollamaUrl: p.getString('ollamaUrl') ?? 'http://localhost:11434',
+      model: p.getString('model') ?? 'gemma4:e2b',
+      deviceModelId: p.getString('deviceModelId') ?? 'gemma-4-e2b',
+      hfToken: p.getString('hfToken') ?? '',
+      tier: Tier.values.byName(p.getString('tier') ?? Tier.mid.name),
+      translation: p.getString('translation') ?? defaultTranslation,
+    );
+  }
+
   Future<void> save(SharedPreferences p) async {
+    await p.setString('engine', engine.name);
     await p.setString('ollamaUrl', ollamaUrl);
     await p.setString('model', model);
+    await p.setString('deviceModelId', deviceModelId);
+    await p.setString('hfToken', hfToken);
     await p.setString('tier', tier.name);
     await p.setString('translation', translation);
   }
@@ -50,14 +85,21 @@ class ChatTurn {
   bool get done => result != null || error != null;
 }
 
+enum DeviceModelState { notInstalled, downloading, loading, ready, failed }
+
 class AppState extends ChangeNotifier {
   late final BibleDb db;
   late final String systemPrompt;
   late final SharedPreferences prefs;
   late Settings settings;
-  late Harness harness;
+  Harness? harness;
   final turns = <ChatTurn>[];
   bool busy = false;
+
+  DeviceModelState deviceState = DeviceModelState.notInstalled;
+  int downloadProgress = 0;
+  String? deviceError;
+  EdgeAiEngine? _edge;
 
   static Future<AppState> bootstrap() async {
     final s = AppState();
@@ -65,7 +107,7 @@ class AppState extends ChangeNotifier {
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
     s.prefs = await SharedPreferences.getInstance();
     s.settings = Settings.load(s.prefs);
-    s._rebuildHarness();
+    await s._rebuildHarness();
     return s;
   }
 
@@ -85,34 +127,106 @@ class AppState extends ChangeNotifier {
     return (i < 0 ? raw : raw.substring(i + 5)).trim();
   }
 
-  void _rebuildHarness() {
-    harness = Harness(
-      db: db,
-      engine: OllamaEngine(
-        model: settings.model,
-        baseUrl: settings.ollamaUrl,
-        numCtx: settings.tier.promptTokens + settings.tier.maxOutput + 512,
-      ),
-      systemPrompt: systemPrompt,
-      tier: settings.tier,
-      translation: settings.translation,
-    );
-  }
+  String get engineLabel => harness?.engine.name ?? 'no engine';
 
-  Future<void> updateSettings(Settings next) async {
-    settings = next;
-    await next.save(prefs);
-    _rebuildHarness();
+  bool get ready => harness != null && !busy;
+
+  Future<void> _rebuildHarness() async {
+    await _edge?.close();
+    _edge = null;
+    harness = null;
+    final engine = settings.engine == EngineKind.ollama ? _ollama() : await _device();
+    if (engine != null) {
+      harness = Harness(
+        db: db,
+        engine: engine,
+        systemPrompt: systemPrompt,
+        tier: settings.tier,
+        translation: settings.translation,
+      );
+    }
     notifyListeners();
   }
 
+  LlmEngine _ollama() => OllamaEngine(
+    model: settings.model,
+    baseUrl: settings.ollamaUrl,
+    numCtx: settings.tier.promptTokens + settings.tier.maxOutput + contextPadding,
+  );
+
+  Future<LlmEngine?> _device() async {
+    final m = settings.deviceModel;
+    deviceError = null;
+    if (!await EdgeAiEngine.isInstalled(m)) {
+      deviceState = DeviceModelState.notInstalled;
+      return null;
+    }
+    deviceState = DeviceModelState.loading;
+    notifyListeners();
+    try {
+      _edge = await EdgeAiEngine.load(m, settings.tier);
+      deviceState = DeviceModelState.ready;
+      return _edge;
+    } catch (e) {
+      deviceState = DeviceModelState.failed;
+      deviceError = e.toString();
+      return null;
+    }
+  }
+
+  Future<void> downloadDeviceModel() async {
+    final m = settings.deviceModel;
+    deviceState = DeviceModelState.downloading;
+    downloadProgress = 0;
+    deviceError = null;
+    notifyListeners();
+    try {
+      await EdgeAiEngine.download(
+        m,
+        token: settings.hfToken.isEmpty ? null : settings.hfToken,
+        onProgress: (p) {
+          downloadProgress = p;
+          notifyListeners();
+        },
+      );
+      await _rebuildHarness();
+    } catch (e) {
+      deviceState = DeviceModelState.failed;
+      deviceError = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateSettings(Settings next) async {
+    final sameModel =
+        next.engine == settings.engine &&
+        next.deviceModelId == settings.deviceModelId &&
+        next.tier == settings.tier;
+    settings = next;
+    await next.save(prefs);
+    if (sameModel && settings.engine == EngineKind.device && harness != null) {
+      harness = Harness(
+        db: db,
+        engine: harness!.engine,
+        systemPrompt: systemPrompt,
+        tier: settings.tier,
+        translation: settings.translation,
+      );
+      notifyListeners();
+      return;
+    }
+    await _rebuildHarness();
+  }
+
   Future<void> send(String question) async {
+    final h = harness;
+    if (h == null) return;
     final turn = ChatTurn(question);
     turns.add(turn);
     busy = true;
     notifyListeners();
     try {
-      turn.result = await harness.ask(
+      turn.result = await h.ask(
         question,
         onToken: (t) {
           turn.answer += t;
@@ -130,7 +244,7 @@ class AppState extends ChangeNotifier {
 
   void clear() {
     turns.clear();
-    harness.history.clear();
+    harness?.history.clear();
     notifyListeners();
   }
 }

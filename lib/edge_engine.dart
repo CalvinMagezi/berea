@@ -1,0 +1,66 @@
+import 'package:berea_harness/berea_harness.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
+
+import 'models.dart';
+
+const contextPadding = 512;
+
+/// Harness engine backed by a LiteRT-LM model loaded through flutter_edge_ai.
+class EdgeAiEngine implements LlmEngine {
+  final InferenceModel model;
+  final EdgeModel spec;
+  const EdgeAiEngine(this.model, this.spec);
+
+  static Future<bool> isInstalled(EdgeModel m) => FlutterEdgeAi.isModelInstalled(m.installedName);
+
+  static Future<void> download(
+    EdgeModel m, {
+    String? token,
+    required void Function(int) onProgress,
+  }) {
+    return FlutterEdgeAi.installModel(
+      modelType: m.type,
+      fileType: ModelFileType.litertlm,
+    ).fromHuggingFace(m.repo, file: m.file, token: token).withProgress(onProgress).install();
+  }
+
+  /// Loads the active model sized for [tier]. Download it first with [download].
+  static Future<EdgeAiEngine> load(EdgeModel m, Tier tier) async {
+    final model = await FlutterEdgeAi.getActiveModel(
+      maxTokens: tier.promptTokens + tier.maxOutput + contextPadding,
+      preferredBackend: PreferredBackend.gpu,
+    );
+    return EdgeAiEngine(model, m);
+  }
+
+  @override
+  String get name => 'on-device:${spec.id}';
+
+  @override
+  Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) async* {
+    // ponytail: a fresh chat per turn re-prefills the system prompt; keep one conversation
+    // open across turns once prefix caching matters on phones.
+    final system = messages.where((m) => m.role == 'system').map((m) => m.content).join('\n');
+    final chat = await model.createChat(
+      systemInstruction: system.isEmpty ? null : system,
+      temperature: 0.3,
+      topK: 40,
+      topP: 0.95,
+      enableThinking: false,
+      modelType: spec.type,
+      maxOutputTokens: maxTokens,
+    );
+    try {
+      for (final m in messages.where((m) => m.role != 'system')) {
+        await chat.addQueryChunk(Message.text(text: m.content, isUser: m.role == 'user'));
+      }
+      await for (final r in chat.generateChatResponseAsync()) {
+        if (r is TextResponse) yield r.token;
+      }
+    } finally {
+      await chat.close();
+    }
+  }
+
+  Future<void> close() => model.close();
+}

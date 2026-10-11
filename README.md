@@ -11,8 +11,8 @@ strength is therefore independent of model strength.
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| App | Flutter 3.41, Dart 3.11 | One codebase for Android, iOS, macOS |
-| On-device runtime | `flutter_gemma` (LiteRT-LM) | Same `.litertlm` files AI Edge Gallery uses |
+| App | Flutter 3.47, Dart 3.13 | One codebase for Android, iOS, macOS |
+| On-device runtime | `flutter_edge_ai` + `flutter_edge_ai_litertlm` (LiteRT-LM) | Same `.litertlm` files AI Edge Gallery uses. `flutter_gemma` is discontinued in favour of this package |
 | Desktop dev runtime | Ollama HTTP, `gemma4:e2b` | Same model family as on device, tool calling, Apache 2.0 |
 | Storage | SQLite + FTS5 (`sqlite3` package) | BM25 retrieval, zero native deps beyond SQLite |
 | Harness | Pure Dart package `packages/harness` | Testable on Mac without a phone |
@@ -20,6 +20,15 @@ strength is therefore independent of model strength.
 
 Models are downloaded on first run from the Hugging Face LiteRT community, never bundled. The AI
 Edge Gallery app keeps its models in its own sandbox, so this app downloads the same files itself.
+The catalog lives in `lib/models.dart`. Gemma 4 E2B and E4B are not gated; Gemma 3 1B needs a
+Hugging Face token after accepting the licence, entered in the engine settings.
+
+## Platform notes
+
+- Android: `minSdk 30`, arm64 only (LiteRT-LM requirement). The emulator runs models on CPU.
+- macOS: the Podfile `post_install` stages LiteRT-LM companion dylibs into the app. Without it the
+  build is green but the first on-device model load fails. Ollama is the default engine on macOS.
+- iOS: phase 4.
 
 ## Model tiers
 
