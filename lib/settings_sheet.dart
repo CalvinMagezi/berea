@@ -40,13 +40,20 @@ class _SettingsDialogState extends State<_SettingsDialog> {
 
   void _refresh() => setState(() {});
 
-  /// Book,Chapter,Verse,Text CSV of a translation the user owns. Stays on this device.
+  /// A translation the user owns: CSV, USFM book files, OSIS, Zefania, or a zip of those.
+  /// Stays on this device.
   Future<void> _importTranslation(BuildContext context) async {
-    final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
-    if (picked.isEmpty || !context.mounted) return;
-    final path = picked.single.path;
-    if (path == null) return;
-    final guess = picked.single.name.replaceAll('.csv', '').toUpperCase();
+    final picked = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv', 'usfm', 'sfm', 'xml', 'osis', 'zip'],
+    );
+    final paths = [for (final f in picked) ?f.path];
+    if (paths.isEmpty || !context.mounted) return;
+    final guess = picked.first.name
+        .split('.')
+        .first
+        .replaceAll(RegExp('[^A-Za-z]'), '')
+        .toUpperCase();
     final code = await showDialog<String>(
       context: context,
       builder: (ctx) {
@@ -72,7 +79,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     if (code == null || code.isEmpty || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final n = widget.state.importTranslation(path, code);
+      final n = widget.state.importTranslation(paths, code);
       setState(() => draft = draft.copyWith(translation: code));
       messenger.showSnackBar(SnackBar(content: Text('Imported $code: $n verses')));
     } catch (e) {
@@ -163,7 +170,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   icon: const Icon(Icons.upload_file_outlined),
-                  label: const Text('Import a translation (CSV)'),
+                  label: const Text('Import a translation'),
                   onPressed: () => _importTranslation(context),
                 ),
               ),

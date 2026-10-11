@@ -27,6 +27,10 @@ void main() {
     ]);
   });
 
+  test('singular book names resolve', () {
+    expect(RefParser.parse('Proverb 18:12').single.label, 'Proverbs 18:12');
+  });
+
   test('match offsets map onto the original text', () {
     const text = 'See Song of Songs 4:7 and Rev 21:4.';
     final ms = RefParser.matches(text);

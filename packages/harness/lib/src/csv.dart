@@ -37,3 +37,8 @@ List<List<String>> parseCsv(String s) {
   }
   return rows;
 }
+
+String _csvField(String v) => v.contains(RegExp(r'[",\n\r]')) ? '"${v.replaceAll('"', '""')}"' : v;
+
+/// Inverse of [parseCsv]: one line per row, fields quoted only when needed.
+String toCsv(List<List<String>> rows) => rows.map((r) => r.map(_csvField).join(',')).join('\n');

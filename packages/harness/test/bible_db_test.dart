@@ -27,5 +27,14 @@ void main() {
       throwsFormatException,
     );
     expect(db.translations(), ['TEST']);
+    const tricky = 'He said, "go", then left.';
+    expect(
+      parseCsv(
+        toCsv([
+          ['a', tricky],
+        ]),
+      ).single,
+      ['a', tricky],
+    );
   });
 }

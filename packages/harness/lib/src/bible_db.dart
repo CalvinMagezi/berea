@@ -1,7 +1,7 @@
 import 'package:sqlite3/sqlite3.dart';
 
 import 'books.dart';
-import 'csv.dart';
+import 'importers.dart';
 import 'ref_parser.dart';
 
 class Verse {
@@ -63,30 +63,25 @@ class BibleDb {
     return (row['n'] as int?) ?? 0;
   }
 
-  /// Imports a `Book,Chapter,Verse,Text` CSV (the scrollmapper layout) as [code]. Replaces any
-  /// existing rows for that code. Returns the verse count. Throws on an unknown book name.
-  int importCsv(String csv, String code) {
-    final rows = parseCsv(csv);
-    if (rows.isEmpty || rows.first.length < 4) {
-      throw const FormatException('expected a Book,Chapter,Verse,Text header');
-    }
+  /// Imports a `Book,Chapter,Verse,Text` CSV (the scrollmapper layout) as [code].
+  int importCsv(String csv, String code) => importRows(parseCsvBible(csv), code);
+
+  /// Stores [rows] as translation [code], replacing any existing rows for that code, and rebuilds
+  /// the search index. Returns the verse count. Nothing changes if [rows] is empty.
+  int importRows(List<VerseRow> rows, String code) {
+    if (rows.isEmpty) throw const FormatException('no verses found');
     final insert = db.prepare(
       'INSERT INTO verses(translation, book, chapter, verse, text) VALUES (?, ?, ?, ?, ?)',
     );
     db.execute('BEGIN');
     try {
       db.execute('DELETE FROM verses WHERE translation = ?', [code]);
-      var n = 0;
-      for (final r in rows.skip(1)) {
-        if (r.length < 4 || r[0].trim().isEmpty) continue;
-        final book = bookFor(r[0]);
-        if (book == null) throw FormatException('unknown book "${r[0]}"');
-        insert.execute([code, book.id, int.parse(r[1]), int.parse(r[2]), r[3].trim()]);
-        n++;
+      for (final r in rows) {
+        insert.execute([code, r.book.id, r.chapter, r.verse, r.text]);
       }
       db.execute("INSERT INTO verses_fts(verses_fts) VALUES('rebuild')");
       db.execute('COMMIT');
-      return n;
+      return rows.length;
     } catch (_) {
       db.execute('ROLLBACK');
       rethrow;

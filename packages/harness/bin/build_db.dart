@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:berea_harness/src/books.dart';
 import 'package:berea_harness/src/csv.dart';
+import 'package:berea_harness/src/importers.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 
@@ -13,6 +14,7 @@ const _step = 'https://raw.githubusercontent.com/STEPBible/STEPBible-Data/master
 const _stepText = '$_step/Translators%20Amalgamated%20OT%2BNT';
 const _stepLex = '$_step/Lexicons';
 const _xrefs = 'https://a.openbible.info/data/cross-references.zip';
+const _web = 'https://ebible.org/Scriptures/engwebp_usfm.zip';
 
 const translations = ['BSB', 'KJV'];
 const stepTextFiles = [
@@ -57,6 +59,12 @@ Future<void> main(List<String> args) async {
     final csv = await _fetch('$_scrollmapper/$t.csv', '$cache/$t.csv');
     _loadTranslation(db, t, csv);
   }
+  final webZip = File('$cache/engwebp_usfm.zip');
+  if (!webZip.existsSync()) {
+    stdout.writeln('downloading $_web');
+    webZip.writeAsBytesSync((await http.get(Uri.parse(_web))).bodyBytes);
+  }
+  _loadRows(db, 'WEB', parseBibleFile('engwebp_usfm.zip', webZip.readAsBytesSync()));
   db.execute("INSERT INTO verses_fts(verses_fts) VALUES('rebuild')");
 
   for (final f in stepTextFiles) {
@@ -76,7 +84,7 @@ Future<void> main(List<String> args) async {
   _loadXrefs(db, File('$cache/xrefs/cross_references.txt').readAsStringSync());
 
   db.execute("INSERT INTO meta VALUES('built', '${DateTime.now().toUtc().toIso8601String()}')");
-  db.execute("INSERT INTO meta VALUES('translations', '${translations.join(',')}')");
+  db.execute("INSERT INTO meta VALUES('translations', '${[...translations, 'WEB'].join(',')}')");
   db.execute('VACUUM');
   for (final t in ['verses', 'words', 'lexicon', 'xrefs']) {
     final n = db.select('SELECT COUNT(*) AS n FROM $t').first['n'];
@@ -116,6 +124,19 @@ void _loadTranslation(Database db, String translation, String csv) {
   db.execute('COMMIT');
   stmt.dispose();
   stdout.writeln('$translation: $n verses');
+}
+
+void _loadRows(Database db, String translation, List<VerseRow> rows) {
+  final stmt = db.prepare(
+    'INSERT INTO verses(translation, book, chapter, verse, text) VALUES (?, ?, ?, ?, ?)',
+  );
+  db.execute('BEGIN');
+  for (final r in rows) {
+    stmt.execute([translation, r.book.id, r.chapter, r.verse, r.text]);
+  }
+  db.execute('COMMIT');
+  stmt.dispose();
+  stdout.writeln('$translation: ${rows.length} verses');
 }
 
 final _stepRef = RegExp(r'^([1-3]?[A-Za-z]{2,3})\.(\d+)\.(\d+)(?:\(\d+\.\d+\))?#(\d+)');

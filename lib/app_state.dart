@@ -183,11 +183,15 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Imports a user-owned translation CSV and keeps a copy so it survives database rebuilds.
-  /// Returns the verse count.
-  int importTranslation(String path, String code) {
-    final csv = File(path).readAsStringSync();
-    final n = db.importCsv(csv, code);
+  /// Imports a user-owned translation from CSV, USFM, OSIS, Zefania or a zip of those, and keeps
+  /// a normalised CSV copy so it survives database rebuilds. Returns the verse count.
+  int importTranslation(List<String> paths, String code) {
+    final rows = [for (final p in paths) ...parseBibleFile(p, File(p).readAsBytesSync())];
+    final n = db.importRows(rows, code);
+    final csv = toCsv([
+      ['Book', 'Chapter', 'Verse', 'Text'],
+      for (final r in rows) [r.book.name, '${r.chapter}', '${r.verse}', r.text],
+    ]);
     File('${importsDir.path}/$code.csv').writeAsStringSync(csv);
     notifyListeners();
     return n;
