@@ -46,7 +46,7 @@ Future<void> main(List<String> args) async {
   db.execute('''
     PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;
     CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, chapter INTEGER, verse INTEGER, text TEXT);
-    CREATE VIRTUAL TABLE verses_fts USING fts5(text, content='verses', content_rowid='id');
+    CREATE VIRTUAL TABLE verses_fts USING fts5(text, content='verses', content_rowid='id', tokenize='porter unicode61');
     CREATE TABLE words(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, original TEXT, translit TEXT, gloss TEXT, strongs TEXT, morph TEXT, PRIMARY KEY(book, chapter, verse, pos)) WITHOUT ROWID;
     CREATE TABLE lexicon(key TEXT PRIMARY KEY, base TEXT, lemma TEXT, translit TEXT, pos TEXT, gloss TEXT, definition TEXT);
     CREATE INDEX lexicon_base ON lexicon(base);
@@ -84,7 +84,11 @@ Future<void> main(List<String> args) async {
   _loadXrefs(db, File('$cache/xrefs/cross_references.txt').readAsStringSync());
   _buildDailyVerses(db);
 
-  db.execute("INSERT INTO meta VALUES('built', '${DateTime.now().toUtc().toIso8601String()}')");
+  final built = DateTime.now().toUtc().toIso8601String();
+  db.execute("INSERT INTO meta VALUES('built', '$built')");
+  // The app compares this small file to decide whether to recopy the database, so it never has
+  // to load the full asset just to check.
+  File('$out.version').writeAsStringSync(built);
   db.execute("INSERT INTO meta VALUES('translations', '${[...translations, 'WEB'].join(',')}')");
   db.execute('VACUUM');
   for (final t in ['verses', 'words', 'lexicon', 'xrefs']) {

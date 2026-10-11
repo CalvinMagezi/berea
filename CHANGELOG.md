@@ -7,8 +7,10 @@ Grounding
 - A misquote that clearly comes from one shown verse is replaced with that verse's exact words;
   anything less certain stays flagged.
 - Two new prompt rules for sayings that are not in the Bible and for passages that do not exist.
-- Eval grows to 40 questions, 8 adversarial. On gemma4:e2b: 0 invented references, 0
-  misattributed sayings, 8 of 8 adversarial cases passed.
+- Topical questions follow the cross-reference graph from their search hits, with stemmed search
+  and wider stopwords: well-known passages now reach the model for 7 of 8 topical checks, up from 4.
+- Eval grows to 40 questions, 8 adversarial. On gemma4:e2b: 0 invented references, 28 of 28
+  expected references, 0 misattributed sayings, 8 of 8 adversarial cases passed.
 
 Bible
 - World English Bible built in alongside BSB and KJV.
@@ -27,6 +29,8 @@ Study
 - Encrypted backup and restore with a passphrase.
 
 Platforms
+- The bundled database is recopied only when its build stamp changes, instead of loading the full
+  asset on every launch.
 - Windows and Linux desktop targets, built in CI.
 - Model recommendation from device memory.
 

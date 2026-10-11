@@ -138,6 +138,8 @@ class BibleDb {
   }
 
   static final _word = RegExp(r"[A-Za-z']{3,}");
+
+  /// Words that carry no topic: question scaffolding and very common English.
   static const _stop = {
     'the',
     'and',
@@ -159,6 +161,7 @@ class BibleDb {
     'were',
     'bible',
     'verse',
+    'verses',
     'passage',
     'say',
     'says',
@@ -174,6 +177,61 @@ class BibleDb {
     'his',
     'her',
     'their',
+    'teach',
+    'teaches',
+    'teaching',
+    'scripture',
+    'scriptures',
+    'christian',
+    'christians',
+    'think',
+    'deal',
+    'wrong',
+    'right',
+    'way',
+    'ways',
+    'when',
+    'where',
+    'which',
+    'there',
+    'they',
+    'them',
+    'some',
+    'any',
+    'all',
+    'our',
+    'your',
+    'its',
+    'not',
+    'but',
+    'than',
+    'then',
+    'also',
+    'just',
+    'like',
+    'get',
+    'got',
+    'did',
+    'done',
+    'doing',
+    'make',
+    'makes',
+    'need',
+    'want',
+    'know',
+    'show',
+    'shows',
+    'help',
+    'really',
+    'very',
+    'much',
+    'many',
+    'more',
+    'most',
+    'god',
+    'lord',
+    'jesus',
+    'christ',
   };
 
   String? ftsQuery(String text) {
@@ -271,6 +329,36 @@ class BibleDb {
       r['gloss'] as String,
       r['definition'] as String,
     );
+  }
+
+  /// Verses that several of [sources] cross-reference, ranked by how many point to them and
+  /// then by votes. Sources themselves are excluded.
+  List<Ref> crossReferenceHubs(List<Ref> sources, {int k = 8}) {
+    if (sources.isEmpty) return const [];
+    final where = List.filled(
+      sources.length,
+      '(from_book = ? AND from_chapter = ? AND from_verse = ?)',
+    ).join(' OR ');
+    final rows = db.select(
+      'SELECT to_book, to_chapter, to_verse_start, COUNT(*) AS n, SUM(votes) AS v FROM xrefs '
+      'WHERE ($where) AND votes > 0 GROUP BY to_book, to_chapter, to_verse_start '
+      'ORDER BY n DESC, v DESC LIMIT ?',
+      [
+        for (final r in sources) ...[r.book.id, r.chapter, r.verseStart ?? 1],
+        k + sources.length,
+      ],
+    );
+    final from = {for (final r in sources) '${r.book.id}:${r.chapter}:${r.verseStart}'};
+    return [
+      for (final r in rows)
+        if (!from.contains('${r['to_book']}:${r['to_chapter']}:${r['to_verse_start']}'))
+          Ref(
+            bookById(r['to_book'] as int),
+            r['to_chapter'] as int,
+            r['to_verse_start'] as int,
+            r['to_verse_start'] as int,
+          ),
+    ].take(k).toList();
   }
 
   List<XRef> xrefs(Ref ref, {int k = 8}) {

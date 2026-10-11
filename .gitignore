@@ -47,3 +47,4 @@ app.*.map.json
 # Berea data. Built by `dart run bin/build_db.dart` in packages/harness, never committed.
 packages/harness/.cache/
 assets/*.sqlite
+assets/*.sqlite.version

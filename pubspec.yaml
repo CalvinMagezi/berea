@@ -34,4 +34,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/berea.sqlite
+    - assets/berea.sqlite.version
     - prompts/system.md
