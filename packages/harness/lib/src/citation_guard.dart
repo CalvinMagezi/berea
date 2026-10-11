@@ -11,18 +11,64 @@ class GuardResult {
 
   /// Citations whose book name is not in the Bible at all, like "2 Hezekiah 4:1".
   final List<String> unknownBooks;
+
+  /// Misquotes replaced with the verbatim words of the one verse they clearly came from.
+  final List<String> correctedQuotes;
   const GuardResult(
     this.text,
     this.verified,
     this.unverified,
     this.unverifiedQuotes, [
     this.unknownBooks = const [],
+    this.correctedQuotes = const [],
   ]);
 
   int get inventedCount => unverified.length + unknownBooks.length;
 }
 
 const minQuoteChars = 30;
+
+/// Share of a misquote's words that must appear in the matching verse span.
+const minQuoteOverlap = 0.7;
+
+/// How far ahead of the runner-up verse the best one must be, so a quote that could belong to
+/// either is flagged rather than rewritten.
+const minQuoteMargin = 0.15;
+
+/// The verbatim span of the one shown verse a misquote clearly came from, or null.
+String? correctQuote(String quote, Iterable<Verse> shown) {
+  final q = CitationGuard.normalize(quote).split(' ').where((w) => w.isNotEmpty).toList();
+  if (q.isEmpty) return null;
+  final qSet = q.toSet();
+  var best = 0.0, second = 0.0;
+  String? bestSpan;
+  for (final v in shown) {
+    final words = v.text.split(RegExp(r'\s+'));
+    final norm = [for (final w in words) CitationGuard.normalize(w)];
+    var verseBest = 0.0;
+    String? verseSpan;
+    for (var len = q.length - 2; len <= q.length + 3; len++) {
+      if (len < 1 || len > words.length) continue;
+      for (var i = 0; i + len <= words.length; i++) {
+        final window = norm.sublist(i, i + len).toSet();
+        final score = qSet.intersection(window).length / qSet.length;
+        if (score > verseBest) {
+          verseBest = score;
+          verseSpan = words.sublist(i, i + len).join(' ');
+        }
+      }
+    }
+    if (verseBest > best) {
+      second = best;
+      best = verseBest;
+      bestSpan = verseSpan;
+    } else if (verseBest > second) {
+      second = verseBest;
+    }
+  }
+  if (best < minQuoteOverlap || best - second < minQuoteMargin) return null;
+  return bestSpan?.replaceAll(RegExp(r'^[^\w\u2018\u201c]+|[,;:]+$'), '');
+}
 
 class CitationGuard {
   final BibleDb db;
@@ -132,12 +178,23 @@ class CitationGuard {
 
     final shown = normalize(ctx.allVerses.map((v) => v.text).join(' '));
     final badQuotes = <String>[];
+    final corrected = <String>[];
     final withRefs = withBooks;
     final out = StringBuffer();
     cursor = 0;
     for (final (start, end) in quoteSpans(withRefs)) {
       final quoted = withRefs.substring(start, end);
       if (quoted.length < minQuoteChars || shown.contains(normalize(quoted))) continue;
+      final fix = correctQuote(quoted, ctx.allVerses);
+      if (fix != null) {
+        corrected.add(quoted);
+        out.write(withRefs.substring(cursor, start));
+        out.write(fix);
+        out.write(withRefs[end]);
+        out.write(' [quote corrected]');
+        cursor = end + 1;
+        continue;
+      }
       badQuotes.add(quoted);
       out.write(withRefs.substring(cursor, end + 1));
       out.write(' [unverified quote]');
@@ -146,6 +203,6 @@ class CitationGuard {
     out.write(withRefs.substring(cursor));
     final text = out.toString();
 
-    return GuardResult(text, verified.toList(), unverified.toList(), badQuotes, unknown);
+    return GuardResult(text, verified.toList(), unverified.toList(), badQuotes, unknown, corrected);
   }
 }

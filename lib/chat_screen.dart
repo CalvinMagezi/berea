@@ -234,7 +234,11 @@ class _Citations extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    if (g.verified.isEmpty && g.unverified.isEmpty && g.unverifiedQuotes == 0) {
+    final notInScripture = [...g.unverified.map((e) => e.label), ...g.unknownBooks];
+    if (g.verified.isEmpty &&
+        notInScripture.isEmpty &&
+        g.unverifiedQuotes == 0 &&
+        g.correctedQuotes == 0) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -254,13 +258,14 @@ class _Citations extends StatelessWidget {
                 ),
             ],
           ),
-          if (g.unverified.isNotEmpty || g.unverifiedQuotes > 0)
+          if (notInScripture.isNotEmpty || g.unverifiedQuotes > 0 || g.correctedQuotes > 0)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 [
-                  if (g.unverified.isNotEmpty)
-                    'Not in Scripture: ${g.unverified.map((e) => e.label).join(', ')}',
+                  if (notInScripture.isNotEmpty) 'Not in Scripture: ${notInScripture.join(', ')}',
+                  if (g.correctedQuotes > 0)
+                    '${g.correctedQuotes} misquote(s) replaced with the exact words',
                   if (g.unverifiedQuotes > 0)
                     '${g.unverifiedQuotes} quoted phrase(s) not found verbatim',
                 ].join(' · '),

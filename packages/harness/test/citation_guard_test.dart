@@ -45,6 +45,20 @@ void main() {
     expect(r.text, output);
   });
 
+  test('replaces a clear misquote with the verbatim verse words and flags an unclear one', () {
+    const output =
+        'Jesus said "For God so loved the world that He gave His only Son" to Nicodemus. '
+        'Paul wrote "the righteous shall live by faith and by works and by grace alone".';
+    final r = CitationGuard(db).apply(output, ctx);
+    expect(r.correctedQuotes.length, 1);
+    expect(
+      r.text,
+      contains('"For God so loved the world that He gave His one and only Son" [quote corrected]'),
+    );
+    expect(r.unverifiedQuotes.single, startsWith('the righteous shall live'));
+    expect(r.text, contains('[unverified quote]'));
+  });
+
   test('flags citations of books that do not exist without touching prose', () {
     const output =
         'Compare 2 Hezekiah 4:1 and Jasher 3:2 with John 3:16. '

@@ -83,7 +83,9 @@ class ChatTurn {
   String answer = '';
   List<Ref> verified = const [];
   List<Ref> unverified = const [];
+  List<String> unknownBooks = const [];
   int unverifiedQuotes = 0;
+  int correctedQuotes = 0;
   bool done = false;
   String? error;
   ChatTurn(this.question);
@@ -342,7 +344,9 @@ class AppState extends ChangeNotifier {
         ..answer = result.text
         ..verified = result.guard.verified
         ..unverified = result.guard.unverified
+        ..unknownBooks = result.guard.unknownBooks
         ..unverifiedQuotes = result.guard.unverifiedQuotes.length
+        ..correctedQuotes = result.guard.correctedQuotes.length
         ..done = true;
       conversationId ??= study.createConversation(question);
       study.addMessage(conversationId!, 'user', question, const []);
