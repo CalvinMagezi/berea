@@ -28,7 +28,13 @@ Hugging Face token after accepting the licence, entered in the engine settings.
 - Android: `minSdk 30`, arm64 only (LiteRT-LM requirement). The emulator runs models on CPU.
 - macOS: the Podfile `post_install` stages LiteRT-LM companion dylibs into the app. Without it the
   build is green but the first on-device model load fails. Ollama is the default engine on macOS.
-- iOS: phase 4.
+- iOS: deployment target 15.0, CocoaPods only (Swift Package Manager is turned off in
+  `pubspec.yaml`), and the extended-virtual-addressing and increased-memory-limit entitlements so
+  a 2.6 GB model fits on a real iPhone. The simulator runs models on CPU only. SPM debug builds
+  embed an absolute host rpath, and when the checkout lives in a privacy-protected folder such as
+  `~/Documents` the simulator's dyld hangs on it before `main` runs.
+- Debug builds read `BEREA_AUTORUN` or `autorun.txt` in the app's documents folder and run that
+  question on launch, so a headless simulator or emulator can exercise the on-device path.
 
 ## Model tiers
 

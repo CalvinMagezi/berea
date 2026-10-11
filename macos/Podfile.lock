@@ -1,15 +1,74 @@
 PODS:
+  - connectivity_plus (0.0.1):
+    - FlutterMacOS
+  - flutter_edge_ai (2.1.3):
+    - FlutterMacOS
   - FlutterMacOS (1.0.0)
+  - large_file_handler (0.5.0):
+    - FlutterMacOS
+  - shared_preferences_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - sqlite3 (3.52.0):
+    - sqlite3/common (= 3.52.0)
+  - sqlite3/common (3.52.0)
+  - sqlite3/dbstatvtab (3.52.0):
+    - sqlite3/common
+  - sqlite3/fts5 (3.52.0):
+    - sqlite3/common
+  - sqlite3/math (3.52.0):
+    - sqlite3/common
+  - sqlite3/perf-threadsafe (3.52.0):
+    - sqlite3/common
+  - sqlite3/rtree (3.52.0):
+    - sqlite3/common
+  - sqlite3/session (3.52.0):
+    - sqlite3/common
+  - sqlite3_flutter_libs (0.0.1):
+    - Flutter
+    - FlutterMacOS
+    - sqlite3 (~> 3.52.0)
+    - sqlite3/dbstatvtab
+    - sqlite3/fts5
+    - sqlite3/math
+    - sqlite3/perf-threadsafe
+    - sqlite3/rtree
+    - sqlite3/session
 
 DEPENDENCIES:
+  - connectivity_plus (from `Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos`)
+  - flutter_edge_ai (from `Flutter/ephemeral/.symlinks/plugins/flutter_edge_ai/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - large_file_handler (from `Flutter/ephemeral/.symlinks/plugins/large_file_handler/macos`)
+  - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
+  - sqlite3_flutter_libs (from `Flutter/ephemeral/.symlinks/plugins/sqlite3_flutter_libs/darwin`)
+
+SPEC REPOS:
+  trunk:
+    - sqlite3
 
 EXTERNAL SOURCES:
+  connectivity_plus:
+    :path: Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos
+  flutter_edge_ai:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_edge_ai/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
+  large_file_handler:
+    :path: Flutter/ephemeral/.symlinks/plugins/large_file_handler/macos
+  shared_preferences_foundation:
+    :path: Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin
+  sqlite3_flutter_libs:
+    :path: Flutter/ephemeral/.symlinks/plugins/sqlite3_flutter_libs/darwin
 
 SPEC CHECKSUMS:
+  connectivity_plus: 4adf20a405e25b42b9c9f87feff8f4b6fde18a4e
+  flutter_edge_ai: cebf10050a7b6cf387074543845c12635de02c2d
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
+  large_file_handler: b337fef756ae925be9c28112a81c7c4275d91c45
+  shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
+  sqlite3: a51c07cf16e023d6c48abd5e5791a61a47354921
+  sqlite3_flutter_libs: b3e120efe9a82017e5552a620f696589ed4f62ab
 
 PODFILE CHECKSUM: 629839e37330498b5a1cafecf8333c949dbc1c14
 

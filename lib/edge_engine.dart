@@ -1,9 +1,25 @@
+import 'dart:async';
+
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
 import 'models.dart';
 
 const contextPadding = 512;
+const initTimeout = Duration(seconds: 30);
+
+Future<void>? _init;
+
+/// Plugin setup runs once, lazily, and never blocks the first frame.
+Future<void> ensureEdgeAiInitialized() =>
+    _init ??= FlutterEdgeAi.initialize(inferenceEngines: const [LiteRtLmEngine()]).timeout(
+      initTimeout,
+      onTimeout: () {
+        _init = null;
+        throw TimeoutException('flutter_edge_ai did not initialize within $initTimeout');
+      },
+    );
 
 /// Harness engine backed by a LiteRT-LM model loaded through flutter_edge_ai.
 class EdgeAiEngine implements LlmEngine {
@@ -11,14 +27,18 @@ class EdgeAiEngine implements LlmEngine {
   final EdgeModel spec;
   const EdgeAiEngine(this.model, this.spec);
 
-  static Future<bool> isInstalled(EdgeModel m) => FlutterEdgeAi.isModelInstalled(m.installedName);
+  static Future<bool> isInstalled(EdgeModel m) async {
+    await ensureEdgeAiInitialized();
+    return FlutterEdgeAi.isModelInstalled(m.installedName);
+  }
 
   static Future<void> download(
     EdgeModel m, {
     String? token,
     required void Function(int) onProgress,
-  }) {
-    return FlutterEdgeAi.installModel(
+  }) async {
+    await ensureEdgeAiInitialized();
+    await FlutterEdgeAi.installModel(
       modelType: m.type,
       fileType: ModelFileType.litertlm,
     ).fromHuggingFace(m.repo, file: m.file, token: token).withProgress(onProgress).install();

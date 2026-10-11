@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:berea_harness/berea_harness.dart';
@@ -108,7 +109,24 @@ class AppState extends ChangeNotifier {
     s.prefs = await SharedPreferences.getInstance();
     s.settings = Settings.load(s.prefs);
     await s._rebuildHarness();
+    if (kDebugMode) unawaited(s._autorun());
     return s;
+  }
+
+  /// Debug builds only: a question in `BEREA_AUTORUN` or in `autorun.txt` under the app's
+  /// documents folder downloads the model if needed and asks it. Lets a headless simulator or
+  /// emulator exercise the on-device path without tapping.
+  Future<void> _autorun() async {
+    var q = Platform.environment['BEREA_AUTORUN'];
+    if (q == null || q.isEmpty) {
+      final f = File('${(await getApplicationDocumentsDirectory()).path}/autorun.txt');
+      if (f.existsSync()) q = f.readAsStringSync().trim();
+    }
+    if (q == null || q.isEmpty) return;
+    if (settings.engine == EngineKind.device && deviceState == DeviceModelState.notInstalled) {
+      await downloadDeviceModel();
+    }
+    if (harness != null) await send(q);
   }
 
   /// Copies the bundled database next to the app once. Length doubles as a version check.
@@ -157,13 +175,13 @@ class AppState extends ChangeNotifier {
   Future<LlmEngine?> _device() async {
     final m = settings.deviceModel;
     deviceError = null;
-    if (!await EdgeAiEngine.isInstalled(m)) {
-      deviceState = DeviceModelState.notInstalled;
-      return null;
-    }
-    deviceState = DeviceModelState.loading;
-    notifyListeners();
     try {
+      if (!await EdgeAiEngine.isInstalled(m)) {
+        deviceState = DeviceModelState.notInstalled;
+        return null;
+      }
+      deviceState = DeviceModelState.loading;
+      notifyListeners();
       _edge = await EdgeAiEngine.load(m, settings.tier);
       deviceState = DeviceModelState.ready;
       return _edge;
