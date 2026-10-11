@@ -1,5 +1,6 @@
 analyzer:
   exclude:
+    - packages/**
     - build/**
     - android/**
     - ios/**
