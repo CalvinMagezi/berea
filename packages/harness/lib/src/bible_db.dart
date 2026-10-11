@@ -114,11 +114,21 @@ class BibleDb {
     );
     db.execute('BEGIN');
     try {
+      // Keep the search index in step for this translation only; a full rebuild would touch
+      // every verse of every translation.
+      db.execute(
+        "INSERT INTO verses_fts(verses_fts, rowid, text) "
+        "SELECT 'delete', id, text FROM verses WHERE translation = ?",
+        [code],
+      );
       db.execute('DELETE FROM verses WHERE translation = ?', [code]);
       for (final r in rows) {
         insert.execute([code, r.book.id, r.chapter, r.verse, r.text]);
       }
-      db.execute("INSERT INTO verses_fts(verses_fts) VALUES('rebuild')");
+      db.execute(
+        'INSERT INTO verses_fts(rowid, text) SELECT id, text FROM verses WHERE translation = ?',
+        [code],
+      );
       db.execute('COMMIT');
       return rows.length;
     } catch (_) {

@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:berea_harness/berea_harness.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 import 'package:flutter/foundation.dart';
@@ -153,6 +154,7 @@ class AppState extends ChangeNotifier {
     s.readerChapter = s.prefs.getInt('readerChapter') ?? 1;
     s.parallelTranslation = s.prefs.getString('parallelTranslation');
     s._restoreImports();
+    s._keepTranslationValid();
     s.db.attachFullLexicon(s.lexiconPackPath);
     await s._rebuildHarness();
     if (kDebugMode) unawaited(s._autorun());
@@ -213,10 +215,17 @@ class AppState extends ChangeNotifier {
       final stored = f.uri.pathSegments.last.replaceAll('.csv', '');
       final code = normalizeImportCode(stored);
       if (have.contains(code) && code == stored) continue;
+      final target = File('${importsDir.path}/$code.csv');
+      if (code != stored && target.existsSync()) {
+        // An older copy under a free-form name duplicates one already normalised; keep the newer.
+        setAsideImports.add(stored);
+        f.renameSync('${f.path}.duplicate');
+        continue;
+      }
       try {
         final csv = f.readAsStringSync();
         if (!have.contains(code)) db.importCsv(csv, code);
-        if (code != stored) f.renameSync('${importsDir.path}/$code.csv');
+        if (code != stored) f.renameSync(target.path);
         have.add(code);
       } on Object catch (e) {
         debugPrint('Setting aside imported translation $stored: $e');
@@ -325,9 +334,12 @@ class AppState extends ChangeNotifier {
   static const maxLexiconPackBytes = 64 * 1024 * 1024;
   static const lexiconDownloadTimeout = Duration(minutes: 5);
 
-  /// The optional full Greek lexicon, published with each GitHub release of Berea.
+  /// The optional full Greek lexicon: a data-only release pinned by tag and checked by hash, so
+  /// what arrives is exactly what was published.
   static const lexiconPackUrl =
-      'https://github.com/CalvinMagezi/berea/releases/latest/download/lexicon-lsj.sqlite';
+      'https://github.com/CalvinMagezi/berea/releases/download/lexicon-1/lexicon-lsj.sqlite';
+  static const lexiconPackSha256 =
+      '39da044337aad1bcd2753451365608c10052d31dbfb3f50747b82e55060751a1';
 
   String get lexiconPackPath => '${supportDir.path}/lexicon-lsj.sqlite';
 
@@ -335,6 +347,13 @@ class AppState extends ChangeNotifier {
   /// The file is checked by attaching it before it replaces anything.
   Future<void> installLexiconPack({Uint8List? bytes}) async {
     final data = bytes ?? await _downloadLexiconPack();
+    if (bytes == null) {
+      final digest = await Sha256().hash(data);
+      final hex = digest.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      if (hex != lexiconPackSha256) {
+        throw const FormatException('The downloaded lexicon does not match the published pack.');
+      }
+    }
     if (data.length > maxLexiconPackBytes) {
       throw const FormatException('That file is too large to be a Berea lexicon pack.');
     }
@@ -410,7 +429,7 @@ class AppState extends ChangeNotifier {
       try {
         final rows = parseCsvBible(e.value);
         if (rows.isEmpty) throw const FormatException('empty');
-        imports[normalizeImportCode(e.key)] = (rows: rows, csv: e.value);
+        imports[_uniqueCode(normalizeImportCode(e.key), imports.keys)] = (rows: rows, csv: e.value);
       } on FormatException {
         skipped.add(e.key);
       }
@@ -420,8 +439,33 @@ class AppState extends ChangeNotifier {
       File('${importsDir.path}/${e.key}.csv').writeAsStringSync(e.value.csv);
     }
     study.importTables(contents.tables);
+    _keepTranslationValid();
     clear();
     return skipped;
+  }
+
+  /// Two codes that normalise alike ("niv" and "NIV") stay apart as NIV and NIV2.
+  String _uniqueCode(String code, Iterable<String> taken) {
+    if (!taken.contains(code)) return code;
+    for (var i = 2; ; i++) {
+      final suffix = '$i';
+      final base = code.length + suffix.length > translationCodeMax
+          ? code.substring(0, translationCodeMax - suffix.length)
+          : code;
+      if (!taken.contains('$base$suffix')) return '$base$suffix';
+    }
+  }
+
+  /// A translation renamed or set aside must not leave the reader pointing at nothing.
+  void _keepTranslationValid() {
+    final have = db.translations();
+    String fix(String t) => have.contains(t) ? t : defaultTranslation;
+    final next = settings.copyWith(translation: fix(settings.translation));
+    if (next.translation != settings.translation) {
+      settings = next;
+      unawaited(next.save(prefs));
+    }
+    if (parallelTranslation != null && !have.contains(parallelTranslation)) setParallel(null);
   }
 
   /// Asks the shell to show the Bible tab at [ref].

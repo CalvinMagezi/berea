@@ -132,7 +132,7 @@ questions put a well-known passage on the topic in front of the model.
 | STEPBible TBESH and TBESG | CC BY 4.0 | Hebrew and Greek lexicon keyed by Strong's |
 | OpenBible.info cross references | CC BY | Cross references ranked by votes |
 
-| STEPBible TFLSJ | CC BY 4.0 | Optional full Greek lexicon pack (about 9 MB), downloaded only on request |
+| STEPBible TFLSJ | CC BY 4.0 | Optional full Greek lexicon pack (about 9 MB), downloaded only on request from the [`lexicon-1` release](https://github.com/CalvinMagezi/berea/releases/tag/lexicon-1) and checked by SHA-256 |
 
 `packages/harness/bin/build_db.dart` downloads these and writes `assets/berea.sqlite` (about 67 MB:
 93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k cross references,
@@ -240,6 +240,11 @@ optional lexicon pack to github.com, only when you tap Download. The Ollama engi
 you configure, `localhost` by default. There is no telemetry, no account, and no cloud copy of
 anything you write. Backups are files you choose where to keep. Deleting the app deletes the
 data.
+
+Android cloud backup and device transfer are turned off, and the iOS data folder is excluded
+from iCloud backup. That is deliberate, and it has a cost: a lost or reset phone loses your
+notes unless you made a Berea backup file. Make one now and then (Engine settings, Back up) and
+keep it somewhere you trust.
 
 ## Roadmap
 

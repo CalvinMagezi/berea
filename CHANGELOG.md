@@ -16,11 +16,14 @@ Grounding
 Bible
 - World English Bible built in alongside BSB and KJV.
 - Import a translation you own from CSV, USFM, OSIS, Zefania or a zip of those. Zips are size
-  capped and parsing runs in the background; built-in translation codes cannot be replaced.
+  capped and parsing runs in the background; built-in translation codes cannot be replaced. The
+  search index is updated for the imported translation only (about 130 ms for a whole Bible on a
+  Mac, instead of rebuilding every translation).
 - Search the Bible; a typed reference jumps straight to its verse.
 - Parallel translation beside or below the text.
 - Long-press a verse for its Hebrew or Greek words with transliteration, gloss and lexicon entry.
-- Optional full Greek lexicon (LSJ) pack, downloaded only on request.
+- Optional full Greek lexicon (LSJ) pack, downloaded only on request from a pinned data release
+  and checked by SHA-256.
 
 Study
 - Reading plans with progress kept on the device, and today's reading on the Study tab.
