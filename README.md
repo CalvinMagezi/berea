@@ -308,7 +308,8 @@ docs/screenshots/
   run on the CPU here too, so no GPU driver is needed.
 - **Voice**: the `record` package (BSD-3-Clause) records 16 kHz mono 16-bit WAV, the format
   Gemma 4 reads through flutter_edge_ai's audio input (`supportAudio` on the model and the chat).
-  Gemma 4 models load with the audio encoder, which also runs on the CPU. Android declares
+  Gemma 4 models load with the audio encoder, which also runs on the CPU; if it fails to load,
+  the model loads text only and voice is turned off. Android declares
   `RECORD_AUDIO`; iOS and macOS carry `NSMicrophoneUsageDescription`, and both macOS entitlement
   files carry `com.apple.security.device.audio-input`.
 - A small method channel reports device memory so the settings can recommend a model.
@@ -320,7 +321,7 @@ docs/screenshots/
 Berea makes no network request on its own. The model download goes to huggingface.co, and the
 optional lexicon and commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
 you configure, `localhost` by default. A voice question is recorded to a temporary file on the
-device, transcribed there by Gemma 4, and deleted straight away; it is never stored or sent.
+device, read into memory and deleted before Gemma 4 transcribes it; it is never stored or sent.
 There is no telemetry, no account, and no cloud copy of anything you write. Backups are files you choose where to keep. Deleting the app deletes the
 data.
 

@@ -17,20 +17,26 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   var _tab = HomeTab.study;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.state.pendingQuestion.addListener(_jumpToStudy);
     widget.state.openReaderRequest.addListener(_jumpToBible);
   }
 
   void _jumpToBible() => _select(HomeTab.bible);
 
+  /// The microphone stops listening as soon as Berea is not in front.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) => widget.state.voice.onLifecycle(state);
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.state.pendingQuestion.removeListener(_jumpToStudy);
     widget.state.openReaderRequest.removeListener(_jumpToBible);
     super.dispose();
@@ -40,7 +46,11 @@ class _HomeShellState extends State<HomeShell> {
     if (widget.state.pendingQuestion.value != null) _select(HomeTab.study);
   }
 
-  void _select(HomeTab t) => setState(() => _tab = t);
+  void _select(HomeTab t) {
+    // A hidden Study tab must not keep listening.
+    if (t != _tab) widget.state.voice.cancelRecording();
+    setState(() => _tab = t);
+  }
 
   /// The same study, same history, from any tab.
   void _quickChat() {

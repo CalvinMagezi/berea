@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:berea_harness/berea_harness.dart';
@@ -27,7 +28,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _focus = FocusNode();
-  late final _voice = VoiceInput(transcribe: widget.state.transcribeVoice);
+  late final VoiceInput _voice = widget.state.voice;
   var _voicePhase = VoicePhase.idle;
 
   @override
@@ -42,7 +43,8 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     widget.state.removeListener(_onChange);
     widget.state.pendingQuestion.removeListener(_onPending);
-    _voice.dispose();
+    _voice.removeListener(_onVoice);
+    unawaited(_voice.release(this));
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
@@ -56,21 +58,24 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  /// A fresh transcript goes into the input for the user to check; it is never sent by itself.
+  /// A fresh transcript joins what was typed for the user to check; it is never sent by itself.
   void _onVoice() {
     final entered = _voice.phase == VoicePhase.confirm && _voicePhase != VoicePhase.confirm;
     _voicePhase = _voice.phase;
-    if (entered) {
-      _input.text = _voice.transcript;
+    if (entered && _voice.ownedBy(this)) {
+      final typed = _input.text.trim();
+      _input.text = typed.isEmpty ? _voice.transcript : '$typed ${_voice.transcript}';
       _input.selection = TextSelection.collapsed(offset: _input.text.length);
       _focus.requestFocus();
     }
+    if (!_voice.inUse) _onPending();
     setState(() {});
   }
 
+  /// A question from the reader waits while a voice question is being recorded or transcribed.
   void _onPending() {
     final q = widget.state.pendingQuestion.value;
-    if (q == null) return;
+    if (q == null || _voice.inUse) return;
     widget.state.pendingQuestion.value = null;
     _input.text = q;
     widget.state.ready ? _send() : _focus.requestFocus();
@@ -78,8 +83,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _send() {
     final q = _input.text.trim();
-    if (q.isEmpty || !widget.state.ready || _voice.active) return;
-    _voice.accept();
+    if (q.isEmpty || !widget.state.ready) return;
+    if (_voice.ownedBy(this)) _voice.accept();
     _input.clear();
     widget.state.send(q);
     _focus.requestFocus();
@@ -159,16 +164,21 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
               ),
               if (s.harness == null) _EngineNotice(state: s),
-              VoiceStatusLine(_voice),
+              VoiceStatusLine(_voice, owner: this),
               _InputBar(
                 controller: _input,
                 focus: _focus,
                 busy: s.busy,
-                canSend: !_voice.active,
+                canSend: !_voice.inUse,
                 onSend: _send,
                 mic: VoiceMicButton(
                   voice: _voice,
-                  support: voiceSupport(s.settings, s.deviceState),
+                  owner: this,
+                  support: voiceSupport(
+                    s.settings,
+                    s.deviceState,
+                    hearsAudio: s.deviceHearsAudio,
+                  ),
                   modelFree: s.ready,
                   onOpenSettings: () => showSettingsSheet(context, s),
                 ),

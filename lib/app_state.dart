@@ -17,6 +17,7 @@ import 'models.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
 import 'study_store.dart';
+import 'voice.dart';
 
 enum EngineKind { ollama, device }
 
@@ -137,6 +138,18 @@ class AppState extends ChangeNotifier {
   int downloadProgress = 0;
   String? deviceError;
   EdgeAiEngine? _edge;
+
+  /// The single voice session, shared by every composer so only one recorder runs.
+  late VoiceInput voice = VoiceInput(transcribe: transcribeVoice);
+
+  /// Whatever is using the model now; a rebuild waits for it before closing the model.
+  Future<void>? _modelUse;
+
+  @visibleForTesting
+  set debugEdge(EdgeAiEngine? engine) => _edge = engine;
+
+  /// The loaded Gemma 4 model came up with its audio encoder.
+  bool get deviceHearsAudio => _edge?.hearsAudio ?? false;
 
   static Future<AppState> bootstrap() async {
     final s = AppState();
@@ -490,12 +503,32 @@ class AppState extends ChangeNotifier {
 
   String get engineLabel => harness?.engine.name ?? 'no engine';
 
-  bool get ready => harness != null && !busy;
+  bool get ready => harness != null && !busy && !voice.inUse;
+
+  /// Runs [work] as the only user of the model, holding [busy] until it settles.
+  Future<T> useModel<T>(Future<T> Function() work) async {
+    if (busy) throw StateError('The model is busy.');
+    busy = true;
+    notifyListeners();
+    final running = work();
+    _modelUse = running.then((_) {}, onError: (_) {});
+    try {
+      return await running;
+    } finally {
+      busy = false;
+      _modelUse = null;
+      notifyListeners();
+    }
+  }
 
   Future<void> _rebuildHarness() async {
-    await _edge?.close();
+    final old = _edge;
     _edge = null;
     harness = null;
+    await voice.cancel();
+    // Never close the model under an answer or a transcription.
+    await _modelUse;
+    await old?.close();
     final engine = settings.engine == EngineKind.ollama ? _ollama() : await _device();
     if (engine != null) {
       harness = Harness(
@@ -579,31 +612,27 @@ class AppState extends ChangeNotifier {
     await _rebuildHarness();
   }
 
-  /// Transcribes a spoken question with the loaded Gemma 4 model. Holds [busy] so nothing else
-  /// uses the model meanwhile. The audio is only held in memory for this call.
+  /// Transcribes a spoken question with the loaded Gemma 4 model. The audio stays in memory.
   Future<String> transcribeVoice(Uint8List wav) async {
     final edge = _edge;
-    if (edge == null || busy) throw StateError('The on-device model is not ready.');
-    busy = true;
-    notifyListeners();
-    try {
-      return await edge.transcribe(wav);
-    } finally {
-      busy = false;
-      notifyListeners();
+    if (edge == null || !edge.hearsAudio) {
+      throw StateError('The on-device model cannot hear audio.');
     }
+    return useModel(() => edge.transcribe(wav));
   }
 
   Future<void> send(String question) async {
     final h = harness;
-    if (h == null) return;
+    if (h == null || busy) return;
     final turn = ChatTurn(question);
     turns.add(turn);
-    busy = true;
-    notifyListeners();
+    await useModel(() => _answer(h, turn));
+  }
+
+  Future<void> _answer(Harness h, ChatTurn turn) async {
     try {
       final result = await h.ask(
-        question,
+        turn.question,
         onToken: (t) {
           turn.answer += t;
           notifyListeners();
@@ -618,14 +647,11 @@ class AppState extends ChangeNotifier {
         ..correctedQuotes = result.guard.correctedQuotes.length
         ..nearMisses = result.guard.nearMisses
         ..done = true;
-      conversationId ??= study.createConversation(question);
-      study.addMessage(conversationId!, 'user', question, const []);
+      conversationId ??= study.createConversation(turn.question);
+      study.addMessage(conversationId!, 'user', turn.question, const []);
       study.addMessage(conversationId!, 'assistant', turn.answer, turn.verified);
     } catch (e) {
       turn.error = e.toString();
-    } finally {
-      busy = false;
-      notifyListeners();
     }
   }
 

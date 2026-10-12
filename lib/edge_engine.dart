@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:berea_harness/berea_harness.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
@@ -43,7 +43,10 @@ Future<void> ensureEdgeAiInitialized() =>
 class EdgeAiEngine implements LlmEngine {
   final InferenceModel model;
   final EdgeModel spec;
-  const EdgeAiEngine(this.model, this.spec);
+
+  /// The model loaded with its audio encoder, so it can transcribe voice questions.
+  final bool hearsAudio;
+  const EdgeAiEngine(this.model, this.spec, {this.hearsAudio = false});
 
   static Future<bool> isInstalled(EdgeModel m) async {
     await ensureEdgeAiInitialized();
@@ -62,13 +65,25 @@ class EdgeAiEngine implements LlmEngine {
     ).fromHuggingFace(m.repo, file: m.file, token: token).withProgress(onProgress).install();
   }
 
-  /// Loads the active model sized for [tier]. Download it first with [download].
+  /// Loads the model for [tier]; if its audio encoder fails, text still loads and voice is off.
   static Future<EdgeAiEngine> load(EdgeModel m, Tier tier) async {
+    final maxTokens = tier.promptTokens + tier.maxOutput + contextPadding;
+    if (m.hearsAudio) {
+      try {
+        // The audio encoder stays on its default backend, the CPU.
+        final model = await FlutterEdgeAi.getActiveModel(
+          maxTokens: maxTokens,
+          preferredBackend: answerBackend,
+          supportAudio: true,
+        );
+        return EdgeAiEngine(model, m, hearsAudio: true);
+      } catch (e) {
+        debugPrint('${m.label} did not load with audio, so voice is off: ${e.runtimeType}');
+      }
+    }
     final model = await FlutterEdgeAi.getActiveModel(
-      maxTokens: tier.promptTokens + tier.maxOutput + contextPadding,
+      maxTokens: maxTokens,
       preferredBackend: answerBackend,
-      // The audio encoder is left on its default backend, the CPU.
-      supportAudio: m.hearsAudio,
     );
     return EdgeAiEngine(model, m);
   }
@@ -100,10 +115,9 @@ class EdgeAiEngine implements LlmEngine {
     }
   }
 
-  /// Words spoken in [wav], a 16 kHz mono 16-bit WAV file. Runs outside the harness so the
-  /// question only enters the conversation after the user confirms it.
+  /// Words spoken in [wav]; outside the harness, so nothing enters the chat until confirmed.
   Future<String> transcribe(Uint8List wav) async {
-    if (!spec.hearsAudio) throw StateError('${spec.label} does not take audio.');
+    if (!hearsAudio) throw StateError('${spec.label} was loaded without audio.');
     final chat = await model.createChat(
       temperature: transcriptTemperature,
       topK: transcriptTopK,

@@ -47,7 +47,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
 
   Future<void> _generate() async {
     final h = s.harness;
-    if (h == null || s.busy) return;
+    if (h == null || !s.ready) return;
     setState(() {
       _generating = true;
       _draft = '';
@@ -55,7 +55,9 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
       _nearMissNote = null;
     });
     try {
-      final page = await h.studyPage(widget.ref, onToken: (t) => setState(() => _draft += t));
+      final page = await s.useModel(
+        () => h.studyPage(widget.ref, onToken: (t) => setState(() => _draft += t)),
+      );
       _observation.text = page.observation;
       _interpretation.text = page.interpretation;
       _application.text = page.application;

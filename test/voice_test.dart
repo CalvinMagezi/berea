@@ -3,12 +3,19 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:berea/app_state.dart';
+import 'package:berea/chat_screen.dart';
+import 'package:berea/edge_engine.dart';
+import 'package:berea/models.dart';
 import 'package:berea/voice.dart';
 import 'package:berea/voice_composer.dart';
-import 'package:flutter/gestures.dart';
+import 'package:berea_harness/berea_harness.dart';
+import 'package:clock/clock.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:record/record.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 /// A WAV file with [extraChunk] before the format chunk, as Core Audio writes them.
 Uint8List wav({
@@ -46,15 +53,20 @@ Uint8List wav({
 class FakeRecorder implements AudioRecorder {
   bool permission = true;
   Completer<bool>? permissionGate;
+  Object? permissionError;
+  Object? startError;
   Uint8List bytes = wav();
   RecordConfig? config;
   String? path;
   int starts = 0;
   int cancels = 0;
+  bool disposed = false;
 
   @override
-  Future<bool> hasPermission({bool request = true}) =>
-      permissionGate?.future ?? Future.value(permission);
+  Future<bool> hasPermission({bool request = true}) async {
+    if (permissionError != null) throw permissionError!;
+    return permissionGate?.future ?? permission;
+  }
 
   @override
   Future<void> start(RecordConfig config, {required String path}) async {
@@ -62,6 +74,7 @@ class FakeRecorder implements AudioRecorder {
     this.config = config;
     this.path = path;
     File(path).writeAsBytesSync(bytes);
+    if (startError != null) throw startError!;
   }
 
   @override
@@ -75,10 +88,15 @@ class FakeRecorder implements AudioRecorder {
   }
 
   @override
-  Future<void> dispose() async {}
+  Future<void> dispose() async => disposed = true;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class ThrowingModel implements InferenceModel {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw StateError('model closed');
 }
 
 void main() {
@@ -86,6 +104,7 @@ void main() {
   late FakeRecorder recorder;
   late List<Uint8List> heard;
   late String reply;
+  const owner = 'composer';
 
   setUp(() {
     dir = Directory.systemTemp.createTempSync('berea-voice-test');
@@ -96,9 +115,9 @@ void main() {
   tearDown(() => dir.deleteSync(recursive: true));
 
   VoiceInput make({
-    Duration max = maxVoiceDuration,
     Duration min = Duration.zero,
     Future<String> Function(Uint8List)? transcribe,
+    Future<Directory> Function()? tempDir,
   }) => VoiceInput(
     transcribe:
         transcribe ??
@@ -107,8 +126,8 @@ void main() {
           return reply;
         },
     recorder: recorder,
-    tempDir: () async => dir,
-    maxDuration: max,
+    tempDir: tempDir ?? () async => dir,
+    newStopwatch: () => clock.stopwatch(),
     minDuration: min,
   );
 
@@ -131,15 +150,25 @@ void main() {
     test('needs the on-device engine with Gemma 4', () {
       final ollama = Settings(engine: EngineKind.ollama, deviceModelId: 'gemma-4-e2b');
       final small = Settings(engine: EngineKind.device, deviceModelId: 'gemma-3-1b');
-      expect(voiceSupport(ollama, DeviceModelState.ready), VoiceSupport.needsGemma4);
-      expect(voiceSupport(small, DeviceModelState.ready), VoiceSupport.needsGemma4);
+      for (final s in [ollama, small]) {
+        expect(
+          voiceSupport(s, DeviceModelState.ready, hearsAudio: true),
+          VoiceSupport.needsGemma4,
+        );
+      }
     });
-    test('waits for Gemma 4 to load', () {
+    test('waits for Gemma 4 to load, and needs its audio encoder', () {
       for (final id in ['gemma-4-e2b', 'gemma-4-e4b']) {
         final s = Settings(engine: EngineKind.device, deviceModelId: id);
-        expect(voiceSupport(s, DeviceModelState.ready), VoiceSupport.ready);
-        expect(voiceSupport(s, DeviceModelState.loading), VoiceSupport.notReady);
-        expect(voiceSupport(s, DeviceModelState.notInstalled), VoiceSupport.notReady);
+        expect(voiceSupport(s, DeviceModelState.ready, hearsAudio: true), VoiceSupport.ready);
+        expect(
+          voiceSupport(s, DeviceModelState.ready, hearsAudio: false),
+          VoiceSupport.unavailable,
+        );
+        expect(
+          voiceSupport(s, DeviceModelState.loading, hearsAudio: false),
+          VoiceSupport.notReady,
+        );
       }
     });
   });
@@ -147,123 +176,294 @@ void main() {
   group('VoiceInput', () {
     test('the cap is 30 seconds', () => expect(maxVoiceDuration, const Duration(seconds: 30)));
 
-    test('records 16 kHz mono WAV, transcribes it, then waits for the user', () async {
-      final v = make();
-      await v.start();
-      expect(v.phase, VoicePhase.recording);
-      expect(recorder.config!.encoder, AudioEncoder.wav);
-      expect(recorder.config!.sampleRate, voiceSampleRate);
-      expect(recorder.config!.numChannels, voiceChannels);
-      await v.stop();
-      expect(v.phase, VoicePhase.confirm);
-      expect(v.transcript, 'What does John 3:16 mean?');
-      expect(heard.single, recorder.bytes);
-      expect(recordingLeft(), isFalse);
-      v.accept();
-      expect(v.phase, VoicePhase.idle);
-      v.dispose();
+    test('records 16 kHz mono WAV, transcribes it, then waits for the user', () {
+      fakeAsync((a) {
+        final v = make();
+        v.start(owner);
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.recording);
+        expect(recorder.config!.encoder, AudioEncoder.wav);
+        expect(recorder.config!.sampleRate, voiceSampleRate);
+        expect(recorder.config!.numChannels, voiceChannels);
+        a.elapse(const Duration(seconds: 2));
+        expect(v.elapsed, const Duration(seconds: 2));
+        v.stop();
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.confirm);
+        expect(v.transcript, 'What does John 3:16 mean?');
+        expect(heard.single, recorder.bytes);
+        expect(recordingLeft(), isFalse);
+        v.accept();
+        expect(v.phase, VoicePhase.idle);
+      });
     });
 
-    test('stops itself at the cap', () async {
-      final v = make(max: const Duration(milliseconds: 600));
-      await v.start();
-      await Future<void>.delayed(const Duration(milliseconds: 1200));
-      expect(v.phase, VoicePhase.confirm);
-      expect(heard, hasLength(1));
-      expect(v.elapsed, lessThan(const Duration(milliseconds: 600) + voiceTick));
-      expect(recordingLeft(), isFalse);
-      v.dispose();
+    test('stops itself at the cap', () {
+      fakeAsync((a) {
+        final v = make();
+        v.start(owner);
+        a.elapse(maxVoiceDuration + const Duration(seconds: 5));
+        expect(v.phase, VoicePhase.confirm);
+        expect(heard, hasLength(1));
+        expect(v.elapsed, maxVoiceDuration);
+        expect(recordingLeft(), isFalse);
+      });
     });
 
-    test('a slip shorter than the minimum is discarded', () async {
-      final v = make(min: const Duration(seconds: 5));
-      await v.start();
-      await v.stop();
-      expect(v.phase, VoicePhase.idle);
-      expect(v.message, tooShortMessage);
-      expect(heard, isEmpty);
-      expect(recordingLeft(), isFalse);
+    test('a slip shorter than the minimum is discarded', () {
+      fakeAsync((a) {
+        final v = make(min: minVoiceDuration);
+        v.start(owner);
+        a.elapse(const Duration(milliseconds: 200));
+        v.stop();
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.idle);
+        expect(v.message, tooShortMessage);
+        expect(heard, isEmpty);
+        expect(recordingLeft(), isFalse);
+      });
     });
 
-    test('denied microphone explains and records nothing', () async {
-      recorder.permission = false;
-      final v = make();
-      await v.start();
-      expect(v.phase, VoicePhase.idle);
-      expect(v.message, micDeniedMessage);
-      expect(recorder.starts, 0);
+    test('denied microphone explains and records nothing', () {
+      fakeAsync((a) {
+        recorder.permission = false;
+        final v = make();
+        v.start(owner);
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.idle);
+        expect(v.message, micDeniedMessage);
+        expect(recorder.starts, 0);
+      });
     });
 
-    test('a failed or empty transcription returns to idle and deletes the file', () async {
-      final failing = make(transcribe: (_) async => throw StateError('model closed'));
-      await failing.start();
-      await failing.stop();
-      expect(failing.phase, VoicePhase.idle);
-      expect(failing.message, voiceFailedMessage);
-      expect(recordingLeft(), isFalse);
-
-      reply = '   ';
-      final empty = make();
-      await empty.start();
-      await empty.stop();
-      expect(empty.phase, VoicePhase.idle);
-      expect(empty.message, nothingHeardMessage);
-      expect(recordingLeft(), isFalse);
+    test('a failure anywhere in starting surfaces a message and leaves no file', () {
+      for (final setUpFailure in <void Function()>[
+        () => recorder.permissionError = StateError('no audio session'),
+        () => recorder.startError = StateError('device busy'),
+      ]) {
+        recorder = FakeRecorder();
+        setUpFailure();
+        fakeAsync((a) {
+          final v = make();
+          v.start(owner);
+          a.flushMicrotasks();
+          expect(v.phase, VoicePhase.idle);
+          expect(v.message, voiceFailedMessage);
+          expect(recordingLeft(), isFalse);
+        });
+      }
+      fakeAsync((a) {
+        final v = make(tempDir: () async => throw const FileSystemException('no temp'));
+        v.start(owner);
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.idle);
+        expect(v.message, voiceFailedMessage);
+      });
     });
 
-    test('audio in the wrong format is never sent to the model', () async {
-      recorder.bytes = wav(rate: 44100);
-      final v = make();
-      await v.start();
-      await v.stop();
-      expect(v.message, voiceFailedMessage);
-      expect(heard, isEmpty);
-      expect(recordingLeft(), isFalse);
+    test('failed, empty and slow transcriptions return to idle with no file left', () {
+      fakeAsync((a) {
+        final failing = make(transcribe: (_) async => throw StateError('model closed'));
+        failing.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        failing.stop();
+        a.flushMicrotasks();
+        expect(failing.phase, VoicePhase.idle);
+        expect(failing.message, voiceFailedMessage);
+
+        reply = '   ';
+        final empty = make();
+        empty.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        empty.stop();
+        a.flushMicrotasks();
+        expect(empty.message, nothingHeardMessage);
+
+        final slow = make(transcribe: (_) => Completer<String>().future);
+        slow.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        slow.stop();
+        a.elapse(voiceTranscribeTimeout + const Duration(seconds: 1));
+        expect(slow.phase, VoicePhase.idle);
+        expect(slow.message, voiceTimeoutMessage);
+        expect(recordingLeft(), isFalse);
+      });
     });
 
-    test('cancel throws the recording away', () async {
-      final v = make();
-      await v.start();
-      await v.cancel();
-      expect(v.phase, VoicePhase.idle);
-      expect(recorder.cancels, 1);
-      expect(heard, isEmpty);
-      expect(recordingLeft(), isFalse);
+    test('audio in the wrong format is never sent to the model', () {
+      fakeAsync((a) {
+        recorder.bytes = wav(rate: 44100);
+        final v = make();
+        v.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        v.stop();
+        a.flushMicrotasks();
+        expect(v.message, voiceFailedMessage);
+        expect(heard, isEmpty);
+        expect(recordingLeft(), isFalse);
+      });
     });
 
-    test('a release during the permission prompt stops once recording begins', () async {
-      recorder.permissionGate = Completer();
-      final v = make(min: const Duration(seconds: 5));
-      final starting = v.start();
-      expect(v.active, isTrue);
-      await v.stop();
-      recorder.permissionGate!.complete(true);
-      await starting;
-      expect(v.phase, VoicePhase.idle);
-      expect(v.message, tooShortMessage);
-      expect(recordingLeft(), isFalse);
+    test('cancel throws a recording away', () {
+      fakeAsync((a) {
+        final v = make();
+        v.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        v.cancel();
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.idle);
+        expect(recorder.cancels, 1);
+        expect(heard, isEmpty);
+        expect(recordingLeft(), isFalse);
+      });
     });
 
-    test('a cancel during the permission prompt never transcribes', () async {
-      recorder.permissionGate = Completer();
-      final v = make();
-      final starting = v.start();
-      await v.cancel();
-      recorder.permissionGate!.complete(true);
-      await starting;
-      expect(v.phase, VoicePhase.idle);
-      expect(heard, isEmpty);
-      expect(recordingLeft(), isFalse);
+    test('cancel during transcription drops the late result', () {
+      fakeAsync((a) {
+        final pending = Completer<String>();
+        final v = make(transcribe: (_) => pending.future);
+        v.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        v.stop();
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.transcribing);
+        expect(recordingLeft(), isFalse, reason: 'only memory holds the audio now');
+        v.cancel();
+        expect(v.phase, VoicePhase.idle);
+        pending.complete('too late');
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.idle);
+        expect(v.transcript, isEmpty);
+      });
     });
 
-    test('leftover recordings from a crash are swept', () async {
-      final stale = File('${dir.path}/1.wav')..writeAsBytesSync(wav());
-      stale.setLastModifiedSync(DateTime.now().subtract(staleVoiceAge * 2));
-      final live = File('${dir.path}/2.wav')..writeAsBytesSync(wav());
-      make();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(stale.existsSync(), isFalse);
-      expect(live.existsSync(), isTrue, reason: 'another composer may still be using it');
+    test('a release while starting is a slip, never a zero-length question', () {
+      fakeAsync((a) {
+        recorder.permissionGate = Completer();
+        final v = make();
+        v.start(owner);
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.starting);
+        v.stop();
+        recorder.permissionGate!.complete(true);
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.idle);
+        expect(v.message, tooShortMessage);
+        expect(heard, isEmpty);
+        expect(recordingLeft(), isFalse);
+      });
+    });
+
+    test('a cancel while starting never records', () {
+      fakeAsync((a) {
+        recorder.permissionGate = Completer();
+        final v = make();
+        v.start(owner);
+        a.flushMicrotasks();
+        v.cancel();
+        recorder.permissionGate!.complete(true);
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.idle);
+        expect(v.message, isNull);
+        expect(heard, isEmpty);
+        expect(recordingLeft(), isFalse);
+      });
+    });
+
+    test('dispose in any phase leaves the folder empty and closes the recorder', () {
+      for (final phase in [VoicePhase.starting, VoicePhase.recording, VoicePhase.transcribing]) {
+        recorder = FakeRecorder();
+        fakeAsync((a) {
+          final pending = Completer<String>();
+          if (phase == VoicePhase.starting) recorder.permissionGate = Completer();
+          final v = make(transcribe: (_) => pending.future);
+          v.start(owner);
+          a.elapse(const Duration(seconds: 1));
+          if (phase == VoicePhase.transcribing) {
+            v.stop();
+            a.flushMicrotasks();
+          }
+          expect(v.phase, phase);
+          v.dispose();
+          recorder.permissionGate?.complete(true);
+          pending.complete('late');
+          a.flushMicrotasks();
+          expect(recordingLeft(), isFalse, reason: '$phase');
+          expect(recorder.disposed, isTrue, reason: '$phase');
+        });
+      }
+    });
+
+    test('one session at a time, owned by the composer that started it', () {
+      fakeAsync((a) {
+        final v = make();
+        v.start('tab');
+        a.flushMicrotasks();
+        v.start('sheet');
+        a.flushMicrotasks();
+        expect(v.ownedBy('tab'), isTrue);
+        expect(recorder.starts, 1);
+        v.release('sheet');
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.recording);
+        v.release('tab');
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.idle);
+        expect(recordingLeft(), isFalse);
+      });
+    });
+
+    test('leaving the app stops listening', () {
+      fakeAsync((a) {
+        final v = make();
+        v.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        v.onLifecycle(AppLifecycleState.resumed);
+        expect(v.phase, VoicePhase.recording);
+        v.onLifecycle(AppLifecycleState.inactive);
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.idle);
+        expect(heard, isEmpty);
+        expect(recordingLeft(), isFalse);
+      });
+    });
+
+    test('only stale leftovers are swept', () {
+      fakeAsync((a) {
+        final stale = File('${dir.path}/1.wav')..writeAsBytesSync(wav());
+        stale.setLastModifiedSync(DateTime.now().subtract(staleVoiceAge * 2));
+        final live = File('${dir.path}/2.wav')..writeAsBytesSync(wav());
+        make();
+        a.flushMicrotasks();
+        expect(stale.existsSync(), isFalse);
+        expect(live.existsSync(), isTrue);
+      });
+    });
+  });
+
+  group('AppState', () {
+    test('a failed transcription releases the model', () async {
+      final s = AppState()
+        ..debugEdge = EdgeAiEngine(ThrowingModel(), edgeModelById('gemma-4-e2b'), hearsAudio: true);
+      await expectLater(s.transcribeVoice(wav()), throwsStateError);
+      expect(s.busy, isFalse);
+    });
+
+    test('a model loaded without audio is never asked to transcribe', () async {
+      final s = AppState()..debugEdge = EdgeAiEngine(ThrowingModel(), edgeModelById('gemma-4-e2b'));
+      await expectLater(s.transcribeVoice(wav()), throwsStateError);
+      expect(s.busy, isFalse);
+    });
+
+    test('only one piece of work uses the model at a time', () async {
+      final s = AppState();
+      final gate = Completer<void>();
+      final first = s.useModel(() => gate.future);
+      expect(s.busy, isTrue);
+      await expectLater(s.useModel(() async {}), throwsStateError);
+      gate.complete();
+      await first;
+      expect(s.busy, isFalse);
     });
   });
 
@@ -272,6 +472,7 @@ void main() {
       WidgetTester tester,
       VoiceInput voice, {
       VoiceSupport support = VoiceSupport.ready,
+      Object me = owner,
       VoidCallback? onOpenSettings,
     }) => tester.pumpWidget(
       MaterialApp(
@@ -280,11 +481,12 @@ void main() {
             listenable: voice,
             builder: (_, _) => Column(
               children: [
-                VoiceStatusLine(voice),
+                VoiceStatusLine(voice, owner: me),
                 VoiceMicButton(
                   voice: voice,
+                  owner: me,
                   support: support,
-                  modelFree: true,
+                  modelFree: !voice.inUse,
                   onOpenSettings: onOpenSettings ?? () {},
                 ),
               ],
@@ -294,51 +496,90 @@ void main() {
       ),
     );
 
-    // File reads finish on the real event loop and continue in the fake one, so alternate.
-    Future<void> settle(WidgetTester tester) async {
-      for (var i = 0; i < 6; i++) {
-        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
-        await tester.pump();
-      }
-    }
+    final mic = find.byIcon(Icons.mic_none);
+    final stopIcon = find.byIcon(Icons.stop_circle_outlined);
 
-    testWidgets('walks idle, recording, transcribing and confirm', (tester) async {
+    testWidgets('tap to start, tap to stop: recording, transcribing, confirm', (tester) async {
       final pending = Completer<String>();
       final v = make(transcribe: (_) => pending.future);
       await pumpComposer(tester, v);
-      expect(find.byIcon(Icons.mic_none), findsOneWidget);
-
-      await tester.tap(find.byType(IconButton));
-      await settle(tester);
-      expect(v.phase, VoicePhase.recording);
+      await tester.tap(mic);
       await tester.pump(const Duration(seconds: 2));
-      expect(find.text('Listening 0:02 of 0:30'), findsOneWidget);
-      expect(find.byIcon(Icons.stop_circle_outlined), findsOneWidget);
+      expect(v.phase, VoicePhase.recording);
+      expect(find.text('Listening 0:02 of 0:30. $tapAgainHint'), findsOneWidget);
 
-      await tester.tap(find.byType(IconButton));
-      await settle(tester);
+      await tester.tap(stopIcon);
+      await tester.pump();
       expect(v.phase, VoicePhase.transcribing);
       expect(find.text('Transcribing on this device…'), findsOneWidget);
 
       pending.complete('Who were the Bereans?');
-      await settle(tester);
+      await tester.pump();
       expect(v.phase, VoicePhase.confirm);
       expect(find.text('Check the words, edit them if needed, then send.'), findsOneWidget);
-      v.dispose();
     });
 
-    testWidgets('holding the button records until release', (tester) async {
+    testWidgets('recording starts on press and stops on release', (tester) async {
       final v = make();
       await pumpComposer(tester, v);
-      final hold = await tester.startGesture(tester.getCenter(find.byType(IconButton)));
-      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
-      await settle(tester);
+      final hold = await tester.startGesture(tester.getCenter(mic));
+      await tester.pump();
       expect(v.phase, VoicePhase.recording);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.textContaining(releaseHint), findsOneWidget);
       await hold.up();
-      await settle(tester);
+      await tester.pump();
       expect(v.phase, VoicePhase.confirm);
       expect(heard, hasLength(1));
-      v.dispose();
+    });
+
+    testWidgets('a pointer cancel or a slide away throws the recording away', (tester) async {
+      final v = make();
+      await pumpComposer(tester, v);
+      final taken = await tester.startGesture(tester.getCenter(mic));
+      await tester.pump(const Duration(seconds: 1));
+      await taken.cancel();
+      await tester.pump();
+      expect(v.phase, VoicePhase.idle);
+
+      final slid = await tester.startGesture(tester.getCenter(mic));
+      await tester.pump(const Duration(seconds: 1));
+      await slid.moveBy(const Offset(0, -(slideToCancelDistance + 20)));
+      await tester.pump();
+      await slid.up();
+      await tester.pump();
+      expect(v.phase, VoicePhase.idle);
+      expect(heard, isEmpty);
+      expect(recorder.cancels, 2);
+      expect(recordingLeft(), isFalse);
+    });
+
+    testWidgets('a screen reader tap toggles recording', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final v = make();
+      await pumpComposer(tester, v);
+      tester.semantics.tap(find.semantics.byLabel(holdHint));
+      await tester.pump(const Duration(seconds: 1));
+      expect(v.phase, VoicePhase.recording);
+      tester.semantics.tap(find.semantics.byLabel(stopHint));
+      await tester.pump();
+      expect(v.phase, VoicePhase.confirm);
+      semantics.dispose();
+    });
+
+    testWidgets("another composer's session leaves this button and status alone", (tester) async {
+      final v = make();
+      await pumpComposer(tester, v, me: 'sheet');
+      unawaited(v.start('tab'));
+      await tester.pump(const Duration(seconds: 1));
+      expect(v.phase, VoicePhase.recording);
+      expect(find.textContaining('Listening'), findsNothing);
+      await tester.tap(mic);
+      await tester.pump();
+      expect(v.phase, VoicePhase.recording);
+      expect(v.ownedBy('tab'), isTrue);
+      await v.cancel();
+      await tester.pump();
     });
 
     testWidgets('without Gemma 4 the button points to Engine settings', (tester) async {
@@ -357,15 +598,66 @@ void main() {
       await tester.pumpAndSettle();
       expect(opened, isTrue);
       expect(recorder.starts, 0);
-      v.dispose();
     });
 
-    testWidgets('a model that is still loading disables the button', (tester) async {
+    testWidgets('a Gemma 4 load without audio explains that voice is off', (tester) async {
+      final v = make();
+      await pumpComposer(tester, v, support: VoiceSupport.unavailable);
+      await tester.tap(find.byIcon(Icons.mic_off_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text(audioUnavailableMessage), findsOneWidget);
+      expect(find.text('Open Settings'), findsNothing);
+    });
+
+    testWidgets('a model that is still loading does not record', (tester) async {
       final v = make();
       await pumpComposer(tester, v, support: VoiceSupport.notReady);
-      final button = tester.widget<IconButton>(find.byType(IconButton));
-      expect(button.onPressed, isNull);
-      v.dispose();
+      await tester.tap(mic);
+      await tester.pump();
+      expect(recorder.starts, 0);
+    });
+  });
+
+  group('chat screen', () {
+    Future<AppState> pumpChat(WidgetTester tester, VoiceInput voice) async {
+      final s = AppState()
+        ..db = BibleDb(sqlite3.openInMemory())
+        ..settings = Settings(engine: EngineKind.device)
+        ..voice = voice
+        ..turns.add(
+          ChatTurn('Earlier question')
+            ..answer = 'Earlier answer'
+            ..done = true,
+        );
+      await tester.pumpWidget(MaterialApp(home: ChatScreen(state: s)));
+      return s;
+    }
+
+    testWidgets('a question from the reader waits for a voice question', (tester) async {
+      final v = make();
+      final s = await pumpChat(tester, v);
+      unawaited(v.start(tester.state(find.byType(ChatScreen))));
+      await tester.pump(const Duration(seconds: 1));
+      s.pendingQuestion.value = 'Study John 1:1.';
+      await tester.pump();
+      expect(s.pendingQuestion.value, 'Study John 1:1.');
+      expect(find.text('Study John 1:1.'), findsNothing);
+
+      await v.cancel();
+      await tester.pump();
+      expect(s.pendingQuestion.value, isNull);
+      expect(find.text('Study John 1:1.'), findsOneWidget);
+    });
+
+    testWidgets('a transcript joins what was typed instead of replacing it', (tester) async {
+      final v = make();
+      await pumpChat(tester, v);
+      await tester.enterText(find.byType(TextField), 'About grace,');
+      unawaited(v.start(tester.state(find.byType(ChatScreen))));
+      await tester.pump(const Duration(seconds: 1));
+      unawaited(v.stop());
+      await tester.pump();
+      expect(find.text('About grace, What does John 3:16 mean?'), findsOneWidget);
     });
   });
 }

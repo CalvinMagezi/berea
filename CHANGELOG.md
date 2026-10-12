@@ -7,8 +7,16 @@ Study
   stop, and speak for up to 30 seconds. Gemma 4 E2B or E4B hears the question on the device and
   types it into the box for you to check and edit; nothing is sent until you tap Send, and the
   answer goes through the same grounding and reference check as a typed question. The recording
-  is a temporary file that is deleted as soon as it is transcribed, or when you cancel. With
+  is a temporary file, deleted as soon as it is read and before the model hears it. With
   Gemma 3 1B or Ollama the button explains that voice needs Gemma 4 and opens Settings.
+- Recording starts the moment you press. A quick tap keeps listening until the next tap, and the
+  status line says which. Sliding off the button, a call or a system dialog, leaving the app or
+  switching tabs throws the recording away. A transcript is added after anything you already
+  typed, and a question sent from the Bible tab waits until the voice question is done.
+- Only one voice question runs at a time across the Study tab and the quick chat, and nothing
+  else uses the model while it transcribes. Changing the model waits for it to finish.
+- If Gemma 4's audio part fails to load, typed questions still work and the button says voice
+  is off.
 - The app asks for the microphone the first time you use voice (Android RECORD_AUDIO, iOS and
   macOS microphone permission). If you refuse, Berea says where to allow it.
 
