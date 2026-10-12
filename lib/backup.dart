@@ -10,7 +10,10 @@ import 'study_store.dart';
 /// Encrypted backups the user keeps themselves. AES-256-GCM with a key derived from their
 /// passphrase by PBKDF2-HMAC-SHA256. Nothing is sent anywhere; a lost passphrase is unrecoverable.
 const backupMagic = 'BEREA-BACKUP-2';
-const backupVersion = 1;
+
+/// Version 2 adds notebooks. Version 1 files (0.3.0 and earlier) still restore.
+const backupVersion = 2;
+const _readableVersions = {1, 2};
 
 /// OWASP's 2023 guidance for PBKDF2-HMAC-SHA256. Stored in the file so it can rise later.
 const pbkdf2Iterations = 600000;
@@ -68,9 +71,13 @@ Future<Uint8List> createBackup(
 }
 
 class BackupContents {
+  final int version;
   final Map<String, List<Map<String, Object?>>> tables;
   final Map<String, String> imports;
-  const BackupContents(this.tables, this.imports);
+  const BackupContents(this.version, this.tables, this.imports);
+
+  /// Older backups have no notebook tables, so restoring one keeps the notebooks on the device.
+  bool get hasNotebooks => tables.containsKey('notebooks');
 }
 
 class BackupException implements Exception {
@@ -115,8 +122,9 @@ Future<BackupContents> readBackup(Uint8List bytes, String passphrase) async {
   }
   try {
     final json = jsonDecode(utf8.decode(gzip.decode(clear))) as Map<String, dynamic>;
-    if (json['version'] != backupVersion) {
-      throw BackupException('Backup version ${json['version']} is not supported.');
+    final version = json['version'];
+    if (version is! int || !_readableVersions.contains(version)) {
+      throw BackupException('Backup version $version is not supported.');
     }
     final tables = (json['tables'] as Map<String, dynamic>).map(
       (k, v) => MapEntry(k, [for (final r in v as List) Map<String, Object?>.from(r as Map)]),
@@ -124,7 +132,11 @@ Future<BackupContents> readBackup(Uint8List bytes, String passphrase) async {
     for (final t in tables.keys) {
       if (!StudyStore.userTables.contains(t)) throw BackupException('Unknown table $t in backup.');
     }
-    return BackupContents(tables, Map<String, String>.from(json['imports'] as Map? ?? const {}));
+    return BackupContents(
+      version,
+      tables,
+      Map<String, String>.from(json['imports'] as Map? ?? const {}),
+    );
   } on BackupException {
     rethrow;
   } catch (_) {

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'notebook_store.dart';
+
 /// Everything the user writes: notes, highlights and saved studies. One local SQLite file,
 /// never synced, never sent anywhere.
 class Note {
@@ -69,6 +71,28 @@ class StudyStore {
         verse_start INTEGER, verse_end INTEGER, observation TEXT, interpretation TEXT,
         application TEXT, created INTEGER, updated INTEGER);
     ''');
+    _migrate();
+  }
+
+  /// Schema changes after 0.3.0, applied in order and recorded in `user_version`. The tables
+  /// above predate it and stay `IF NOT EXISTS`.
+  static const _migrations = [notebookSchema];
+
+  static int get schemaVersion => _migrations.length;
+
+  void _migrate() {
+    final version = db.select('PRAGMA user_version').first.values.first as int;
+    for (var v = version; v < _migrations.length; v++) {
+      db.execute('BEGIN');
+      try {
+        db.execute(_migrations[v]);
+        db.execute('PRAGMA user_version = ${v + 1}');
+        db.execute('COMMIT');
+      } catch (_) {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    }
   }
 
   factory StudyStore.open(String path) => StudyStore(sqlite3.open(path));
@@ -254,7 +278,8 @@ class StudyStore {
 
   void deleteStudyPage(int id) => db.execute('DELETE FROM study_pages WHERE id = ?', [id]);
 
-  /// Every user-written table, for backup.
+  /// Every user-written table, for backup. The notebook search index is not one: triggers
+  /// rebuild it from the chunk rows.
   static const userTables = [
     'notes',
     'highlights',
@@ -262,6 +287,9 @@ class StudyStore {
     'messages',
     'plan_progress',
     'study_pages',
+    'notebooks',
+    'notebook_sources',
+    'notebook_chunks',
   ];
 
   Map<String, List<Map<String, Object?>>> exportTables() => {
@@ -296,11 +324,34 @@ class StudyStore {
       'application': String,
       'updated': int,
     },
+    'notebooks': {'id': int, 'title': String, 'updated': int},
+    'notebook_sources': {
+      'id': int,
+      'notebook_id': int,
+      'kind': String,
+      'title': String,
+      'origin': String,
+      'text': String,
+    },
+    'notebook_chunks': {
+      'id': int,
+      'source_id': int,
+      'ordinal': int,
+      'start_offset': int,
+      'end_offset': int,
+      'text': String,
+    },
   };
 
   /// Throws [FormatException] when a row has a column the table lacks, a missing or mistyped
-  /// value, a book outside the 66, or saved references that are not a list.
+  /// value, a book outside the 66, saved references that are not a list, or notebook rows that
+  /// do not fit together.
   void validateTables(Map<String, List<Map<String, Object?>>> tables) {
+    _validateColumns(tables);
+    _validateNotebooks(tables);
+  }
+
+  void _validateColumns(Map<String, List<Map<String, Object?>>> tables) {
     for (final t in userTables) {
       final columns = {for (final r in db.select('PRAGMA table_info($t)')) r['name'] as String};
       final types = _columnTypes[t]!;
@@ -327,14 +378,44 @@ class StudyStore {
     }
   }
 
-  /// Replaces every user table with [tables] in one transaction; on any error nothing changes.
+  /// Sources belong to a notebook in the backup, chunks to a source, and each chunk is exactly
+  /// the slice of its source's text that its offsets name, so citations stay true.
+  static void _validateNotebooks(Map<String, List<Map<String, Object?>>> tables) {
+    final notebooks = {for (final r in tables['notebooks'] ?? const []) r['id']};
+    final sourceText = <Object?, String>{};
+    for (final r in tables['notebook_sources'] ?? const <Map<String, Object?>>[]) {
+      if (!notebooks.contains(r['notebook_id'])) {
+        throw FormatException('notebook source ${r['id']} has no notebook');
+      }
+      if (SourceKind.byName(r['kind'] as String) == null) {
+        throw FormatException('unknown notebook source kind ${r['kind']}');
+      }
+      sourceText[r['id']] = r['text'] as String;
+    }
+    for (final r in tables['notebook_chunks'] ?? const <Map<String, Object?>>[]) {
+      final text = sourceText[r['source_id']];
+      if (text == null) throw FormatException('notebook chunk ${r['id']} has no source');
+      final (start, end, page) = (r['start_offset'] as int, r['end_offset'] as int, r['page']);
+      final inRange = start >= 0 && start <= end && end <= text.length;
+      if (!inRange || text.substring(start, end) != r['text']) {
+        throw FormatException('notebook chunk ${r['id']} does not match its source');
+      }
+      if (page != null && (page is! int || page < 1)) {
+        throw FormatException('notebook chunk ${r['id']} has a bad page');
+      }
+    }
+  }
+
+  /// Replaces each user table in [tables] in one transaction; on any error nothing changes.
+  /// Tables the backup does not hold are kept, so an older backup leaves notebooks alone.
   void importTables(Map<String, List<Map<String, Object?>>> tables) {
     validateTables(tables);
     db.execute('BEGIN');
     try {
       for (final t in userTables) {
+        if (!tables.containsKey(t)) continue;
         db.execute('DELETE FROM $t');
-        for (final row in tables[t] ?? const <Map<String, Object?>>[]) {
+        for (final row in tables[t]!) {
           final cols = row.keys.toList();
           db.execute(
             'INSERT INTO $t(${cols.join(', ')}) VALUES (${List.filled(cols.length, '?').join(', ')})',

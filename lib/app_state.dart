@@ -14,6 +14,7 @@ import 'backup.dart';
 import 'commentary_packs.dart';
 import 'edge_engine.dart';
 import 'models.dart';
+import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
 import 'study_store.dart';
@@ -107,6 +108,9 @@ class AppState extends ChangeNotifier {
   late final SharedPreferences prefs;
   late Settings settings;
   late final StudyStore study;
+
+  /// Notebooks share study.sqlite, so they are backed up and restored with the notes.
+  late final NotebookStore notebooks;
   late final Directory supportDir;
 
   /// Optional public domain commentaries the user has downloaded.
@@ -144,6 +148,7 @@ class AppState extends ChangeNotifier {
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir));
     s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
+    s.notebooks = NotebookStore(s.study.db, s.touch);
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
     s.prefs = await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();

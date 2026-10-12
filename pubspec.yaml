@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 0.3.0+3
 
 environment:
-  sdk: ^3.11.5
+  sdk: ^3.13.0
 
 dependencies:
   flutter:
@@ -20,6 +20,8 @@ dependencies:
   file_picker: ^13.1.0
   cryptography: ^2.9.0
   http: ^1.6.0
+  pdfium_flutter: ^0.3.1
+  ffi: ^2.2.0
 
 dev_dependencies:
   flutter_test:
