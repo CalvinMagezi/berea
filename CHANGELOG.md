@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+Grounding
+- On-device answers run on the CPU. Gemma 4 E2B on some phone GPUs corrupts digits (LiteRT-LM
+  #2202, still open), and a wrong verse number that still exists would pass the reference check.
+  Answers are slower on phones with a capable GPU until a fix is confirmed on a real device.
+- A real reference one slip away from a verse the model was shown (John 3:18 when it was shown
+  John 3:16, or Isaiah 35:5 for 53:5) is kept but marked "Check the verse number".
+
 Site
 - The public site is rebuilt on the scroll-craft engine (vendored, MIT): a scrubbed lamplight
   film, one real answer walked through as you scroll, and a live copy of the reference check

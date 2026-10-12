@@ -16,6 +16,10 @@ class GuardResult {
 
   /// Misquotes replaced with the verbatim words of the one verse they clearly came from.
   final List<String> correctedQuotes;
+
+  /// Real references that sit one slip away from a verse the model was shown. They stay verified
+  /// and are surfaced for review, since a GPU decoder that corrupts digits produces exactly these.
+  final List<NearMiss> nearMisses;
   const GuardResult(
     this.text,
     this.verified,
@@ -23,9 +27,71 @@ class GuardResult {
     this.unverifiedQuotes, [
     this.unknownBooks = const [],
     this.correctedQuotes = const [],
+    this.nearMisses = const [],
   ]);
 
   int get inventedCount => unverified.length + unknownBooks.length;
+}
+
+class NearMiss {
+  final Ref cited;
+  final Ref shown;
+  const NearMiss(this.cited, this.shown);
+
+  String get label => '${cited.label} (shown ${shown.label})';
+
+  @override
+  String toString() => label;
+}
+
+/// Verses either side of a shown verse that count as a near miss. A decoder that drifts on one
+/// digit lands within this, and a wider window would catch ordinary neighbouring citations.
+const nearMissVerseDrift = 2;
+
+/// True when [a] and [b] differ only by two adjacent digits swapped, as in 16 and 61.
+bool _isTransposed(int a, int b) {
+  final x = '$a', y = '$b';
+  if (a == b || x.length != y.length) return false;
+  final diff = [
+    for (var i = 0; i < x.length; i++)
+      if (x[i] != y[i]) i,
+  ];
+  return diff.length == 2 &&
+      diff[1] == diff[0] + 1 &&
+      x[diff[0]] == y[diff[1]] &&
+      x[diff[1]] == y[diff[0]];
+}
+
+/// Verses between the cited range and [verse]; zero when the range contains it.
+int _verseGap(Ref cited, int verse) {
+  final start = cited.verseStart!, end = cited.verseEnd ?? start;
+  if (verse < start) return start - verse;
+  return verse > end ? verse - end : 0;
+}
+
+bool _isNearMiss(Ref cited, Verse v) {
+  if (cited.book.id != v.book.id) return false;
+  final start = cited.verseStart!;
+  final single = cited.verseEnd == null || cited.verseEnd == start;
+  if (cited.chapter == v.chapter && _verseGap(cited, v.verse) <= nearMissVerseDrift) return true;
+  if (!single) return false;
+  return (cited.chapter == v.chapter && _isTransposed(start, v.verse)) ||
+      (start == v.verse && _isTransposed(cited.chapter, v.chapter));
+}
+
+/// References in [cited] that touch no verse in [shown] but are a near miss of one: same book and
+/// chapter within [nearMissVerseDrift] verses, or adjacent digits of the chapter or verse swapped.
+/// Whole-chapter citations and anything overlapping a shown verse are never reported.
+List<NearMiss> findNearMisses(Iterable<Ref> cited, Iterable<Verse> shown) {
+  final verses = shown.toList();
+  final asRefs = [for (final v in verses) Ref(v.book, v.chapter, v.verse, v.verse)];
+  final out = <NearMiss>[];
+  for (final r in cited) {
+    if (r.verseStart == null || asRefs.any(r.overlaps)) continue;
+    final i = verses.indexWhere((v) => _isNearMiss(r, v));
+    if (i >= 0) out.add(NearMiss(r, asRefs[i]));
+  }
+  return out;
 }
 
 const minQuoteChars = 30;
@@ -374,6 +440,14 @@ class CitationGuard {
     out.write(withRefs.substring(cursor));
     final text = out.toString();
 
-    return GuardResult(text, verified.toList(), unverified.toList(), badQuotes, unknown, corrected);
+    return GuardResult(
+      text,
+      verified.toList(),
+      unverified.toList(),
+      badQuotes,
+      unknown,
+      corrected,
+      findNearMisses(verified, ctx.allVerses),
+    );
   }
 }

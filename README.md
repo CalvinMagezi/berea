@@ -227,7 +227,8 @@ docs/screenshots/
 
 ## Platform notes
 
-- **Android**: `minSdk 30`, arm64 only (LiteRT-LM). The emulator runs models on CPU.
+- **Android**: `minSdk 30`, arm64 only (LiteRT-LM). Answers run on the CPU on every platform:
+  GPU decode corrupts digits on some phones (LiteRT-LM #2202), and verse numbers are digits.
 - **iOS**: deployment target 15.0, CocoaPods only, extended-virtual-addressing and
   increased-memory-limit entitlements so a 2.6 GB model fits on a real iPhone. Swift Package
   Manager is turned off in `pubspec.yaml`: SPM debug builds embed an absolute host rpath, and when
@@ -258,7 +259,8 @@ keep it somewhere you trust.
 
 Everything below keeps the core: zero data, fully offline, fully private.
 
-- Real-device performance numbers for GPU backends on Android and iPhone.
+- GPU answers again once a real Mali phone shows LiteRT-LM #2202 fixed (see `TECHDEBT.md`), with
+  real-device performance numbers for Android and iPhone.
 - Keep one on-device conversation open across turns, if a real GPU phone shows a net win (the
   emulator did not; see `TECHDEBT.md`).
 - On-device embeddings for semantic search, if the retrieval check falls short.

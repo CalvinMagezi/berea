@@ -306,7 +306,10 @@ class _Citations extends StatelessWidget {
                 ),
             ],
           ),
-          if (notInScripture.isNotEmpty || g.unverifiedQuotes > 0 || g.correctedQuotes > 0)
+          if (notInScripture.isNotEmpty ||
+              g.unverifiedQuotes > 0 ||
+              g.correctedQuotes > 0 ||
+              g.nearMisses.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
@@ -316,6 +319,8 @@ class _Citations extends StatelessWidget {
                     '${g.correctedQuotes} misquote(s) replaced with the exact words',
                   if (g.unverifiedQuotes > 0)
                     '${g.unverifiedQuotes} quoted phrase(s) not found verbatim',
+                  if (g.nearMisses.isNotEmpty)
+                    'Check the verse number: ${g.nearMisses.map((m) => m.label).join(', ')}',
                 ].join(' · '),
                 style: TextStyle(color: scheme.error, fontSize: 13),
               ),
