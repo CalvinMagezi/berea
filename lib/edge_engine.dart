@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
@@ -12,6 +13,17 @@ const initTimeout = Duration(seconds: 30);
 /// CPU, not GPU: Gemma 4 E2B on some phone GPUs corrupts digits (LiteRT-LM #2202, still open in
 /// v0.18.0), and a corrupted verse number that still exists would pass the citation check.
 const answerBackend = PreferredBackend.cpu;
+
+/// A spoken question is short; this leaves room for about 30 seconds of speech.
+const transcriptMaxTokens = 256;
+
+/// Near greedy, so the transcript keeps the words that were said.
+const transcriptTemperature = 0.1;
+const transcriptTopK = 1;
+
+const transcribeInstruction =
+    'Transcribe this audio exactly as spoken. Reply with only the spoken words, '
+    'with no introduction, labels or quotation marks.';
 
 Future<void>? _init;
 
@@ -54,6 +66,8 @@ class EdgeAiEngine implements LlmEngine {
     final model = await FlutterEdgeAi.getActiveModel(
       maxTokens: tier.promptTokens + tier.maxOutput + contextPadding,
       preferredBackend: answerBackend,
+      // The audio encoder is left on its default backend, the CPU.
+      supportAudio: m.hearsAudio,
     );
     return EdgeAiEngine(model, m);
   }
@@ -80,6 +94,33 @@ class EdgeAiEngine implements LlmEngine {
       await for (final r in chat.generateChatResponseAsync()) {
         if (r is TextResponse) yield r.token;
       }
+    } finally {
+      await chat.close();
+    }
+  }
+
+  /// Words spoken in [wav], a 16 kHz mono 16-bit WAV file. Runs outside the harness so the
+  /// question only enters the conversation after the user confirms it.
+  Future<String> transcribe(Uint8List wav) async {
+    if (!spec.hearsAudio) throw StateError('${spec.label} does not take audio.');
+    final chat = await model.createChat(
+      temperature: transcriptTemperature,
+      topK: transcriptTopK,
+      enableThinking: false,
+      modelType: spec.type,
+      supportAudio: true,
+      maxOutputTokens: transcriptMaxTokens,
+    );
+    try {
+      // Without supportAudio on both the model and the chat the plugin drops the audio silently.
+      await chat.addQueryChunk(
+        Message.withAudio(text: transcribeInstruction, audioBytes: wav, isUser: true),
+      );
+      final out = StringBuffer();
+      await for (final r in chat.generateChatResponseAsync()) {
+        if (r is TextResponse) out.write(r.token);
+      }
+      return out.toString().trim();
     } finally {
       await chat.close();
     }

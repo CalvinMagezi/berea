@@ -579,6 +579,21 @@ class AppState extends ChangeNotifier {
     await _rebuildHarness();
   }
 
+  /// Transcribes a spoken question with the loaded Gemma 4 model. Holds [busy] so nothing else
+  /// uses the model meanwhile. The audio is only held in memory for this call.
+  Future<String> transcribeVoice(Uint8List wav) async {
+    final edge = _edge;
+    if (edge == null || busy) throw StateError('The on-device model is not ready.');
+    busy = true;
+    notifyListeners();
+    try {
+      return await edge.transcribe(wav);
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> send(String question) async {
     final h = harness;
     if (h == null) return;

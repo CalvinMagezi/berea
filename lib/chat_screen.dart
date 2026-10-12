@@ -9,6 +9,8 @@ import 'markdown_lite.dart';
 import 'plans.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
+import 'voice.dart';
+import 'voice_composer.dart';
 
 class ChatScreen extends StatefulWidget {
   final AppState state;
@@ -25,18 +27,22 @@ class _ChatScreenState extends State<ChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _focus = FocusNode();
+  late final _voice = VoiceInput(transcribe: widget.state.transcribeVoice);
+  var _voicePhase = VoicePhase.idle;
 
   @override
   void initState() {
     super.initState();
     widget.state.addListener(_onChange);
     widget.state.pendingQuestion.addListener(_onPending);
+    _voice.addListener(_onVoice);
   }
 
   @override
   void dispose() {
     widget.state.removeListener(_onChange);
     widget.state.pendingQuestion.removeListener(_onPending);
+    _voice.dispose();
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
@@ -50,6 +56,18 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// A fresh transcript goes into the input for the user to check; it is never sent by itself.
+  void _onVoice() {
+    final entered = _voice.phase == VoicePhase.confirm && _voicePhase != VoicePhase.confirm;
+    _voicePhase = _voice.phase;
+    if (entered) {
+      _input.text = _voice.transcript;
+      _input.selection = TextSelection.collapsed(offset: _input.text.length);
+      _focus.requestFocus();
+    }
+    setState(() {});
+  }
+
   void _onPending() {
     final q = widget.state.pendingQuestion.value;
     if (q == null) return;
@@ -60,7 +78,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _send() {
     final q = _input.text.trim();
-    if (q.isEmpty || !widget.state.ready) return;
+    if (q.isEmpty || !widget.state.ready || _voice.active) return;
+    _voice.accept();
     _input.clear();
     widget.state.send(q);
     _focus.requestFocus();
@@ -140,7 +159,20 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
               ),
               if (s.harness == null) _EngineNotice(state: s),
-              _InputBar(controller: _input, focus: _focus, busy: s.busy, onSend: _send),
+              VoiceStatusLine(_voice),
+              _InputBar(
+                controller: _input,
+                focus: _focus,
+                busy: s.busy,
+                canSend: !_voice.active,
+                onSend: _send,
+                mic: VoiceMicButton(
+                  voice: _voice,
+                  support: voiceSupport(s.settings, s.deviceState),
+                  modelFree: s.ready,
+                  onOpenSettings: () => showSettingsSheet(context, s),
+                ),
+              ),
             ],
           ),
         ),
@@ -397,12 +429,16 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focus;
   final bool busy;
+  final bool canSend;
   final VoidCallback onSend;
+  final Widget mic;
   const _InputBar({
     required this.controller,
     required this.focus,
     required this.busy,
+    required this.canSend,
     required this.onSend,
+    required this.mic,
   });
 
   @override
@@ -423,9 +459,12 @@ class _InputBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 4),
+          mic,
+          const SizedBox(width: 6),
           IconButton.filled(
-            onPressed: busy ? null : onSend,
+            tooltip: 'Send',
+            onPressed: busy || !canSend ? null : onSend,
             icon: busy
                 ? const SizedBox(
                     width: 18,

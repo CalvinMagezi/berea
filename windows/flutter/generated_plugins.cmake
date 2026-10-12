@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
   flutter_edge_ai
+  record_windows
   sqlite3_flutter_libs
 )
 
