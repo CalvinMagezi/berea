@@ -56,3 +56,14 @@ jobs:
       - run: mkdir assets -Force; New-Item assets/berea.sqlite -ItemType File -Force; Set-Content assets/berea.sqlite.version ci
         shell: pwsh
       - run: flutter build windows --debug
+
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check site/page.js && node --check site/check/check.js
+      # The site's reference check must agree with the Dart harness on every fixture case.
+      - run: node site/check/selftest.mjs

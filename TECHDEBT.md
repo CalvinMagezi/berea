@@ -8,3 +8,5 @@
 | iOS preferences (reader position, settings, optional Hugging Face token) can reach iCloud backup | shared_preferences stores them in Library/Preferences, outside the excluded support folder; move the token to the Keychain with a this-device-only accessibility class | 2026-10-11 | lib/app_state.dart:80 |
 | PBKDF2 at 600,000 rounds in pure Dart | Runs on a background isolate; switch to Argon2id if a vetted native binding is added | 2026-10-11 | lib/backup.dart:17 |
 | Site download links and version text are pinned to v0.2.0 by hand | Kept the site static with no build-time templating | 2026-10-11 | site/index.html:52 |
+| Site Bible data (site/data, 3.9 MB) is committed rather than built in the Pages workflow | CI has no Bible database; release.sh regenerates it and fails if it drifts | 2026-10-12 | packages/harness/bin/export_site.dart |
+| Site hero uses 120 WebP stills drawn by page code rather than the engine's video scrub | Smoother with easing and blending, and it also works where video is blocked; costs 1.9 MB of frames | 2026-10-12 | site/page.js |

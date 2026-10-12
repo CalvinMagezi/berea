@@ -21,6 +21,14 @@ echo "Running checks"
 flutter analyze --fatal-infos
 flutter test
 
+echo "Checking the site's live reference check against the harness"
+(cd packages/harness && dart run bin/export_site.dart)
+node site/check/selftest.mjs
+if ! git diff --quiet -- site/data; then
+  echo "site/data changed when regenerated from this database. Commit it, then release." >&2
+  exit 1
+fi
+
 echo "Running the grounding eval against Ollama (gemma4:e2b)"
 (cd packages/harness && dart run bin/eval.dart --tier mid | tee "$root/build/eval-$version.txt")
 

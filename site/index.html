@@ -3,514 +3,235 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Berea: an offline study Bible that shows its work</title>
-<meta name="description" content="Berea is a free, open-source study Bible and assistant that runs entirely on your phone or computer. No account, no tracking, nothing leaves your device. Every answer is checked against the Bible text before you see it.">
+<title>Berea: a study Bible that shows its work</title>
+<meta name="description" content="A free, open-source study Bible and assistant that runs on your own phone. Every answer is checked against the Bible text before you see it. Try to fool the check yourself.">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#161310">
 <meta property="og:title" content="Berea: a study Bible that shows its work">
-<meta property="og:description" content="Free and open source. Runs on your own phone, offline. Every answer is checked against the Bible text before you see it.">
+<meta property="og:description" content="Free and open source. Runs on your own phone, offline. Every answer is checked against the Bible text before you see it. Try to fool the check yourself.">
 <meta property="og:image" content="https://calvinmagezi.github.io/berea/images/share.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://calvinmagezi.github.io/berea/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="preload" as="image" href="images/hero-1200.webp" imagesrcset="images/hero-1200.webp 1200w, images/hero-2400.webp 2400w" imagesizes="100vw" fetchpriority="high">
-<link rel="stylesheet" href="styles.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239E7628'/%3E%3Cpath d='M9 8h9a5 5 0 0 1 0 10H9zM9 18h10a5 5 0 0 1 0 10H9z' fill='none' stroke='%23F6F1E8' stroke-width='2.4'/%3E%3C/svg%3E">
-<script src="motion.js" defer></script>
+<link rel="preload" as="image" href="images/hero-poster.webp" fetchpriority="high">
+<link rel="preload" as="image" href="images/film/001.webp">
+<link rel="stylesheet" href="vendor/scrollcraft/scrollcraft.css">
+<link rel="stylesheet" href="page.css">
+<noscript><style>
+  /* Without the engine nothing animates, so every staged element is simply shown. */
+  [data-sc-cue], [data-sc-in], [data-sc-stagger] > *, .verse, .chips li, .result { opacity: 1 !important; transform: none !important; }
+  .scene { display: none; } .scene[data-scene="5"] { display: block; opacity: 1; visibility: visible; }
+  .intertitle, .checker-input, .motes { display: none; }
+  .range-stage { overflow-x: auto; }
+</style></noscript>
 </head>
 <body>
+
+<span data-sc-progress></span>
+<div class="sc-grain" aria-hidden="true"></div>
 <a class="skip" href="#main">Skip to the content</a>
 
-<header class="top">
-  <nav class="bar glass" aria-label="Main">
-    <a class="wordmark" href="#">
-      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M9 8h9a5 5 0 0 1 0 10H9zM9 18h10a5 5 0 0 1 0 10H9z"/></svg>
-      Berea
-    </a>
-    <ul class="links" role="list">
-      <li><a href="#screens">The app</a></li>
-      <li><a href="#how">How it answers</a></li>
-      <li><a href="#check">The check</a></li>
-      <li><a href="#data">Your data</a></li>
-      <li><a href="https://github.com/CalvinMagezi/berea">Source</a></li>
-    </ul>
-    <a class="pill" href="#try">Get the app</a>
-    <details class="menu">
-      <summary aria-label="Menu"><span></span><span></span></summary>
-      <ul class="sheet glass" role="list">
-        <li><a href="#screens">The app</a></li>
-        <li><a href="#how">How it answers</a></li>
-        <li><a href="#check">The check</a></li>
-        <li><a href="#library">What is in the box</a></li>
-        <li><a href="#data">Your data</a></li>
-        <li><a href="#try">Try it</a></li>
-        <li><a href="https://github.com/CalvinMagezi/berea">Source on GitHub</a></li>
-      </ul>
-    </details>
-  </nav>
+<header class="bar">
+  <a class="wordmark" href="#top" aria-label="Berea, back to the top">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 8h9a5 5 0 0 1 0 10H9zM9 18h10a5 5 0 0 1 0 10H9z"/></svg>
+    Berea
+  </a>
+  <a class="bar-cta" href="#get">Get the app</a>
 </header>
 
 <main id="main">
 
-<section class="hero" aria-labelledby="hero-title">
-  <div class="hero-media" aria-hidden="true">
-    <div class="hero-frame">
-      <img src="images/hero-1200.webp" srcset="images/hero-1200.webp 1200w, images/hero-2400.webp 2400w" sizes="100vw" width="2400" height="1340" alt="" fetchpriority="high" decoding="async">
-      <span class="flame"></span>
-    </div>
-  </div>
-
-  <div class="hero-inner">
-    <div class="hero-text">
-      <h1 id="hero-title">A study Bible that shows its work.</h1>
-      <p class="lede">
-        Berea is a free Bible and study assistant that runs entirely on your own phone or computer.
-        Every answer is built from the Bible text, the Hebrew and Greek behind it and the passages it
-        points to, then checked against that text before you see it.
-      </p>
-      <p class="lede quiet">
-        No account and no tracking. On a phone, nothing you write ever leaves the device. This page
-        explains how it works, so you can examine it the way the Bereans examined Paul.
-      </p>
-      <div class="actions">
-        <a class="button primary" href="https://github.com/CalvinMagezi/berea/releases/download/v0.2.0/berea-0.2.0-android-arm64.apk">Download for Android</a>
-        <a class="button glass" href="https://github.com/CalvinMagezi/berea">Read the source</a>
+  <!-- 1 Wonder: the camera moves in on the lamp under the reader's hand. -->
+  <section id="top" class="hero" data-sc-act="pin" data-sc-span="2.4" data-sc-drift="#161310">
+    <div data-sc-stage>
+      <picture>
+        <source media="(max-width: 700px)" srcset="images/hero-poster-m.webp">
+        <img class="sc-stage__poster" src="images/hero-poster.webp" alt="" width="1920" height="1080">
+      </picture>
+      <canvas class="film" data-film aria-hidden="true"></canvas>
+      <canvas class="motes" data-motes aria-hidden="true"></canvas>
+      <div class="sc-scrim sc-scrim--lead" aria-hidden="true"></div>
+      <div class="sc-copy sc-copy--lead hero-copy" data-sc-cue="0 0.5 0 0.06">
+        <h1 class="sc-display hero-title" data-sc-kinetic="lines">A study Bible that shows its work.</h1>
+        <p class="hero-sub">Free, offline and private. Every answer is checked against the Bible text before you see it.</p>
       </div>
-      <p class="small">Version 0.2.0, for 64-bit phones on Android 11 or later.</p>
+      <figure class="sc-copy sc-copy--trail word" data-sc-cue="0.52 0.97 0.06 0.08">
+        <span class="word-greek" lang="grc">ἀνακρίνοντες</span>
+        <span class="word-gloss">examining</span>
+        <figcaption>They “examined the Scriptures every day to see if these teachings were true.” <cite>Acts 17:11, BSB</cite></figcaption>
+      </figure>
     </div>
+  </section>
 
-    <figure class="reader glass" data-reader aria-labelledby="reader-caption">
-      <div class="reader-focus" aria-hidden="true">
-        <span class="focus-greek" lang="grc" data-focus="greek">ἀνακρίνοντες</span>
-        <span class="focus-gloss" data-focus="gloss">examining</span>
+  <!-- 2 Unease: the problem, line by line, in ordinary flow. -->
+  <section class="tension sc-section" data-sc-act="flow" data-sc-drift="#110f0c">
+    <div class="sc-wrap argument" data-sc-in data-sc-stagger="90">
+      <p class="arg arg--q">Ask a small language model to quote the Bible from memory.</p>
+      <p class="arg">Sometimes it invents a verse.</p>
+      <p class="arg">Sometimes it merges two into one.</p>
+      <p class="arg">Sometimes it cites <span class="fake">2 Hezekiah 4:1</span>, a book that is not in the Bible.</p>
+      <p class="arg arg--turn">Berea is built so that none of this depends on the model getting it right.</p>
+    </div>
+  </section>
+
+  <!-- 3 Trust: real figures count up beside the manuscript. -->
+  <section class="library sc-section">
+    <div class="sc-wrap library-grid">
+      <div class="sc-stack" data-sc-in data-sc-stagger="60">
+        <h2 class="sc-display sc-display--md">Everything it reads is on your phone.</h2>
+        <p class="lead">Three translations, <b class="num" data-sc-count="0 31,102">31,102</b> verses each.
+          Every Hebrew and Greek word behind them, <b class="num" data-sc-count="0 447,319">447,319</b> in all,
+          with <b class="num" data-sc-count="0 21,232">21,232</b> dictionary entries and
+          <b class="num" data-sc-count="0 344,799">344,799</b> cross references ranked by how often readers follow them.</p>
+        <p class="body">The language model comes down once: Gemma 4 E2B (2.6 GB) on most phones, E4B (4.3 GB) on devices with 10 GB of memory or more. After that, flight mode is fine.</p>
+        <dl class="ledger">
+          <div><dt>Berean Standard Bible, King James Version</dt><dd>Public domain</dd></div>
+          <div><dt>World English Bible</dt><dd>Public domain, eBible.org</dd></div>
+          <div><dt>Hebrew and Greek words, dictionary</dt><dd>STEPBible, CC BY 4.0</dd></div>
+          <div><dt>Cross references</dt><dd>OpenBible.info, CC BY</dd></div>
+        </dl>
       </div>
-      <p class="interlinear" lang="grc" aria-hidden="true">
-        <span class="w">οὗτοι<small>These</small></span>
-        <span class="w">δὲ<small>now</small></span>
-        <span class="w">ἦσαν<small>were</small></span>
-        <span class="w" data-hold>εὐγενέστεροι<small>more noble</small></span>
-        <span class="w">τῶν<small>than those</small></span>
-        <span class="w">ἐν<small>in</small></span>
-        <span class="w">Θεσσαλονίκῃ,<small>Thessalonica</small></span>
-        <span class="w">οἵτινες<small>who</small></span>
-        <span class="w" data-hold>ἐδέξαντο<small>received</small></span>
-        <span class="w">τὸν<small>the</small></span>
-        <span class="w" data-hold>λόγον<small>word</small></span>
-        <span class="w">μετὰ<small>with</small></span>
-        <span class="w">πάσης<small>all</small></span>
-        <span class="w" data-hold>προθυμίας<small>readiness</small></span>
-        <span class="w">τὸ<small>the</small></span>
-        <span class="w">καθ᾽<small>every</small></span>
-        <span class="w">ἡμέραν<small>day</small></span>
-        <span class="w is-on" data-hold="long">ἀνακρίνοντες<small>examining</small></span>
-        <span class="w">τὰς<small>the</small></span>
-        <span class="w" data-hold>γραφὰς<small>Scriptures</small></span>
-        <span class="w">εἰ<small>if</small></span>
-        <span class="w">ἔχοι<small>would be</small></span>
-        <span class="w">ταῦτα<small>these things</small></span>
-        <span class="w">οὕτως.<small>so</small></span>
-      </p>
-      <figcaption id="reader-caption">
-        “They received the message with great eagerness and examined the Scriptures every day to see
-        if these teachings were true.” <cite>Acts 17:11, BSB. Greek and glosses from STEPBible, as the app shows them.</cite>
-        <button class="motion-toggle" type="button" data-motion-toggle hidden>Pause motion</button>
-      </figcaption>
-    </figure>
-  </div>
-</section>
-
-<section class="promises" aria-labelledby="promises-title">
-  <div class="wrap">
-    <h2 id="promises-title">What Berea promises</h2>
-    <ul class="promise-grid" role="list">
-      <li>
-        <svg class="icon" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="17"/><path d="M12 36 36 12"/></svg>
-        <h3>Nothing about you is collected.</h3>
-        <p>No account, no analytics, no crash reports, no sync. Your notes, studies and highlights
-          live in one file on your device.</p>
-      </li>
-      <li>
-        <svg class="icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 19a23 23 0 0 1 32 0M14 26a14 14 0 0 1 20 0M20 33a5 5 0 0 1 8 0"/><path d="M10 10l28 28"/></svg>
-        <h3>It works with no connection.</h3>
-        <p>The Bible, the Hebrew and Greek, the lexicon, the cross references and the language model
-          are all on the device. After the one-time model download, flight mode is fine.</p>
-      </li>
-      <li>
-        <svg class="icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 12c-5-3-11-3-16-1v26c5-2 11-2 16 1 5-3 11-3 16-1V11c-5-2-11-2-16 1zM24 12v26"/></svg>
-        <h3>Scripture comes first.</h3>
-        <p>The model never quotes from memory. It is given the verses and told to use only those,
-          and every reference in its answer is looked up afterwards. Anything it made up is marked,
-          not hidden.</p>
-      </li>
-      <li>
-        <svg class="icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M18 14 8 24l10 10M30 14l10 10-10 10M27 10l-6 28"/></svg>
-        <h3>Everything is open.</h3>
-        <p>The app, the data pipeline and the tests are published under the MIT licence. The Bible
-          text and study data are public domain or openly licensed.</p>
-      </li>
-    </ul>
-    <p class="proof">The promise is enforced in code, not policy. The only network calls are the ones
-      you start: the model download, the optional lexicon download, and, on a Mac, your own Ollama
-      server. <a href="https://github.com/CalvinMagezi/berea/blob/main/lib/app_state.dart">See app_state.dart</a></p>
-  </div>
-</section>
-
-<section id="screens" class="screens" aria-labelledby="screens-title">
-  <div class="band" aria-hidden="true">
-    <img src="images/manuscript-900.webp" srcset="images/manuscript-900.webp 900w, images/manuscript-1800.webp 1800w" sizes="100vw" width="1800" height="1005" alt="" loading="lazy" decoding="async">
-  </div>
-  <div class="wrap">
-    <h2 id="screens-title">The app</h2>
-    <p class="intro">Three places: Study for questions, Bible for reading, Notes for everything you
-      keep. A chat button is on every screen.</p>
-  </div>
-  <div class="shelf">
-    <ul class="shots" role="list" data-shelf tabindex="0" aria-label="Screenshots of the app">
-      <li><figure><img src="screenshots/home-android.png" alt="Study tab with the verse of the day, today's reading from a plan, and suggested questions" width="450" height="1000" loading="lazy"><figcaption>Verse of the day and today's reading</figcaption></figure></li>
-      <li><figure><img src="screenshots/study-android.png" alt="An answer about John 3:16 in sections, citing John 3:16 in the Berean Standard Bible" width="450" height="1000" loading="lazy"><figcaption>An answer built from the passage</figcaption></figure></li>
-      <li><figure><img src="screenshots/parallel-android.png" alt="John 3 in the Berean Standard Bible with the World English Bible beneath each verse" width="450" height="1000" loading="lazy"><figcaption>Two translations side by side</figcaption></figure></li>
-      <li><figure><img src="screenshots/interlinear-android.png" alt="The Greek words of John 3:18 with transliteration and English gloss" width="450" height="1000" loading="lazy"><figcaption>The Greek or Hebrew behind a verse</figcaption></figure></li>
-      <li><figure><img src="screenshots/study-page-android.png" alt="A study page for Psalm 23:1 with observation and interpretation drafted from the text and lexicon" width="450" height="1000" loading="lazy"><figcaption>A study page you can edit</figcaption></figure></li>
-      <li><figure><img src="screenshots/plan-android.png" alt="The New Testament in 90 days reading plan, day one Matthew 1 to 3" width="450" height="1000" loading="lazy"><figcaption>Reading plans</figcaption></figure></li>
-      <li><figure><img src="screenshots/notes-android.png" alt="Notes tab listing saved studies, a study page and a note on Genesis 1:3" width="450" height="1000" loading="lazy"><figcaption>Everything you keep, in one place</figcaption></figure></li>
-      <li><figure><img src="screenshots/settings-android.png" alt="Settings showing the on-device model, a memory-based recommendation, the optional lexicon and the encrypted backup" width="450" height="1000" loading="lazy"><figcaption>Model, lexicon and your backup</figcaption></figure></li>
-    </ul>
-    <div class="shelf-nav" hidden>
-      <button class="round glass" type="button" data-shelf-prev aria-label="Previous screenshots"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg></button>
-      <button class="round glass" type="button" data-shelf-next aria-label="Next screenshots"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
+      <figure class="library-media" data-sc-reveal="left" data-sc-reveal-at="0.1 0.5">
+        <img src="images/manuscript-1800.webp" srcset="images/manuscript-900.webp 900w, images/manuscript-1800.webp 1800w" sizes="(max-width: 860px) 100vw, 50vw" width="1800" height="1005" alt="A close view of handwritten script on an old page, lit from the side" loading="lazy">
+      </figure>
     </div>
-  </div>
-</section>
+  </section>
 
-<section id="how" class="how" aria-labelledby="how-title">
-  <div class="wrap">
-    <h2 id="how-title">How an answer is made</h2>
-    <p class="intro">
-      Small language models that fit on a phone are fluent but forgetful. Asked to quote the Bible
-      from memory they will sometimes invent a verse, merge two, or cite a book that does not exist.
-      Berea is built so that this does not depend on the model being good. Every question goes
-      through the same five steps. The panel replays one real question through them.
-    </p>
-
-    <div class="pipeline" data-pipeline>
-      <div class="stage glass" data-step="5">
-        <div class="stage-head">
-          <span class="stage-label" data-stage-label>Step 5 of 5</span>
-          <button class="play" type="button" data-play hidden>Pause</button>
-        </div>
-
+  <!-- 4 Clarity: one real question walks through the five steps as the reader scrolls. -->
+  <section class="method" data-sc-act="pin" data-sc-span="2.4" data-sc-drift="#13110e" data-method>
+    <div data-sc-stage class="method-stage">
+      <div class="method-head">
+        <h2 class="sc-display sc-display--md">How an answer is made</h2>
+        <p class="body">One real question, as Berea handled it.</p>
+      </div>
+      <ol class="steps" role="list">
+        <li data-step="1"><span class="n" aria-hidden="true">1</span><span><b>Find</b> the passages you named.</span></li>
+        <li data-step="2"><span class="n" aria-hidden="true">2</span><span><b>Gather</b> what a careful reader would open.</span></li>
+        <li data-step="3"><span class="n" aria-hidden="true">3</span><span><b>Hand</b> the model only that material.</span></li>
+        <li data-step="4"><span class="n" aria-hidden="true">4</span><span><b>Let</b> the model write.</span></li>
+        <li data-step="5"><span class="n" aria-hidden="true">5</span><span><b>Check</b> every reference and quotation.</span></li>
+      </ol>
+      <div class="screen glass" data-screen>
         <div class="scene" data-scene="1">
-          <p class="ask" data-type>What does <mark class="hit">Philippians 4:6-7</mark> teach about anxiety?</p>
-          <div class="verse-cards">
-            <p class="verse"><b>Philippians 4:6</b> Be anxious for nothing, but in everything, by prayer and petition, with thanksgiving, present your requests to God.</p>
-            <p class="verse"><b>Philippians 4:7</b> And the peace of God, which surpasses all understanding, will guard your hearts and your minds in Christ Jesus.</p>
-          </div>
+          <p class="ask"><span data-typed>What does <mark class="hit">Philippians 4:6-7</mark> teach about anxiety?</span></p>
+          <p class="verse"><b>Philippians 4:6</b> Be anxious for nothing, but in everything, by prayer and petition, with thanksgiving, present your requests to God.</p>
+          <p class="verse"><b>Philippians 4:7</b> And the peace of God, which surpasses all understanding, will guard your hearts and your minds in Christ Jesus.</p>
         </div>
-
         <div class="scene" data-scene="2">
-          <p class="gather-title">Greek words <b>39</b>, dictionary entries <b>12</b></p>
-          <ul class="chips" role="list">
-            <li class="chip"><span lang="grc">μεριμνᾶτε</span> do worry about</li>
-            <li class="chip"><span lang="grc">προσευχῇ</span> by prayer</li>
-            <li class="chip"><span lang="grc">εὐχαριστίας</span> thanksgiving</li>
-          </ul>
-          <p class="gather-title">Passages readers link to it <b>8</b></p>
-          <ul class="chips" role="list">
-            <li class="chip">Proverbs 3:5</li><li class="chip">1 Peter 5:7</li><li class="chip">Matthew 6:25</li><li class="chip">Psalm 55:22</li><li class="chip more">and 4 more</li>
-          </ul>
-          <p class="gather-title">Search of the whole Bible <b>5</b></p>
-          <ul class="chips" role="list">
-            <li class="chip">Psalm 94:19</li><li class="chip">Proverbs 12:25</li><li class="chip more">and 3 more</li>
-          </ul>
+          <p class="label">Greek words <b>39</b>, dictionary entries <b>12</b></p>
+          <ul class="chips" role="list"><li><span lang="grc">μεριμνᾶτε</span> do worry about</li><li><span lang="grc">προσευχῇ</span> by prayer</li><li><span lang="grc">εὐχαριστίας</span> thanksgiving</li></ul>
+          <p class="label">Passages readers link to it <b>8</b></p>
+          <ul class="chips" role="list"><li>Proverbs 3:5</li><li>1 Peter 5:7</li><li>Matthew 6:25</li><li>Psalm 55:22</li><li class="more">and 4 more</li></ul>
+          <p class="label">Search of the whole Bible <b>5</b></p>
+          <ul class="chips" role="list"><li>Psalm 94:19</li><li>Proverbs 12:25</li><li class="more">and 3 more</li></ul>
         </div>
-
         <div class="scene" data-scene="3">
           <p class="rule"><b>Rule 1</b> Quote Scripture only from the PASSAGES block below. Never quote from memory.</p>
-          <p class="rule"><b>Rule 4</b> Hebrew and Greek word studies come only from the LEXICON block.</p>
           <p class="rule"><b>Rule 7</b> If asked where the Bible says something it does not say, state plainly that it is not in the Bible.</p>
-          <div class="meter" role="img" aria-label="The prompt used about 2,400 of the 4,000 tokens allowed at this tier"><span class="meter-fill"></span></div>
-          <p class="meter-label">About 2,400 of 4,000 tokens: 8 rules, 2 passages, 12 dictionary entries and 13 linked or found verses.</p>
+          <div class="meter" role="img" aria-label="The prompt used about 2,400 of the 4,000 tokens allowed"><span data-meter></span></div>
+          <p class="label">About 2,400 of 4,000 tokens: 8 rules, 2 passages, 12 dictionary entries, 13 linked or found verses.</p>
         </div>
-
         <div class="scene" data-scene="4">
-          <p class="answer" data-stream>The text states, “Be anxious for nothing” (Philippians 4:6, BSB). Believers must present their requests to God through prayer and petition, accompanied by thanksgiving (Philippians 4:6, BSB). The peace of God is described as surpassing all understanding (Philippians 4:7, BSB).</p>
-          <p class="source">Gemma 4 E2B, written on a laptop through Ollama in 10 seconds. Abridged.</p>
+          <p class="answer"><span data-streamed>The text states, “Be anxious for nothing” (Philippians 4:6, BSB). Believers must present their requests to God through prayer and petition, accompanied by thanksgiving (Philippians 4:6, BSB). The peace of God is described as surpassing all understanding (Philippians 4:7, BSB).</span></p>
+          <p class="label">Gemma 4 E2B through Ollama on a laptop, 10 seconds. Abridged.</p>
         </div>
-
         <div class="scene" data-scene="5">
           <p class="answer checked">The text states, <span class="q">“Be anxious for nothing”</span> (<span class="ref">Philippians 4:6</span>, BSB). Believers must present their requests to God through prayer and petition, accompanied by thanksgiving (<span class="ref">Philippians 4:6</span>, BSB). The peace of God is described as surpassing all understanding (<span class="ref">Philippians 4:7</span>, BSB).</p>
-          <ul class="tally" role="list">
-            <li><b>3</b> references verified</li>
-            <li><b>0</b> invented</li>
-            <li><b>1</b> quotation, word for word</li>
-          </ul>
+          <p class="tally"><b>3</b> references verified. <b>0</b> invented. <b>1</b> quotation, word for word.</p>
         </div>
       </div>
-
-      <ol class="steps" role="list" data-steps>
-        <li data-step-item="1">
-          <h3><button type="button" class="step-btn" disabled><span class="step-n" aria-hidden="true">1</span>Find the passages you asked about.</button></h3>
-          <p>References are read from your question in every common form (John 3:16, Jn 3.16-18,
-            1 Cor 13, II Timothy 3:16) and the verses are fetched word for word from the Bible on
-            your device. <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/ref_parser.dart">ref_parser.dart</a></p>
-        </li>
-        <li data-step-item="2">
-          <h3><button type="button" class="step-btn" disabled><span class="step-n" aria-hidden="true">2</span>Gather what a careful reader would open.</button></h3>
-          <p>The Hebrew or Greek words with their dictionary entries, the passages other readers most
-            often link to it, and a search of the whole Bible for your question's words. A question
-            with no reference follows those links to the passages Scripture keeps returning to.
-            <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/retriever.dart">retriever.dart</a></p>
-        </li>
-        <li data-step-item="3">
-          <h3><button type="button" class="step-btn" disabled><span class="step-n" aria-hidden="true">3</span>Hand the model only that material.</button></h3>
-          <p>The model receives a fixed set of study rules and the gathered passages, trimmed to what
-            it can hold. It is told to quote only from them and to say plainly when something is not
-            in the Bible. <a href="https://github.com/CalvinMagezi/berea/blob/main/prompts/system.md">system.md</a></p>
-        </li>
-        <li data-step-item="4">
-          <h3><button type="button" class="step-btn" disabled><span class="step-n" aria-hidden="true">4</span>Let the model write.</button></h3>
-          <p>On a phone the answer is written by Gemma, Google's open model, through the same engine
-            as Google AI Edge Gallery. On a Mac it can use Ollama instead.
-            <a href="https://github.com/CalvinMagezi/berea/blob/main/lib/edge_engine.dart">edge_engine.dart</a></p>
-        </li>
-        <li data-step-item="5">
-          <h3><button type="button" class="step-btn" disabled><span class="step-n" aria-hidden="true">5</span>Check every reference and quotation.</button></h3>
-          <p>A chapter, verse or book that does not exist is marked unverified. A quotation that is
-            not word for word is replaced with the exact words when one verse is clearly its source,
-            and marked otherwise. Verified references become links that open the passage.
-            <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/citation_guard.dart">citation_guard.dart</a></p>
-        </li>
-      </ol>
+      <p class="method-source">The code for each step is public: <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/retriever.dart">retriever.dart</a>, <a href="https://github.com/CalvinMagezi/berea/blob/main/prompts/system.md">system.md</a>, <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/citation_guard.dart">citation_guard.dart</a>.</p>
     </div>
+  </section>
 
-    <figure class="device-map" aria-labelledby="map-caption">
-      <div class="map-scroll">
-      <svg class="map-h" viewBox="0 0 900 420" role="img" aria-labelledby="map-title map-desc" data-map>
-        <title id="map-title">The parts of Berea and how they connect</title>
-        <desc id="map-desc">Inside the boundary of your device, the app passes your question to the harness. The harness reads the Bible database, prompts the language model, and checks its answer before the app shows it. Your notes are kept in a separate file. The internet sits outside the boundary with no connection to any of it.</desc>
-        <defs>
-          <radialGradient id="packet-glow"><stop offset="0" stop-color="#f6dfa0"/><stop offset="0.45" stop-color="#d4a94e"/><stop offset="1" stop-color="#d4a94e" stop-opacity="0"/></radialGradient>
-        </defs>
-        <rect class="boundary" x="16" y="40" width="724" height="364" rx="28"/>
-        <text class="boundary-label" x="48" y="78">Your phone or computer</text>
-
-        <path id="p-app-h" class="wire" d="M200 200 H292"/>
-        <path id="p-h-app" class="wire" d="M292 240 H200"/>
-        <path id="p-h-db" class="wire" d="M498 196 C536 196 536 150 572 150"/>
-        <path id="p-db-h" class="wire" d="M572 174 C552 174 548 212 498 212"/>
-        <path id="p-h-m" class="wire" d="M498 238 C536 238 536 296 572 296"/>
-        <path id="p-m-h" class="wire" d="M572 320 C548 320 540 254 498 254"/>
-        <path id="p-app-n" class="wire" d="M128 268 V318"/>
-
-        <g class="node"><rect x="56" y="172" width="144" height="96" rx="18"/><text x="128" y="214">The app</text><text x="128" y="238" class="sub">Study, Bible, Notes</text></g>
-        <g class="node core"><rect x="292" y="150" width="206" height="140" rx="22"/><text x="395" y="206">Harness</text><text x="395" y="232" class="sub">find, gather, prompt</text><text x="395" y="254" class="sub">and check</text></g>
-        <g class="node"><rect x="572" y="112" width="144" height="80" rx="18"/><text x="644" y="148">Bible</text><text x="644" y="172" class="sub">text and lexicon</text></g>
-        <g class="node"><rect x="572" y="268" width="144" height="80" rx="18"/><text x="644" y="304">Model</text><text x="644" y="328" class="sub">Gemma or Ollama</text></g>
-        <g class="node quiet"><rect x="64" y="318" width="128" height="52" rx="14"/><text x="128" y="349" class="sub">Your notes file</text></g>
-
-        <g class="cloud"><rect x="768" y="180" width="118" height="80" rx="40"/><text x="827" y="216" class="sub">The</text><text x="827" y="236" class="sub">internet</text></g>
-
-        <g class="packets">
-          <circle r="9" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="m1.begin" end="m1.end"/><animateMotion dur="1.4s" begin="0s;m6.end+0.6s" id="m1"><mpath href="#p-app-h"/></animateMotion></circle>
-          <circle r="9" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="m2.begin" end="m2.end"/><animateMotion dur="1.2s" begin="m1.end" id="m2"><mpath href="#p-h-db"/></animateMotion></circle>
-          <circle r="9" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="m3.begin" end="m3.end"/><animateMotion dur="1.2s" begin="m2.end" id="m3"><mpath href="#p-db-h"/></animateMotion></circle>
-          <circle r="9" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="m4.begin" end="m4.end"/><animateMotion dur="1.2s" begin="m3.end" id="m4"><mpath href="#p-h-m"/></animateMotion></circle>
-          <circle r="9" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="m5.begin" end="m5.end"/><animateMotion dur="1.8s" begin="m4.end" id="m5"><mpath href="#p-m-h"/></animateMotion></circle>
-          <circle r="9" fill="url(#packet-glow)" opacity="0"><set attributeName="opacity" to="1" begin="m6.begin" end="m6.end"/><animateMotion dur="1.4s" begin="m5.end" id="m6"><mpath href="#p-h-app"/></animateMotion></circle>
-        </g>
-      </svg>
+  <!-- 5 Curiosity: the app travels past sideways. -->
+  <section class="range" data-sc-act="pan" data-sc-span="2.4" data-sc-drift="#161310">
+    <div data-sc-stage class="range-stage">
+      <div class="rail" data-sc-pan="0.06">
+        <div class="rail-lead">
+          <h2 class="sc-display sc-display--md">The app</h2>
+          <p class="body">Study for questions, Bible for reading, Notes for everything you keep.</p>
+        </div>
+        <figure class="phone"><img src="screenshots/home-android.png" alt="Study tab with the verse of the day and today's reading" width="450" height="1000" decoding="async"><figcaption>Verse of the day</figcaption></figure>
+        <figure class="phone"><img src="screenshots/study-android.png" alt="An answer about John 3:16 built from the passage" width="450" height="1000" decoding="async"><figcaption>An answer from the passage</figcaption></figure>
+        <figure class="phone"><img src="screenshots/interlinear-android.png" alt="The Greek words of John 3:18 with glosses" width="450" height="1000" decoding="async"><figcaption>The Greek behind a verse</figcaption></figure>
+        <figure class="phone"><img src="screenshots/parallel-android.png" alt="John 3 with a second translation under each verse" width="450" height="1000" decoding="async"><figcaption>Two translations</figcaption></figure>
+        <figure class="phone"><img src="screenshots/study-page-android.png" alt="A study page for Psalm 23:1" width="450" height="1000" decoding="async"><figcaption>Study pages</figcaption></figure>
+        <figure class="phone"><img src="screenshots/plan-android.png" alt="The New Testament in 90 days reading plan" width="450" height="1000" decoding="async"><figcaption>Reading plans</figcaption></figure>
+        <figure class="phone"><img src="screenshots/notes-android.png" alt="Notes tab with saved studies" width="450" height="1000" decoding="async"><figcaption>Your notes</figcaption></figure>
+        <p class="rail-end">All of it on the phone, none of it on a server.</p>
       </div>
-      <svg class="map-v" viewBox="0 0 360 580" role="img" aria-labelledby="map-title-v map-desc" data-map>
-        <title id="map-title-v">The parts of Berea and how they connect</title>
-        <defs>
-          <radialGradient id="packet-glow-v"><stop offset="0" stop-color="#f6dfa0"/><stop offset="0.45" stop-color="#d4a94e"/><stop offset="1" stop-color="#d4a94e" stop-opacity="0"/></radialGradient>
-        </defs>
-        <rect class="boundary" x="10" y="26" width="340" height="474" rx="24"/>
-        <text class="boundary-label" x="32" y="58">Your phone or computer</text>
+    </div>
+  </section>
 
-        <path id="v-app-h" class="wire" d="M105 150 V210"/>
-        <path id="v-h-app" class="wire" d="M150 210 V150"/>
-        <path id="v-app-n" class="wire" d="M190 115 H230"/>
-        <path id="v-h-db" class="wire" d="M140 310 C140 340 100 340 100 370"/>
-        <path id="v-db-h" class="wire" d="M120 370 C120 345 160 345 160 310"/>
-        <path id="v-h-m" class="wire" d="M200 310 C200 340 240 340 240 370"/>
-        <path id="v-m-h" class="wire" d="M280 370 C280 340 220 340 220 310"/>
+  <!-- 6 Delight, the peak: the page tests itself, then hands over the box. -->
+  <section id="try" class="peak" data-sc-act="pin" data-sc-span="2.8" data-sc-drift="#0e0c0a" data-peak>
+    <div data-sc-stage class="peak-stage">
+      <p class="intertitle" data-sc-cue="0 0.17 0 0.06">Now try to fool it.</p>
+      <div class="checker glass" data-sc-cue="0.15 1 0.06 0.03" data-checker>
+        <div class="checker-head">
+          <h2 class="checker-title">Try to fool the check</h2>
+          <p class="checker-note">This box runs a copy of Berea's reference check in your browser, against the Berean Standard Bible loaded from this site. It agrees with the app's own check on every test case.</p>
+        </div>
+        <div class="checker-input">
+          <label class="sr" for="cite">A reference, with or without a quotation</label>
+          <input id="cite" type="text" autocomplete="off" spellcheck="false" placeholder="Try “2 Hezekiah 4:1” or a verse you know" data-input>
+          <button type="button" data-run>Check</button>
+        </div>
+        <noscript><p class="checker-note">The check runs in your browser and needs JavaScript. Everything else on this page reads without it.</p></noscript>
+        <ol class="results" role="list" aria-live="polite" data-results></ol>
+      </div>
+    </div>
+  </section>
 
-        <g class="node"><rect x="40" y="80" width="150" height="70" rx="16"/><text x="115" y="111">The app</text><text x="115" y="133" class="sub">Study, Bible, Notes</text></g>
-        <g class="node quiet"><rect x="230" y="92" width="104" height="46" rx="12"/><text x="282" y="120" class="sub">Notes file</text></g>
-        <g class="node core"><rect x="80" y="210" width="200" height="100" rx="20"/><text x="180" y="250">Harness</text><text x="180" y="274" class="sub">find, gather, prompt</text><text x="180" y="292" class="sub">and check</text></g>
-        <g class="node"><rect x="30" y="370" width="140" height="74" rx="16"/><text x="100" y="402">Bible</text><text x="100" y="424" class="sub">text and lexicon</text></g>
-        <g class="node"><rect x="190" y="370" width="140" height="74" rx="16"/><text x="260" y="402">Model</text><text x="260" y="424" class="sub">Gemma or Ollama</text></g>
-
-        <g class="cloud"><rect x="110" y="524" width="140" height="44" rx="22"/><text x="180" y="551" class="sub">The internet</text></g>
-
-        <g class="packets">
-          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v1.begin" end="v1.end"/><animateMotion dur="1.2s" begin="0s;v6.end+0.6s" id="v1"><mpath href="#v-app-h"/></animateMotion></circle>
-          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v2.begin" end="v2.end"/><animateMotion dur="1.1s" begin="v1.end" id="v2"><mpath href="#v-h-db"/></animateMotion></circle>
-          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v3.begin" end="v3.end"/><animateMotion dur="1.1s" begin="v2.end" id="v3"><mpath href="#v-db-h"/></animateMotion></circle>
-          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v4.begin" end="v4.end"/><animateMotion dur="1.1s" begin="v3.end" id="v4"><mpath href="#v-h-m"/></animateMotion></circle>
-          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v5.begin" end="v5.end"/><animateMotion dur="1.6s" begin="v4.end" id="v5"><mpath href="#v-m-h"/></animateMotion></circle>
-          <circle r="8" fill="url(#packet-glow-v)" opacity="0"><set attributeName="opacity" to="1" begin="v6.begin" end="v6.end"/><animateMotion dur="1.2s" begin="v5.end" id="v6"><mpath href="#v-h-app"/></animateMotion></circle>
-        </g>
-      </svg>
-      <figcaption id="map-caption">One question, one round trip, all inside your device. Nothing in this picture talks to the internet.</figcaption>
+  <!-- 7 Relief: what is stored and what is sent, over Berea at dusk. -->
+  <section id="data" class="data sc-section" data-sc-act="flow" data-sc-drift="#141210">
+    <figure class="data-media" aria-hidden="true">
+      <img data-sc-parallax="-1.2" src="images/berea-dusk-2400.webp" srcset="images/berea-dusk-1200.webp 1200w, images/berea-dusk-2400.webp 2400w" sizes="100vw" width="2400" height="1340" alt="" loading="lazy">
     </figure>
-  </div>
-</section>
-
-<section id="check" class="check" aria-labelledby="check-title">
-  <div class="wrap two">
-    <div class="check-copy">
-      <h2 id="check-title">What the check catches</h2>
-      <p>Here is the last step at work on a deliberately bad answer: a misquoted verse and a book that
-        does not exist. What Berea shows is the check's real output for it.</p>
-      <p>The rules also ask the model to say plainly when a saying is not in the Bible. A test set of
-        40 questions runs before every release, eight of them deliberately misleading: a chapter
-        that does not exist, Psalm 151, “the verse that says God helps those who help themselves”.
-        The questions and the scoring are public in
-        <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/eval/golden.json">golden.json</a>
-        and <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/bin/eval.dart">eval.dart</a>.</p>
-      <p class="quiet">No check is perfect. A model can still misread a passage it was given. The aim
-        is that it cannot quietly put words in Scripture's mouth.</p>
-    </div>
-
-    <div class="check-demo">
-      <div class="sample glass" data-sample data-state="after">
-        <div class="sample-tabs" role="group" aria-label="Which version to show">
-          <button type="button" data-show="before" aria-pressed="false">Model wrote</button>
-          <button type="button" data-show="after" aria-pressed="true">Berea shows</button>
+    <div class="sc-wrap">
+      <div class="sc-stack" data-sc-in data-sc-stagger="60">
+        <h2 class="sc-display sc-display--md">Your data, exactly.</h2>
+        <p class="lead">Everything Berea stores, and everything it sends.</p>
+      </div>
+      <div class="panels" data-sc-in data-sc-stagger="80">
+        <div class="panel glass">
+          <h3>Stored on your phone</h3>
+          <p>The Bible library above. One file for what you write: notes, highlights, saved studies and reading plans. Translations you import, and your settings.</p>
         </div>
-        <p class="sample-text">Paul says “<span class="swap"><span class="was">God so loved the world that He gave His only Son</span><span class="now">God so loved the world that He gave His one and only Son</span></span>”<mark class="chip-ok">quote corrected</mark> (<span class="refmark">John 3:16</span>), and <span class="bad">2 Hezekiah 4:1</span><mark class="chip-flag">unverified</mark> adds that God helps those who help themselves.</p>
-        <span class="scan" aria-hidden="true"></span>
-      </div>
-
-      <table class="numbers glass">
-        <caption>Latest release run, Gemma 4 E2B</caption>
-        <tbody>
-          <tr><th scope="row">References the model invented</th><td><span data-count="0">0</span></td></tr>
-          <tr><th scope="row">Sayings wrongly attributed to Scripture</th><td><span data-count="0">0</span></td></tr>
-          <tr><th scope="row">Misleading questions handled</th><td><span data-count="8">8</span> of 8</td></tr>
-          <tr><th scope="row">Expected passages cited</th><td><span data-count="28">28</span> of 28</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<section id="library" class="library" aria-labelledby="library-title">
-  <div class="wrap">
-    <h2 id="library-title">What is in the box</h2>
-    <p class="intro">Everything below is on your device. The whole library is built from these
-      sources by one script, so anyone can rebuild it and compare:
-      <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/bin/build_db.dart">build_db.dart</a>.</p>
-    <dl class="ledger">
-      <div><dt>Berean Standard Bible</dt><dd>Public domain</dd></div>
-      <div><dt>King James Version</dt><dd>Public domain</dd></div>
-      <div><dt>World English Bible</dt><dd>Public domain, from eBible.org</dd></div>
-      <div><dt>Every Hebrew and Greek word, with transliteration, gloss and grammar</dt><dd>STEPBible TAHOT and TAGNT, CC BY 4.0</dd></div>
-      <div><dt>Hebrew and Greek dictionary entries</dt><dd>STEPBible TBESH and TBESG, CC BY 4.0</dd></div>
-      <div><dt>345,000 cross references, ranked by how often readers link them</dt><dd>OpenBible.info, CC BY</dd></div>
-      <div><dt>Full Greek lexicon (Liddell, Scott, Jones), optional 9 MB download</dt><dd>STEPBible TFLSJ, CC BY 4.0</dd></div>
-      <div><dt>Gemma 4 language model, downloaded once (2.6 GB)</dt><dd>Google, through the LiteRT community</dd></div>
-    </dl>
-    <p class="fine">Translations under copyright, such as the NIV and NLT, cannot be included. If you
-      own one in a common Bible format (CSV, USFM, OSIS or Zefania) you can import it, and it stays on
-      your device.</p>
-  </div>
-</section>
-
-<section id="data" class="data" aria-labelledby="data-title">
-  <div class="band" aria-hidden="true">
-    <img src="images/berea-dusk-1200.webp" srcset="images/berea-dusk-1200.webp 1200w, images/berea-dusk-2400.webp 2400w" sizes="100vw" width="2400" height="1340" alt="" loading="lazy" decoding="async">
-  </div>
-  <div class="wrap">
-    <h2 id="data-title">Your data, exactly</h2>
-    <p class="intro">Here is everything Berea stores and everything it sends.</p>
-    <div class="panels">
-      <div class="panel glass">
-        <h3>Stored on your device</h3>
-        <ul>
-          <li>The Bible library described above.</li>
-          <li>One file for what you write: notes, highlights, saved studies, study pages and reading
-            plan progress.</li>
-          <li>Translations you import, and your settings.</li>
-        </ul>
-      </div>
-      <div class="panel glass">
-        <h3>Sent over the internet</h3>
-        <ul>
-          <li>A request to Hugging Face for the language model, once, when you tap Download.</li>
-          <li>A request to GitHub for the optional Greek lexicon, only if you tap Download. Its
-            fingerprint is checked before it is used.</li>
-          <li>On a Mac using Ollama, your questions go to the Ollama address you set, which is your
-            own computer unless you change it.</li>
-        </ul>
-        <p class="strong">Nothing else. No analytics, no crash reports, no account, no sync.</p>
-      </div>
-      <div class="panel glass wide">
-        <h3>Backups</h3>
-        <p>Berea opts out of Android and iCloud backups on purpose, so your notes never sit on someone
-          else's server. The cost is that a lost or reset phone loses them unless you keep a Berea
-          backup: one file, encrypted with a passphrase only you know, saved wherever you choose.
-          Without the passphrase nobody can open it, including you.</p>
-        <p class="fine">AES-256-GCM with a key derived from your passphrase (PBKDF2, 600,000 rounds):
-          <a href="https://github.com/CalvinMagezi/berea/blob/main/lib/backup.dart">backup.dart</a>.
-          Android backup opt-out:
-          <a href="https://github.com/CalvinMagezi/berea/blob/main/android/app/src/main/res/xml/data_extraction_rules.xml">data_extraction_rules.xml</a>.</p>
+        <div class="panel glass">
+          <h3>Sent over the internet</h3>
+          <p>The model, once, from Hugging Face, when you tap Download. The optional Greek lexicon from GitHub, checked against its fingerprint. On a Mac with Ollama, your questions go to the Ollama address you set. Nothing else: no analytics, no crash reports, no account, no sync.</p>
+        </div>
+        <div class="panel glass">
+          <h3>Backups</h3>
+          <p>Berea opts out of Android and iCloud backup on purpose. Keep your own backup instead: one file, encrypted with a passphrase only you know (AES-256-GCM, PBKDF2 at 600,000 rounds).</p>
+        </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section class="models" aria-labelledby="models-title">
-  <div class="wrap">
-    <h2 id="models-title">Which model runs</h2>
-    <p class="intro">Berea reads how much memory your device has and recommends a model. A larger
-      model writes better answers; the checks are the same for all of them.</p>
-    <ul class="model-row" role="list">
-      <li><h3>Gemma 4 E2B</h3><p class="size">2.6 GB</p><p>Most phones, 5 to 10 GB of memory.</p></li>
-      <li><h3>Gemma 4 E4B</h3><p class="size">4.3 GB</p><p>Phones and computers with 10 GB or more.</p></li>
-      <li><h3>Gemma 3 1B</h3><p class="size">0.5 GB</p><p>Phones with less memory. Needs a free Hugging Face token.</p></li>
-    </ul>
-    <p class="fine">On a phone's processor alone, a first answer takes about a minute on a mid-range
-      device; a phone's graphics chip is much faster. These numbers come from an emulator and will be
-      updated from real devices.</p>
-  </div>
-</section>
-
-<section id="try" class="try" aria-labelledby="try-title">
-  <div class="wrap">
-    <h2 id="try-title">Try it</h2>
-    <ol class="install" role="list">
-      <li class="glass"><span class="n" aria-hidden="true">1</span><p>On a 64-bit Android phone running
-        Android 11 or later, tap <a href="https://github.com/CalvinMagezi/berea/releases/download/v0.2.0/berea-0.2.0-android-arm64.apk">Download for Android</a>.</p></li>
-      <li class="glass"><span class="n" aria-hidden="true">2</span><p>Open the downloaded file. Android
-        asks you to allow installs from your browser; allow it for this install.</p></li>
-      <li class="glass"><span class="n" aria-hidden="true">3</span><p>Open Berea, tap the settings icon,
-        and tap Download for the model (2.6 GB, best on Wi-Fi). From then on it works offline.</p></li>
-    </ol>
-    <div class="actions center">
-      <a class="button primary" href="https://github.com/CalvinMagezi/berea/releases/download/v0.2.0/berea-0.2.0-android-arm64.apk">Download for Android</a>
-      <a class="button glass" href="https://github.com/CalvinMagezi/berea/releases/tag/v0.2.0">Release notes</a>
+  <!-- 8 Resolve: everything stops. One line, one button, the small print. -->
+  <section id="get" class="close" data-sc-act="pin" data-sc-span="1.15" data-sc-drift="#161310">
+    <div data-sc-stage class="close-stage" data-sc-spotlight>
+      <div class="close-inner">
+        <h2 class="sc-display sc-display--lg" data-sc-cue="0 1 0 0" data-sc-kinetic="lines">Examine it the way the Bereans did.</h2>
+        <a class="cta" href="https://github.com/CalvinMagezi/berea/releases/download/v0.2.0/berea-0.2.0-android-arm64.apk" data-sc-magnet="0.26" data-sc-cue="0 1 0 0" data-sc-rise="0">Get the app</a>
+        <p class="small" data-sc-cue="0 1 0 0">Version 0.2.0 for 64-bit Android 11 or later, signed by the project. iPhone, Mac, Windows and Linux build from <a href="https://github.com/CalvinMagezi/berea">the source</a>.</p>
+      </div>
+      <footer class="foot">
+        <p>Free software under the MIT licence. Bible text and study data from STEPBible, OpenBible.info and eBible.org. Photographs and the opening film were generated with Google Gemini for this page. Scroll engine from <a href="https://github.com/nateherkai/scroll-craft">scroll-craft</a> (MIT). No analytics, cookies or third-party requests.</p>
+      </footer>
     </div>
-    <p class="fine center">Berea is not on Google Play yet. The download is signed by the project, and
-      later versions install over it. iPhone, Mac, Windows and Linux build from the source today with
-      the <a href="https://github.com/CalvinMagezi/berea#build-and-run">build guide</a>. Found a wrong
-      answer? <a href="https://github.com/CalvinMagezi/berea/issues">Open an issue</a>; questions that
-      trip the model become new test cases.</p>
-  </div>
-</section>
+  </section>
 
 </main>
 
-<footer class="foot">
-  <p>Berea is free software under the MIT licence. Bible text and study data come from the sources
-    named above, with thanks to STEPBible, OpenBible.info and eBible.org.</p>
-  <p>The background photographs on this page were generated with Google Gemini for it. This page has
-    no analytics, cookies or third-party requests.</p>
-  <p><button class="motion-toggle" type="button" data-motion-toggle hidden>Pause motion</button></p>
-</footer>
+<script src="vendor/scrollcraft/scrollcraft.js"></script>
+<script src="check/check.js"></script>
+<script src="page.js"></script>
 </body>
 </html>
