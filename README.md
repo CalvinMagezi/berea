@@ -40,6 +40,9 @@ Greek behind the English, cross references, a contrast with worldly thinking and
 questions, in the voice of the "Bible Study Guide" prompt in `prompts/system.md`. Every cited
 reference is verified against the local Bible and shown as a chip that opens the passage.
 Unverified references or quotes are called out in red. Every study is saved and can be reopened.
+With Gemma 4 on the device you can also ask by voice: hold the microphone (or tap to start and
+stop) and speak for up to 30 seconds. Gemma 4 hears it directly, with no separate speech model,
+and types the question into the box for you to check before it is sent.
 
 **Commentary.** Select verses and tap Commentary for what Matthew Henry, Jamieson, Fausset and
 Brown, the Treasury of Scripture Knowledge, Aquinas's Catena Aurea and, if you add them, Calvin,
@@ -251,6 +254,7 @@ lib/
   main.dart            boots the app
   home_shell.dart      Study, Bible and Notes tabs, quick chat sheet
   chat_screen.dart     streamed answers, citation chips, verse of the day, today's reading
+  voice.dart, voice_composer.dart  hold-to-talk recording, Gemma 4 transcription, mic button
   reader_screen.dart   offline reader, parallel text, selection bar, chapter picker
   search_screen.dart   full-text Bible search
   interlinear_sheet.dart  Hebrew and Greek words with lexicon entries
@@ -302,6 +306,11 @@ docs/screenshots/
   on-device engine can load; Ollama is the default engine.
 - **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time. Answers
   run on the CPU here too, so no GPU driver is needed.
+- **Voice**: the `record` package (BSD-3-Clause) records 16 kHz mono 16-bit WAV, the format
+  Gemma 4 reads through flutter_edge_ai's audio input (`supportAudio` on the model and the chat).
+  Gemma 4 models load with the audio encoder, which also runs on the CPU. Android declares
+  `RECORD_AUDIO`; iOS and macOS carry `NSMicrophoneUsageDescription`, and both macOS entitlement
+  files carry `com.apple.security.device.audio-input`.
 - A small method channel reports device memory so the settings can recommend a model.
 - Debug builds read `BEREA_AUTORUN` or `autorun.txt` in the app's documents folder and run that
   question on launch, so a headless simulator or emulator can exercise the on-device path.
@@ -310,8 +319,9 @@ docs/screenshots/
 
 Berea makes no network request on its own. The model download goes to huggingface.co, and the
 optional lexicon and commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
-you configure, `localhost` by default. There is no telemetry, no account, and no cloud copy of
-anything you write. Backups are files you choose where to keep. Deleting the app deletes the
+you configure, `localhost` by default. A voice question is recorded to a temporary file on the
+device, transcribed there by Gemma 4, and deleted straight away; it is never stored or sent.
+There is no telemetry, no account, and no cloud copy of anything you write. Backups are files you choose where to keep. Deleting the app deletes the
 data.
 
 Android cloud backup and device transfer are turned off, and the iOS data folder is excluded

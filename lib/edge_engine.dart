@@ -22,8 +22,9 @@ const transcriptTemperature = 0.1;
 const transcriptTopK = 1;
 
 const transcribeInstruction =
-    'Transcribe this audio exactly as spoken. Reply with only the spoken words, '
-    'with no introduction, labels or quotation marks.';
+    'Transcribe the speech in this audio word for word. Keep every word, including question '
+    'words such as what, who and how, and end a question with a question mark. Do not answer '
+    'it or rephrase it. Reply with the transcript only.';
 
 Future<void>? _init;
 

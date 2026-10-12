@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+Study
+- Ask by voice. Hold the microphone beside the question box, or tap it to start and tap again to
+  stop, and speak for up to 30 seconds. Gemma 4 E2B or E4B hears the question on the device and
+  types it into the box for you to check and edit; nothing is sent until you tap Send, and the
+  answer goes through the same grounding and reference check as a typed question. The recording
+  is a temporary file that is deleted as soon as it is transcribed, or when you cancel. With
+  Gemma 3 1B or Ollama the button explains that voice needs Gemma 4 and opens Settings.
+- The app asks for the microphone the first time you use voice (Android RECORD_AUDIO, iOS and
+  macOS microphone permission). If you refuse, Berea says where to allow it.
+
 ## 0.3.0
 
 Grounding
