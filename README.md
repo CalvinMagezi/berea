@@ -141,11 +141,12 @@ three times slower on an M-series Mac, real-time factor 0.36 against 0.13 for th
   first to the last frame of its own phonemes, giving `[{word, startMs, endMs}]`. Text is split
   after punctuation into chunks of at most 200 tokens (the context is 510; shorter chunks keep
   peak memory down) and each chunk's timings are offset. A speech
-  recogniser run over John 3:16 heard every word, and its word starts were a median 31 ms from
-  the computed ones.
+  recogniser run over the app's own John 3:16 audio heard every word in both voices, and its word
+  starts were a median 39 ms (Heart) and 33 ms (Michael) from the computed ones.
 - **Memory.** The voice loads for a job and closes after. Loading it first closes the on-device
   language model, which reloads when the voice is done (`AppState.withVoice`), so the two are
-  never resident together on a 6 to 8 GB phone.
+  never loaded together. On a Mac the voice adds about 560 MB resident when loaded and 100 to
+  200 MB more while speaking; phone figures are not measured yet.
 - **Voice pack.** `bin/build_voice_pack.dart` fetches the model, the `af_heart` and `am_michael`
   voices, `cmudict.dict` and the two licence texts from pinned upstream URLs, checks each
   SHA-256, and writes them unchanged to `build/voice/` with a `manifest.json`. Publish those

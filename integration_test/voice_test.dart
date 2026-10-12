@@ -57,7 +57,17 @@ void main() {
     }
     expect(state.voice.installed, isTrue, reason: 'Put the voice pack files in ${src.path}');
 
-    await tester.pumpWidget(MaterialApp(home: VoiceTestScreen(state: state)));
+    // From the settings entry, as a user reaches it.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: VoiceSettings(state: state, onMessage: debugPrint),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Test voice'));
+    await tester.pumpAndSettle();
+    expect(find.byType(VoiceTestScreen), findsOneWidget);
     final verse = state.db
         .passage(Ref(bookFor('John')!, 3, 16), translation: state.settings.translation)
         .map((v) => v.text)

@@ -502,7 +502,7 @@ class AppState extends ChangeNotifier {
   bool get ready => harness != null && !busy && !speaking;
 
   /// Runs [use] with the voice model loaded. Kokoro and the on-device language model are never
-  /// resident together, since the pair does not fit a 6 to 8 GB phone: the language model is
+  /// resident together, since the pair is too much for a 6 to 8 GB phone: the language model is
   /// closed first and loaded again once the voice is closed.
   Future<T> withVoice<T>(Future<T> Function(KokoroVoice voice) use) async {
     if (busy || speaking) throw StateError('Berea is busy. Try again in a moment.');
@@ -540,7 +540,13 @@ class AppState extends ChangeNotifier {
     _rebuildAfterVoice = false;
     // Not awaited: the caller can play its audio while the language model reloads.
     if (rebuild) {
-      unawaited(_rebuildHarness());
+      unawaited(
+        _rebuildHarness().catchError((Object e) {
+          deviceState = DeviceModelState.failed;
+          deviceError = e.toString();
+          notifyListeners();
+        }),
+      );
     } else {
       notifyListeners();
     }
@@ -555,7 +561,9 @@ class AppState extends ChangeNotifier {
       _rebuildAfterVoice = true;
       return Future.value();
     }
-    final run = _loadHarness();
+    // Loads run one after another, so two can never each see no model and both load one.
+    final previous = _rebuilding ?? Future<void>.value();
+    final run = previous.catchError((Object _) {}).then((_) => _loadHarness());
     _rebuilding = run;
     return run.whenComplete(() {
       if (identical(_rebuilding, run)) _rebuilding = null;

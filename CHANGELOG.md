@@ -11,8 +11,8 @@ Voice (experimental)
 - Pronunciation comes from the CMU Pronouncing Dictionary and a lexicon of biblical names
   (Melchizedek, Nebuchadnezzar, Habakkuk and others), with numbers spelled out and no espeak-ng.
   Word timings come from the durations the model predicts for each sound.
-- The voice and the on-device language model are never loaded at the same time, so the two fit
-  a 6 to 8 GB phone; the language model reloads when the voice is done.
+- The voice and the on-device language model are never loaded at the same time: the language
+  model is closed before the voice loads and reloads when the voice is done.
 
 Platforms
 - iOS 16 and macOS 14 are now the minimum versions, as ONNX Runtime requires.
