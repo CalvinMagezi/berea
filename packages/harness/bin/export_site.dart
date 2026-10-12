@@ -84,13 +84,7 @@ void main(List<String> args) {
       final verses = chapters[c] ?? const <int, String>{};
       final top = verses.isEmpty ? 0 : verses.keys.reduce((a, v) => a > v ? a : v);
       text.add([for (var v = 1; v <= top; v++) verses[v]]);
-      idx.add([
-        top,
-        [
-          for (var v = 1; v <= top; v++)
-            if (!verses.containsKey(v)) v,
-        ],
-      ]);
+      idx.add([top, [for (var v = 1; v <= top; v++) if (!verses.containsKey(v)) v]]);
     }
     writeJson('$out/bible/${b.id}.json', text);
     index['${b.id}'] = idx;
@@ -120,7 +114,5 @@ void main(List<String> args) {
     });
   }
   writeJson('$out/fixture.json', fixture, pretty: true);
-  stdout.writeln(
-    'site data written to $out: ${books.length} books, ${fixture.length} fixture cases',
-  );
+  stdout.writeln('site data written to $out: ${books.length} books, ${fixture.length} fixture cases');
 }
