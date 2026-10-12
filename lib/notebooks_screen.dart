@@ -431,23 +431,35 @@ class NotebookScreen extends StatelessWidget {
 
   Future<String?> _askReference(BuildContext context, String title) {
     final controller = TextEditingController();
+    String? error;
     return showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Romans 8:28-39'),
-          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Add'),
-          ),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          void submit() {
+            final text = controller.text.trim();
+            if (text.isEmpty) {
+              setDialogState(() => error = 'Type a passage first.');
+              return;
+            }
+            Navigator.pop(ctx, text);
+          }
+
+          return AlertDialog(
+            title: Text(title),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              onChanged: (_) => setDialogState(() => error = null),
+              decoration: InputDecoration(hintText: 'Romans 8:28-39', errorText: error),
+              onSubmitted: (_) => submit(),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton(onPressed: submit, child: const Text('Add')),
+            ],
+          );
+        },
       ),
     );
   }

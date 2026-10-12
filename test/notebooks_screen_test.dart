@@ -47,6 +47,17 @@ void main() {
     await tester.tap(find.text('Add'));
     await tester.pump();
     expect(find.text('Paste some text first.'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // So does adding a Bible passage with nothing typed.
+    await tester.tap(find.text('Add a source'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bible passage'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add'));
+    await tester.pump();
+    expect(find.text('Type a passage first.'), findsOneWidget);
   });
 
   testWidgets('the list shows each notebook with its source count and opens it', (tester) async {
