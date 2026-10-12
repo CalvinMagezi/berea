@@ -38,12 +38,11 @@ void main() {
   setUp(() => dir = Directory.systemTemp.createTempSync('berea_commentary'));
   tearDown(() => dir.deleteSync(recursive: true));
 
+  // The panel fills the test surface, as it fills the sheet in the app, so its list scrolls
+  // exactly as it would on a short screen.
   Widget panel(CommentaryLibrary library, Ref ref) => MaterialApp(
     home: Scaffold(
-      body: SizedBox(
-        height: 800,
-        child: CommentaryPanel(library: library, passage: ref),
-      ),
+      body: CommentaryPanel(library: library, passage: ref),
     ),
   );
 
@@ -82,6 +81,9 @@ void main() {
       );
     await tester.pumpWidget(panel(library, RefParser.parse('Genesis 1:1').first));
     expect(find.text(long), findsNothing);
+    // The preview is taller than the space left on a short screen; the list scrolls to the button.
+    await tester.ensureVisible(find.text('Read all'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Read all'));
     await tester.pumpAndSettle();
     expect(find.text(long), findsOneWidget);
