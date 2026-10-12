@@ -73,6 +73,10 @@ like. Restore checks the file before it replaces anything.
 
 **Quick chat.** A chat button on every tab opens the same study.
 
+**Voice (experimental).** An optional on-device voice that reads Scripture aloud and highlights
+each word as it is spoken. Settings, Voice, Test voice reads John 3:16 in either of two voices
+and benchmarks the speed.
+
 ## How it works
 
 ```mermaid
@@ -120,6 +124,43 @@ The tier follows the chosen model. Models download on first use from the Hugging
 `litert-community` organisation; the catalog is in `lib/models.dart`. Gemma 4 E2B and E4B are not
 gated. Gemma 3 1B needs a Hugging Face token after accepting its licence.
 
+### Voice
+
+The voice is [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0), run through
+ONNX Runtime with [flutter_onnxruntime](https://pub.dev/packages/flutter_onnxruntime) (MIT). It
+uses the half-precision export in
+[onnx-community/Kokoro-82M-v1.0-ONNX-timestamped](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX-timestamped)
+(`onnx/model_fp16.onnx` at revision `dd4401a9`, SHA-256 `220724d5...e5123c`), whose graph
+outputs a predicted duration for every input token beside the waveform. The 8-bit file in the
+same folder is half the size, but ONNX Runtime 1.28 (the version the plugin pins) ran it about
+three times slower on an M-series Mac, real-time factor 0.36 against 0.13 for this file.
+
+- **Text to phonemes, in Dart, with no espeak-ng** (`packages/harness/lib/src/speech.dart`).
+  Each word is looked up in `biblicalPronunciations` (`speech_lexicon.dart`), then the CMU
+  Pronouncing Dictionary, and converted from ARPAbet to the misaki US phoneme set Kokoro was
+  trained on. Numbers are spelled out ("144,000", "3:16"), possessives take the right ending, and
+  anything left falls back to simple letter rules. To fix a name, add one line of ARPAbet to
+  `biblicalPronunciations`; a key with a capital ("Job") applies only to that spelling.
+- **Word timings.** Kokoro writes 24 kHz audio, and each duration frame is 600 samples (25 ms).
+  Durations are rounded one by one and held to at least one frame, which is how the model sizes
+  its waveform, so the frame sum times 600 is the audio length exactly. A word runs from the
+  first to the last frame of its own phonemes, giving `[{word, startMs, endMs}]`. Text is split
+  after punctuation into chunks of at most 200 tokens (the context is 510; shorter chunks keep
+  peak memory down) and each chunk's timings are offset. A speech
+  recogniser run over the app's own John 3:16 audio heard every word in both voices, and its word
+  starts were a median 39 ms (Heart) and 33 ms (Michael) from the computed ones.
+- **Memory.** The voice loads for a job and closes after. Loading it first closes the on-device
+  language model, which reloads when the voice is done (`AppState.withVoice`), so the two are
+  never loaded together. On a Mac the voice adds about 560 MB resident when loaded and 100 to
+  200 MB more while speaking; phone figures are not measured yet.
+- **Voice pack.** `bin/build_voice_pack.dart` fetches the model, the `af_heart` and `am_michael`
+  voices, `cmudict.dict` and the two licence texts from pinned upstream URLs, checks each
+  SHA-256, and writes them unchanged to `build/voice/` with a `manifest.json`. Publish those
+  files on the `voice-1` data release. The app downloads them from there only when you tap
+  Download, or takes them from files you pick; either way each file must match its pin in
+  `voice_pack.dart`.
+- `dart run bin/phonemize.dart "text"` prints the phonemes, token ids and word spans for any text.
+
 ### Eval
 
 ```bash
@@ -146,7 +187,8 @@ questions put a well-known passage on the topic in front of the model.
 | STEPBible TAHOT and TAGNT | CC BY 4.0 | Every Hebrew and Greek word with transliteration, gloss, Strong's number and morphology |
 | STEPBible TBESH and TBESG | CC BY 4.0 | Hebrew and Greek lexicon keyed by Strong's |
 | OpenBible.info cross references | CC BY | Cross references ranked by votes |
-
+| Kokoro-82M, voices Heart and Michael | Apache-2.0 | Optional voice pack, downloaded only on request from the `voice-1` release and checked by SHA-256 |
+| CMU Pronouncing Dictionary | BSD-style, Copyright (C) 1993-2015 Carnegie Mellon University | Pronunciations for the voice, shipped unchanged in the voice pack with its licence |
 | STEPBible TFLSJ | CC BY 4.0 | Optional full Greek lexicon pack (about 9 MB), downloaded only on request from the [`lexicon-1` release](https://github.com/CalvinMagezi/berea/releases/tag/lexicon-1) and checked by SHA-256 |
 
 Optional commentary packs, each downloaded only on request from the
@@ -283,6 +325,8 @@ lib/
   commentary_packs.dart   optional commentary packs: pins, download, install, delete
   commentary_settings.dart, attributions_screen.dart  pack settings, licences and sources
   pinned_download.dart    streamed download checked against a published SHA-256
+  voice.dart           optional voice pack, Kokoro through ONNX Runtime, synthesis
+  voice_settings.dart  voice settings, Test voice with word highlighting, benchmark
   study_page_screen.dart  observation, interpretation, application
   plans.dart, plans_screen.dart  reading plans
   notes_screen.dart    saved studies, study pages and notes
@@ -303,6 +347,8 @@ packages/harness/
   bin/build_db.dart    builds assets/berea.sqlite from the datasets above
   bin/build_lexicon_pack.dart  builds the optional LSJ pack
   bin/build_commentary.dart  builds the optional commentary packs from SWORD modules
+  bin/build_voice_pack.dart  gathers and pins the optional voice pack
+  bin/phonemize.dart   prints Kokoro phonemes and word spans for some text
   bin/berea.dart       CLI chat against Ollama
   bin/eval.dart        golden eval
   bin/retrieval_check.dart  topical retrieval check, no model needed
@@ -323,12 +369,12 @@ docs/screenshots/
 
 - **Android**: `minSdk 30`, arm64 only (LiteRT-LM). Answers run on the CPU on every platform:
   GPU decode corrupts digits on some phones (LiteRT-LM #2202), and verse numbers are digits.
-- **iOS**: deployment target 15.0, CocoaPods only, extended-virtual-addressing and
+- **iOS**: deployment target 16.0 (ONNX Runtime needs it), CocoaPods only with static linkage, extended-virtual-addressing and
   increased-memory-limit entitlements so a 2.6 GB model fits on a real iPhone. Swift Package
   Manager is turned off in `pubspec.yaml`: SPM debug builds embed an absolute host rpath, and when
   the checkout lives in a privacy-protected folder such as `~/Documents` the simulator's dyld hangs
   on it before `main` runs.
-- **macOS**: the Podfile `post_install` stages the LiteRT-LM companion dylibs into the app so the
+- **macOS**: deployment target 14.0 for ONNX Runtime, pods linked statically. The Podfile `post_install` stages the LiteRT-LM companion dylibs into the app so the
   on-device engine can load; Ollama is the default engine.
 - **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time. Answers
   run on the CPU here too, so no GPU driver is needed.
@@ -339,10 +385,15 @@ docs/screenshots/
 ## Privacy
 
 Berea makes no network request on its own. The model download goes to huggingface.co, and the
-optional lexicon and commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
+optional lexicon, commentary and voice packs to github.com, only when you tap Download. The Ollama engine talks to the URL
 you configure, `localhost` by default. There is no telemetry, no account, and no cloud copy of
 anything you write. Backups are files you choose where to keep. Deleting the app deletes the
 data.
+
+One known exception, on Windows only: the voice's ONNX Runtime plugin loads Microsoft's official
+Windows library at startup, and that library's telemetry is on by default. Windows builds are not
+released; this must be fixed before they are (see `TECHDEBT.md`). ONNX Runtime documents its
+telemetry as Windows only, so Android, iOS and macOS are not affected.
 
 Android cloud backup and device transfer are turned off, and the iOS data folder is excluded
 from iCloud backup. That is deliberate, and it has a cost: a lost or reset phone loses your

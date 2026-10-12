@@ -1,4 +1,7 @@
 PODS:
+  - audioplayers_darwin (0.0.1):
+    - Flutter
+    - FlutterMacOS
   - connectivity_plus (0.0.1):
     - FlutterMacOS
   - file_picker_darwin (1.0.0):
@@ -6,9 +9,17 @@ PODS:
     - FlutterMacOS
   - flutter_edge_ai (2.1.3):
     - FlutterMacOS
+  - flutter_onnxruntime (0.0.1):
+    - FlutterMacOS
+    - onnxruntime-objc (= 1.28.0)
   - FlutterMacOS (1.0.0)
   - large_file_handler (0.5.0):
     - FlutterMacOS
+  - onnxruntime-c (1.28.0)
+  - onnxruntime-objc (1.28.0):
+    - onnxruntime-objc/Core (= 1.28.0)
+  - onnxruntime-objc/Core (1.28.0):
+    - onnxruntime-c (= 1.28.0)
   - pdfium_flutter (0.1.5):
     - Flutter
     - FlutterMacOS
@@ -42,9 +53,11 @@ PODS:
     - sqlite3/session
 
 DEPENDENCIES:
+  - audioplayers_darwin (from `Flutter/ephemeral/.symlinks/plugins/audioplayers_darwin/darwin`)
   - connectivity_plus (from `Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos`)
   - file_picker_darwin (from `Flutter/ephemeral/.symlinks/plugins/file_picker_darwin/darwin`)
   - flutter_edge_ai (from `Flutter/ephemeral/.symlinks/plugins/flutter_edge_ai/macos`)
+  - flutter_onnxruntime (from `Flutter/ephemeral/.symlinks/plugins/flutter_onnxruntime/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - large_file_handler (from `Flutter/ephemeral/.symlinks/plugins/large_file_handler/macos`)
   - pdfium_flutter (from `Flutter/ephemeral/.symlinks/plugins/pdfium_flutter/darwin`)
@@ -53,15 +66,21 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - onnxruntime-c
+    - onnxruntime-objc
     - sqlite3
 
 EXTERNAL SOURCES:
+  audioplayers_darwin:
+    :path: Flutter/ephemeral/.symlinks/plugins/audioplayers_darwin/darwin
   connectivity_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos
   file_picker_darwin:
     :path: Flutter/ephemeral/.symlinks/plugins/file_picker_darwin/darwin
   flutter_edge_ai:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_edge_ai/macos
+  flutter_onnxruntime:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_onnxruntime/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
   large_file_handler:
@@ -74,16 +93,20 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/sqlite3_flutter_libs/darwin
 
 SPEC CHECKSUMS:
+  audioplayers_darwin: 835ced6edd4c9fc8ebb0a7cc9e294a91d99917d5
   connectivity_plus: 4adf20a405e25b42b9c9f87feff8f4b6fde18a4e
   file_picker_darwin: 4c2b9a50ea44cb3b071381ea0cf48591bdd80251
   flutter_edge_ai: cebf10050a7b6cf387074543845c12635de02c2d
+  flutter_onnxruntime: 09d7cb7906def88c28ae4fec5b286e2864827c95
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
   large_file_handler: b337fef756ae925be9c28112a81c7c4275d91c45
+  onnxruntime-c: 1cf87aaca94f53ab33bb9729104ec0a5b88291e9
+  onnxruntime-objc: f98b9629e1f78020afc354e33a5afd947654c76d
   pdfium_flutter: f29beeb612293cc42df95beee223a4925ce2458e
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   sqlite3: a51c07cf16e023d6c48abd5e5791a61a47354921
   sqlite3_flutter_libs: b3e120efe9a82017e5552a620f696589ed4f62ab
 
-PODFILE CHECKSUM: 629839e37330498b5a1cafecf8333c949dbc1c14
+PODFILE CHECKSUM: d00971da2a93c61c5f098ff0208e8d71ca8660bb
 
 COCOAPODS: 1.16.2

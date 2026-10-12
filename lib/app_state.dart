@@ -18,6 +18,7 @@ import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
 import 'study_store.dart';
+import 'voice.dart';
 
 enum EngineKind { ollama, device }
 
@@ -115,6 +116,13 @@ class AppState extends ChangeNotifier {
 
   /// Optional public domain commentaries the user has downloaded.
   late final CommentaryShelf commentary;
+
+  /// The optional on-device voice pack.
+  late final VoiceShelf voice;
+
+  /// True while the voice model is loaded; chat waits until it is closed again.
+  bool speaking = false;
+  bool _rebuildAfterVoice = false;
   Harness? harness;
   final turns = <ChatTurn>[];
   bool busy = false;
@@ -166,6 +174,7 @@ class AppState extends ChangeNotifier {
     s._keepTranslationValid();
     s.db.attachFullLexicon(s.lexiconPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
+    s.voice = VoiceShelf(Directory('${s.supportDir.path}/voice'), s.touch);
     await s._rebuildHarness();
     if (kDebugMode && supportDir == null) unawaited(s._autorun());
     return s;
@@ -498,23 +507,111 @@ class AppState extends ChangeNotifier {
 
   String get engineLabel => harness?.engine.name ?? 'no engine';
 
-  bool get ready => harness != null && !busy;
+  bool get ready => harness != null && !busy && !speaking;
 
-  Future<void> _rebuildHarness() async {
-    await _edge?.close();
-    _edge = null;
-    harness = null;
-    final engine = settings.engine == EngineKind.ollama ? _ollama() : await _device();
-    if (engine != null) {
-      harness = Harness(
-        db: db,
-        engine: engine,
-        systemPrompt: systemPrompt,
-        tier: settings.tier,
-        translation: settings.translation,
-      );
-    }
+  /// Runs [use] with the voice model loaded. Kokoro and the on-device language model are never
+  /// resident together, since the pair is too much for a 6 to 8 GB phone: the language model is
+  /// closed first and loaded again once the voice is closed.
+  Future<T> withVoice<T>(Future<T> Function(KokoroVoice voice) use) async {
+    if (busy || speaking) throw StateError('Berea is busy. Try again in a moment.');
+    speaking = true;
     notifyListeners();
+    var hadModel = false;
+    KokoroVoice? loaded;
+    try {
+      // A model load already under way would otherwise finish beside the voice. Its failure
+      // is the language model's to report, not a reason to refuse to speak.
+      while (_rebuilding != null) {
+        await _rebuilding!.catchError((Object _) {});
+      }
+      hadModel = _edge != null;
+      if (hadModel) {
+        harness = null;
+        deviceState = DeviceModelState.loading;
+        final edge = _edge!;
+        _edge = null;
+        await edge.close();
+      }
+      notifyListeners();
+      loaded = await KokoroVoice.load(voice);
+      return await use(loaded);
+    } finally {
+      try {
+        await loaded?.close();
+      } finally {
+        _voiceClosed(hadModel);
+      }
+    }
+  }
+
+  void _voiceClosed(bool hadModel) {
+    speaking = false;
+    final rebuild = hadModel || _rebuildAfterVoice;
+    _rebuildAfterVoice = false;
+    // Not awaited: the caller can play its audio while the language model reloads.
+    if (rebuild) {
+      unawaited(
+        _rebuildHarness().catchError((Object e) {
+          deviceState = DeviceModelState.failed;
+          deviceError = e.toString();
+          notifyListeners();
+        }),
+      );
+    } else {
+      notifyListeners();
+    }
+  }
+
+  /// The harness rebuild in flight, if any; withVoice waits for it.
+  Future<void>? _rebuilding;
+
+  Future<void> _rebuildHarness() {
+    if (speaking) {
+      // The language model would load beside the voice; withVoice rebuilds when it is done.
+      _rebuildAfterVoice = true;
+      return Future.value();
+    }
+    // Loads run one after another, so two can never each see no model and both load one.
+    final previous = _rebuilding ?? Future<void>.value();
+    final run = previous.catchError((Object _) {}).then((_) => _loadHarness());
+    _rebuilding = run;
+    return run.whenComplete(() {
+      if (identical(_rebuilding, run)) _rebuilding = null;
+    });
+  }
+
+  Future<void> _loadHarness() async {
+    if (speaking) {
+      // Queued before the voice started; loading now would only be closed again at once.
+      _rebuildAfterVoice = true;
+      return;
+    }
+    // Drop the harness first, so nothing starts a turn on an engine that is closing.
+    harness = null;
+    final old = _edge;
+    _edge = null;
+    await old?.close();
+    final engine = settings.engine == EngineKind.ollama ? _ollama() : await _device();
+    if (engine != null) harness = _newHarness(engine);
+    notifyListeners();
+  }
+
+  /// A harness for [engine] that carries on the open conversation, so reloading a model or
+  /// changing a setting does not make Berea forget what was just said.
+  Harness _newHarness(LlmEngine engine) {
+    final h = Harness(
+      db: db,
+      engine: engine,
+      systemPrompt: systemPrompt,
+      tier: settings.tier,
+      translation: settings.translation,
+    );
+    for (final t in turns.where((t) => t.done && t.error == null)) {
+      h.history
+        ..add(ChatMessage.user(t.question))
+        ..add(ChatMessage.assistant(t.answer));
+    }
+    return h;
   }
 
   LlmEngine _ollama() => OllamaEngine(
@@ -574,13 +671,7 @@ class AppState extends ChangeNotifier {
     settings = next;
     await next.save(prefs);
     if (sameModel && settings.engine == EngineKind.device && harness != null) {
-      harness = Harness(
-        db: db,
-        engine: harness!.engine,
-        systemPrompt: systemPrompt,
-        tier: settings.tier,
-        translation: settings.translation,
-      );
+      harness = _newHarness(harness!.engine);
       notifyListeners();
       return;
     }
@@ -589,7 +680,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> send(String question) async {
     final h = harness;
-    if (h == null) return;
+    if (h == null || speaking) return;
     final turn = ChatTurn(question);
     turns.add(turn);
     busy = true;

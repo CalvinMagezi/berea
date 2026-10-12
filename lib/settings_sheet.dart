@@ -8,6 +8,7 @@ import 'app_state.dart';
 import 'backup.dart';
 import 'commentary_settings.dart';
 import 'models.dart';
+import 'voice_settings.dart';
 
 const minPassphraseLength = 8;
 
@@ -385,6 +386,8 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 ),
               const Divider(height: 24),
               CommentarySettings(state: widget.state, onMessage: _say),
+              const Divider(height: 24),
+              VoiceSettings(state: widget.state, onMessage: _say),
               const Divider(height: 24),
               Text('Your data', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),

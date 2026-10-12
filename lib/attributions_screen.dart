@@ -29,6 +29,16 @@ const downloadableSources = [
     'CC BY 4.0',
     'Tyndale House, Cambridge, www.STEPBible.org',
   ),
+  DataSource(
+    'Kokoro-82M voice model and the Heart and Michael voices (voice pack)',
+    'Apache-2.0',
+    'hexgrad/Kokoro-82M; half-precision ONNX export with durations by onnx-community',
+  ),
+  DataSource(
+    'CMU Pronouncing Dictionary (voice pack)',
+    'BSD-style licence. Copyright (C) 1993-2015 Carnegie Mellon University. All rights reserved.',
+    'cmusphinx/cmudict',
+  ),
 ];
 
 /// Native code shipped inside the app whose licence asks for a notice.
@@ -41,6 +51,12 @@ const bundledSoftware = [
         'Kawasaki (MIT). Portions of this software are copyright The FreeType Project '
         '(www.freetype.org). All rights reserved. This software is based in part on the work of '
         'the Independent JPEG Group. Full texts are under Software licences below.',
+  ),
+  DataSource(
+    'ONNX Runtime (runs the optional voice)',
+    'MIT, with third party notices',
+    'Microsoft, through flutter_onnxruntime (MIT) by MASIC AI. Full texts are under Software '
+        'licences below.',
   ),
 ];
 

@@ -25,9 +25,8 @@ Future<void> showNoteDialog(BuildContext context, AppState s, {required Ref ref,
                 child: SingleChildScrollView(
                   child: Text(
                     verses.map((v) => '${v.verse} ${v.text}').join(' '),
-                    style: scriptureStyle(
-                      ctx,
-                    ).copyWith(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                    style: scriptureStyle(ctx)
+                        .copyWith(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                   ),
                 ),
               ),

@@ -26,13 +26,24 @@ const pdfiumLicences = {
   'libunwind.txt': 'libunwind (in PDFium for Android)',
 };
 
-/// Adds the PDFium notices to the licence page Flutter shows.
+/// Licence texts for the optional voice, by file under `licenses/voice/`: ONNX Runtime is
+/// linked in natively, and the voice pack's model and dictionary arrive as downloads.
+const voiceLicences = {
+  'onnxruntime-LICENSE.txt': 'ONNX Runtime',
+  'onnxruntime-ThirdPartyNotices.txt': 'ONNX Runtime third party notices',
+  'apache-2.0.txt': 'Kokoro-82M voice model and voices',
+  'cmudict-LICENSE.txt': 'CMU Pronouncing Dictionary',
+};
+
+/// Adds the PDFium and voice notices to the licence page Flutter shows.
 void registerBundledLicences() {
   LicenseRegistry.addLicense(() async* {
-    for (final MapEntry(key: file, value: component) in pdfiumLicences.entries) {
-      yield LicenseEntryWithLineBreaks([
-        component,
-      ], await rootBundle.loadString('licenses/pdfium/$file'));
+    for (final (folder, texts) in [('pdfium', pdfiumLicences), ('voice', voiceLicences)]) {
+      for (final MapEntry(key: file, value: component) in texts.entries) {
+        yield LicenseEntryWithLineBreaks([
+          component,
+        ], await rootBundle.loadString('licenses/$folder/$file'));
+      }
     }
   });
 }
