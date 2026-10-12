@@ -1,6 +1,7 @@
 // Runs eval/golden.json through the harness, or with --notebook eval/notebook.json against a
 // fixture notebook. Exit 1 if any reference or source citation was invented. Add
-// --commentary <pack.sqlite> to let notebook answers draw on an installed commentary pack.
+// --commentary <pack.sqlite> to let notebook answers draw on an installed commentary pack, and
+// --show to print each notebook answer as the guard left it.
 import 'dart:convert';
 import 'dart:io';
 
@@ -167,14 +168,15 @@ Future<bool> _notebook(Harness h, List<String> args) async {
       if (ok) adversarialOk++;
     }
     stdout.writeln(
-      '${ok ? 'ok ' : 'MISS'} $q  refs ${want.length}/$hit sources ${wantedSources.length}/'
-      '$sourceHits shown ${r.context.sources.length} cited ${g.sources.map((s) => s.tag).join(', ')}'
+      '${ok ? 'ok ' : 'MISS'} $q  refs $hit/${want.length} sources $sourceHits/'
+      '${wantedSources.length} shown ${r.context.sources.length} cited ${g.sources.map((s) => s.tag).join(', ')}'
       '${inventedHere.isEmpty ? '' : '  invented: ${inventedHere.join(', ')}'}'
       '${g.unverifiedSources.isEmpty ? '' : '  unverified sources: ${g.unverifiedSources.join(', ')}'}'
       '${misSentence == null ? '' : '  misattributed: "${misSentence.trim()}"'}'
       '${coverageOk ? '' : '  claimed coverage the notebook lacks'}'
       '${g.unverifiedQuotes.isEmpty ? '' : '  bad quotes: ${g.unverifiedQuotes.length}'}',
     );
+    if (args.contains('--show')) stdout.writeln('    ${r.text.replaceAll('\n', '\n    ')}\n');
   }
   library.closeAll();
   index.db.dispose();
