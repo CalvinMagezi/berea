@@ -38,6 +38,15 @@ void main() {
     expect(find.text('Add your first source'), findsOneWidget);
     expect(find.text('Add a source'), findsOneWidget);
     expect(store.notebooks().single.title, 'Romans 8');
+
+    // Adding empty pasted text says why nothing happened.
+    await tester.tap(find.text('Add a source'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pasted text'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add'));
+    await tester.pump();
+    expect(find.text('Paste some text first.'), findsOneWidget);
   });
 
   testWidgets('the list shows each notebook with its source count and opens it', (tester) async {

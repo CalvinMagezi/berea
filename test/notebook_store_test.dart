@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
 import 'package:berea/licences.dart';
 import 'package:berea/notebook_store.dart';
+import 'package:berea/pdf_text.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea_harness/berea_harness.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -290,5 +293,56 @@ void main() {
     for (final file in pdfiumLicences.keys) {
       expect(File('licenses/pdfium/$file').existsSync(), isTrue, reason: file);
     }
+  });
+
+  test('shipped migrations are never edited', () async {
+    // Append only: when a schema change is needed, add a migration and pin it here.
+    const pinned = ['nmY8srEE0IlsNADuGRT2qEZiWJaRUfFUtXqgjuRfsVU='];
+    final actual = [
+      for (final m in StudyStore.migrations)
+        base64.encode((await Sha256().hash(utf8.encode(m.replaceAll('\r\n', '\n')))).bytes),
+    ];
+    expect(actual.take(pinned.length), pinned);
+    expect(actual.length, greaterThanOrEqualTo(pinned.length));
+  });
+
+  test('PDF text past the character budget is refused before it is copied', () async {
+    final pdfium = hostPdfium();
+    if (pdfium == null) return markTestSkipped('PDFium was not built for this host');
+    final pdf = File('test/fixtures/three-pages.pdf').absolute.path;
+    final all = await Isolate.run(
+      () => pdfPageTexts(pdf, maxPages: 10, maxChars: 1 << 20, libraryPath: pdfium),
+    );
+    final firstTwo = all[0].length + all[1].length;
+    expect(
+      () => pdfPageTexts(pdf, maxPages: 10, maxChars: firstTwo + 1, libraryPath: pdfium),
+      throwsA(isA<FormatException>().having((e) => e.message, 'message', tooLongMessage)),
+    );
+    expect(
+      () => pdfPageTexts(pdf, maxPages: 2, maxChars: 1 << 20, libraryPath: pdfium),
+      throwsFormatException,
+    );
+  });
+
+  test('the next source waits until the last reading isolate has exited', () async {
+    final exited = Completer<void>();
+    final started = <String>[];
+    final store = NotebookStore(
+      StudyStore(sqlite3.openInMemory()).db,
+      ingest: (r) async {
+        started.add(r.title);
+        return ingestSource(r);
+      },
+      idle: () => exited.future,
+    );
+    final id = store.createNotebook('Serial');
+    final first = store.addSource(id, const SourceRequest(SourceKind.text, 'A', text: 'One.'));
+    final second = store.addSource(id, const SourceRequest(SourceKind.text, 'B', text: 'Two.'));
+    await first;
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(started, ['A']);
+    exited.complete();
+    await second;
+    expect(started, ['A', 'B']);
   });
 }

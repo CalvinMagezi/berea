@@ -9,7 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// A two page PDF with one line of Helvetica text per page, written by hand so the smoke test
 /// needs no file from outside the app's sandbox.
@@ -49,85 +49,113 @@ Future<void> pumpUntil(WidgetTester tester, Finder f) async {
   expect(f, findsWidgets);
 }
 
-/// Runs in the real app with `flutter test integration_test -d macos`. It uses the app's own
-/// data folder and deletes the notebook it makes.
+Future<void> expectPdfiumLicences(WidgetTester tester) async {
+  registerBundledLicences();
+  final packages = await tester.runAsync(
+    () async => {for (final l in await LicenseRegistry.licenses.toList()) ...l.packages},
+  );
+  expect(packages, containsAll(['PDFium', 'FreeType (in PDFium)', 'ICU (in PDFium)']));
+}
+
+/// Creates a notebook through the UI and returns its id.
+Future<int> createNotebook(WidgetTester tester, AppState s, String title) async {
+  await tester.tap(find.text('Notebooks').last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.byTooltip('New notebook'));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.byType(TextField), title);
+  await tester.tap(find.text('Save'));
+  await tester.pumpAndSettle();
+  expect(find.text('Add your first source'), findsOneWidget);
+  return s.notebooks.notebooks().single.id;
+}
+
+Future<void> addTextAndPassage(WidgetTester tester) async {
+  await tester.tap(find.text('Add a source'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Pasted text'));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.byType(TextField).last, 'Grace upon grace, steadfast love.');
+  await tester.tap(find.text('Add'));
+  await pumpUntil(tester, find.text('Pasted text · 1 section'));
+
+  await tester.tap(find.text('Add source'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Bible passage'));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.byType(TextField), 'Romans 8:28-39');
+  await tester.tap(find.text('Add'));
+  await pumpUntil(tester, find.textContaining('Romans 8:28-39 ('));
+}
+
+/// The file picker is a native panel, so the store gets the path it would return.
+Future<void> addPdf(WidgetTester tester, AppState s, int id, Directory dir) async {
+  final pdf = File('${dir.path}/smoke-two-pages.pdf')
+    ..writeAsBytesSync(twoPagePdf('Mercy on the first page', 'Peace on the second page'));
+  final added = s.notebooks.addSource(
+    id,
+    SourceRequest(SourceKind.pdf, 'smoke-two-pages.pdf', path: pdf.path),
+  );
+  await tester.pump();
+  expect(
+    find.byWidgetPredicate(
+      (w) => w is LinearProgressIndicator && w.semanticsLabel == 'Reading smoke-two-pages.pdf',
+    ),
+    findsOneWidget,
+  );
+  await tester.runAsync(() => added);
+  await pumpUntil(tester, find.text('PDF · 2 sections'));
+
+  await tester.tap(find.text('smoke-two-pages.pdf'));
+  await tester.pumpAndSettle();
+  expect(find.text('PAGE 1'), findsOneWidget);
+  expect(find.text('PAGE 2'), findsOneWidget);
+  expect(find.text('Peace on the second page'), findsOneWidget);
+  await tester.pageBack();
+  await tester.pumpAndSettle();
+}
+
+Future<void> deleteNotebook(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Notebook options'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Delete'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+  await tester.pumpAndSettle();
+}
+
+/// Runs the real app with `flutter test integration_test -d macos`, against a throwaway data
+/// folder and in-memory preferences, so the user's own Berea data is never opened.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  late Directory dir;
+  setUp(() async {
+    dir = await Directory.systemTemp.createTemp('berea-smoke');
+    SharedPreferences.setMockInitialValues({});
+  });
+  tearDown(() => dir.deleteSync(recursive: true));
 
   testWidgets('notebooks on the real app: pasted text, a passage and a PDF', (tester) async {
-    registerBundledLicences();
-    final packages = await tester.runAsync(
-      () async => {for (final l in await LicenseRegistry.licenses.toList()) ...l.packages},
+    await expectPdfiumLicences(tester);
+    final s = await AppState.bootstrap(
+      supportDir: dir,
+      prefs: await SharedPreferences.getInstance(),
     );
-    expect(packages, containsAll(['PDFium', 'FreeType (in PDFium)', 'ICU (in PDFium)']));
-    final s = await AppState.bootstrap();
-    // A failed earlier run must not leave its notebook in the app's real data.
-    for (final n in s.notebooks.notebooks().where((n) => n.title == 'Smoke test notebook')) {
-      s.notebooks.deleteNotebook(n.id);
-    }
     await tester.pumpWidget(MaterialApp(home: HomeShell(state: s)));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Notebooks').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('New notebook'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Smoke test notebook');
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle();
-    expect(find.text('Add your first source'), findsOneWidget);
-    final id = s.notebooks.notebooks().firstWhere((n) => n.title == 'Smoke test notebook').id;
-
-    await tester.tap(find.text('Add a source'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Pasted text'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).last, 'Grace upon grace, steadfast love.');
-    await tester.tap(find.text('Add'));
-    await pumpUntil(tester, find.text('Pasted text · 1 section'));
-
-    await tester.tap(find.text('Add source'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Bible passage'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Romans 8:28-39');
-    await tester.tap(find.text('Add'));
-    await pumpUntil(tester, find.textContaining('Romans 8:28-39 ('));
-
-    // The file picker is a native panel; hand the store the file it would return.
-    final pdf = File('${(await getTemporaryDirectory()).path}/smoke-two-pages.pdf')
-      ..createSync(recursive: true)
-      ..writeAsBytesSync(twoPagePdf('Mercy on the first page', 'Peace on the second page'));
-    final added = s.notebooks.addSource(
-      id,
-      SourceRequest(SourceKind.pdf, 'smoke-two-pages.pdf', path: pdf.path),
-    );
-    await tester.pump();
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
-    expect(find.text('smoke-two-pages.pdf'), findsOneWidget);
-    await tester.runAsync(() => added);
-    await pumpUntil(tester, find.text('PDF · 2 sections'));
-
-    await tester.tap(find.text('smoke-two-pages.pdf'));
-    await tester.pumpAndSettle();
-    expect(find.text('PAGE 1'), findsOneWidget);
-    expect(find.text('PAGE 2'), findsOneWidget);
-    expect(find.text('Peace on the second page'), findsOneWidget);
-    await tester.pageBack();
-    await tester.pumpAndSettle();
+    final id = await createNotebook(tester, s, 'Smoke test notebook');
+    await addTextAndPassage(tester);
+    await addPdf(tester, s, id, dir);
 
     final hits = s.notebooks.search(id, 'loving peace');
-    expect(hits.map((h) => h.sourceTitle), containsAll(['smoke-two-pages.pdf']));
+    expect(hits.map((h) => h.sourceTitle), contains('smoke-two-pages.pdf'));
     expect(hits.firstWhere((h) => h.kind == SourceKind.pdf).page, 2);
     expect(s.notebooks.search(id, 'separate').map((h) => h.kind).toSet(), {SourceKind.passage});
 
-    await tester.tap(find.byTooltip('Notebook options'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
-    await tester.pumpAndSettle();
+    await deleteNotebook(tester);
     expect(s.notebooks.notebook(id), isNull);
-    pdf.deleteSync();
+    s.study.close();
+    s.db.close();
   });
 }

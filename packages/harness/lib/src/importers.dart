@@ -235,16 +235,24 @@ const _zip64Sentinel = 0xFFFFFFFF;
 
 /// Entries of a zip archive, stored or deflated. Enough for ebible.org USFM bundles. Rejects
 /// zip64, oversized or truncated archives with a [FormatException] instead of exhausting memory.
-/// When [include] is given, only the entries it accepts are inflated and counted.
-Map<String, Uint8List> readZip(Uint8List bytes, {bool Function(String name)? include}) {
+/// [include] limits which entries are inflated and counted; [maxEntryBytes] lowers the cap.
+Map<String, Uint8List> readZip(
+  Uint8List bytes, {
+  bool Function(String name)? include,
+  int maxEntryBytes = maxZipEntryBytes,
+}) {
   try {
-    return _readZip(bytes, include);
+    return _readZip(bytes, include, maxEntryBytes);
   } on RangeError {
     throw const FormatException('not a valid zip file');
   }
 }
 
-Map<String, Uint8List> _readZip(Uint8List bytes, bool Function(String name)? include) {
+Map<String, Uint8List> _readZip(
+  Uint8List bytes,
+  bool Function(String name)? include,
+  int maxEntryBytes,
+) {
   final d = ByteData.sublistView(bytes);
   const eocdSig = 0x06054b50, centralSig = 0x02014b50;
   var eocd = bytes.length - 22;
@@ -273,7 +281,7 @@ Map<String, Uint8List> _readZip(Uint8List bytes, bool Function(String name)? inc
     p += 46 + nameLen + extraLen + commentLen;
     if (name.endsWith('/') || (include != null && !include(name))) continue;
     total += size;
-    if (size > maxZipEntryBytes || total > maxZipTotalBytes) {
+    if (size > maxEntryBytes || total > maxZipTotalBytes) {
       throw FormatException('zip entry $name is too large');
     }
     final dataStart =

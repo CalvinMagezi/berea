@@ -221,8 +221,10 @@ also carry FreeType (FreeType License), libjpeg-turbo, OpenJPEG, Little CMS, lib
 Abseil and ICU under their own permissive licences. Their full texts are kept in
 `licenses/pdfium/` and shown on the app's licence page (Settings, Commentaries, Licences and
 sources, Software licences). On iOS the pod fetches a PDFium build pinned by SHA-256. On
-Android, Windows and Linux the package's build hook downloads `bblanchon/pdfium-binaries`
-`chromium/7811` at build time without a hash pin. On macOS both are built and land in the same
+Android, Windows, Linux and macOS the package's build hook downloads `bblanchon/pdfium-binaries`
+`chromium/7811` without a hash check unless the file is already in place, so run
+`tool/pin_pdfium.sh <target>` (for example `mac-arm64`) after `flutter pub get` to put SHA-256
+checked copies there first; CI and `tool/release.sh` do. On macOS both are built and land in the same
 case-insensitive Frameworks folder, so which copy ships depends on build order (see
 `TECHDEBT.md`). The app itself never downloads PDFium. EPUB is read with the harness's own zip reader and a
 small XHTML to text step.
@@ -235,6 +237,7 @@ Requirements: Flutter 3.47+, Dart 3.13+. Xcode 27 for iOS and macOS, Android SDK
 git clone https://github.com/CalvinMagezi/berea && cd berea
 cd packages/harness && dart pub get && dart run bin/build_db.dart && cd ../..
 flutter pub get
+tool/pin_pdfium.sh mac-arm64   # SHA-256 checked PDFium for this Mac (see Data)
 flutter run -d macos      # or -d <android device> / -d <ios simulator>
 ```
 
@@ -252,7 +255,7 @@ Tests:
 
 ```bash
 cd packages/harness && dart test && cd ../.. && flutter test
-flutter test integration_test -d macos   # notebooks smoke test in the real app
+flutter test integration_test -d macos   # notebooks smoke test, real app, throwaway data folder
 ```
 
 Release (builds the data, runs every check and the eval, builds Android and macOS, tags):

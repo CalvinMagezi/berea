@@ -100,7 +100,11 @@ int _skipSpace(String text, int i, int to) {
   return i;
 }
 
-bool _isSpace(int unit) => unit == 0x20 || unit == 0x0A;
+const _spaceUnit = 0x20;
+const _newlineUnit = 0x0A;
+
+// Normalised text holds no other whitespace.
+bool _isSpace(int unit) => unit == _spaceUnit || unit == _newlineUnit;
 
 const _paragraphEnd = '\n\n';
 final _sentenceEnd = RegExp(r'[.!?;:]["\u201d\u2019)]?\s');
@@ -194,41 +198,30 @@ String? _attr(String tag, String name) =>
 Iterable<String> _tags(RegExp pattern, String package) =>
     pattern.allMatches(package).map((m) => m[0]!).where((t) => t.length <= _maxTagChars);
 
-/// The text of each document in an EPUB's reading order. Reads the zip with the importers' size
-/// limits in two passes, so only the package files and the spine's documents are inflated,
-/// never images or fonts. Documents listed as encrypted (DRM) are skipped. Throws
-/// [FormatException] when the file is not an EPUB or holds more text than a source may.
+/// An XHTML document larger than this could not fit the source cap even as plain ASCII markup.
+const maxEpubDocumentBytes = 4 * maxNotebookSourceChars;
+
+/// A real book has a few hundred spine items at most.
+const maxEpubSpineItems = 5000;
+
+const _containerPath = 'META-INF/container.xml';
+const _encryptionPath = 'META-INF/encryption.xml';
+
+/// Inflates just [names] from [bytes], each capped, so images and fonts are never read.
+Map<String, Uint8List> _entries(Uint8List bytes, Set<String> names) =>
+    readZip(bytes, include: names.contains, maxEntryBytes: maxEpubDocumentBytes);
+
+/// Spine documents as text, read in capped passes so images, fonts and DRM files are never inflated.
 List<String> epubSections(Uint8List bytes) {
-  final meta = readZip(
-    bytes,
-    include: (n) => n.startsWith('META-INF/') || n.toLowerCase().endsWith('.opf'),
-  );
-  final encryption = meta['META-INF/encryption.xml'];
-  final encrypted = {
-    if (encryption != null)
-      for (final m in _encryptedUri.allMatches(_utf8(encryption))) m[1]!,
-  };
-  final container = meta['META-INF/container.xml'];
+  final meta = _entries(bytes, {_containerPath, _encryptionPath});
+  final container = meta[_containerPath];
   final opfPath = container == null ? null : _rootFile.firstMatch(_utf8(container))?.group(1);
-  final opf = opfPath == null ? null : meta[opfPath];
+  final opf = opfPath == null ? null : _entries(bytes, {opfPath})[opfPath];
   if (opfPath == null || opf == null) {
     throw const FormatException('That file is not an EPUB.');
   }
-  final package = _utf8(opf);
-  final base = opfPath.contains('/') ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1) : '';
-  final hrefs = <String, String>{
-    for (final tag in _tags(_manifestItem, package))
-      if ((_attr(tag, 'id'), _attr(tag, 'href')) case (final String id, final String href))
-        id: href,
-  };
-  final spine = [
-    for (final tag in _tags(_spineItem, package))
-      if (hrefs[_attr(tag, 'idref')] case final href?)
-        if (_resolve(base, href) case final path?)
-          if (!encrypted.contains(path) && !encrypted.contains(Uri.encodeFull(path))) path,
-  ];
-  final wanted = spine.toSet();
-  final docs = readZip(bytes, include: wanted.contains);
+  final spine = _spinePaths(_utf8(opf), opfPath, meta[_encryptionPath]);
+  final docs = _entries(bytes, spine.toSet());
   final sections = <String>[];
   var chars = 0;
   for (final path in spine) {
@@ -240,6 +233,30 @@ List<String> epubSections(Uint8List bytes) {
     sections.add(text);
   }
   return sections;
+}
+
+/// Zip paths of the spine's documents in reading order, each once, without encrypted ones.
+List<String> _spinePaths(String package, String opfPath, Uint8List? encryption) {
+  final base = opfPath.contains('/') ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1) : '';
+  final encrypted = {
+    if (encryption != null)
+      for (final m in _encryptedUri.allMatches(_utf8(encryption))) m[1]!,
+  };
+  final hrefs = <String, String>{
+    for (final tag in _tags(_manifestItem, package))
+      if ((_attr(tag, 'id'), _attr(tag, 'href')) case (final String id, final String href))
+        id: href,
+  };
+  final paths = <String>{
+    for (final tag in _tags(_spineItem, package))
+      if (hrefs[_attr(tag, 'idref')] case final href?)
+        if (_resolve(base, href) case final path?)
+          if (!encrypted.contains(path) && !encrypted.contains(Uri.encodeFull(path))) path,
+  };
+  if (paths.length > maxEpubSpineItems) {
+    throw const FormatException('That EPUB has too many chapters to read.');
+  }
+  return paths.toList();
 }
 
 String _utf8(Uint8List bytes) => utf8.decode(bytes, allowMalformed: true);

@@ -21,6 +21,9 @@ const pdfiumLicences = {
   'llvm-libc.txt': 'LLVM libc (in PDFium)',
   'simdutf.txt': 'simdutf (in PDFium)',
   'zlib.txt': 'zlib (in PDFium)',
+  'catapult.txt': 'Catapult (in PDFium for Android)',
+  'cpu_features.txt': 'cpu_features (in PDFium for Android)',
+  'libunwind.txt': 'libunwind (in PDFium for Android)',
 };
 
 /// Adds the PDFium notices to the licence page Flutter shows.

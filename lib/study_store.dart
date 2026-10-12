@@ -76,18 +76,20 @@ class StudyStore {
 
   /// Schema changes after 0.3.0, applied in order and recorded in `user_version`. The tables
   /// above predate it and stay `IF NOT EXISTS`.
-  static const _migrations = [notebookSchema];
+  /// Append only: a migration that has shipped is never edited, since installs that ran it
+  /// would differ from new ones. Change the schema with a new entry; a test pins each text.
+  static const migrations = [notebookSchema];
 
-  static int get schemaVersion => _migrations.length;
+  static int get schemaVersion => migrations.length;
 
   /// A file from a newer Berea (a downgrade) is opened as it is: later migrations only add
   /// tables, so the ones this version reads keep their meaning.
   void _migrate() {
     final version = db.select('PRAGMA user_version').first.values.first as int;
-    for (var v = version; v < _migrations.length; v++) {
+    for (var v = version; v < migrations.length; v++) {
       db.execute('BEGIN');
       try {
-        db.execute(_migrations[v]);
+        db.execute(migrations[v]);
         db.execute('PRAGMA user_version = ${v + 1}');
         db.execute('COMMIT');
       } catch (_) {

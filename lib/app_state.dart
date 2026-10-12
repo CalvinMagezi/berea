@@ -142,15 +142,16 @@ class AppState extends ChangeNotifier {
   String? deviceError;
   EdgeAiEngine? _edge;
 
-  static Future<AppState> bootstrap() async {
+  /// Overrides let a test run the real app without opening the user's data.
+  static Future<AppState> bootstrap({Directory? supportDir, SharedPreferences? prefs}) async {
     final s = AppState();
-    s.supportDir = await getApplicationSupportDirectory();
+    s.supportDir = supportDir ?? await getApplicationSupportDirectory();
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir));
     s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
     s.notebooks = NotebookStore(s.study.db);
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
-    s.prefs = await SharedPreferences.getInstance();
+    s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
     s.deviceGb = bytes == null ? null : bytes / bytesPerGb;
     s.settings = Settings.load(s.prefs);
@@ -166,7 +167,7 @@ class AppState extends ChangeNotifier {
     s.db.attachFullLexicon(s.lexiconPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
     await s._rebuildHarness();
-    if (kDebugMode) unawaited(s._autorun());
+    if (kDebugMode && supportDir == null) unawaited(s._autorun());
     return s;
   }
 

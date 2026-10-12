@@ -96,7 +96,7 @@ void main() {
           '<item id="c2" href="text/ch%202.xhtml" media-type="application/xhtml+xml"/>'
           '<item href="text/ch1.xhtml#top" id="c1" media-type="application/xhtml+xml"/>'
           '<item id="locked" href="../locked.xhtml" media-type="application/xhtml+xml"/>'
-          '</manifest><spine><itemref idref="c1"/><itemref idref="c2"/>'
+          '</manifest><spine><itemref idref="c1"/><itemref idref="c2"/><itemref idref="c1"/>'
           '<itemref idref="locked"/><itemref idref="missing"/></spine></package>',
     );
     write('OEBPS/text/ch1.xhtml', '<html><body><p>Chapter one.</p></body></html>');
@@ -178,5 +178,30 @@ void main() {
     ], workingDirectory: dir.path);
     if (res.exitCode != 0) return markTestSkipped('zip tool not available');
     expect(epubSections(Uint8List.fromList(File(zip).readAsBytesSync())), ['Readable.']);
+  });
+
+  test('an EPUB document too large for a source is refused before it is decoded', () {
+    final dir = Directory.systemTemp.createTempSync('berea_epub_big');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    void write(String path, String text) => File('${dir.path}/$path')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(text);
+    write('META-INF/container.xml', '<rootfile full-path="book.opf"/>');
+    write('book.opf', '<item id="big" href="big.xhtml"/><itemref idref="big"/>');
+    write('big.xhtml', 'a' * (maxEpubDocumentBytes + 1));
+    final zip = '${dir.path}/big.epub';
+    final res = Process.runSync('zip', [
+      '-q',
+      '-r',
+      zip,
+      'META-INF',
+      'book.opf',
+      'big.xhtml',
+    ], workingDirectory: dir.path);
+    if (res.exitCode != 0) return markTestSkipped('zip tool not available');
+    expect(
+      () => epubSections(Uint8List.fromList(File(zip).readAsBytesSync())),
+      throwsA(isA<FormatException>().having((e) => e.message, 'message', contains('too large'))),
+    );
   });
 }

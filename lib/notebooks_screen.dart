@@ -27,6 +27,10 @@ class SourceLookup {
   });
 }
 
+/// Wide enough for a paragraph of pasted text without filling a desktop window.
+const _pasteDialogWidth = 520.0;
+const _notePickerWidth = 480.0;
+
 IconData kindIcon(SourceKind k) => switch (k) {
   SourceKind.text => Icons.notes,
   SourceKind.note => Icons.sticky_note_2_outlined,
@@ -194,7 +198,7 @@ class _NotebookMenu extends StatelessWidget {
               'device. Your notes, studies and highlights are not touched. This cannot be undone.',
           'Delete',
         );
-        if (!ok) return;
+        if (!ok || !context.mounted) return;
         store.deleteNotebook(notebook.id);
         onDeleted?.call();
     }
@@ -349,9 +353,9 @@ class NotebookScreen extends StatelessWidget {
         ListTile(
           leading: Icon(kindIcon(p.kind)),
           title: Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-          subtitle: const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: LinearProgressIndicator(),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: LinearProgressIndicator(semanticsLabel: 'Reading ${p.title}'),
           ),
           trailing: const Text('Reading'),
         ),
@@ -451,45 +455,59 @@ class NotebookScreen extends StatelessWidget {
   Future<SourceRequest?> _pasteDialog(BuildContext context) {
     final title = TextEditingController();
     final body = TextEditingController();
+    String? error;
     return showDialog<SourceRequest>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Paste text'),
-        content: SizedBox(
-          width: 520,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: title,
-                decoration: const InputDecoration(hintText: 'Title (optional)'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: body,
-                autofocus: true,
-                minLines: 6,
-                maxLines: 14,
-                decoration: const InputDecoration(hintText: 'Paste or type the text here'),
-              ),
-            ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Paste text'),
+          content: SizedBox(
+            width: _pasteDialogWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: title,
+                  decoration: const InputDecoration(hintText: 'Title (optional)'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: body,
+                  autofocus: true,
+                  minLines: 6,
+                  maxLines: 14,
+                  onChanged: (_) => setDialogState(() => error = null),
+                  decoration: InputDecoration(
+                    hintText: 'Paste or type the text here',
+                    errorText: error,
+                  ),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final text = body.text.trim();
+                if (text.isEmpty) {
+                  setDialogState(() => error = 'Paste some text first.');
+                  return;
+                }
+                final name = title.text.trim();
+                Navigator.pop(
+                  ctx,
+                  SourceRequest(
+                    SourceKind.text,
+                    name.isEmpty ? _firstWords(text) : name,
+                    text: text,
+                  ),
+                );
+              },
+              child: const Text('Add'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              final text = body.text.trim();
-              if (text.isEmpty) return;
-              final name = title.text.trim();
-              Navigator.pop(
-                ctx,
-                SourceRequest(SourceKind.text, name.isEmpty ? _firstWords(text) : name, text: text),
-              );
-            },
-            child: const Text('Add'),
-          ),
-        ],
       ),
     );
   }
@@ -544,13 +562,17 @@ class NotebookScreen extends StatelessWidget {
     }
   }
 
-  /// Phones copy a picked file into the app's temporary folder; delete that copy once read.
-  /// Only a file inside that folder is touched, never the user's original.
+  /// The picker copies files into a temporary folder on phones; delete only such a copy.
   static Future<void> _deletePickedCopy(String path) async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
-    final temp = (await getTemporaryDirectory()).absolute.path;
+    // iOS copies into NSTemporaryDirectory (systemTemp); Android into the cache directory.
+    final roots = [
+      Directory.systemTemp.absolute.path,
+      (await getTemporaryDirectory()).absolute.path,
+    ];
     final file = File(path).absolute;
-    if (file.path.startsWith('$temp/') && file.existsSync()) file.deleteSync();
+    if (!roots.any((r) => file.path.startsWith('$r/')) || !file.existsSync()) return;
+    file.deleteSync();
   }
 }
 
@@ -569,7 +591,7 @@ class _NotePickerState extends State<_NotePicker> {
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Add your notes'),
     content: SizedBox(
-      width: 480,
+      width: _notePickerWidth,
       child: ListView(
         shrinkWrap: true,
         children: [

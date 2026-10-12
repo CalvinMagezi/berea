@@ -16,6 +16,9 @@ grep -q "^## $version" CHANGELOG.md || { echo "Add a '## $version' section to CH
 echo "Building the Bible database and the lexicon pack"
 (cd packages/harness && dart pub get >/dev/null && dart run bin/build_db.dart && dart run bin/build_lexicon_pack.dart)
 
+echo "Placing SHA-256 checked PDFium builds for the hook"
+tool/pin_pdfium.sh mac-arm64 mac-x64 android-arm64
+
 echo "Running checks"
 (cd packages/harness && dart analyze --fatal-infos && dart test)
 flutter analyze --fatal-infos

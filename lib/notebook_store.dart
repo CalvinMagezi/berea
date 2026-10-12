@@ -31,11 +31,12 @@ const maxNotebookFileBytes = 64 * 1024 * 1024;
 const maxPdfPages = 2000;
 
 const maxSourcesPerNotebook = 100;
+
+/// About what fits a small model's prompt beside the question.
+const notebookSearchLimit = 8;
 const maxNotebookTitleChars = 80;
 
-/// Notebook tables in study.sqlite. Ids are never reused, so a source still being read cannot
-/// land in a notebook made after its own was deleted. Chunks are indexed for search by an external content FTS5
-/// table that triggers keep in step, so restoring the chunk rows restores the index.
+// Ids never get reused and triggers keep the index, so a late read or a restore stays consistent.
 const notebookSchema = '''
   CREATE TABLE IF NOT EXISTS notebooks(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL,
     created INTEGER, updated INTEGER);
@@ -129,7 +130,12 @@ class SourceRequest {
 ChunkedText ingestSource(SourceRequest r, {String? pdfiumPath}) {
   switch (r.kind) {
     case SourceKind.pdf:
-      final pages = pdfPageTexts(_checkedFile(r), maxPages: maxPdfPages, libraryPath: pdfiumPath);
+      final pages = pdfPageTexts(
+        _checkedFile(r),
+        maxPages: maxPdfPages,
+        maxChars: maxNotebookSourceChars,
+        libraryPath: pdfiumPath,
+      );
       if (pages.every((p) => p.trim().isEmpty)) {
         throw const FormatException(
           'No text was found in that PDF. Scanned pages without a text layer are not read yet.',
@@ -175,56 +181,50 @@ void _ingestEntry((SourceRequest, SendPort) args) {
   Isolate.exit(port, result);
 }
 
-/// After a timeout, how long the killed isolate gets to leave native code.
-const ingestExitGrace = Duration(seconds: 10);
-
-/// Set when a PDF read was abandoned while still inside PDFium. PDFium is not thread safe, so no
-/// other PDF is read until the app restarts.
-var _pdfiumStuck = false;
-
 const _timedOut = Object();
+
+Future<void> _lastExit = Future.value();
+
+/// Completes when the last reader has left native code; a killed isolate waits for PDFium.
+Future<void> ingestIdle() => _lastExit;
 
 /// Reads [r] on a background isolate that is killed if it outlives [timeout]. Throws
 /// [FormatException] for problems the user can act on, [StateError] for anything else.
-Future<ChunkedText> ingestInBackground(
-  SourceRequest r, {
-  Duration timeout = ingestTimeout,
-  Duration exitGrace = ingestExitGrace,
-}) async {
-  if (r.kind == SourceKind.pdf && _pdfiumStuck) {
-    throw const FormatException('An earlier PDF stopped responding. Restart Berea to read PDFs.');
-  }
+Future<ChunkedText> ingestInBackground(SourceRequest r, {Duration timeout = ingestTimeout}) async {
   final port = ReceivePort();
   final result = Completer<Object?>();
-  final exited = Completer<bool>();
-  // The result (or an error) arrives first; null follows when the isolate has exited.
+  final exited = Completer<void>();
+  _lastExit = exited.future;
+  // The result or an error arrives first; null arrives when the isolate has exited.
   port.listen((m) {
-    if (m == null && !exited.isCompleted) exited.complete(true);
     if (!result.isCompleted) result.complete(m);
-  });
-  final isolate = await Isolate.spawn(
-    _ingestEntry,
-    (r, port.sendPort),
-    onError: port.sendPort,
-    onExit: port.sendPort,
-  );
-  try {
-    final message = await result.future.timeout(timeout, onTimeout: () => _timedOut);
-    if (identical(message, _timedOut)) {
-      isolate.kill(priority: Isolate.immediate);
-      final left = await exited.future.timeout(exitGrace, onTimeout: () => false);
-      if (!left && r.kind == SourceKind.pdf) _pdfiumStuck = true;
-      throw const FormatException('That source took too long to read.');
-    }
-    return switch (message) {
-      final ChunkedText c => c,
-      final _IngestFailure f => throw FormatException(f.message),
-      _ => throw StateError('Reading stopped: $message'),
-    };
-  } finally {
-    isolate.kill(priority: Isolate.immediate);
+    if (m != null || exited.isCompleted) return;
+    exited.complete();
     port.close();
+  });
+  final Isolate isolate;
+  try {
+    isolate = await Isolate.spawn(
+      _ingestEntry,
+      (r, port.sendPort),
+      onError: port.sendPort,
+      onExit: port.sendPort,
+    );
+  } catch (_) {
+    port.close();
+    exited.complete();
+    rethrow;
   }
+  final message = await result.future.timeout(timeout, onTimeout: () => _timedOut);
+  if (identical(message, _timedOut)) {
+    isolate.kill(priority: Isolate.immediate);
+    throw const FormatException('That source took too long to read.');
+  }
+  return switch (message) {
+    final ChunkedText c => c,
+    final _IngestFailure f => throw FormatException(f.message),
+    _ => throw StateError('Reading stopped: $message'),
+  };
 }
 
 /// A source being read, shown with a progress indicator until it is saved or fails.
@@ -254,7 +254,10 @@ class NotebookStore extends ChangeNotifier {
   /// One ingestion at a time: PDFium is not thread safe, and it keeps memory use flat.
   Future<void> _queue = Future.value();
 
-  NotebookStore(this.db, {this.ingest = ingestInBackground});
+  /// Completes when the reading isolate has really exited; tests replace it.
+  final Future<void> Function() idle;
+
+  NotebookStore(this.db, {this.ingest = ingestInBackground, this.idle = ingestIdle});
 
   void _changed() => notifyListeners();
 
@@ -347,10 +350,7 @@ class NotebookStore extends ChangeNotifier {
       ),
   ];
 
-  /// Reads [r] off the UI isolate, then saves it with its chunks in one transaction. Returns the
-  /// new source id, or null when the notebook was deleted or the notebooks were restored
-  /// meanwhile. Throws [FormatException] with a message for the user when the source cannot
-  /// be read.
+  /// Returns the new source id, or null when its notebook went away while it was read.
   Future<int?> addSource(int notebookId, SourceRequest r) async {
     if (sources(notebookId).length + pendingFor(notebookId).length >= maxSourcesPerNotebook) {
       throw const FormatException('A notebook holds up to $maxSourcesPerNotebook sources.');
@@ -367,9 +367,10 @@ class NotebookStore extends ChangeNotifier {
       final chunked = await ingest(r);
       return job.cancelled ? null : _save(notebookId, r, chunked);
     } finally {
-      done.complete();
       pending.remove(job);
       _changed();
+      // The next source waits until this one's isolate has left PDFium, even after a timeout.
+      unawaited(idle().then((_) => done.complete()));
     }
   }
 
@@ -450,7 +451,7 @@ class NotebookStore extends ChangeNotifier {
       .toList();
 
   /// The chunks of a notebook that best match any word of [query], best first.
-  List<NotebookChunk> search(int notebookId, String query, {int limit = 8}) {
+  List<NotebookChunk> search(int notebookId, String query, {int limit = notebookSearchLimit}) {
     final q = notebookFtsQuery(query);
     if (q == null) return const [];
     return db

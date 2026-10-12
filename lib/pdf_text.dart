@@ -1,16 +1,18 @@
 import 'dart:ffi';
 
+import 'package:berea_harness/berea_harness.dart';
 import 'package:ffi/ffi.dart';
 import 'package:pdfium_flutter/pdfium_flutter.dart';
 
-/// The text of each page of the PDF at [path], first page first, read with PDFium. Call it off
-/// the UI isolate, one document at a time: PDFium is not thread safe. Throws [FormatException]
-/// when the file cannot be read as a PDF. [libraryPath] overrides where PDFium is loaded from,
-/// for tests; the app finds it bundled.
-List<String> pdfPageTexts(String path, {required int maxPages, String? libraryPath}) {
+/// Page texts of a PDF. Runs off the UI isolate, one at a time, because PDFium is not thread safe.
+List<String> pdfPageTexts(
+  String path, {
+  required int maxPages,
+  required int maxChars,
+  String? libraryPath,
+}) {
   final pdfium = getPdfium(modulePath: libraryPath);
-  // A no-op after the first call in this process; never destroyed, since another isolate may
-  // still be reading.
+  // Idempotent per process, and never destroyed because a later isolate reads with it.
   pdfium.FPDF_InitLibrary();
   final nativePath = path.toNativeUtf8();
   final doc = pdfium.FPDF_LoadDocument(nativePath.cast(), nullptr);
@@ -27,13 +29,20 @@ List<String> pdfPageTexts(String path, {required int maxPages, String? libraryPa
     if (count > maxPages) {
       throw FormatException('That PDF has $count pages. The limit is $maxPages.');
     }
-    return [for (var i = 0; i < count; i++) _pageText(pdfium, doc, i)];
+    final pages = <String>[];
+    var budget = maxChars;
+    for (var i = 0; i < count; i++) {
+      pages.add(_pageText(pdfium, doc, i, budget));
+      budget -= pages.last.length;
+    }
+    return pages;
   } finally {
     pdfium.FPDF_CloseDocument(doc);
   }
 }
 
-String _pageText(PDFium pdfium, FPDF_DOCUMENT doc, int index) {
+/// Throws the source-too-long error before allocating when the page exceeds [budget].
+String _pageText(PDFium pdfium, FPDF_DOCUMENT doc, int index, int budget) {
   final page = pdfium.FPDF_LoadPage(doc, index);
   if (page == nullptr) return '';
   final text = pdfium.FPDFText_LoadPage(page);
@@ -41,6 +50,7 @@ String _pageText(PDFium pdfium, FPDF_DOCUMENT doc, int index) {
     if (text == nullptr) return '';
     final n = pdfium.FPDFText_CountChars(text);
     if (n <= 0) return '';
+    if (n > budget) throw const FormatException(tooLongMessage);
     // Room for every character as a surrogate pair, plus the terminator PDFium writes.
     final capacity = 2 * n + 1;
     final buffer = malloc<UnsignedShort>(capacity);
