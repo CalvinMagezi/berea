@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'chat_screen.dart';
+import 'notebook_store.dart';
+import 'notebooks_screen.dart';
 import 'notes_screen.dart';
 import 'reader_screen.dart';
 
 const wideLayoutBreakpoint = 760.0;
 
-enum HomeTab { study, bible, notes }
+enum HomeTab { study, bible, notes, notebooks }
 
 class HomeShell extends StatefulWidget {
   final AppState state;
@@ -64,6 +66,13 @@ class _HomeShellState extends State<HomeShell> {
           child: const Icon(Icons.chat_bubble_outline),
         );
 
+  late final _lookup = SourceLookup(
+    notes: () => widget.state.study.notes(),
+    passage: (r) => passageSource(widget.state.db, r, widget.state.settings.translation),
+    commentary: (r) => commentarySources(widget.state.commentary.library, r),
+    hasCommentary: () => !widget.state.commentary.library.isEmpty,
+  );
+
   @override
   Widget build(BuildContext context) {
     final s = widget.state;
@@ -73,12 +82,14 @@ class _HomeShellState extends State<HomeShell> {
         ChatScreen(state: s),
         ReaderScreen(state: s, onQuickChat: _quickChat),
         NotesScreen(state: s, onOpenStudy: () => _select(HomeTab.study)),
+        NotebooksScreen(store: s.notebooks, lookup: _lookup),
       ],
     );
     const destinations = [
       (Icons.auto_stories_outlined, Icons.auto_stories, 'Study'),
       (Icons.menu_book_outlined, Icons.menu_book, 'Bible'),
       (Icons.sticky_note_2_outlined, Icons.sticky_note_2, 'Notes'),
+      (Icons.collections_bookmark_outlined, Icons.collections_bookmark, 'Notebooks'),
     ];
     return LayoutBuilder(
       builder: (context, c) {

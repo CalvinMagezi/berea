@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+Corrections
+- 0.3.0 said the new BSB text matches the narrated BSB audio. It does not quite: the Souer
+  narration (2022-2023) follows the earlier wording in the few verses that changed, for example
+  John 1:9 and Psalm 18:40. Read-along timings for those verses are approximate.
+
+Audio
+- A build-time pipeline (tool/audio/) aligns the CC0 BSB narration word by word and packs each
+  book as a downloadable SQLite file. Timings are dedicated to the public domain. The John pilot
+  is the first pack.
+
+Notebooks
+- A Notebooks tab. A notebook gathers sources on one passage or topic: Bible passages in your
+  reading translation, commentary from the installed packs (one source per work, with its author
+  and licence), your own notes, pasted text, PDFs and EPUB books. Create, rename and delete
+  notebooks; add and remove sources; open a source to read the text Berea kept, with PDF page
+  numbers.
+- Sources are read on a background isolate, one at a time, and shown with a progress bar while
+  they are read. Each is split into sections of about 1,200 characters that keep their position
+  in the source and their PDF page, and indexed for search, ready for chat over a notebook.
+- Limits: files up to 64 MB, PDFs up to 2,000 pages, about 600 pages of text per source and 100
+  sources per notebook. Scanned PDFs without a text layer and DRM-protected EPUB chapters are not
+  read. A source still being read after five minutes is abandoned, so one bad file cannot hold
+  up the others.
+- PDF text comes from PDFium, bundled with the app (BSD and Apache licensed, through the MIT
+  pdfium_flutter package). Its licence texts are on a new Software licences page.
+- Backups are now version 2 and include notebooks. Version 1 backups still restore, and leave the
+  notebooks on the device as they are.
+
 Read along
 - Tap Listen in the Bible tab to hear the chapter with the current word marked and the page
   following along, scrolling only when the verse being read leaves the screen (and without
@@ -30,7 +58,7 @@ Bible
 - The Berean Standard Bible now comes from the official text at bereanbible.com, pinned by
   SHA-256, instead of an older third-party copy. 1,474 verses read differently, for example
   "every winged bird" in Genesis 1:21 and "the Spirit of adoption to sonship" in Romans 8:15.
-  The text now matches the narrated BSB audio. KJV and WEB are unchanged.
+  KJV and WEB are unchanged.
 
 Commentary
 - Optional public domain commentary packs: Matthew Henry (concise and complete), Jamieson,

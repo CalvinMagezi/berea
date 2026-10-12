@@ -7,6 +7,7 @@ export 'src/engine.dart';
 export 'src/harness.dart';
 export 'src/importers.dart';
 export 'src/narration.dart';
+export 'src/notebook_text.dart';
 export 'src/ollama_engine.dart';
 export 'src/prompt_builder.dart';
 export 'src/ref_parser.dart';

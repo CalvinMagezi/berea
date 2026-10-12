@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'home_shell.dart';
-import 'read_along.dart';
+import 'licences.dart';
 import 'theme.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await initReadAlongAudio();
+  registerBundledLicences();
   runApp(const BereaApp());
 }
 
