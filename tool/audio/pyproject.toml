@@ -1,0 +1,24 @@
+[project]
+name = "berea-audio"
+version = "0.1.0"
+description = "Build-time word timings for the CC0 BSB narration. Never ships in the app."
+requires-python = "==3.12.*"
+dependencies = [
+  "numpy==2.3.3",
+  "torch==2.8.0",
+  "transformers==4.56.2",
+]
+
+[dependency-groups]
+dev = ["pytest==8.4.2"]
+
+[tool.uv]
+package = false
+# The pipeline needs macOS (AudioToolbox); this also keeps NVIDIA's non-OSI CUDA wheels out of
+# the lock.
+environments = ["sys_platform == 'darwin'"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+cache_dir = "../../build/audio/pytest-cache"

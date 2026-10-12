@@ -310,6 +310,7 @@ packages/harness/
   eval/golden.json     questions with expected references and adversarial bait
 tool/release.sh        local release
 tool/build_site.sh     builds the public site from site/ into build/site
+tool/audio/            build-time word timings and audio packs for the CC0 narration (Python)
 site/                  the public page, deployed to GitHub Pages
   check/               a JavaScript copy of the reference check; selftest.mjs proves it matches
   vendor/scrollcraft/  scroll engine from nateherkai/scroll-craft (MIT)

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+Corrections
+- 0.3.0 said the new BSB text matches the narrated BSB audio. It does not quite: the Souer
+  narration (2022-2023) follows the earlier wording in the few verses that changed, for example
+  John 1:9 and Psalm 18:40. Read-along timings for those verses are approximate.
+
+Audio
+- A build-time pipeline (tool/audio/) aligns the CC0 BSB narration word by word and packs each
+  book as a downloadable SQLite file. Timings are dedicated to the public domain. The John pilot
+  is the first pack.
+
 Notebooks
 - A Notebooks tab. A notebook gathers sources on one passage or topic: Bible passages in your
   reading translation, commentary from the installed packs (one source per work, with its author
@@ -33,7 +43,7 @@ Bible
 - The Berean Standard Bible now comes from the official text at bereanbible.com, pinned by
   SHA-256, instead of an older third-party copy. 1,474 verses read differently, for example
   "every winged bird" in Genesis 1:21 and "the Spirit of adoption to sonship" in Romans 8:15.
-  The text now matches the narrated BSB audio. KJV and WEB are unchanged.
+  KJV and WEB are unchanged.
 
 Commentary
 - Optional public domain commentary packs: Matthew Henry (concise and complete), Jamieson,
