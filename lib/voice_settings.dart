@@ -244,9 +244,8 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
     final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/voice-dump')
       ..createSync(recursive: true);
     await wav.copy('${dir.path}/${speaker.id}.wav');
-    File(
-      '${dir.path}/${speaker.id}.json',
-    ).writeAsStringSync(jsonEncode([for (final w in speech.words) w.toJson()]));
+    File('${dir.path}/${speaker.id}.json')
+        .writeAsStringSync(jsonEncode([for (final w in speech.words) w.toJson()]));
     debugPrint('voice dump: ${dir.path}/${speaker.id}.wav');
   }
 
@@ -292,9 +291,8 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final style = Theme.of(
-      context,
-    ).textTheme.titleLarge?.copyWith(fontFamilyFallback: scriptureFontFallback, height: 1.6);
+    final style = Theme.of(context).textTheme.titleLarge
+        ?.copyWith(fontFamilyFallback: scriptureFontFallback, height: 1.6);
     return Scaffold(
       appBar: AppBar(title: const Text('Test voice')),
       body: Center(

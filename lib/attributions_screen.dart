@@ -1,7 +1,5 @@
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'theme.dart';
 
@@ -43,28 +41,24 @@ const downloadableSources = [
   ),
 ];
 
-/// Libraries the voice runs on, compiled into the app.
-const voiceLibraries = [
-  DataSource('ONNX Runtime', 'MIT', 'Microsoft, via flutter_onnxruntime (MIT) by MASIC AI'),
-  DataSource('audioplayers', 'MIT', 'Blue Fire'),
+/// Native code shipped inside the app whose licence asks for a notice.
+const bundledSoftware = [
+  DataSource(
+    'PDFium (reads PDF text for notebooks)',
+    'BSD 3-Clause and Apache 2.0, with FreeType (FreeType License), libjpeg-turbo, OpenJPEG, '
+        'Little CMS, libpng, zlib, Abseil and ICU under their own permissive licences',
+    'The PDFium Authors; binaries by Benoit Blanchon (MIT) and pdfium_flutter by Takashi '
+        'Kawasaki (MIT). Portions of this software are copyright The FreeType Project '
+        '(www.freetype.org). All rights reserved. This software is based in part on the work of '
+        'the Independent JPEG Group. Full texts are under Software licences below.',
+  ),
+  DataSource(
+    'ONNX Runtime (runs the optional voice)',
+    'MIT, with third party notices',
+    'Microsoft, through flutter_onnxruntime (MIT) by MASIC AI. Full texts are under Software '
+        'licences below.',
+  ),
 ];
-
-/// Full notices for what the voice pack carries and what the app links for it, shown on the
-/// licence page beside every Dart package's own.
-const _bundledNotices = [
-  ('CMU Pronouncing Dictionary', 'assets/licenses/cmudict-LICENSE.txt'),
-  ('Kokoro-82M voice model and voices', 'assets/licenses/apache-2.0.txt'),
-  ('ONNX Runtime', 'assets/licenses/onnxruntime-LICENSE.txt'),
-  ('ONNX Runtime third party notices', 'assets/licenses/onnxruntime-ThirdPartyNotices.txt'),
-];
-
-void registerBundledLicences() {
-  LicenseRegistry.addLicense(() async* {
-    for (final (name, asset) in _bundledNotices) {
-      yield LicenseEntryWithLineBreaks([name], await rootBundle.loadString(asset));
-    }
-  });
-}
 
 /// Every dataset in the app or offered for download, with its licence and who to credit.
 class AttributionsScreen extends StatelessWidget {
@@ -86,13 +80,12 @@ class AttributionsScreen extends StatelessWidget {
               for (final s in downloadableSources) _SourceTile(s.name, s.credit, s.licence),
               for (final m in commentaryModules)
                 _SourceTile(m.title, '${m.author}. ${m.source} ${m.id}', m.licence),
-              const _Heading('Voice libraries'),
-              for (final s in voiceLibraries) _SourceTile(s.name, s.credit, s.licence),
               const _Heading('Berea'),
               const _SourceTile('Berea app and harness', 'github.com/CalvinMagezi/berea', 'MIT'),
+              for (final s in bundledSoftware) _SourceTile(s.name, s.credit, s.licence),
               ListTile(
-                title: const Text('All software licences'),
-                subtitle: const Text('The full text of every licence and notice'),
+                title: const Text('Software licences'),
+                subtitle: const Text('Full licence texts for the code and libraries in Berea'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => showLicensePage(context: context, applicationName: 'Berea'),
               ),

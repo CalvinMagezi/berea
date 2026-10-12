@@ -209,15 +209,22 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       count('conversations', 'saved study', 'saved studies'),
       count('study_pages', 'study page', 'study pages'),
       count('highlights', 'highlight', 'highlights'),
+      if (contents.hasNotebooks) count('notebooks', 'notebook', 'notebooks'),
       if (contents.imports.isNotEmpty) 'translations ${contents.imports.keys.join(', ')}',
     ].join(', ');
+    final replaced = contents.hasNotebooks
+        ? 'note, study, plan, highlight and notebook'
+        : 'note, study, plan and highlight';
+    final notebooksNote = contents.hasNotebooks
+        ? ''
+        : ' This backup was made before notebooks, so your notebooks are kept.';
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Replace your data?'),
         content: Text(
-          'This backup holds $summary. Restoring replaces every note, study, plan and highlight '
-          'on this device with it. This cannot be undone.',
+          'This backup holds $summary. Restoring replaces every $replaced on this device '
+          'with it. This cannot be undone.$notebooksNote',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
@@ -385,7 +392,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
               Text('Your data', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),
               Text(
-                'Notes, studies, plans and imports live only on this device. A backup is one '
+                'Notes, studies, notebooks, plans and imports live only on this device. A backup is one '
                 'encrypted file you keep; without its passphrase nobody, including you, can open it.',
                 style: TextStyle(
                   fontSize: 12,

@@ -302,9 +302,8 @@ class _ParallelRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final secondary = Text(
       text,
-      style: scriptureStyle(
-        context,
-      ).copyWith(fontSize: 16, height: 1.5, color: scheme.onSurfaceVariant),
+      style: scriptureStyle(context)
+          .copyWith(fontSize: 16, height: 1.5, color: scheme.onSurfaceVariant),
       semanticsLabel: '$otherLabel: $text',
     );
     return LayoutBuilder(

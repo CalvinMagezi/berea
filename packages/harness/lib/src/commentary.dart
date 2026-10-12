@@ -212,7 +212,7 @@ String commentaryPlainText(String markup) {
       .replaceAll(_blockTags, '\n')
       .replaceAll(_anyTag, '')
       .replaceAll(' []', '');
-  return _decodeEntities(text)
+  return decodeHtmlEntities(text)
       .replaceAll('\r', '')
       .replaceAll(_spaces, ' ')
       .replaceAll(_lineEdges, '\n')
@@ -225,7 +225,8 @@ const _surrogateFirst = 0xD800;
 const _surrogateLast = 0xDFFF;
 const _replacementCharacter = '�';
 
-String _decodeEntities(String s) => s
+/// Numeric entities and the named ones these sources use; invalid code points become U+FFFD.
+String decodeHtmlEntities(String s) => s
     .replaceAllMapped(_numericEntity, (m) {
       final v = m[1]!;
       final code = v.startsWith('x') ? int.tryParse(v.substring(1), radix: 16) : int.tryParse(v);

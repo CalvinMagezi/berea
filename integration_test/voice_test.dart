@@ -6,7 +6,7 @@
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
-import 'package:berea/attributions_screen.dart';
+import 'package:berea/licences.dart';
 import 'package:berea/commentary_packs.dart' show bytesPerMb;
 import 'package:berea/pinned_download.dart';
 import 'package:berea/voice_settings.dart';
