@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+Read along
+- Tap Listen in the Bible tab to hear the chapter with the current word marked and the page
+  following along, scrolling only when the verse being read leaves the screen (and without
+  animation when reduced motion is on). Play, pause, previous and next verse, speeds from 0.75x
+  to 2x, and tap a word or verse to jump there. While reading along a tap moves the voice rather
+  than selecting; stop to select again.
+- The narration is the Berean Standard Bible read by Bob Souer (CC0), one optional pack per book
+  from the `audio-1` release, checked against its published SHA-256, with word timings made by
+  Berea (CC0). John is the first book. Packs can also be added from a file and deleted under
+  Settings, Narration. A pack is checked before it replaces anything.
+- On Android and iPhone the narration has lock-screen and notification controls and keeps
+  playing with the screen locked.
+- Without a download, the device reads the chapter in any translation with its own offline voice,
+  labelled as the device voice.
+- Download progress for packs now reports a plain number to screen readers.
+
 ## 0.3.0
 
 Grounding

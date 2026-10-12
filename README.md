@@ -53,6 +53,12 @@ study page or highlight them. Long-press a verse for its Hebrew or Greek words w
 transliteration, gloss and lexicon entry. Import a translation you own (CSV, USFM, OSIS, Zefania
 or a zip); it stays on your device.
 
+**Read along.** Tap Listen in the Bible tab to hear the chapter with each word marked as it is
+read and the page following along. The narration is the Berean Standard Bible read by Bob Souer
+(public domain), downloaded once per book when you ask (John for now); without it your device
+reads the chapter with its own offline voice. Play, pause, step a verse, change the speed, or tap
+a word to jump there. On Android and iPhone the narration keeps playing with the screen locked.
+
 **Plans.** Bible in a year, New Testament in 90 days, the Gospels in 30, Psalms and Proverbs in
 60. Today's reading and a verse of the day sit on the Study tab.
 
@@ -162,6 +168,23 @@ checked by SHA-256 and kept on the device. All come from CrossWire SWORD modules
 | John Wesley (4 MB) | Wesley 1.1 | Public domain (1755-1765) |
 | Spurgeon, The Treasury of David (8 MB) | TDavid 2.1 | Public domain (1869-1885) |
 
+Optional narration packs, one per book, each downloaded only on request from the
+[`audio-1` release](https://github.com/CalvinMagezi/berea/releases/tag/audio-1), checked by
+SHA-256 and kept on the device. `tool/audio/README.md` (on the narration build branch) describes
+how they are made.
+
+| Pack (download) | Contents | Licence |
+|-----------------|----------|---------|
+| John (26 MB) | BSB narration by Bob Souer ([bereanbible.com/audio](https://bereanbible.com/audio/)), AAC-LC mono 24 kHz, one `.m4a` per chapter | CC0 1.0 |
+| | Word timings made by the Berea project (`[verse, word, startMs, endMs]` per word) | CC0 1.0 |
+
+The app checks a pack before it replaces anything: the format stamp, that it names a known
+narrator and book, that it has exactly that book's chapters, and that every chapter has MP4 audio
+and timings in order and inside the audio. The timings count the words of the BSB text, so in
+another translation the reader follows verse by verse. A player that ignores the MP4 edit list
+would hear 88 ms of encoder priming first; the app compares the duration the player reports with
+the pack's and adds the priming only then (AVPlayer on macOS honours it, measured offset 0).
+
 Not included: Robertson's Word Pictures and KingComments (non-commercial licences), anything
 from Bible Hub or StudyLight, and John Gill (the HelloAO copy is marked Public Domain but its
 provenance is undocumented, and it was not reachable when the packs were built). Patristic
@@ -233,6 +256,18 @@ Tests:
 cd packages/harness && dart test && cd ../.. && flutter test
 ```
 
+The read-along integration test plays John 3 on macOS and reports how far the highlight trails
+the player. It runs the app state on a temporary support folder with mocked preferences. A
+sandboxed debug build would still keep its files in the real app's container, so for this run
+only set `PRODUCT_BUNDLE_IDENTIFIER` in `macos/Runner/Configs/AppInfo.xcconfig` to a test id and
+`com.apple.security.app-sandbox` in `macos/Runner/DebugProfile.entitlements` to false, then revert
+both:
+
+```bash
+flutter test integration_test/read_along_test.dart -d macos \
+  --dart-define=NARRATION_PACK=/path/to/souer-43.sqlite
+```
+
 Release (builds the data, runs every check and the eval, builds Android and macOS, tags):
 
 ```bash
@@ -258,6 +293,10 @@ lib/
   commentary_packs.dart   optional commentary packs: pins, download, install, delete
   commentary_settings.dart, attributions_screen.dart  pack settings, licences and sources
   pinned_download.dart    streamed download checked against a published SHA-256
+  narration_packs.dart    optional narration packs: pins, download, install, delete
+  narration_settings.dart narration pack settings
+  read_along.dart         read-along player: narration via just_audio, device voice via flutter_tts
+  read_along_bar.dart     the player controls above the chapter bar
   study_page_screen.dart  observation, interpretation, application
   plans.dart, plans_screen.dart  reading plans
   notes_screen.dart    saved studies, study pages and notes
@@ -270,7 +309,8 @@ lib/
   study_store.dart     local SQLite for everything the user writes
   theme.dart           colour tokens, parchment and ink with a lamp-gold accent
 packages/harness/
-  lib/src/             RefParser, BibleDb, Retriever, PromptBuilder, CitationGuard, importers, engines
+  lib/src/             RefParser, BibleDb, Retriever, PromptBuilder, CitationGuard, importers, engines,
+                       narration pack and word timing checks
   bin/build_db.dart    builds assets/berea.sqlite from the datasets above
   bin/build_lexicon_pack.dart  builds the optional LSJ pack
   bin/build_commentary.dart  builds the optional commentary packs from SWORD modules
@@ -303,13 +343,19 @@ docs/screenshots/
 - **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time. Answers
   run on the CPU here too, so no GPU driver is needed.
 - A small method channel reports device memory so the settings can recommend a model.
+- Read along runs on Android, iOS and macOS. Android's `MainActivity` extends audio_service's
+  `AudioServiceActivity` so narration can play from a media notification, and iOS declares the
+  `audio` background mode. Linux and Windows hide Listen (see `TECHDEBT.md`).
 - Debug builds read `BEREA_AUTORUN` or `autorun.txt` in the app's documents folder and run that
   question on launch, so a headless simulator or emulator can exercise the on-device path.
 
 ## Privacy
 
 Berea makes no network request on its own. The model download goes to huggingface.co, and the
-optional lexicon and commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
+optional lexicon, commentary and narration packs to github.com, only when you tap Download. The
+lock-screen controls carry no artwork, so the media library never fetches any. The device voice
+is an offline one: on Android Berea picks an installed voice that needs no network, or says
+none is installed. The Ollama engine talks to the URL
 you configure, `localhost` by default. There is no telemetry, no account, and no cloud copy of
 anything you write. Backups are files you choose where to keep. Deleting the app deletes the
 data.
