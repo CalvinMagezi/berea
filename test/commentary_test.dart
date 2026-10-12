@@ -132,6 +132,20 @@ void main() {
     ]);
   });
 
+  test('a pack that unpacks past the size cap is refused and leaves nothing behind', () async {
+    const cap = 1024;
+    final shelf = CommentaryShelf(Directory('${dir.path}/capped'), () {}, maxPackBytes: cap);
+    final source = writePack(dir, 'wesley', [
+      ['Wesley', 40, 5, 3, 3, 'Happy are the poor in spirit.'],
+    ]);
+    final gz = File('$source.gz')..writeAsBytesSync(gzip.encode(File(source).readAsBytesSync()));
+    expect(gz.lengthSync(), lessThan(File(source).lengthSync()));
+
+    await expectLater(shelf.installFromFile(gz.path), throwsFormatException);
+    expect(shelf.isInstalled('wesley'), isFalse);
+    expect(Directory('${dir.path}/capped').listSync(), isEmpty);
+  });
+
   test('every catalog pack has a published pin', () {
     for (final spec in commentaryPackSpecs) {
       expect(commentaryPins[spec.id]?.sha256, matches(RegExp(r'^[0-9a-f]{64}$')), reason: spec.id);

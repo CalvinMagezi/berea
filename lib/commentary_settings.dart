@@ -62,17 +62,22 @@ class CommentarySettings extends StatelessWidget {
     if (progress != null) {
       action = SizedBox.square(
         dimension: 24,
-        child: CircularProgressIndicator(value: progress, strokeWidth: 3),
+        child: CircularProgressIndicator(
+          value: progress,
+          strokeWidth: 3,
+          semanticsLabel: 'Downloading ${spec.title}',
+          semanticsValue: '${(progress * 100).round()} percent',
+        ),
       );
     } else if (shelf.isInstalled(spec.id)) {
       action = IconButton(
-        tooltip: 'Delete',
+        tooltip: 'Delete ${spec.title}',
         icon: const Icon(Icons.delete_outline),
         onPressed: () => _delete(context, spec),
       );
     } else {
       action = IconButton(
-        tooltip: 'Download',
+        tooltip: 'Download ${spec.title}',
         icon: const Icon(Icons.download_outlined),
         onPressed: pin == null ? null : () => _download(spec),
       );

@@ -11,19 +11,16 @@ class CommentaryModule {
   final String licence;
   final String source;
 
-  /// Matthew Henry keys each comment to the first verse of a section; it covers the verses up
-  /// to the next comment.
+  /// Matthew Henry keys each comment to a section's first verse; it runs to the next comment.
   final bool sectionKeyed;
 
-  /// Calvin's module marks each comment with a section naming its verses, and keeps front
-  /// matter before the first one.
+  /// Calvin's sections name their verses, and his front matter comes before the first one.
   final bool annotateKeyed;
 
   /// Spurgeon keeps a whole psalm at its first verse, with paragraphs headed "Verse N."
   final bool verseParagraphs;
 
-  /// Keil and Delitzsch, Clarke and Barnes open each book at its first verse with the book's
-  /// preface, then start the verse's comment on a heading line ("Isa 1:1", "Verse 1").
+  /// KD, Clarke and Barnes put a book's preface before a heading such as "Isa 1:1" or "Verse 1".
   final bool introBeforeHeading;
   const CommentaryModule(
     this.id,
@@ -150,8 +147,7 @@ class CommentaryEntry {
   bool get isIntroduction => chapter == 0 || verseStart == 0;
 }
 
-/// Section-keyed entries run to the verse before the next entry in their chapter, or to the
-/// chapter's end. Introductions and entries that already span verses are left alone.
+/// Runs each single-verse comment to the verse before the next one in its chapter, or to its end.
 List<CommentaryEntry> expandSectionStarts(
   List<CommentaryEntry> entries,
   int Function(int book, int chapter) versesIn,
@@ -207,9 +203,7 @@ const _entities = {
   'hellip': '\u2026',
 };
 
-/// Plain display text from OSIS or ThML: paragraphs and line breaks kept as newlines, notes
-/// kept in square brackets, every other tag dropped, and entities decoded. Nothing that could
-/// be rendered as markup survives, so the app can show it as a plain string.
+/// Plain display text from OSIS or ThML: line breaks kept, notes bracketed, other markup gone.
 String commentaryPlainText(String markup) {
   final text = markup
       .replaceAllMapped(_notes, (m) => ' [${m[1]!.replaceAll(_anyTag, '').trim()}]')
@@ -226,16 +220,25 @@ String commentaryPlainText(String markup) {
       .trim();
 }
 
+const _maxCodePoint = 0x10FFFF;
+const _surrogateFirst = 0xD800;
+const _surrogateLast = 0xDFFF;
+const _replacementCharacter = '�';
+
 String _decodeEntities(String s) => s
     .replaceAllMapped(_numericEntity, (m) {
       final v = m[1]!;
       final code = v.startsWith('x') ? int.tryParse(v.substring(1), radix: 16) : int.tryParse(v);
-      return code == null ? m[0]! : String.fromCharCode(code);
+      if (code == null) return m[0]!;
+      final valid = code > 0 && code <= _maxCodePoint;
+      final surrogate = code >= _surrogateFirst && code <= _surrogateLast;
+      return valid && !surrogate ? String.fromCharCode(code) : _replacementCharacter;
     })
     .replaceAllMapped(_namedEntity, (m) => _entities[m[1]] ?? m[0]!);
 
-/// The installed commentary packs, each its own read-only SQLite file, so a pack can be added
-/// or deleted without touching the Bible database.
+const _packTables = {'entries', 'modules', 'meta'};
+
+/// The installed packs, each its own read-only SQLite file apart from the Bible database.
 class CommentaryLibrary {
   final _packs = <String, Database>{};
 
@@ -243,29 +246,40 @@ class CommentaryLibrary {
 
   bool get isEmpty => _packs.isEmpty;
 
-  /// Opens the pack at [path] under [id]. Returns false when the file is missing or is not a
-  /// pack this version can read; nothing is kept open in that case.
+  /// Opens the pack at [path] as [id]; false, leaving nothing open, unless it is a readable pack.
   bool open(String id, String path) {
     if (_packs.containsKey(id)) return true;
     if (!File(path).existsSync()) return false;
     Database? db;
     try {
       db = sqlite3.open(path, mode: OpenMode.readOnly);
-      final format = db.select("SELECT value FROM meta WHERE key = 'format'");
-      if (format.isEmpty || format.first['value'] != commentaryPackFormat) {
+      // A picked file is untrusted: no functions from its schema run, and its tables must be real.
+      db.execute('PRAGMA trusted_schema = OFF');
+      if (!_isPack(db)) {
         db.dispose();
         return false;
       }
-      db.select(
-        'SELECT module, book, chapter, verse_start, verse_end, html_or_text FROM entries LIMIT 1',
-      );
-      db.select('SELECT id, title, author, licence, source, position FROM modules LIMIT 1');
       _packs[id] = db;
       return true;
     } on SqliteException {
       db?.dispose();
       return false;
     }
+  }
+
+  static bool _isPack(Database db) {
+    final tables = {
+      for (final r in db.select("SELECT name FROM sqlite_master WHERE type = 'table'"))
+        r['name'] as String?,
+    };
+    if (!tables.containsAll(_packTables)) return false;
+    final format = db.select("SELECT value FROM meta WHERE key = 'format'");
+    if (format.isEmpty || format.first['value'] != commentaryPackFormat) return false;
+    db.select(
+      'SELECT module, book, chapter, verse_start, verse_end, html_or_text FROM entries LIMIT 1',
+    );
+    db.select('SELECT id, title, author, licence, source, position FROM modules LIMIT 1');
+    return true;
   }
 
   /// The id a valid pack at [path] declares, or null when it is not a pack this version reads.
@@ -275,6 +289,8 @@ class CommentaryLibrary {
     try {
       final rows = probe._packs['probe']!.select("SELECT value FROM meta WHERE key = 'pack'");
       return rows.isEmpty ? null : rows.first['value'] as String?;
+    } on SqliteException {
+      return null;
     } finally {
       probe.closeAll();
     }
@@ -289,28 +305,35 @@ class CommentaryLibrary {
     _packs.clear();
   }
 
-  /// Modules across the installed packs, in catalog order.
+  /// Modules across the installed packs, in catalog order; a pack that cannot be read is skipped.
   List<CommentaryModule> modules() {
     final out = <CommentaryModule>[];
     for (final db in _packs.values) {
-      for (final r in db.select('SELECT * FROM modules ORDER BY position')) {
-        out.add(
-          CommentaryModule(
-            r['id'] as String,
-            r['title'] as String,
-            r['author'] as String,
-            licence: r['licence'] as String,
-            source: r['source'] as String,
-          ),
-        );
+      try {
+        for (final r in db.select('SELECT * FROM modules ORDER BY position')) {
+          if (_moduleOf(r) case final m?) out.add(m);
+        }
+      } on SqliteException {
+        continue;
       }
     }
     out.sort((a, b) => _order(a.id).compareTo(_order(b.id)));
     return out;
   }
 
-  /// Comments that touch verses [first] to [last] of a chapter, grouped by module in catalog
-  /// order.
+  static CommentaryModule? _moduleOf(Row r) => switch (r) {
+    {
+      'id': final String id,
+      'title': final String title,
+      'author': final String author,
+      'licence': final String licence,
+      'source': final String source,
+    } =>
+      CommentaryModule(id, title, author, licence: licence, source: source),
+    _ => null,
+  };
+
+  /// Comments that touch verses [first] to [last] of a chapter, grouped by module in catalog order.
   List<CommentaryEntry> forRange(int book, int chapter, int first, int last) => _query(
     'WHERE book = ? AND chapter = ? AND verse_start > 0 AND verse_start <= ? AND verse_end >= ? '
     'ORDER BY verse_start, id',
@@ -324,24 +347,18 @@ class CommentaryLibrary {
     [book, chapter],
   );
 
+  /// Rows from every pack; a pack that cannot be read, or a malformed row, is skipped.
   List<CommentaryEntry> _query(String where, List<Object> args) {
     final out = <CommentaryEntry>[];
     for (final db in _packs.values) {
-      final rows = db.select(
-        'SELECT module, book, chapter, verse_start, verse_end, html_or_text FROM entries $where',
-        args,
-      );
-      for (final r in rows) {
-        out.add(
-          CommentaryEntry(
-            r['module'] as String,
-            r['book'] as int,
-            r['chapter'] as int,
-            r['verse_start'] as int,
-            r['verse_end'] as int,
-            r['html_or_text'] as String,
-          ),
+      try {
+        final rows = db.select(
+          'SELECT module, book, chapter, verse_start, verse_end, html_or_text FROM entries $where',
+          args,
         );
+        out.addAll(rows.map(_entryOf).nonNulls);
+      } on SqliteException {
+        continue;
       }
     }
     // Ties keep query order, so each module keeps its own verse order.
@@ -352,6 +369,19 @@ class CommentaryLibrary {
     });
     return [for (final e in indexed) e.$2];
   }
+
+  static CommentaryEntry? _entryOf(Row r) => switch (r) {
+    {
+      'module': final String module,
+      'book': final int book,
+      'chapter': final int chapter,
+      'verse_start': final int start,
+      'verse_end': final int end,
+      'html_or_text': final String text,
+    } =>
+      CommentaryEntry(module, book, chapter, start, end, text),
+    _ => null,
+  };
 
   static int _order(String module) {
     final i = commentaryModules.indexWhere((m) => m.id == module);

@@ -154,7 +154,7 @@ checked by SHA-256 and kept on the device. All come from CrossWire SWORD modules
 | | The Treasury of Scripture Knowledge (TSK 1.4) | Public domain (Torrey, 1880s) |
 | | Catena Aurea on the Gospels (Catena 1.0.1) | Public domain (Aquinas, tr. Newman 1842); OSIS by Tom Lemmens, [lemtom/catena](https://github.com/lemtom/catena), CC0 |
 | Matthew Henry, complete (24 MB) | MHC 2.2 | Public domain |
-| Adam Clarke (14 MB) | Clarke 2.0 | Public domain (1810-1826) |
+| Adam Clarke (15 MB) | Clarke 2.0 | Public domain (1810-1826) |
 | John Calvin (25 MB) | CalvinCommentaries 1.1 | Public domain (Calvin Translation Society, 1844-1856) |
 | Keil and Delitzsch, OT (17 MB) | KD 2.0 | Public domain (English translation 1866-1891) |
 | Albert Barnes, NT (10 MB) | Barnes 1.1 | Public domain (1832-1851) |
@@ -177,7 +177,9 @@ the optional lexicon pack, which is published with each release. None of these a
 `manifest.json` of sizes, entry counts and SHA-256 pins. It reads the SWORD zCom files with a
 small pure Dart reader (`lib/src/sword.dart`); libsword and pysword (both GPL) are not used at
 build time or linked into the app. It needs `assets/berea.sqlite` for KJV versification, which
-is what every SWORD module here is keyed to. Each pack is SQLite with
+is what every SWORD module here is keyed to. Each CrossWire module zip is pinned by SHA-256, so a
+republished module stops the build until it is reviewed, and a module whose `.conf` is not
+Public Domain, KJV-keyed zCom is refused. Each pack is SQLite with
 `entries(module, book, chapter, verse_start, verse_end, html_or_text)` holding plain display
 text, an FTS5 index (porter unicode61), the module's attribution and a format stamp; the same
 sources always give the same bytes. Book and chapter introductions are stored with chapter 0 or

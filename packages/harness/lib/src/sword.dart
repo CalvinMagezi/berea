@@ -1,5 +1,4 @@
-// Build-time reader for CrossWire SWORD zCom and zCom4 commentary modules. Pure Dart, so the
-// app never links libsword (GPL).
+// Build-time reader for SWORD zCom commentaries, in pure Dart so libsword (GPL) is never used.
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -13,8 +12,7 @@ const ntBookCount = 27;
 /// Verse counts per chapter, per book, in canonical order (Genesis first).
 typedef Versification = List<List<int>>;
 
-/// One verse-index slot of a SWORD testament: a book intro (chapter 0), a chapter intro
-/// (verse 0) or a verse.
+/// One SWORD index slot: a book intro (chapter 0), a chapter intro (verse 0) or a verse.
 class SwordKey {
   final int book;
   final int chapter;
@@ -32,9 +30,7 @@ class SwordKey {
   String toString() => '$book $chapter:$verse';
 }
 
-/// The keys of one testament in index order, mirroring SWORD's VersificationMgr: slot 0 is the
-/// module heading, slot 1 the testament heading, then each book's heading, and each chapter's
-/// heading followed by its verses. Book ids are canonical (Matthew is 40).
+/// A testament's keys in SWORD index order: two headings, then each book, chapter and verse.
 List<SwordKey?> testamentSlots(Versification v11n, {required bool newTestament}) {
   final first = newTestament ? otBookCount : 0;
   final count = newTestament ? ntBookCount : otBookCount;
@@ -64,10 +60,10 @@ const _blockIndexEntryBytes = 12;
 const _zComVerseEntryBytes = 10;
 const _zCom4VerseEntryBytes = 12;
 
-/// Reads every non-empty slot of a module's testament. [prefix] is the data path plus `ot` or
-/// `nt`; [blockLetter] is `b`, `c` or `v` from the module's BlockType. Verses that link to the
-/// same text as the verse before them in the same chapter are folded into that entry's
-/// [SwordEntry.lastVerse]; a link anywhere else repeats text already read and is dropped.
+/// Where a slot's text lives: block number, offset in the unpacked block, and size.
+typedef _Pointer = (int, int, int);
+
+/// The kept slots of the testament at [prefix] (data path plus ot or nt), links folded to ranges.
 List<SwordEntry> readTestament(
   String prefix,
   String blockLetter,
@@ -77,8 +73,6 @@ List<SwordEntry> readTestament(
   final idx = File('$prefix.${blockLetter}zv');
   if (!idx.existsSync()) return const [];
   final verseIndex = ByteData.sublistView(idx.readAsBytesSync());
-  final blockIndex = ByteData.sublistView(File('$prefix.${blockLetter}zs').readAsBytesSync());
-  final data = File('$prefix.${blockLetter}zz').readAsBytesSync();
   final width = zCom4 ? _zCom4VerseEntryBytes : _zComVerseEntryBytes;
   if (verseIndex.lengthInBytes != slots.length * width) {
     throw FormatException(
@@ -86,56 +80,85 @@ List<SwordEntry> readTestament(
       'The module does not use KJV versification.',
     );
   }
+  final textAt = _textReader(
+    ByteData.sublistView(File('$prefix.${blockLetter}zs').readAsBytesSync()),
+    File('$prefix.${blockLetter}zz').readAsBytesSync(),
+  );
+  _Pointer pointerAt(int i) {
+    final at = i * width;
+    final size = zCom4
+        ? verseIndex.getUint32(at + 8, Endian.little)
+        : verseIndex.getUint16(at + 8, Endian.little);
+    return (
+      verseIndex.getUint32(at, Endian.little),
+      verseIndex.getUint32(at + 4, Endian.little),
+      size,
+    );
+  }
+
+  return _foldLinks(slots, pointerAt, textAt);
+}
+
+/// Decodes a slot's text, unpacking each zlib block once.
+String Function(_Pointer) _textReader(ByteData blockIndex, Uint8List data) {
   final blocks = <int, Uint8List>{};
-  Uint8List block(int n) => blocks.putIfAbsent(n, () {
+  Uint8List unpack(int n) {
     final at = n * _blockIndexEntryBytes;
     final offset = blockIndex.getUint32(at, Endian.little);
     final size = blockIndex.getUint32(at + 4, Endian.little);
     return Uint8List.fromList(zlib.decode(data.sublist(offset, offset + size)));
-  });
+  }
 
+  return (p) {
+    final (b, o, size) = p;
+    return _utf8OrLatin1(blocks.putIfAbsent(b, () => unpack(b)).sublist(o, o + size));
+  };
+}
+
+/// Keeps each slot's text once; a link only extends an unbroken run of verses in one chapter.
+List<SwordEntry> _foldLinks(
+  List<SwordKey?> slots,
+  _Pointer Function(int) pointerAt,
+  String Function(_Pointer) textAt,
+) {
   final out = <SwordEntry>[];
   // The slot just before (null after an empty one), and the record behind the last entry kept.
-  (int, int, int)? previous;
-  (int, int, int)? kept;
+  _Pointer? previous;
+  _Pointer? kept;
   for (var i = 0; i < slots.length; i++) {
     final key = slots[i];
-    final at = i * width;
-    final b = verseIndex.getUint32(at, Endian.little);
-    final o = verseIndex.getUint32(at + 4, Endian.little);
-    final size = zCom4
-        ? verseIndex.getUint32(at + 8, Endian.little)
-        : verseIndex.getUint16(at + 8, Endian.little);
-    final pointer = (b, o, size);
+    final pointer = pointerAt(i);
     final contiguous = pointer == previous;
-    previous = key == null || size == 0 ? null : pointer;
+    previous = key == null || pointer.$3 == 0 ? null : pointer;
     if (key == null || previous == null) continue;
     if (pointer == kept) {
-      // Older modules also point verses with no note of their own at the last note, even
-      // across a chapter; only an unbroken run within one chapter's verses is a real range.
-      final last = out.last.key;
-      final sameRun = last.book == key.book && last.chapter == key.chapter;
-      if (contiguous && sameRun && last.verse > 0 && key.verse > 0) {
-        final run = out.removeLast();
-        out.add(SwordEntry(run.key, key.verse, run.text));
-      }
+      if (contiguous) _extendRun(out, key);
       continue;
     }
-    final text = _utf8OrLatin1(block(b).sublist(o, o + size));
+    final text = textAt(pointer);
+    // A blank record is never kept, so nothing may be linked through it.
     if (text.trim().isEmpty) {
-      // A blank record is never kept, so nothing may be linked through it.
       previous = null;
       continue;
     }
     kept = pointer;
-    // Some modules also store a copy of a chapter's last note again under the next chapter.
-    final last = out.lastOrNull;
-    final sameChapter =
-        last != null && last.key.book == key.book && last.key.chapter == key.chapter;
-    if (last != null && text == last.text && !sameChapter) continue;
-    out.add(SwordEntry(key, key.verse, text));
+    if (!_copiesLastChapter(out.lastOrNull, key, text)) out.add(SwordEntry(key, key.verse, text));
   }
   return out;
+}
+
+/// Older modules point note-less verses at the last note; only same-chapter verses extend it.
+void _extendRun(List<SwordEntry> out, SwordKey key) {
+  final run = out.last;
+  final sameChapter = run.key.book == key.book && run.key.chapter == key.chapter;
+  if (!sameChapter || run.key.verse == 0 || key.verse == 0) return;
+  out[out.length - 1] = SwordEntry(run.key, key.verse, run.text);
+}
+
+/// Some modules store a copy of a chapter's last note again under the next chapter.
+bool _copiesLastChapter(SwordEntry? last, SwordKey key, String text) {
+  if (last == null || text != last.text) return false;
+  return last.key.book != key.book || last.key.chapter != key.chapter;
 }
 
 /// Older ThML modules are Latin-1; newer OSIS ones UTF-8.
@@ -147,10 +170,12 @@ String _utf8OrLatin1(List<int> bytes) {
   }
 }
 
-/// Key and value pairs of a SWORD `.conf` file. Repeated keys keep the first value, and
-/// continuation lines ending in a backslash are joined.
-Map<String, String> parseSwordConf(String raw) {
-  final out = <String, String>{};
+/// A SWORD `.conf` as every value of each key; keys such as GlobalOptionFilter repeat.
+typedef SwordConf = Map<String, List<String>>;
+
+/// Parses a SWORD `.conf`, joining continuation lines that end in a backslash.
+SwordConf parseSwordConf(String raw) {
+  final out = <String, List<String>>{};
   String? pending;
   for (final line in raw.split(RegExp(r'\r?\n'))) {
     final joined = pending == null ? line : '$pending\n$line';
@@ -161,13 +186,54 @@ Map<String, String> parseSwordConf(String raw) {
     pending = null;
     final eq = joined.indexOf('=');
     if (joined.startsWith('#') || joined.startsWith('[') || eq <= 0) continue;
-    out.putIfAbsent(joined.substring(0, eq).trim(), () => joined.substring(eq + 1).trim());
+    out.putIfAbsent(joined.substring(0, eq).trim(), () => []).add(joined.substring(eq + 1).trim());
   }
   return out;
 }
 
+const _publicDomain = 'Public Domain';
+const _kjv = 'KJV';
+const _blockLetters = {'BOOK': 'b', 'CHAPTER': 'c', 'VERSE': 'v'};
+
+/// SWORD's default when a conf has no BlockType.
+const _defaultBlockType = 'CHAPTER';
+
+/// How to read a module; throws [FormatException] unless public domain, KJV-keyed zCom or zCom4.
+({String dataPath, String blockLetter, bool zCom4, String version}) checkModuleConf(
+  String module,
+  SwordConf conf,
+) {
+  String? only(String key) {
+    final values = conf[key] ?? const [];
+    if (values.toSet().length > 1) throw FormatException('$module has conflicting $key values');
+    return values.firstOrNull;
+  }
+
+  final licence = only('DistributionLicense');
+  if (licence != _publicDomain) throw FormatException('$module is "$licence", not $_publicDomain');
+  final v11n = only('Versification') ?? _kjv;
+  if (v11n != _kjv) throw FormatException('$module uses $v11n versification, not $_kjv');
+  final driver = only('ModDrv')?.toLowerCase();
+  if (driver != 'zcom' && driver != 'zcom4') {
+    throw FormatException('$module uses $driver, not zCom');
+  }
+  final letter = _blockLetters[(only('BlockType') ?? _defaultBlockType).toUpperCase()];
+  if (letter == null) throw FormatException('$module has an unknown BlockType');
+  final path = only('DataPath')?.replaceFirst(RegExp(r'^\./'), '');
+  if (path == null || path.split('/').contains('..')) {
+    throw FormatException('$module has no usable DataPath');
+  }
+  return (
+    dataPath: path,
+    blockLetter: letter,
+    zCom4: driver == 'zcom4',
+    version: only('Version') ?? '',
+  );
+}
+
 final _preverse = RegExp(
-  r'<div\b[^>]*x-preverse[^>]*\bsID="([^"]+)"[^>]*/>(.*?)<div\b[^>]*x-preverse[^>]*\beID="\1"[^>]*/>',
+  r'<div\b[^>]*x-preverse[^>]*\bsID="([^"]+)"[^>]*/>(.*?)'
+  r'<div\b[^>]*x-preverse[^>]*\beID="\1"[^>]*/>',
   dotAll: true,
 );
 
@@ -178,8 +244,7 @@ final _chapterVerse = RegExp(r'\.(\d+)\.(\d+)');
 /// "Verses 3-5", "Ver. 3-6." or a bare "3-6." at the start of a comment.
 final _rangeHeading = RegExp(r'^(?:Verses?\s+|Ver\.?\s*)?(\d+)\s*[-\u2013]\s*(\d+)\b');
 
-/// Converted rows of one module with counts for the build report: range headings that
-/// disagree with SWORD's links, and links cut back to the verses a comment names.
+/// One module's rows, with counts for the build report.
 class ConvertedModule {
   final List<CommentaryEntry> entries;
   final int headingDisagreements;
@@ -187,13 +252,7 @@ class ConvertedModule {
   const ConvertedModule(this.entries, this.headingDisagreements, this.clampedLinks);
 }
 
-/// Turns raw SWORD slots into display rows.
-///
-/// Front matter stored before the first verse of a chapter (book introductions, chapter
-/// outlines, Calvin's title pages and prefaces) becomes that chapter's introduction (verse 0)
-/// instead of the verse's comment. A comment that names its own range in a heading gets that
-/// range when SWORD did not link the verses. Section-keyed modules then run each single-verse
-/// comment to the next one.
+/// Display rows from raw slots: front matter becomes introductions, each comment gets its verses.
 ConvertedModule convertSwordEntries(
   CommentaryModule module,
   List<SwordEntry> raw,
@@ -226,8 +285,7 @@ ConvertedModule convertSwordEntries(
   return ConvertedModule(entries, disagreements, clamped);
 }
 
-/// The last verse a comment covers: SWORD's link, cut back to the verses Calvin's sections
-/// name, or widened to a range heading when SWORD did not link the verses.
+/// A comment's last verse: SWORD's link, cut to Calvin's named verses, or widened by a heading.
 ({int end, bool clamped, bool disagrees}) _range(
   CommentaryModule module,
   SwordEntry e,
@@ -253,8 +311,7 @@ ConvertedModule convertSwordEntries(
   return (end: end, clamped: clamped, disagrees: valid && end != headed);
 }
 
-/// The text before a line headed with the chapter's first verse ("Isa 1:1", "1Ch 1:1-4",
-/// "Verse 1"), and the comment from that line on.
+/// Splits a first verse at its heading line ("Isa 1:1", "Verse 1") into preface and comment.
 (String, String) _splitAtVerseHeading(String text, int chapter) {
   final heading = RegExp(
     '^(?:[1-3]?[A-Z][a-z]{1,3} $chapter:1|Verses? 1)(?:[-\\u2013]\\d+)?\\b',
@@ -269,10 +326,7 @@ final _verseParagraph = RegExp(r'^Verses? (\d+)(?:\s*[-\u2013]\s*(\d+))?\b');
 final _sectionHeading = RegExp(r"^[A-Z][A-Z ,'.]{2,60}$");
 const _wholePsalm = 'Whole Psalm';
 
-/// Spurgeon's Treasury of David holds a whole psalm at verse 1, in sections (EXPOSITION,
-/// EXPLANATORY NOTES AND QUAINT SAYINGS, HINTS TO THE VILLAGE PREACHER) whose paragraphs open
-/// with "Verse 4." Each run of paragraphs on the same verses becomes its own row, headed with
-/// its section; paragraphs on no verse in particular become the psalm's introduction.
+/// Splits Spurgeon's whole-psalm entry into rows per section and "Verse N." run; the rest is intro.
 List<CommentaryEntry> _splitVerseParagraphs(
   String module,
   SwordKey k,
@@ -314,9 +368,7 @@ List<CommentaryEntry> _splitVerseParagraphs(
   return out;
 }
 
-/// The plain-text introduction held at the first verse of a chapter, and the markup left for
-/// the verse itself. Calvin's module has no preverse markers: everything before its first
-/// verse section is front matter, and a first verse with no verse section is all front matter.
+/// A first verse's front matter as plain text, and the markup left for the verse itself.
 (String, String) _splitFrontMatter(CommentaryModule module, SwordEntry e) {
   if (e.key.verse != 1) return ('', e.text);
   final preverse = _preverse.firstMatch(e.text);

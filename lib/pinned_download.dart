@@ -17,6 +17,7 @@ Future<void> downloadPinned(
   final client = http.Client();
   final sink = dest.openWrite();
   final hash = Sha256().newHashSink();
+  Object? failure;
   try {
     final r = await client.send(http.Request('GET', url)).timeout(timeout);
     if (r.statusCode != 200) throw HttpException('The download failed (HTTP ${r.statusCode}).');
@@ -34,9 +35,17 @@ Future<void> downloadPinned(
     if (hexOf((await hash.hash()).bytes) != sha256) {
       throw const FormatException('The download does not match the published file.');
     }
+  } catch (e) {
+    failure = e;
+    rethrow;
   } finally {
-    await sink.close();
     client.close();
+    try {
+      await sink.close();
+    } on FileSystemException {
+      // A failed close must not hide the error that stopped the download.
+      if (failure == null) rethrow;
+    }
   }
 }
 

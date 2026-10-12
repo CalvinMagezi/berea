@@ -308,6 +308,53 @@ void main() {
     );
   });
 
+  group('checkModuleConf', () {
+    SwordConf conf({
+      String? licence = 'Public Domain',
+      String driver = 'zCom',
+      String block = 'BOOK',
+      String path = './modules/comments/zcom/mod/',
+      String extra = '',
+    }) => parseSwordConf(
+      '[Mod]\nDataPath=$path\nModDrv=$driver\nBlockType=$block\nVersion=1.2\n'
+      '${licence == null ? '' : 'DistributionLicense=$licence\n'}$extra',
+    );
+
+    test('reads a public domain KJV zCom module', () {
+      final c = checkModuleConf('Mod', conf());
+      expect(c.dataPath, 'modules/comments/zcom/mod/');
+      expect(c.blockLetter, 'b');
+      expect(c.zCom4, isFalse);
+      expect(c.version, '1.2');
+      expect(checkModuleConf('Mod', conf(driver: 'zCom4')).zCom4, isTrue);
+    });
+
+    test('refuses a licence that is not public domain, a missing one, or two licences', () {
+      for (final c in [
+        conf(licence: 'Copyrighted; Free non-commercial distribution'),
+        conf(licence: null),
+        conf(extra: 'DistributionLicense=GPL\n'),
+      ]) {
+        expect(() => checkModuleConf('Mod', c), throwsFormatException);
+      }
+    });
+
+    test('refuses other versifications, drivers, block types and an escaping data path', () {
+      for (final c in [
+        conf(extra: 'Versification=NRSV\n'),
+        conf(driver: 'RawCom4'),
+        conf(block: 'SECTION'),
+        conf(path: './../../etc/'),
+      ]) {
+        expect(() => checkModuleConf('Mod', c), throwsFormatException);
+      }
+    });
+  });
+
+  test('plain text replaces numeric entities that are not characters', () {
+    expect(commentaryPlainText('a&#1114112;b&#xD800;c&#0;d'), 'a\uFFFDb\uFFFDc\uFFFDd');
+  });
+
   test('plain text keeps paragraphs and notes and drops every tag', () {
     const markup =
         '<p>Grace &amp; peace&#8212;<hi type="italic">to you</hi>.</p>'
@@ -394,6 +441,33 @@ void main() {
       final db = sqlite3.open(path)..execute("INSERT INTO meta VALUES ('pack', 'wesley')");
       db.dispose();
       expect(CommentaryLibrary.packIdOf(path), 'wesley');
+    });
+    test('refuses a pack whose tables are views, and skips rows with missing values', () {
+      final viewPath = pack('view', const []);
+      final v = sqlite3.open(viewPath)
+        ..execute('DROP TABLE modules')
+        ..execute(
+          'CREATE VIEW modules(id, title, author, licence, source, position) AS '
+          "SELECT 'X', 'X', 'X', 'X', 'X', 0",
+        );
+      v.dispose();
+      final lib = CommentaryLibrary();
+      expect(lib.open('view', viewPath), isFalse);
+
+      final nullPath = pack('nulls', [
+        ['MHCC', 43, 3, 16, 16, 'Kept'],
+      ]);
+      final n = sqlite3.open(nullPath)
+        ..execute(
+          'INSERT INTO entries(module, book, chapter, verse_start, verse_end, html_or_text) '
+          "VALUES ('MHCC', 43, 3, 16, 16, NULL)",
+        )
+        ..execute("INSERT INTO modules VALUES ('Odd', 'Odd', 'Author', NULL, 'test', 1)");
+      n.dispose();
+      expect(lib.open('core', nullPath), isTrue);
+      expect([for (final e in lib.forRange(43, 3, 16, 16)) e.text], ['Kept']);
+      expect([for (final m in lib.modules()) m.id], ['MHCC']);
+      lib.closeAll();
     });
   });
 }

@@ -67,7 +67,7 @@ class CommentaryPanel extends StatelessWidget {
                     'No commentaries are installed. They are optional: open Settings and '
                     'download them under Commentaries.',
                   )
-                else if (entries.isEmpty && intros.isEmpty)
+                else if (entries.isEmpty)
                   _Muted('The installed commentaries have nothing on this passage.'),
                 for (final e in byModule.entries)
                   _ModuleComments(module: modules[e.key], moduleId: e.key, entries: e.value),

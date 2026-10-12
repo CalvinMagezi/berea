@@ -36,11 +36,17 @@ const commentaryPins = <String, PackPin>{
 const maxCommentaryPackBytes = 160 * bytesPerMb;
 const commentaryDownloadTimeout = Duration(minutes: 10);
 
+/// Progress is reported in whole percents, so a download redraws the app at most this often.
+const _progressSteps = 100;
+
 /// The installed commentary packs, one SQLite file each under the app's support folder.
 /// Downloads happen only when the user asks.
 class CommentaryShelf {
   final Directory dir;
   final void Function() onChange;
+
+  /// Unpacked size cap for any pack this shelf installs.
+  final int maxPackBytes;
   final library = CommentaryLibrary();
 
   /// Download progress from 0 to 1 for packs being fetched.
@@ -49,7 +55,7 @@ class CommentaryShelf {
   /// Numbers each install's temporary file, so two installs at once never share one.
   var _installs = 0;
 
-  CommentaryShelf(this.dir, this.onChange) {
+  CommentaryShelf(this.dir, this.onChange, {this.maxPackBytes = maxCommentaryPackBytes}) {
     dir.createSync(recursive: true);
     // A download or install cut short by the app closing leaves only temporary files behind.
     for (final f in dir.listSync().whereType<File>()) {
@@ -70,6 +76,7 @@ class CommentaryShelf {
     final gz = File('${_path(spec)}.gz.part');
     progress[spec.id] = 0;
     onChange();
+    var shownStep = 0;
     try {
       await downloadPinned(
         Uri.parse('$commentaryReleaseUrl/${spec.fileName}.gz'),
@@ -79,6 +86,9 @@ class CommentaryShelf {
         timeout: commentaryDownloadTimeout,
         onProgress: (f) {
           progress[spec.id] = f;
+          final step = (f * _progressSteps).floor();
+          if (step == shownStep) return;
+          shownStep = step;
           onChange();
         },
       );
@@ -102,7 +112,9 @@ class CommentaryShelf {
     final tmp = File('${dir.path}/incoming-${_installs++}.sqlite.part');
     CommentaryPackSpec? spec;
     try {
-      await Isolate.run(() => _unpack(source.path, tmp.path, maxCommentaryPackBytes));
+      // Locals only: a closure that touched `this` would try to send the open databases.
+      final (from, to, cap) = (source.path, tmp.path, maxPackBytes);
+      await Isolate.run(() => _unpack(from, to, cap));
       final id = CommentaryLibrary.packIdOf(tmp.path);
       spec = commentaryPackSpecs.where((s) => s.id == id).firstOrNull;
       if (spec == null || (expectedId != null && spec.id != expectedId)) {
