@@ -2,11 +2,12 @@
 // Usage: dart run bin/build_db.dart [--out ../../assets/berea.sqlite] [--cache .cache]
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:berea_harness/src/books.dart';
 import 'package:berea_harness/src/csv.dart';
 import 'package:berea_harness/src/importers.dart';
-import 'package:crypto/crypto.dart';
+import 'package:berea_harness/src/source_checks.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 
@@ -15,13 +16,11 @@ const _scrollmapper =
 const _bsb = 'https://bereanbible.com/bsb.txt';
 // Bump only after reading the diff report for the new text; the narrated audio follows it.
 const _bsbSha256 = '2ac3af1de52d4e68261cba91d85c320b7eadc6560e830d99e591767b8ff5ca96';
-const bsbVerseCount = 31102;
 // The scrollmapper revision Berea shipped before the official text, kept for the diff report.
 const _oldBsbCommit = 'e1b254cef86d0e65b1a5d1a94b8b112d0f296a2c';
 const _oldBsb =
     'https://raw.githubusercontent.com/scrollmapper/bible_databases/$_oldBsbCommit/formats/csv/BSB.csv';
 const _oldBsbSha256 = 'bdedd6c2de31b1c729a5952a2cdc383b1f1396d1e9941d0b2cda2b997e22a8fb';
-const _diffSamples = 20;
 // Differences reported upstream before this import; always listed so a reviewer can check them.
 const _watchedVerses = [
   'Genesis 1:21',
@@ -61,46 +60,49 @@ Future<void> main(List<String> args) async {
     if (args[i] == '--cache') cache = args[i + 1];
   }
   Directory(cache).createSync(recursive: true);
-  final bsb = parseBsbText(await _fetch(_bsb, '$cache/bsb.txt', sha256: _bsbSha256));
-  _checkBsb(bsb);
-  final oldBsb = parseCsvBible(
-    await _fetch(
-      _oldBsb,
-      '$cache/BSB-scrollmapper-${_oldBsbCommit.substring(0, 7)}.csv',
-      sha256: _oldBsbSha256,
-    ),
-  );
-  File('$cache/bsb-diff.md').writeAsStringSync(bsbDiffReport(oldBsb, bsb));
-  stdout.writeln('BSB diff report: $cache/bsb-diff.md');
+  final bsb = parseBsbText(await _fetch(_bsb, '$cache/bsb.txt', pin: _bsbSha256));
+  checkVerseCount(bsb);
+  await _writeDiffReport(bsb, cache);
   Directory(File(out).parent.path).createSync(recursive: true);
+
   // Built aside and renamed at the end, so any failure leaves the last good database in place.
-  final tmp = '$out.tmp';
-  if (File(tmp).existsSync()) File(tmp).deleteSync();
+  final tmp = File('$out.tmp');
+  if (tmp.existsSync()) tmp.deleteSync();
+  try {
+    final db = sqlite3.open(tmp.path);
+    final String built;
+    try {
+      _createSchema(db);
+      await _loadData(db, bsb, cache);
+      built = _writeMeta(db);
+    } finally {
+      db.dispose();
+    }
+    _publish(tmp, out, built);
+  } finally {
+    if (tmp.existsSync()) tmp.deleteSync();
+  }
+}
 
-  final db = sqlite3.open(tmp);
-  db.execute('''
-    PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;
-    CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, chapter INTEGER, verse INTEGER, text TEXT);
-    CREATE VIRTUAL TABLE verses_fts USING fts5(text, content='verses', content_rowid='id', tokenize='porter unicode61');
-    CREATE TABLE words(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, original TEXT, translit TEXT, gloss TEXT, strongs TEXT, morph TEXT, PRIMARY KEY(book, chapter, verse, pos)) WITHOUT ROWID;
-    CREATE TABLE lexicon(key TEXT PRIMARY KEY, base TEXT, lemma TEXT, translit TEXT, pos TEXT, gloss TEXT, definition TEXT);
-    CREATE INDEX lexicon_base ON lexicon(base);
-    CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER);
-    CREATE INDEX xrefs_from ON xrefs(from_book, from_chapter, from_verse);
-    CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
-  ''');
+void _createSchema(Database db) => db.execute('''
+  PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;
+  CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, chapter INTEGER, verse INTEGER, text TEXT);
+  CREATE VIRTUAL TABLE verses_fts USING fts5(text, content='verses', content_rowid='id', tokenize='porter unicode61');
+  CREATE TABLE words(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, original TEXT, translit TEXT, gloss TEXT, strongs TEXT, morph TEXT, PRIMARY KEY(book, chapter, verse, pos)) WITHOUT ROWID;
+  CREATE TABLE lexicon(key TEXT PRIMARY KEY, base TEXT, lemma TEXT, translit TEXT, pos TEXT, gloss TEXT, definition TEXT);
+  CREATE INDEX lexicon_base ON lexicon(base);
+  CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER);
+  CREATE INDEX xrefs_from ON xrefs(from_book, from_chapter, from_verse);
+  CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
+''');
 
+Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
   _loadRows(db, 'BSB', bsb);
   for (final t in scrollmapperTranslations) {
-    final csv = await _fetch('$_scrollmapper/$t.csv', '$cache/$t.csv');
-    _loadTranslation(db, t, csv);
+    _loadTranslation(db, t, await _fetch('$_scrollmapper/$t.csv', '$cache/$t.csv'));
   }
-  final webZip = File('$cache/engwebp_usfm.zip');
-  if (!webZip.existsSync()) {
-    stdout.writeln('downloading $_web');
-    webZip.writeAsBytesSync((await http.get(Uri.parse(_web))).bodyBytes);
-  }
-  _loadRows(db, 'WEB', parseBibleFile('engwebp_usfm.zip', webZip.readAsBytesSync()));
+  final web = await _fetchBytes(_web, '$cache/engwebp_usfm.zip');
+  _loadRows(db, 'WEB', parseBibleFile('engwebp_usfm.zip', web));
   db.execute("INSERT INTO verses_fts(verses_fts) VALUES('rebuild')");
 
   for (final f in stepTextFiles) {
@@ -112,115 +114,77 @@ Future<void> main(List<String> args) async {
   }
 
   final zip = '$cache/cross-references.zip';
-  if (!File(zip).existsSync()) {
-    File(zip).writeAsBytesSync((await http.get(Uri.parse(_xrefs))).bodyBytes);
-  }
+  await _fetchBytes(_xrefs, zip);
   final unzip = await Process.run('unzip', ['-o', '-q', zip, '-d', '$cache/xrefs']);
   if (unzip.exitCode != 0) throw StateError('unzip failed: ${unzip.stderr}');
   _loadXrefs(db, File('$cache/xrefs/cross_references.txt').readAsStringSync());
   _buildDailyVerses(db);
+}
 
+/// Writes the meta rows and compacts the database; returns the build stamp.
+String _writeMeta(Database db) {
   final built = DateTime.now().toUtc().toIso8601String();
-  db.execute("INSERT INTO meta VALUES('built', '$built')");
-  db.execute(
-    "INSERT INTO meta VALUES('translations', '${['BSB', ...scrollmapperTranslations, 'WEB'].join(',')}')",
-  );
-  db.execute("INSERT INTO meta VALUES('bsb_source', ?)", ['$_bsb sha256:$_bsbSha256']);
+  final translations = ['BSB', ...scrollmapperTranslations, 'WEB'].join(',');
+  final meta = db.prepare('INSERT INTO meta VALUES (?, ?)');
+  meta
+    ..execute(['built', built])
+    ..execute(['translations', translations])
+    ..execute(['bsb_source', '$_bsb sha256:$_bsbSha256'])
+    ..dispose();
   db.execute('VACUUM');
   for (final t in ['verses', 'words', 'lexicon', 'xrefs']) {
     final n = db.select('SELECT COUNT(*) AS n FROM $t').first['n'];
     stdout.writeln('$t: $n rows');
   }
-  db.dispose();
-  File(tmp).renameSync(out);
+  return built;
+}
+
+void _publish(File tmp, String out, String built) {
+  tmp.renameSync(out);
   // The app compares this small file to decide whether to recopy the database, so it never has
   // to load the full asset just to check. Written last so it never stamps an unfinished build.
   File('$out.version').writeAsStringSync(built);
   stdout.writeln('wrote $out (${(File(out).lengthSync() / 1048576).toStringAsFixed(1)} MB)');
 }
 
-/// Downloads [url] to [path] once. With [sha256], the cached bytes are checked on every run, so
-/// a stale or changed file fails the build rather than slipping in.
-Future<String> _fetch(String url, String path, {String? sha256}) async {
-  final f = File(path);
-  if (!f.existsSync()) {
-    stdout.writeln('downloading $url');
-    final r = await http.get(Uri.parse(url));
-    if (r.statusCode != 200) throw StateError('HTTP ${r.statusCode} for $url');
-    f.writeAsBytesSync(r.bodyBytes);
+/// The report only helps a reviewer, so a failure to fetch the old text warns instead of failing.
+Future<void> _writeDiffReport(List<VerseRow> bsb, String cache) async {
+  final path = '$cache/bsb-diff.md';
+  try {
+    final oldPath = '$cache/BSB-scrollmapper-${_oldBsbCommit.substring(0, 7)}.csv';
+    final old = parseCsvBible(await _fetch(_oldBsb, oldPath, pin: _oldBsbSha256));
+    final title = 'BSB: official bsb.txt against scrollmapper ${_oldBsbCommit.substring(0, 7)}';
+    File(path).writeAsStringSync(verseDiffReport(old, bsb, title: title, watched: _watchedVerses));
+    stdout.writeln('BSB diff report: $path');
+  } on Object catch (e) {
+    stderr.writeln('warning: skipped the BSB diff report: $e');
   }
+}
+
+/// Downloads [url] to [path] once, checking the bytes against [pin] on every run.
+Future<Uint8List> _fetchBytes(String url, String path, {String? pin}) async {
+  final f = File(path);
+  if (!f.existsSync()) await _download(url, f, pin);
   final bytes = f.readAsBytesSync();
-  if (sha256 != null) _checkPin(url, path, bytes, sha256);
-  var s = utf8.decode(bytes);
-  if (s.startsWith('\uFEFF')) s = s.substring(1);
+  if (pin != null) checkPin(bytes, pin, source: '$path (delete it to download $url again)');
+  return bytes;
+}
+
+Future<String> _fetch(String url, String path, {String? pin}) async {
+  var s = utf8.decode(await _fetchBytes(url, path, pin: pin));
+  if (s.startsWith('﻿')) s = s.substring(1);
   return s;
 }
 
-void _checkPin(String url, String path, List<int> bytes, String pinned) {
-  final actual = sha256.convert(bytes).toString();
-  if (actual == pinned) return;
-  throw StateError(
-    'SHA-256 mismatch for $url\n'
-    '  pinned: $pinned\n'
-    '  actual: $actual (cached at $path)\n'
-    'The upstream text has changed. Review the new file against the old one, then update the '
-    'pin in bin/build_db.dart. Delete $path to download it again.',
-  );
-}
-
-String _label(VerseRow r) => '${r.book.name} ${r.chapter}:${r.verse}';
-
-/// Fails the build unless every verse of the 66 books is present exactly once.
-void _checkBsb(List<VerseRow> rows) {
-  final keys = {for (final r in rows) _label(r)};
-  if (rows.length != bsbVerseCount || keys.length != bsbVerseCount) {
-    throw StateError(
-      'BSB has ${rows.length} verse lines and ${keys.length} distinct verses, '
-      'expected $bsbVerseCount of each',
-    );
-  }
-}
-
-String _listOrNone(List<String> labels) => labels.isEmpty ? 'none' : labels.join(', ');
-
-/// Markdown summary of how [fresh] differs from [old], verse by verse.
-String bsbDiffReport(List<VerseRow> old, List<VerseRow> fresh) {
-  final before = {for (final r in old) _label(r): r.text};
-  final after = {for (final r in fresh) _label(r): r.text};
-  final changed = [
-    for (final r in fresh)
-      if (before.containsKey(_label(r)) && before[_label(r)] != r.text) r,
-  ];
-  final perBook = <String, int>{};
-  for (final r in changed) {
-    perBook.update(r.book.name, (n) => n + 1, ifAbsent: () => 1);
-  }
-  final added = after.keys.where((k) => !before.containsKey(k)).toList();
-  final removed = before.keys.where((k) => !after.containsKey(k)).toList();
-  final out = StringBuffer()
-    ..writeln('# BSB: official bsb.txt against scrollmapper ${_oldBsbCommit.substring(0, 7)}')
-    ..writeln()
-    ..writeln(
-      '${changed.length} of ${fresh.length} verses changed. '
-      'Verses only in the new text: ${_listOrNone(added)}. Only in the old: ${_listOrNone(removed)}.',
-    )
-    ..writeln()
-    ..writeln('| Book | Changed |')
-    ..writeln('|------|---------|');
-  perBook.forEach((book, n) => out.writeln('| $book | $n |'));
-  final samples = {..._watchedVerses, ...changed.take(_diffSamples).map(_label)};
-  out
-    ..writeln()
-    ..writeln('## Samples');
-  for (final label in samples) {
-    out
-      ..writeln()
-      ..writeln('**$label**')
-      ..writeln()
-      ..writeln('- old: ${before[label] ?? '(absent)'}')
-      ..writeln('- new: ${after[label] ?? '(absent)'}');
-  }
-  return out.toString();
+// Checked before it is written and renamed into place once complete, so a failed, wrong or
+// interrupted download is never cached.
+Future<void> _download(String url, File dest, String? pin) async {
+  stdout.writeln('downloading $url');
+  final r = await http.get(Uri.parse(url));
+  if (r.statusCode != 200) throw StateError('HTTP ${r.statusCode} for $url');
+  if (pin != null) checkPin(r.bodyBytes, pin, source: url);
+  final part = File('${dest.path}.part')..writeAsBytesSync(r.bodyBytes);
+  part.renameSync(dest.path);
 }
 
 void _loadTranslation(Database db, String translation, String csv) {

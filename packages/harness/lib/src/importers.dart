@@ -32,9 +32,7 @@ List<VerseRow> parseCsvBible(String csv) {
 final _bsbVerse = RegExp(r'^(.+) (\d+):(\d+)\t(.*)$');
 const _bsbHeader = 'Verse\t';
 
-/// The official bereanbible.com bsb.txt: notice lines, a `Verse<TAB>...` header, then one
-/// `Book C:V<TAB>Text` line per verse. Any other non-blank line after the header throws, so no
-/// verse is silently dropped. A verse the translation omits (Matthew 17:21) keeps an empty text.
+/// bereanbible.com bsb.txt (`Book C:V<TAB>Text` after a header); any other line throws.
 List<VerseRow> parseBsbText(String text) {
   if (text.startsWith('\uFEFF')) text = text.substring(1);
   final lines = const LineSplitter().convert(text);

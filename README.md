@@ -118,8 +118,9 @@ cd packages/harness && dart run bin/eval.dart --tier mid --model gemma4:e2b
 Runs 40 golden questions through the harness against Ollama, 8 of them adversarial (a chapter or
 book that does not exist, Psalm 151, popular sayings that are not in the Bible), and reports
 invented references, expected reference coverage, unverified quotes and misattributed sayings. A
-release needs zero invented references and zero misattributions. Last run on gemma4:e2b: 0
-invented, 28 of 28 expected references, 0 misattributed, 8 of 8 adversarial.
+release needs zero invented references and zero misattributions. Last run on gemma4:e2b, against
+the official BSB text: 0 invented, 28 of 28 expected references, 0 misattributed, 8 of 8
+adversarial.
 
 `dart run bin/retrieval_check.dart` checks topical retrieval without a model: 7 of 8 topical
 questions put a well-known passage on the topic in front of the model.
