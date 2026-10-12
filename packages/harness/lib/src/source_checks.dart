@@ -14,7 +14,7 @@ void checkPin(List<int> bytes, String pinned, {required String source}) {
     'SHA-256 mismatch for $source\n'
     '  pinned: $pinned\n'
     '  actual: $actual\n'
-    'If the upstream file changed, review the new text, then update the pin in bin/build_db.dart.',
+    'If the upstream file changed, review it, then update its pin in the build script.',
   );
 }
 

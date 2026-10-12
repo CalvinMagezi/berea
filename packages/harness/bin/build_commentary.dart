@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:berea_harness/src/commentary.dart';
+import 'package:berea_harness/src/source_checks.dart';
 import 'package:berea_harness/src/sword.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -147,21 +148,12 @@ Future<File> _pinnedZip(String module, String cache) async {
     if (r.statusCode != 200) {
       throw StateError('HTTP ${r.statusCode} for $module');
     }
-    _checkZipPin(module, r.bodyBytes, pin);
+    checkPin(r.bodyBytes, pin, source: '$module.zip');
     final part = File('${zip.path}.part')..writeAsBytesSync(r.bodyBytes);
     part.renameSync(zip.path);
   }
-  _checkZipPin(module, zip.readAsBytesSync(), pin);
+  checkPin(zip.readAsBytesSync(), pin, source: '$module.zip');
   return zip;
-}
-
-void _checkZipPin(String module, List<int> bytes, String pin) {
-  final actual = sha256.convert(bytes).toString();
-  if (actual == pin) return;
-  throw StateError(
-    '$module.zip has SHA-256 $actual, pinned $pin. CrossWire republished it: review the module, '
-    'then update the pin and the pack pins.',
-  );
 }
 
 /// Writes one pack, gzips it, and returns its manifest entry. Nothing time-dependent goes in,
