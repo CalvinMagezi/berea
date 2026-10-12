@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:ffi';
 import 'dart:io';
 
+import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:path_provider/path_provider.dart';
@@ -112,6 +114,24 @@ void _deleteFile(String? path) {
   }
 }
 
+/// Owner read, write and search only.
+const _ownerOnlyMode = 448; // 0700
+
+typedef _ChmodC = Int32 Function(Pointer<Utf8> path, Uint32 mode);
+typedef _ChmodDart = int Function(Pointer<Utf8> path, int mode);
+
+/// Dart creates temp folders world-readable on Linux, so tighten them through libc.
+void _ownerOnly(Directory dir) {
+  if (Platform.isWindows) return;
+  final path = dir.path.toNativeUtf8();
+  try {
+    final chmod = DynamicLibrary.process().lookupFunction<_ChmodC, _ChmodDart>('chmod');
+    if (chmod(path, _ownerOnlyMode) != 0) throw FileSystemException('chmod failed', dir.path);
+  } finally {
+    malloc.free(path);
+  }
+}
+
 /// Folders already swept in this process; a folder from an earlier run has no owner left.
 final _sweptBases = <String>{};
 
@@ -200,7 +220,9 @@ class VoiceInput extends ChangeNotifier {
     final base = await _cacheDir();
     base.createSync(recursive: true);
     _sweepBase(base);
-    return base.createTempSync(voiceDirPrefix);
+    final folder = base.createTempSync(voiceDirPrefix);
+    _ownerOnly(folder);
+    return folder;
   }
 
   Future<void> start(Object who) async {
