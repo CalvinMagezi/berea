@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'narration_packs.dart';
+import 'pinned_download.dart';
 
 const _progressSize = 24.0;
 const _progressStroke = 3.0;
@@ -57,7 +58,6 @@ class NarrationSettings extends StatelessWidget {
           value: progress,
           strokeWidth: _progressStroke,
           semanticsLabel: 'Downloading the narration of ${book.name}',
-          semanticsValue: '${(progress * 100).round()}',
         ),
       );
     } else if (shelf.isInstalled(book.id)) {
@@ -87,7 +87,7 @@ class NarrationSettings extends StatelessWidget {
       await shelf.download(book.id);
       onMessage('The narration of ${book.name} is installed.');
     } catch (e) {
-      onMessage('The narration of ${book.name} could not be installed: $e');
+      onMessage('The narration of ${book.name} could not be installed. ${describeFailure(e)}');
     }
   }
 
@@ -102,7 +102,7 @@ class NarrationSettings extends StatelessWidget {
     try {
       onMessage('The narration of ${await shelf.installFromFile(path)} is installed.');
     } catch (e) {
-      onMessage('Narration install failed: $e');
+      onMessage('Narration install failed. ${describeFailure(e)}');
     }
   }
 

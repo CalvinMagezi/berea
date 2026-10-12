@@ -78,6 +78,12 @@ void main() {
       expect(track.file.path, endsWith('.m4a'));
       expect(track.primingMs, 88);
       expect(track.timings.words, hasLength(2));
+      final next = await s.track(43, 1);
+      expect(next.file.path, isNot(track.file.path), reason: 'the open file is never overwritten');
+      expect(track.file.existsSync(), isTrue);
+      s.prunePlayed(keep: next.file);
+      expect(track.file.existsSync(), isFalse);
+      expect(next.file.existsSync(), isTrue);
       s.delete(43);
       expect(s.isInstalled(43), isFalse);
     });
@@ -143,6 +149,8 @@ void main() {
       );
       expect(r.wordToShow(16, 'For God so', 'BSB'), isNull, reason: 'the words do not line up');
       expect(r.wordToShow(17, 'For God', 'BSB'), isNull);
+      expect(r.wordsFit(16, 'For God', 'BSB'), isTrue);
+      expect(r.wordsFit(16, 'For God', 'KJV'), isFalse, reason: 'a tap seeks to the verse start');
       r.timings = null;
       expect(
         r.wordToShow(16, 'For God so', 'KJV'),

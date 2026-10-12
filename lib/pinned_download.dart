@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cryptography/cryptography.dart';
@@ -48,6 +49,16 @@ Future<void> downloadPinned(
     }
   }
 }
+
+/// A download or install failure as a sentence for the user, without a type name or a path.
+String describeFailure(Object e) => switch (e) {
+  FormatException(:final message) => message,
+  HttpException(:final message) => message,
+  TimeoutException() => 'The download timed out. Try again.',
+  SocketException() => 'There is no connection. Try again when online.',
+  FileSystemException() => 'A file could not be read or written on this device.',
+  _ => '$e',
+};
 
 String hexOf(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 

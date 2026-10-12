@@ -66,7 +66,6 @@ class CommentarySettings extends StatelessWidget {
           value: progress,
           strokeWidth: 3,
           semanticsLabel: 'Downloading ${spec.title}',
-          semanticsValue: '${(progress * 100).round()}',
         ),
       );
     } else if (shelf.isInstalled(spec.id)) {

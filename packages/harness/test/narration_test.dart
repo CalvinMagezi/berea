@@ -217,6 +217,16 @@ void main() {
       expect(() => readNarrationPack(noAudio), throwsFormatException);
     });
 
+    test('a priming time that is not a small number of milliseconds is refused', () {
+      for (final bad in ['NaN', 'Infinity', '1e300', '-5', 'soon']) {
+        final path = writeNarrationPack(dir);
+        final db = sqlite3.open(path)
+          ..execute("UPDATE meta SET value = ? WHERE key = 'priming_ms'", [bad]);
+        db.dispose();
+        expect(() => readNarrationPack(path), throwsFormatException, reason: bad);
+      }
+    });
+
     test('a chapter reads back its audio and timings', () {
       final path = writeNarrationPack(dir);
       final c = readNarrationChapter(path, 43, 2);

@@ -202,8 +202,19 @@ NarrationPackInfo readNarrationPack(String path, {int? expectedBook}) => _withPa
   return NarrationPackInfo(meta['pack']!, book, narrator, chapters, _primingOf(meta));
 });
 
-int _primingOf(Map<String, String> meta) =>
-    (double.tryParse(meta['priming_ms'] ?? '') ?? 0).round();
+/// AAC encoders prime with a few frames, well under this.
+const _maxPrimingMs = 1000;
+
+/// The pack's priming, absent meaning none; anything not a small count of milliseconds is refused.
+int _primingOf(Map<String, String> meta) {
+  final raw = meta['priming_ms'];
+  if (raw == null) return 0;
+  final ms = double.tryParse(raw);
+  if (ms == null || !ms.isFinite || ms < 0 || ms > _maxPrimingMs) {
+    throw const FormatException('That narration pack has an invalid priming time.');
+  }
+  return ms.round();
+}
 
 /// Throws unless [info] holds exactly chapters 1 to [chapterCount] of its book.
 void checkNarrationChapters(NarrationPackInfo info, int chapterCount) {

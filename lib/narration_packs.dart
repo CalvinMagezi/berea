@@ -52,6 +52,12 @@ class NarrationShelf {
   /// Numbers each install's temporary file, so two installs at once never share one.
   var _installs = 0;
 
+  /// Numbers each extracted chapter, so a new one never overwrites a file the player has open.
+  var _tracks = 0;
+
+  /// Downloads in flight by book; asking again joins the one already running.
+  final _downloads = <int, Future<void>>{};
+
   NarrationShelf(
     this.dir,
     this.onChange, {
@@ -59,9 +65,10 @@ class NarrationShelf {
     this.maxPackBytes = maxNarrationPackBytes,
   }) {
     dir.createSync(recursive: true);
-    // A download or install cut short by the app closing leaves only temporary files behind.
+    // A download or install cut short by the app closing leaves only temporary files behind,
+    // with any journal SQLite made beside them.
     for (final f in dir.listSync().whereType<File>()) {
-      if (f.path.endsWith('.part')) f.deleteSync();
+      if (f.path.contains('.part')) f.deleteSync();
     }
     if (_playDir.existsSync()) _playDir.deleteSync(recursive: true);
   }
@@ -80,7 +87,10 @@ class NarrationShelf {
       if (isInstalled(b.id)) b.id,
   }.toList()..sort();
 
-  Future<void> download(int book) async {
+  Future<void> download(int book) =>
+      _downloads[book] ??= _download(book).whenComplete(() => _downloads.remove(book));
+
+  Future<void> _download(int book) async {
     final pin = narrationPins[book];
     if (pin == null) throw StateError('No published narration for ${bookById(book).name}.');
     final part = File('${_path(book)}.download.part');
@@ -142,16 +152,23 @@ class NarrationShelf {
     onChange();
   }
 
-  /// Extracts [chapter] of [book] for the player. Only the chapter in play is kept on disk.
+  /// Deletes every extracted chapter but [keep], once the player has moved to it.
+  void prunePlayed({required File keep}) {
+    if (!_playDir.existsSync()) return;
+    for (final f in _playDir.listSync().whereType<File>()) {
+      if (f.path != keep.path) f.deleteSync();
+    }
+  }
+
+  /// Extracts [chapter] of [book] for the player under a new name; [prunePlayed] removes the
+  /// old ones.
   Future<NarrationTrack> track(int book, int chapter) async {
     // Locals only, as in _install.
     final (path, play) = (_path(book), _playDir.path);
-    final out = '$play/$book-$chapter.m4a';
+    final out = '$play/$book-$chapter-${_tracks++}.m4a';
     final c = await Isolate.run(() async {
       final c = readNarrationChapter(path, book, chapter);
-      final dir = Directory(play);
-      if (dir.existsSync()) dir.deleteSync(recursive: true);
-      dir.createSync(recursive: true);
+      Directory(play).createSync(recursive: true);
       await File(out).writeAsBytes(c.audio, flush: true);
       return (durationMs: c.durationMs, primingMs: c.primingMs, timings: c.timings);
     });

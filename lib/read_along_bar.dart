@@ -135,7 +135,6 @@ class ReadAlongBar extends StatelessWidget {
               value: p,
               strokeWidth: _spinnerStroke,
               semanticsLabel: p == null ? 'Loading' : 'Downloading the narration',
-              semanticsValue: p == null ? null : '${(p * 100).round()}',
             ),
           ),
         ),

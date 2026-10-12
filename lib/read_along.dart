@@ -3,12 +3,13 @@ import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 
 import 'narration_packs.dart';
+import 'pinned_download.dart';
 
 /// just_audio and flutter_tts have no Linux implementation, and this feature is only checked on
 /// these three; Windows waits until it is (see TECHDEBT.md).
@@ -95,13 +96,17 @@ abstract class _Voice {
   Future<void> seek(int verse, int word);
   Future<void> setSpeed(double speed);
 
+  /// Takes over the engine's callbacks; done only once this voice is the current one.
+  void attach();
+
   /// Stops listening to the engine without touching playback, for a load that was superseded.
   Future<void> release();
   Future<void> stop();
 }
 
 /// Plays a chapter with the current word highlighted and the reader following along. The
-/// player and the speech engine are created only when first used, never at startup.
+/// player and the speech engine are created only when first used; the lock-screen service is
+/// bound at startup by [initReadAlongAudio].
 class ReadAlong {
   final NarrationShelf shelf;
   ReadAlong(this.shelf);
@@ -115,8 +120,8 @@ class ReadAlong {
   /// Timed words of the narrated chapter; null for the device voice.
   ChapterTimings? timings;
 
-  /// Milliseconds added to every timing for this player; see [primingOffsetMs].
-  int offsetMs = 0;
+  /// Kept across chapters and voices.
+  var _speed = 1.0;
 
   AudioPlayer? _player;
   FlutterTts? _tts;
@@ -128,7 +133,13 @@ class ReadAlong {
   @visibleForTesting
   FlutterTts? get debugTts => _tts;
 
-  /// Bumped by every start and stop, so a slow load that was superseded does not play.
+  /// Milliseconds added to every timing for this player; see [primingOffsetMs].
+  int get offsetMs => switch (_voice) {
+    _Narration(:final offsetMs) => offsetMs,
+    _ => 0,
+  };
+
+  /// Bumped by every start and stop, so a slow load that was superseded touches nothing.
   var _generation = 0;
 
   bool isOn(int book, int chapter) {
@@ -136,15 +147,20 @@ class ReadAlong {
     return s != null && s.book == book && s.chapter == chapter;
   }
 
-  /// The word to highlight in [verse], or null to mark only the verse: narration timings match
-  /// the Berean Standard Bible's words, so another translation follows verse by verse.
+  /// Whether the voice's word numbers fit [text]: narration timings count the Berean Standard
+  /// Bible's words, so another translation, or a verse worded differently, follows by verse.
+  bool wordsFit(int verse, String text, String translation) {
+    final t = timings;
+    if (t == null) return true;
+    if (translation != defaultTranslation) return false;
+    return t.wordsPerVerse[verse] == wordRanges(text).length;
+  }
+
+  /// The word to highlight in [verse], or null to mark only the verse.
   int? wordToShow(int verse, String text, String translation) {
     final at = position.value;
     if (at == null || at.verse != verse) return null;
-    final t = timings;
-    if (t == null) return at.word;
-    if (translation != defaultTranslation) return null;
-    return t.wordsPerVerse[verse] == wordRanges(text).length ? at.word : null;
+    return wordsFit(verse, text, translation) ? at.word : null;
   }
 
   /// Starts [voice] on [book] [chapter]. Narration downloads its pack first if it must.
@@ -155,41 +171,45 @@ class ReadAlong {
     required ReadAlongVoice voice,
     required List<Verse> verses,
   }) async {
-    await stop();
+    final previous = _reset();
     final generation = _generation;
-    final speed = state.value?.speed ?? 1.0;
     state.value = ReadAlongState(
       book: book.id,
       chapter: chapter,
       voice: voice,
       status: ReadAlongStatus.loading,
-      speed: speed,
+      speed: _speed,
     );
     try {
+      await previous?.stop();
       final v = voice == ReadAlongVoice.narration
-          ? await _loadNarration(book, chapter)
+          ? await _loadNarration(book, chapter, generation)
           : await _loadDeviceVoice(verses);
-      if (generation != _generation) return await v.release();
+      if (v == null || generation != _generation) return await v?.release();
       _voice = v;
-      await v.setSpeed(speed);
+      if (v is _Narration) {
+        timings = v.timings;
+        shelf.prunePlayed(keep: v.file);
+      }
+      v.attach();
+      await v.setSpeed(_speed);
       await v.play();
     } on Object catch (e) {
       if (generation == _generation) _fail(e);
     }
   }
 
-  void _fail(Object e) =>
-      state.value = state.value?.copyWith(status: ReadAlongStatus.failed, error: _describe(e));
+  void _fail(Object e) => state.value = state.value?.copyWith(
+    status: ReadAlongStatus.failed,
+    error: describeFailure(e),
+  );
 
-  String _describe(Object e) => switch (e) {
-    FormatException(:final message) => message,
-    HttpException(:final message) => message,
-    _ => '$e',
-  };
-
-  Future<_Voice> _loadNarration(Book book, int chapter) async {
+  /// Null when a newer start or a stop came first; nothing shared is touched after that.
+  Future<_Narration?> _loadNarration(Book book, int chapter, int generation) async {
     if (!shelf.isInstalled(book.id)) await shelf.download(book.id);
+    if (generation != _generation) return null;
     final track = await shelf.track(book.id, chapter);
+    if (generation != _generation) return null;
     final player = _player ??= AudioPlayer();
     final reported = await player.setAudioSource(
       AudioSource.file(
@@ -203,24 +223,21 @@ class ReadAlong {
         ),
       ),
     );
-    timings = track.timings;
-    offsetMs = primingOffsetMs(
+    final offset = primingOffsetMs(
       reported: reported,
       durationMs: track.durationMs,
       primingMs: track.primingMs,
     );
     debugPrint(
       'Narration ${book.name} $chapter: player reports ${reported?.inMilliseconds} ms, '
-      'pack ${track.durationMs} ms, timing offset $offsetMs ms',
+      'pack ${track.durationMs} ms, timing offset $offset ms',
     );
-    return _Narration(this, player, track.timings);
+    return _Narration(this, player, track.timings, offset, track.file);
   }
 
   Future<_Voice> _loadDeviceVoice(List<Verse> verses) async {
     final tts = _tts ??= FlutterTts();
     await _DeviceVoice.prepare(tts);
-    timings = null;
-    offsetMs = 0;
     return _DeviceVoice(this, tts, verses);
   }
 
@@ -246,17 +263,18 @@ class ReadAlong {
   /// Moves to [verse], at [word] when given.
   Future<void> seek(int verse, [int word = 0]) async => _voice?.seek(verse, word);
 
-  Future<void> nextVerse() => _stepVerse(1);
+  /// The next verse with words after the current one, skipping empty verses.
+  Future<void> nextVerse() async {
+    final at = position.value?.verse;
+    final next = _verseNumbers().where((v) => at == null || v > at).firstOrNull;
+    if (next != null) await seek(next);
+  }
 
-  Future<void> previousVerse() => _stepVerse(-1);
-
-  Future<void> _stepVerse(int step) async {
-    final at = position.value;
+  Future<void> previousVerse() async {
+    final at = position.value?.verse;
     final verses = _verseNumbers();
-    if (verses.isEmpty) return;
-    final i = at == null ? -1 : verses.indexOf(at.verse);
-    final next = (i + step).clamp(0, verses.length - 1);
-    await seek(verses[next]);
+    final previous = at == null ? verses.firstOrNull : verses.where((v) => v < at).lastOrNull;
+    await seek(previous ?? verses.firstOrNull ?? 1);
   }
 
   /// Verses the voice can move to, in order: for narration, those with timed words.
@@ -269,19 +287,23 @@ class ReadAlong {
   };
 
   Future<void> setSpeed(double speed) async {
+    _speed = speed;
     state.value = state.value?.copyWith(speed: speed);
     await _voice?.setSpeed(speed);
   }
 
   /// Stops and clears the player; the bar goes away.
-  Future<void> stop() async {
+  Future<void> stop() async => _reset()?.stop();
+
+  /// Clears everything at once, before any await, so a start or stop racing this one sees it.
+  _Voice? _reset() {
     _generation++;
     final v = _voice;
     _voice = null;
     state.value = null;
     position.value = null;
     timings = null;
-    await v?.stop();
+    return v;
   }
 }
 
@@ -290,11 +312,44 @@ class _Narration implements _Voice {
   final ReadAlong owner;
   final AudioPlayer player;
   final ChapterTimings timings;
-  Timer? _tick;
-  late final StreamSubscription<PlayerState> _states;
 
-  _Narration(this.owner, this.player, this.timings) {
+  /// Milliseconds added to every timing for this player; see [primingOffsetMs].
+  final int offsetMs;
+
+  /// The extracted chapter this player has open.
+  final File file;
+  Timer? _tick;
+  StreamSubscription<PlayerState>? _states;
+
+  /// Whether the app is on screen; with the screen locked nobody sees the highlight.
+  var _visible = true;
+  AppLifecycleListener? _lifecycle;
+
+  _Narration(this.owner, this.player, this.timings, this.offsetMs, this.file);
+
+  @override
+  void attach() {
     _states = player.playerStateStream.listen(_onState);
+    _lifecycle = AppLifecycleListener(
+      onShow: () => _setVisible(true),
+      onHide: () => _setVisible(false),
+    );
+  }
+
+  void _setVisible(bool visible) {
+    _visible = visible;
+    _retick();
+    if (visible) _follow();
+  }
+
+  /// Polls the position only while playing and on screen.
+  void _retick() {
+    if (player.playing && _visible) {
+      _tick ??= Timer.periodic(readAlongTick, (_) => _follow());
+    } else {
+      _tick?.cancel();
+      _tick = null;
+    }
   }
 
   void _onState(PlayerState s) {
@@ -302,12 +357,7 @@ class _Narration implements _Voice {
       unawaited(_rewind());
       return;
     }
-    if (s.playing) {
-      _tick ??= Timer.periodic(readAlongTick, (_) => _follow());
-    } else {
-      _tick?.cancel();
-      _tick = null;
-    }
+    _retick();
     final loading =
         s.processingState == ProcessingState.loading ||
         s.processingState == ProcessingState.buffering;
@@ -326,7 +376,7 @@ class _Narration implements _Voice {
   }
 
   void _follow() {
-    final i = timings.indexAt(player.position.inMilliseconds - owner.offsetMs);
+    final i = timings.indexAt(player.position.inMilliseconds - offsetMs);
     owner._moved(i == null ? null : (verse: timings.words[i].verse, word: timings.words[i].word));
   }
 
@@ -341,7 +391,7 @@ class _Narration implements _Voice {
   Future<void> seek(int verse, int word) async {
     final i = timings.indexOf(verse, word);
     if (i == null) return;
-    await player.seek(Duration(milliseconds: timings.words[i].startMs + owner.offsetMs));
+    await player.seek(Duration(milliseconds: timings.words[i].startMs + offsetMs));
     _follow();
   }
 
@@ -351,7 +401,9 @@ class _Narration implements _Voice {
   @override
   Future<void> release() async {
     _tick?.cancel();
-    await _states.cancel();
+    _tick = null;
+    _lifecycle?.dispose();
+    await _states?.cancel();
   }
 
   @override
@@ -375,7 +427,10 @@ class _DeviceVoice implements _Voice {
   String? _utterance;
   int _base = 0;
 
-  _DeviceVoice(this.owner, this.tts, this.verses) {
+  _DeviceVoice(this.owner, this.tts, this.verses);
+
+  @override
+  void attach() {
     tts.setProgressHandler(_onProgress);
     tts.setCompletionHandler(_onDone);
     tts.setErrorHandler((message) {

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -28,6 +30,12 @@ const userHighlightAlpha = 0.18;
 
 /// How long the reader takes to scroll to the verse being read, unless motion is reduced.
 const followScrollDuration = Duration(milliseconds: 350);
+
+/// After the user scrolls by hand, the reader leaves the page where they put it this long.
+const followPauseAfterDrag = Duration(seconds: 5);
+
+/// Width of the bar marking a selected verse, or the verse being read.
+const verseMarkWidth = 3.0;
 
 class ReaderScreen extends StatefulWidget {
   final AppState state;
@@ -87,20 +95,37 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// Where the last tap on a verse landed while reading along; a screen reader's tap has none.
   Offset? _tapAt;
 
-  /// Keeps the verse being read on screen, scrolling only when it is not fully visible.
+  /// When the user last scrolled by hand.
+  DateTime? _draggedAt;
+
+  bool _onScroll(ScrollNotification n) {
+    final byHand = switch (n) {
+      ScrollStartNotification(:final dragDetails) => dragDetails != null,
+      ScrollUpdateNotification(:final dragDetails) => dragDetails != null,
+      _ => false,
+    };
+    if (byHand) _draggedAt = DateTime.now();
+    return false;
+  }
+
+  /// Keeps the verse being read on screen, scrolling only when it is out of view and the user
+  /// has not just scrolled by hand.
   void _follow() {
     final at = readAlong.position.value;
     if (at == null || !readAlong.isOn(book.id, chapter) || !_scroll.hasClients) return;
+    final dragged = _draggedAt;
+    if (dragged != null && DateTime.now().difference(dragged) < followPauseAfterDrag) return;
     final ctx = _verseKeys[at.verse]?.currentContext;
     final box = ctx?.findRenderObject();
     if (ctx == null || box == null) return _scrollToVerse(at.verse);
     final viewport = RenderAbstractViewport.maybeOf(box);
     if (viewport == null) return;
+    // Between top-aligned and bottom-aligned the verse is fully shown, or, when it is taller
+    // than the screen, fills it; either way there is nothing to do.
+    final top = viewport.getOffsetToReveal(box, 0).offset;
+    final bottom = viewport.getOffsetToReveal(box, 1).offset;
     final pixels = _scroll.position.pixels;
-    final fullyVisible =
-        pixels <= viewport.getOffsetToReveal(box, 0).offset &&
-        pixels >= viewport.getOffsetToReveal(box, 1).offset;
-    if (fullyVisible) return;
+    if (pixels >= min(top, bottom) && pixels <= max(top, bottom)) return;
     final still = MediaQuery.disableAnimationsOf(context);
     Scrollable.ensureVisible(
       ctx,
@@ -118,6 +143,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (tap == null || paragraph == null) return _seek(v.verse);
     final local = paragraph.globalToLocal(tap);
     if (!(Offset.zero & paragraph.size).contains(local)) return _seek(v.verse);
+    // A word number only means the same word when the voice's words fit the text shown.
+    if (!readAlong.wordsFit(v.verse, v.text, s.settings.translation)) return _seek(v.verse);
     final offset = paragraph.getPositionForOffset(local).offset - _verseNumberText(v).length;
     _seek(v.verse, wordAtOffset(wordRanges(v.text), offset) ?? 0);
   }
@@ -281,18 +308,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     style: TextStyle(color: scheme.onSurfaceVariant),
                   ),
                 )
-              : ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
-                  itemCount: verses.length,
-                  itemBuilder: (_, i) {
-                    final v = verses[i];
-                    if (!marks.following) return _verseTile(v, marks);
-                    return ValueListenableBuilder<ReadAlongPosition?>(
-                      valueListenable: readAlong.position,
-                      builder: (_, _, _) => _verseTile(v, marks),
-                    );
-                  },
+              : NotificationListener<ScrollNotification>(
+                  onNotification: _onScroll,
+                  child: ListView.builder(
+                    controller: _scroll,
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
+                    itemCount: verses.length,
+                    itemBuilder: (_, i) {
+                      final v = verses[i];
+                      if (!marks.following) return _verseTile(v, marks);
+                      return ValueListenableBuilder<ReadAlongPosition?>(
+                        valueListenable: readAlong.position,
+                        builder: (_, _, _) => _verseTile(v, marks),
+                      );
+                    },
+                  ),
                 ),
         ),
       ),
@@ -357,7 +387,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final on = _selected.contains(v.verse);
     final current = m.following && readAlong.position.value?.verse == v.verse;
     final word = current ? readAlong.wordToShow(v.verse, v.text, s.settings.translation) : null;
-    return InkWell(
+    final tile = InkWell(
       key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
       onTapUp: m.following ? (d) => _tapAt = d.globalPosition : null,
       onTap: m.following
@@ -371,7 +401,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
           color: m.highlights.contains(v.verse)
               ? scheme.primary.withValues(alpha: userHighlightAlpha)
               : (current ? scheme.surfaceContainerHighest : null),
-          border: on ? Border(left: BorderSide(color: scheme.primary, width: 3)) : null,
+          // The bar marks the verse being read even on a highlighted verse.
+          border: on || current
+              ? Border(
+                  left: BorderSide(color: scheme.primary, width: verseMarkWidth),
+                )
+              : null,
         ),
         child: _ParallelRow(
           other: m.second[v.verse],
@@ -380,6 +415,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ),
       ),
     );
+    // A screen reader is told that a tap now moves the voice instead of selecting.
+    return m.following ? Semantics(onTapHint: 'read from here', child: tile) : tile;
   }
 
   Widget _verseText(Verse v, {required bool noted, int? word}) {
