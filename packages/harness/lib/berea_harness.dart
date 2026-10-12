@@ -1,6 +1,7 @@
 export 'src/bible_db.dart';
 export 'src/books.dart';
 export 'src/citation_guard.dart';
+export 'src/commentary.dart';
 export 'src/csv.dart';
 export 'src/engine.dart';
 export 'src/harness.dart';
