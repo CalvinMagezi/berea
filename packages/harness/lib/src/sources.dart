@@ -182,18 +182,20 @@ final _tag = RegExp(
   caseSensitive: false,
 );
 
-/// Square brackets holding only tags, several separated by ";" or ",". Parentheses are prose:
-/// the notebook rules ask for square brackets, and "(S1)" may mean anything.
+/// Brackets or parentheses holding only tags, several separated by ";" or ",". Models often
+/// cite "(S3 p.1)" although the rules ask for square brackets, and an unchecked parenthesis
+/// would let an invented one through.
 final sourceCitationGroup = RegExp(
-  '\\[\\s*$_tagShape(?:\\s*[;,]\\s*$_tagShape)*\\s*\\]',
+  '[\\[(]\\s*$_tagShape(?:\\s*[;,]\\s*$_tagShape)*\\s*[\\])]',
   caseSensitive: false,
 );
 
-/// Any square brackets on one line, judged one by one.
-final _bracket = RegExp(r'\[[^\[\]\n]{1,160}\]');
+/// Any brackets or parentheses on one line, judged one by one.
+final _bracket = RegExp(r'[\[(][^\[\]()\n]{1,160}[\])]');
 
 /// What a model writes when it means a source but not in the tag form: "[S 9]", "[Source 9]",
-/// "[S3 and S9]", "[S9 §2-§4]", or a number too long to be a source.
+/// "[S3 and S9]", "[S9 §2-§4]", or a number too long to be a source. Square brackets only:
+/// "(Source 9 of the list)" in prose is left alone.
 final _looseTag = RegExp(r'^\[\s*(?:S|C|sources?)\s*#?\s*\d', caseSensitive: false);
 
 /// The shown chunk [t] cites, or null when the source, page or section was not shown.
@@ -247,7 +249,7 @@ SourceCheck checkSourceCitations(String output, List<ShownSource> shown) {
         parts.add('unverified source: ${t[0]}');
       }
     }
-    return '[${parts.join('; ')}]';
+    return '${whole[0]}${parts.join('; ')}${whole[whole.length - 1]}';
   });
   return SourceCheck(text, cited.values.toList(), unverified);
 }

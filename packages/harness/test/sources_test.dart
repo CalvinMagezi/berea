@@ -282,11 +282,11 @@ void main() {
     });
 
     test('several tags in one bracket are judged one by one, in any common spelling', () {
-      final r = check('Both say so [S3, page 2; S8] and [s5 section 1]. Sunday (S8) is prose.');
+      final r = check('Both say so (S3, page 2; S8) and [s5 section 1]. See (Source 8) too.');
       expect(r.sources.map((s) => s.tag), ['S3 p.2', 'S5 §1']);
       expect(r.unverifiedSources, ['S8']);
-      expect(r.text, contains('[S3, page 2; unverified source: S8]'));
-      expect(r.text, contains('Sunday (S8) is prose.'));
+      expect(r.text, contains('(S3, page 2; unverified source: S8)'));
+      expect(r.text, contains('See (Source 8) too.'));
     });
 
     test('brackets that mean a source but are not a tag are marked whole', () {

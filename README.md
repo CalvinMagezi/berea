@@ -118,9 +118,9 @@ Each turn runs a fixed pipeline, not a free agent loop:
    of 30+ characters that is not verbatim in any passage the model was shown is replaced with the
    exact words when one shown verse is clearly its source (`[quote corrected]`), and otherwise
    marked `[unverified quote]`. Quotes in any script are compared, not only English. In a
-   notebook it also checks every source tag in square brackets: a source, page or section that
-   was not shown, or anything bracketed that means a source but is not a tag (`[Source 9]`,
-   `[S3 and S9]`), becomes `[unverified source: ...]`. A quote followed by a source tag must be
+   notebook it also checks every source tag in brackets or parentheses: a source, page or
+   section that was not shown, or anything in square brackets that means a source but is not a
+   tag (`[Source 9]`, `[S3 and S9]`), becomes `unverified source: ...`. A quote followed by a source tag must be
    in that source's shown text; a quote attributed to a verse must be in the verses. A quote a
    source supports but that reads as a shown verse reworded is marked
    `[differs from Scripture]`, so a source that misquotes Scripture can never vouch for the
