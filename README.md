@@ -213,10 +213,13 @@ packages/harness/
   bin/berea.dart       CLI chat against Ollama
   bin/eval.dart        golden eval
   bin/retrieval_check.dart  topical retrieval check, no model needed
+  bin/export_site.dart  writes the Bible data and parity fixture for the site's live check
   eval/golden.json     questions with expected references and adversarial bait
 tool/release.sh        local release
 tool/build_site.sh     builds the public site from site/ into build/site
 site/                  the public page, deployed to GitHub Pages
+  check/               a JavaScript copy of the reference check; selftest.mjs proves it matches
+  vendor/scrollcraft/  scroll engine from nateherkai/scroll-craft (MIT)
 prompts/system.md      the system prompt (grounding rules first, then the study guide)
 prompts/gem-original.md the Gemini gem this started from
 docs/screenshots/

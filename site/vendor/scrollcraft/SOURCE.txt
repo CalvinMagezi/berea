@@ -1,0 +1,4 @@
+Vendored unmodified from https://github.com/nateherkai/scroll-craft
+commit 75d81f74e83692add18cd7a8a8e078b8a887a579 (0.3.1, 2026-09-30)
+files: plugins/nateherk-design/skills/scroll-craft/engine/scrollcraft.{js,css}
+Licence: MIT, see LICENSE in this folder. Do not edit; page behaviour lives in site/page.js.

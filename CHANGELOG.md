@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+Site
+- The public site is rebuilt on the scroll-craft engine (vendored, MIT): a scrubbed lamplight
+  film, one real answer walked through as you scroll, and a live copy of the reference check
+  you can try to fool. The copy is tested against the app's own check on 29 cases in CI.
+
 ## 0.2.0
 
 Grounding

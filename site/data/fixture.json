@@ -1,0 +1,363 @@
+[
+ {
+  "input": "2 Hezekiah 4:1",
+  "text": "[unverified: 2 Hezekiah 4:1]",
+  "verified": [],
+  "unverified": [],
+  "unknownBooks": [
+   "2 Hezekiah 4:1"
+  ],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Psalm 151",
+  "text": "[unverified: Psalms 151]",
+  "verified": [],
+  "unverified": [
+   "Psalms 151"
+  ],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Psalm 151:1",
+  "text": "[unverified: Psalms 151:1]",
+  "verified": [],
+  "unverified": [
+   "Psalms 151:1"
+  ],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Jn 3.16",
+  "text": "Jn 3.16",
+  "verified": [
+   "John 3:16"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "II Timothy 3:16",
+  "text": "II Timothy 3:16",
+  "verified": [
+   "2 Timothy 3:16"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "1 Cor 13",
+  "text": "1 Cor 13",
+  "verified": [
+   "1 Corinthians 13"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Philippians 4:6-7",
+  "text": "Philippians 4:6-7",
+  "verified": [
+   "Philippians 4:6-7"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "John 3:99",
+  "text": "[unverified: John 3:99]",
+  "verified": [],
+  "unverified": [
+   "John 3:99"
+  ],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "See Jasher 3:2",
+  "text": "[unverified: See Jasher 3:2]",
+  "verified": [],
+  "unverified": [],
+  "unknownBooks": [
+   "See Jasher 3:2"
+  ],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Monday 3:30",
+  "text": "Monday 3:30",
+  "verified": [],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Paul 3:16",
+  "text": "[unverified: Paul 3:16]",
+  "verified": [],
+  "unverified": [],
+  "unknownBooks": [
+   "Paul 3:16"
+  ],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "First Hezekiah 2:4",
+  "text": "[unverified: First Hezekiah 2:4]",
+  "verified": [],
+  "unverified": [],
+  "unknownBooks": [
+   "First Hezekiah 2:4"
+  ],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "“God so loved the world that He gave His only Son” (John 3:16)",
+  "text": "“God so loved the world that He gave His one and only Son” [quote corrected] (John 3:16)",
+  "verified": [
+   "John 3:16"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": [
+   "God so loved the world that He gave His only Son"
+  ]
+ },
+ {
+  "input": "“For God so loved the world that He gave His one and only Son” (John 3:16)",
+  "text": "“For God so loved the world that He gave His one and only Son” (John 3:16)",
+  "verified": [
+   "John 3:16"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "“Be anxious for nothing, but in everything, by prayer and petition” (Philippians 4:6)",
+  "text": "“Be anxious for nothing, but in everything, by prayer and petition” (Philippians 4:6)",
+  "verified": [
+   "Philippians 4:6"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "“God helps those who help themselves, as the proverb says” (Proverbs 3:5)",
+  "text": "“God helps those who help themselves, as the proverb says” [unverified quote] (Proverbs 3:5)",
+  "verified": [
+   "Proverbs 3:5"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [
+   "God helps those who help themselves, as the proverb says"
+  ],
+  "corrected": []
+ },
+ {
+  "input": "Song of Songs 2:4 and Rev 21:4",
+  "text": "Song of Songs 2:4 and Rev 21:4",
+  "verified": [
+   "Song of Solomon 2:4",
+   "Revelation 21:4"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Jasher 3:2",
+  "text": "[unverified: Jasher 3:2]",
+  "verified": [],
+  "unverified": [],
+  "unknownBooks": [
+   "Jasher 3:2"
+  ],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Romans 8:28-29",
+  "text": "Romans 8:28-29",
+  "verified": [
+   "Romans 8:28-29"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "romans 8:28",
+  "text": "romans 8:28",
+  "verified": [
+   "Romans 8:28"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Gen 1:1",
+  "text": "Gen 1:1",
+  "verified": [
+   "Genesis 1:1"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Hezekiah 4:1",
+  "text": "[unverified: Hezekiah 4:1]",
+  "verified": [],
+  "unverified": [],
+  "unknownBooks": [
+   "Hezekiah 4:1"
+  ],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Matthew 17:21",
+  "text": "Matthew 17:21",
+  "verified": [
+   "Matthew 17:21"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "3 John 1:15",
+  "text": "[unverified: 3 John 1:15]",
+  "verified": [],
+  "unverified": [
+   "3 John 1:15"
+  ],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Obadiah 1",
+  "text": "Obadiah 1",
+  "verified": [
+   "Obadiah 1"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "Psalm 23",
+  "text": "Psalm 23",
+  "verified": [
+   "Psalms 23"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "“The LORD is my shepherd; I shall not want” (Psalm 23:1)",
+  "text": "“The LORD is my shepherd; I shall not want” (Psalm 23:1)",
+  "verified": [
+   "Psalms 23:1"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "“The Lord is my shepherd, I lack nothing at all in this life” (Psalm 23:1)",
+  "text": "“The Lord is my shepherd, I lack nothing at all in this life” [unverified quote] (Psalm 23:1)",
+  "verified": [
+   "Psalms 23:1"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [
+   "The Lord is my shepherd, I lack nothing at all in this life"
+  ],
+  "corrected": []
+ },
+ {
+  "input": "Read Second Opinions 4:2 tonight",
+  "text": "Read [unverified: Second Opinions 4:2] tonight",
+  "verified": [],
+  "unverified": [],
+  "unknownBooks": [
+   "Second Opinions 4:2"
+  ],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "“God so loved the world that He gave His only Son” (John 3:16) John 3:16-16",
+  "text": "“God so loved the world that He gave His only Son” [unverified quote] (John 3:16) John 3:16-16",
+  "verified": [
+   "John 3:16",
+   "John 3:16"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [
+   "God so loved the world that He gave His only Son"
+  ],
+  "corrected": []
+ },
+ {
+  "input": "John 3:16 and John 3:16-15",
+  "text": "John 3:16 and John 3:16-15",
+  "verified": [
+   "John 3:16",
+   "John 3:16"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "“In the beginning God created the heavens and the earth.”",
+  "text": "“In the beginning God created the heavens and the earth.” [unverified quote]",
+  "verified": [],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [
+   "In the beginning God created the heavens and the earth."
+  ],
+  "corrected": []
+ }
+]
