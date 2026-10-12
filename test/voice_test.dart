@@ -258,9 +258,12 @@ void main() {
 
     test('leftover recordings from a crash are swept', () async {
       final stale = File('${dir.path}/1.wav')..writeAsBytesSync(wav());
+      stale.setLastModifiedSync(DateTime.now().subtract(staleVoiceAge * 2));
+      final live = File('${dir.path}/2.wav')..writeAsBytesSync(wav());
       make();
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(stale.existsSync(), isFalse);
+      expect(live.existsSync(), isTrue, reason: 'another composer may still be using it');
     });
   });
 

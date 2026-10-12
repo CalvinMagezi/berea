@@ -22,6 +22,10 @@ const voiceChannels = 1;
 const voiceBitsPerSample = 16;
 
 const _voiceDirName = 'berea-voice';
+
+/// Older recordings are leftovers from a crash. Younger ones may belong to another open composer
+/// that is still recording or transcribing.
+const staleVoiceAge = Duration(minutes: 10);
 const _wavPcmFormat = 1;
 const _wavHeaderBytes = 12;
 const _chunkHeaderBytes = 8;
@@ -272,7 +276,9 @@ class VoiceInput extends ChangeNotifier {
       final dir = await _tempDir();
       if (!await dir.exists()) return;
       await for (final f in dir.list()) {
-        if (f is File && f.path != _path) await f.delete();
+        if (f is! File || f.path == _path) continue;
+        final age = DateTime.now().difference(await f.lastModified());
+        if (age > staleVoiceAge) await f.delete();
       }
     } on Object catch (e) {
       debugPrint('Could not clear old voice recordings: ${e.runtimeType}');
