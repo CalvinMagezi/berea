@@ -25,7 +25,7 @@ const kokoroVocab = <String, int>{
   '.': 4,
   '!': 5,
   '?': 6,
-  '—': 9,
+  '\u2014': 9,
   '…': 10,
   '"': 11,
   '(': 12,
@@ -258,9 +258,9 @@ class Utterance {
 }
 
 const _openingMarks = {'“', '(', '"'};
-const _breakMarks = {'.', '!', '?', ';', ':', '—', '…', ','};
+const _breakMarks = {'.', '!', '?', ';', ':', '\u2014', '…', ','};
 final _tokenPattern = RegExp(
-  r"(\d{1,3}(?:,\d{3})+|\d+)|([A-Za-z]+(?:['’][A-Za-z]+)*)|([;:,.!?—–…"
+  r"(\d{1,3}(?:,\d{3})+|\d+)|([A-Za-z]+(?:['’][A-Za-z]+)*)|([;:,.!?\u2014\u2013…"
   '"()“”])',
 );
 
@@ -280,7 +280,7 @@ class Phonemizer {
       else if (m[2] != null)
         SpeechPiece(m[0]!, m.start, m.end, word(m[2]!))
       else
-        SpeechPiece(m[0]!, m.start, m.end, m[0] == '–' ? '—' : m[0]!, isWord: false),
+        SpeechPiece(m[0]!, m.start, m.end, m[0] == '\u2013' ? '\u2014' : m[0]!, isWord: false),
   ];
 
   /// Phonemes for one word, keeping only characters Kokoro knows.
