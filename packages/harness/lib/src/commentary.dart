@@ -288,7 +288,10 @@ class CommentaryLibrary {
     if (!probe.open('probe', path)) return null;
     try {
       final rows = probe._packs['probe']!.select("SELECT value FROM meta WHERE key = 'pack'");
-      return rows.isEmpty ? null : rows.first['value'] as String?;
+      return switch (rows.firstOrNull?['value']) {
+        final String id => id,
+        _ => null,
+      };
     } on SqliteException {
       return null;
     } finally {

@@ -20,22 +20,27 @@ void main() {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
       final res = req.response;
-      switch (req.uri.path) {
-        case '/ok':
-          res.contentLength = body.length;
-          res.add(body);
-        case '/declared-too-big':
-          res.contentLength = _maxBytes + 1;
-          res.add(List.filled(_maxBytes + 1, 0));
-        case '/streams-too-big':
-          for (var i = 0; i < 4; i++) {
-            res.add(List.filled(_maxBytes ~/ 2, 0));
-            await res.flush();
-          }
-        default:
-          res.statusCode = HttpStatus.notFound;
+      // The client hangs up once the cap trips, so a late write here is expected to fail.
+      try {
+        switch (req.uri.path) {
+          case '/ok':
+            res.contentLength = body.length;
+            res.add(body);
+          case '/declared-too-big':
+            res.contentLength = _maxBytes + 1;
+            res.add(List.filled(_maxBytes + 1, 0));
+          case '/streams-too-big':
+            for (var i = 0; i < 4; i++) {
+              res.add(List.filled(_maxBytes ~/ 2, 0));
+              await res.flush();
+            }
+          default:
+            res.statusCode = HttpStatus.notFound;
+        }
+        await res.close();
+      } on IOException {
+        return;
       }
-      await res.close();
     });
   });
 

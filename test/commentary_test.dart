@@ -90,6 +90,21 @@ void main() {
     library.closeAll();
   });
 
+  testWidgets('a verse with only introductions says so and still offers them', (tester) async {
+    final library = CommentaryLibrary()
+      ..open(
+        'core',
+        writePack(dir, 'core', [
+          ['MHCC', 43, 0, 0, 0, 'John wrote last of the four.'],
+        ]),
+      );
+    await tester.pumpWidget(panel(library, RefParser.parse('John 3:16').first));
+
+    expect(find.textContaining('nothing on this passage'), findsOneWidget);
+    expect(find.text('Introductions'), findsOneWidget);
+    library.closeAll();
+  });
+
   testWidgets('with nothing installed the panel says where to get commentaries', (tester) async {
     await tester.pumpWidget(panel(CommentaryLibrary(), RefParser.parse('John 3:16').first));
     expect(find.textContaining('No commentaries are installed'), findsOneWidget);
