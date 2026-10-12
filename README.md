@@ -128,7 +128,7 @@ questions put a well-known passage on the topic in front of the model.
 
 | Dataset | Licence | Role |
 |---------|---------|------|
-| Berean Standard Bible | Public domain (CC0) | Default translation |
+| Berean Standard Bible | Public domain (CC0) | Default translation, the official text from [bereanbible.com](https://bereanbible.com) (`bsb.txt`), pinned by SHA-256 |
 | King James Version | Public domain | Second translation |
 | World English Bible | Public domain | Third translation, from the ebible.org USFM |
 | STEPBible TAHOT and TAGNT | CC BY 4.0 | Every Hebrew and Greek word with transliteration, gloss, Strong's number and morphology |
@@ -141,6 +141,11 @@ questions put a well-known passage on the topic in front of the model.
 93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k cross references,
 366 daily verses) and a small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
 the optional lexicon pack, which is published with each release. None of these are committed.
+
+The BSB is imported verbatim from the official `bsb.txt`, and the build fails if its SHA-256 no
+longer matches the pin in `build_db.dart`. When bereanbible.com publishes a revision, review the
+new text, then update the pin. Each build also writes `.cache/bsb-diff.md`, a per-book count and
+sample of verses that differ from the older scrollmapper copy that Berea 0.2 and earlier used.
 
 Copyrighted translations such as the NIV and NLT are not bundled. Import one you own through the
 engine settings from CSV (`Book,Chapter,Verse,Text`), USFM, OSIS, Zefania XML or a zip of those.

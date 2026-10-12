@@ -1,22 +1,44 @@
 // Builds assets/berea.sqlite from public domain and CC BY datasets.
 // Usage: dart run bin/build_db.dart [--out ../../assets/berea.sqlite] [--cache .cache]
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:berea_harness/src/books.dart';
 import 'package:berea_harness/src/csv.dart';
 import 'package:berea_harness/src/importers.dart';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 
 const _scrollmapper =
     'https://raw.githubusercontent.com/scrollmapper/bible_databases/master/formats/csv';
+const _bsb = 'https://bereanbible.com/bsb.txt';
+// Bump only after reading the diff report for the new text; the narrated audio follows it.
+const _bsbSha256 = '2ac3af1de52d4e68261cba91d85c320b7eadc6560e830d99e591767b8ff5ca96';
+const bsbVerseCount = 31102;
+// The scrollmapper revision Berea shipped before the official text, kept for the diff report.
+const _oldBsbCommit = 'e1b254cef86d0e65b1a5d1a94b8b112d0f296a2c';
+const _oldBsb =
+    'https://raw.githubusercontent.com/scrollmapper/bible_databases/$_oldBsbCommit/formats/csv/BSB.csv';
+const _oldBsbSha256 = 'bdedd6c2de31b1c729a5952a2cdc383b1f1396d1e9941d0b2cda2b997e22a8fb';
+const _diffSamples = 20;
+// Differences reported upstream before this import; always listed so a reviewer can check them.
+const _watchedVerses = [
+  'Genesis 1:21',
+  'Genesis 2:11',
+  'Genesis 2:13',
+  'Psalms 119:70',
+  'Isaiah 53:4',
+  'Romans 8:15',
+  'Revelation 22:8',
+];
 const _step = 'https://raw.githubusercontent.com/STEPBible/STEPBible-Data/master';
 const _stepText = '$_step/Translators%20Amalgamated%20OT%2BNT';
 const _stepLex = '$_step/Lexicons';
 const _xrefs = 'https://a.openbible.info/data/cross-references.zip';
 const _web = 'https://ebible.org/Scriptures/engwebp_usfm.zip';
 
-const translations = ['BSB', 'KJV'];
+const scrollmapperTranslations = ['KJV'];
 const stepTextFiles = [
   'TAHOT%20Gen-Deu%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt',
   'TAHOT%20Jos-Est%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt',
@@ -39,6 +61,18 @@ Future<void> main(List<String> args) async {
     if (args[i] == '--cache') cache = args[i + 1];
   }
   Directory(cache).createSync(recursive: true);
+  // Checked before the old database is deleted, so a tripped pin leaves the last good build.
+  final bsb = parseBsbText(await _fetch(_bsb, '$cache/bsb.txt', sha256: _bsbSha256));
+  _checkBsb(bsb);
+  final oldBsb = parseCsvBible(
+    await _fetch(
+      _oldBsb,
+      '$cache/BSB-scrollmapper-${_oldBsbCommit.substring(0, 7)}.csv',
+      sha256: _oldBsbSha256,
+    ),
+  );
+  File('$cache/bsb-diff.md').writeAsStringSync(bsbDiffReport(oldBsb, bsb));
+  stdout.writeln('BSB diff report: $cache/bsb-diff.md');
   Directory(File(out).parent.path).createSync(recursive: true);
   if (File(out).existsSync()) File(out).deleteSync();
 
@@ -55,7 +89,8 @@ Future<void> main(List<String> args) async {
     CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
   ''');
 
-  for (final t in translations) {
+  _loadRows(db, 'BSB', bsb);
+  for (final t in scrollmapperTranslations) {
     final csv = await _fetch('$_scrollmapper/$t.csv', '$cache/$t.csv');
     _loadTranslation(db, t, csv);
   }
@@ -89,7 +124,10 @@ Future<void> main(List<String> args) async {
   // The app compares this small file to decide whether to recopy the database, so it never has
   // to load the full asset just to check.
   File('$out.version').writeAsStringSync(built);
-  db.execute("INSERT INTO meta VALUES('translations', '${[...translations, 'WEB'].join(',')}')");
+  db.execute(
+    "INSERT INTO meta VALUES('translations', '${['BSB', ...scrollmapperTranslations, 'WEB'].join(',')}')",
+  );
+  db.execute("INSERT INTO meta VALUES('bsb_source', '$_bsb sha256:$_bsbSha256')");
   db.execute('VACUUM');
   for (final t in ['verses', 'words', 'lexicon', 'xrefs']) {
     final n = db.select('SELECT COUNT(*) AS n FROM $t').first['n'];
@@ -99,7 +137,9 @@ Future<void> main(List<String> args) async {
   stdout.writeln('wrote $out (${(File(out).lengthSync() / 1048576).toStringAsFixed(1)} MB)');
 }
 
-Future<String> _fetch(String url, String path) async {
+/// Downloads [url] to [path] once. With [sha256], the cached bytes are checked on every run, so
+/// a stale or changed file fails the build rather than slipping in.
+Future<String> _fetch(String url, String path, {String? sha256}) async {
   final f = File(path);
   if (!f.existsSync()) {
     stdout.writeln('downloading $url');
@@ -107,9 +147,78 @@ Future<String> _fetch(String url, String path) async {
     if (r.statusCode != 200) throw StateError('HTTP ${r.statusCode} for $url');
     f.writeAsBytesSync(r.bodyBytes);
   }
-  var s = f.readAsStringSync();
-  if (s.startsWith('﻿')) s = s.substring(1);
+  final bytes = f.readAsBytesSync();
+  if (sha256 != null) _checkPin(url, path, bytes, sha256);
+  var s = utf8.decode(bytes);
+  if (s.startsWith('\uFEFF')) s = s.substring(1);
   return s;
+}
+
+void _checkPin(String url, String path, List<int> bytes, String pinned) {
+  final actual = sha256.convert(bytes).toString();
+  if (actual == pinned) return;
+  throw StateError(
+    'SHA-256 mismatch for $url\n'
+    '  pinned: $pinned\n'
+    '  actual: $actual (cached at $path)\n'
+    'The upstream text has changed. Review the new file against the old one, then update the '
+    'pin in bin/build_db.dart. Delete $path to download it again.',
+  );
+}
+
+String _label(VerseRow r) => '${r.book.name} ${r.chapter}:${r.verse}';
+
+/// Fails the build unless every verse of the 66 books is present exactly once.
+void _checkBsb(List<VerseRow> rows) {
+  final keys = {for (final r in rows) _label(r)};
+  if (rows.length != bsbVerseCount || keys.length != bsbVerseCount) {
+    throw StateError(
+      'BSB has ${rows.length} verse lines and ${keys.length} distinct verses, '
+      'expected $bsbVerseCount of each',
+    );
+  }
+}
+
+String _listOrNone(List<String> labels) => labels.isEmpty ? 'none' : labels.join(', ');
+
+/// Markdown summary of how [fresh] differs from [old], verse by verse.
+String bsbDiffReport(List<VerseRow> old, List<VerseRow> fresh) {
+  final before = {for (final r in old) _label(r): r.text};
+  final after = {for (final r in fresh) _label(r): r.text};
+  final changed = [
+    for (final r in fresh)
+      if (before.containsKey(_label(r)) && before[_label(r)] != r.text) r,
+  ];
+  final perBook = <String, int>{};
+  for (final r in changed) {
+    perBook.update(r.book.name, (n) => n + 1, ifAbsent: () => 1);
+  }
+  final added = after.keys.where((k) => !before.containsKey(k)).toList();
+  final removed = before.keys.where((k) => !after.containsKey(k)).toList();
+  final out = StringBuffer()
+    ..writeln('# BSB: official bsb.txt against scrollmapper ${_oldBsbCommit.substring(0, 7)}')
+    ..writeln()
+    ..writeln(
+      '${changed.length} of ${fresh.length} verses changed. '
+      'Verses only in the new text: ${_listOrNone(added)}. Only in the old: ${_listOrNone(removed)}.',
+    )
+    ..writeln()
+    ..writeln('| Book | Changed |')
+    ..writeln('|------|---------|');
+  perBook.forEach((book, n) => out.writeln('| $book | $n |'));
+  final samples = {..._watchedVerses, ...changed.take(_diffSamples).map(_label)};
+  out
+    ..writeln()
+    ..writeln('## Samples');
+  for (final label in samples) {
+    out
+      ..writeln()
+      ..writeln('**$label**')
+      ..writeln()
+      ..writeln('- old: ${before[label]}')
+      ..writeln('- new: ${after[label]}');
+  }
+  return out.toString();
 }
 
 void _loadTranslation(Database db, String translation, String csv) {
