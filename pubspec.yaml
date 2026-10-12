@@ -27,6 +27,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  integration_test:
+    sdk: flutter
 
 flutter:
   # CocoaPods only: SPM debug builds embed an absolute host rpath that the iOS simulator cannot

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+Notebooks
+- A Notebooks tab. A notebook gathers sources on one passage or topic: Bible passages in your
+  reading translation, commentary from the installed packs (one source per work, with its author
+  and licence), your own notes, pasted text, PDFs and EPUB books. Create, rename and delete
+  notebooks; add and remove sources; open a source to read the text Berea kept, with PDF page
+  numbers.
+- Sources are read on a background isolate, one at a time, and shown with a progress bar while
+  they are read. Each is split into sections of about 1,200 characters that keep their position
+  in the source and their PDF page, and indexed for search, ready for chat over a notebook.
+- Limits: files up to 64 MB, PDFs up to 2,000 pages, about 600 pages of text per source and 100
+  sources per notebook. Scanned PDFs without a text layer and DRM-protected EPUB chapters are not
+  read.
+- PDF text comes from PDFium, bundled with the app (BSD and Apache licensed, through the MIT
+  pdfium_flutter package).
+- Backups are now version 2 and include notebooks. Version 1 backups still restore, and leave the
+  notebooks on the device as they are.
+
 ## 0.3.0
 
 Grounding
