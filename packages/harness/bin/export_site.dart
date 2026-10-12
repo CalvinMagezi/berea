@@ -41,6 +41,9 @@ const fixtureInputs = [
   '“The LORD is my shepherd; I shall not want” (Psalm 23:1)',
   '“The Lord is my shepherd, I lack nothing at all in this life” (Psalm 23:1)',
   'Read Second Opinions 4:2 tonight',
+  '\u201cGod so loved the world that He gave His only Son\u201d (John 3:16) John 3:16-16',
+  'John 3:16 and John 3:16-15',
+  '\u201cIn the beginning God created the heavens and the earth.\u201d',
 ];
 
 String opt(List<String> args, String name, String fallback) {

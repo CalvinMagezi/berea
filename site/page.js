@@ -8,6 +8,9 @@
   const FILM_FRAMES = 120;
   const FILM_SRC = (i) => `images/film/${String(i).padStart(3, '0')}.webp`;
   const FILM_PASSES = [16, 8, 4, 2, 1];
+  // Where the lamp sits across the film, as a share of frame width (measured from the frames).
+  const FILM_FOCUS_START = 0.64;
+  const FILM_FOCUS_END = 0.52;
   const MOTE_COUNT = 46;
   const MOTE_RISE_PX = 260;
   const MOTE_SWAY = 6;
@@ -15,7 +18,7 @@
   const SCENE_FADE = 0.12;
   const TYPE_END = 0.45;
   const STREAM_END = 0.85;
-  const CHIP_STEP = 0.08;
+  const CHIP_STEP = 0.07;
   const CHIP_FADE = 0.12;
   const VERSE_AT = [0.5, 0.66];
   const VERSE_FADE = 0.14;
@@ -60,7 +63,8 @@
   function whileVisible(el, fn) {
     let raf = 0;
     const loop = () => { fn(); raf = requestAnimationFrame(loop); };
-    new IntersectionObserver(([e]) => {
+    new IntersectionObserver((entries) => {
+      const e = entries[entries.length - 1];
       cancelAnimationFrame(raf);
       if (e.isIntersecting) raf = requestAnimationFrame(loop);
       else fn();
@@ -141,12 +145,15 @@
       }
       return null;
     };
-    const cover = (img, alpha) => {
+    // Cover-fit, cropped around the lamp: on a narrow screen a centred crop would cut it off.
+    const cover = (img, alpha, t) => {
       const scale = Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
       const w = img.naturalWidth * scale;
       const h = img.naturalHeight * scale;
+      const focus = FILM_FOCUS_START + (FILM_FOCUS_END - FILM_FOCUS_START) * t;
+      const x = Math.min(0, Math.max(canvas.width - w, canvas.width / 2 - focus * w));
       ctx.globalAlpha = alpha;
-      ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+      ctx.drawImage(img, x, (canvas.height - h) / 2, w, h);
     };
 
     // The film runs across the stage's whole visible life, so it keeps moving as the act leaves.
@@ -163,10 +170,11 @@
       const i = Math.floor(pos);
       const base = frames[i]?.ready ? frames[i] : nearest(i);
       if (!base) return;
-      cover(base, 1);
+      const t = pos / (FILM_FRAMES - 1);
+      cover(base, 1, t);
       const next = frames[i + 1];
       const blend = pos - i;
-      if (next?.ready && blend > 0.01) cover(next, blend);
+      if (next?.ready && blend > 0.01) cover(next, blend, t);
       ctx.globalAlpha = 1;
       drawn = pos;
       canvas.classList.add('is-drawn');
@@ -286,6 +294,8 @@
     const input = act.querySelector('[data-input]');
     const run = act.querySelector('[data-run]');
     const list = act.querySelector('[data-results]');
+    const ready = (on) => { input.disabled = !on; run.disabled = !on; };
+    ready(false);
     const getJson = async (path) => {
       const r = await fetch(path);
       if (!r.ok) throw new Error(`${path} returned ${r.status}`);
@@ -296,15 +306,18 @@
     try {
       [books, index] = await Promise.all([getJson('data/books.json'), getJson('data/index.json')]);
     } catch (e) {
-      run.disabled = true;
-      input.disabled = true;
       list.innerHTML = `<li class="result"><p class="result-verdict">The check could not load its Bible data (${escapeHtml(String(e.message || e))}). Reload the page to try again.</p></li>`;
       return;
     }
     const checker = BereaCheck.create(books, index);
     const cache = new Map();
     const loadBook = (id) => {
-      if (!cache.has(id)) cache.set(id, getJson(`data/bible/${id}.json`));
+      if (!cache.has(id)) {
+        const pending = getJson(`data/bible/${id}.json`);
+        // A failed download is forgotten, so the next check can try again.
+        pending.catch(() => cache.delete(id));
+        cache.set(id, pending);
+      }
       return cache.get(id);
     };
 
@@ -313,7 +326,11 @@
       if (r.unknownBooks.length) parts.push('There is no such book in the Bible.');
       if (r.unverified.length) parts.push(`${r.unverified.join(', ')} does not exist in the Berean Standard Bible.`);
       if (r.corrected.length) parts.push('The quotation was not word for word, so Berea puts back the exact words.');
-      if (r.badQuotes.length) parts.push('The quotation is not in the verse it cites, so Berea marks it.');
+      if (r.badQuotes.length) {
+        parts.push(r.verified.length
+          ? 'The quotation is not in the verse it cites, so Berea marks it.'
+          : 'The quotation cites no verse to check it against, so Berea marks it.');
+      }
       if (!parts.length && r.verified.length) parts.push(`Verified: ${r.verified.join(', ')}.`);
       if (!parts.length) parts.push('No reference found. Add one the way an answer would cite it, such as John 3:16.');
       return parts.join(' ');
@@ -348,14 +365,17 @@
     const takeOver = () => {
       if (manual) return;
       manual = true;
+      list.classList.add('is-live', 'is-scrollable');
+      list.setAttribute('aria-live', 'polite');
       demo.forEach((d) => { d.el.style.opacity = '1'; d.el.style.transform = 'none'; });
     };
 
     const submit = async () => {
+      if (run.disabled) return;
       const value = input.value.trim();
       if (!value) return input.focus();
       takeOver();
-      run.disabled = true;
+      ready(false);
       try {
         list.prepend(card('You typed', value, await checker.check(value, loadBook)));
       } catch (e) {
@@ -364,10 +384,11 @@
         li.innerHTML = `<p class="result-verdict">That check could not finish: ${escapeHtml(String(e.message || e))}.</p>`;
         list.prepend(li);
       } finally {
-        run.disabled = false;
+        ready(true);
         list.scrollTop = 0;
       }
     };
+    ready(true);
     run.addEventListener('click', submit);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
 
@@ -389,6 +410,8 @@
         d.el.style.opacity = o.toFixed(3);
         d.el.style.transform = `translateY(${((1 - o) * 12).toFixed(1)}px)`;
       });
+      // Until the hand-over the list must not swallow the wheel that is driving the demo.
+      list.classList.toggle('is-scrollable', p >= PEAK_HANDOVER);
       input.placeholder = p >= PEAK_HANDOVER ? 'Your turn: any reference, with or without a quotation' : 'Try “2 Hezekiah 4:1” or a verse you know';
       stage.dataset.scVerifyState = p.toFixed(2);
     };

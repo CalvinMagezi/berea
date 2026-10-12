@@ -322,5 +322,42 @@
   ],
   "badQuotes": [],
   "corrected": []
+ },
+ {
+  "input": "“God so loved the world that He gave His only Son” (John 3:16) John 3:16-16",
+  "text": "“God so loved the world that He gave His only Son” [unverified quote] (John 3:16) John 3:16-16",
+  "verified": [
+   "John 3:16",
+   "John 3:16"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [
+   "God so loved the world that He gave His only Son"
+  ],
+  "corrected": []
+ },
+ {
+  "input": "John 3:16 and John 3:16-15",
+  "text": "John 3:16 and John 3:16-15",
+  "verified": [
+   "John 3:16",
+   "John 3:16"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [],
+  "corrected": []
+ },
+ {
+  "input": "“In the beginning God created the heavens and the earth.”",
+  "text": "“In the beginning God created the heavens and the earth.” [unverified quote]",
+  "verified": [],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [
+   "In the beginning God created the heavens and the earth."
+  ],
+  "corrected": []
  }
 ]

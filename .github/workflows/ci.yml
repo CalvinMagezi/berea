@@ -67,3 +67,4 @@ jobs:
       - run: node --check site/page.js && node --check site/check/check.js
       # The site's reference check must agree with the Dart harness on every fixture case.
       - run: node site/check/selftest.mjs
+      - run: bash tool/build_site.sh

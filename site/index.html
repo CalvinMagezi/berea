@@ -16,15 +16,16 @@
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239E7628'/%3E%3Cpath d='M9 8h9a5 5 0 0 1 0 10H9zM9 18h10a5 5 0 0 1 0 10H9z' fill='none' stroke='%23F6F1E8' stroke-width='2.4'/%3E%3C/svg%3E">
-<link rel="preload" as="image" href="images/hero-poster.webp" fetchpriority="high">
-<link rel="preload" as="image" href="images/film/001.webp">
+<link rel="preload" as="image" href="images/hero-poster.webp" fetchpriority="high" media="(min-width: 701px)">
+<link rel="preload" as="image" href="images/hero-poster-m.webp" fetchpriority="high" media="(max-width: 700px)">
 <link rel="stylesheet" href="vendor/scrollcraft/scrollcraft.css">
 <link rel="stylesheet" href="page.css">
 <noscript><style>
   /* Without the engine nothing animates, so every staged element is simply shown. */
   [data-sc-cue], [data-sc-in], [data-sc-stagger] > *, .verse, .chips li, .result { opacity: 1 !important; transform: none !important; }
   .scene { display: none; } .scene[data-scene="5"] { display: block; opacity: 1; visibility: visible; }
-  .intertitle, .checker-input, .motes { display: none; }
+  .intertitle, .checker-input, .motes, .film, .sc-scrim { display: none; }
+  .hero [data-sc-stage] { position: relative; min-height: 100svh; }
   .range-stage { overflow-x: auto; }
 </style></noscript>
 </head>
@@ -174,7 +175,7 @@
       <div class="checker glass" data-sc-cue="0.15 1 0.06 0.03" data-checker>
         <div class="checker-head">
           <h2 class="checker-title">Try to fool the check</h2>
-          <p class="checker-note">This box runs a copy of Berea's reference check in your browser, against the Berean Standard Bible loaded from this site. It agrees with the app's own check on every test case.</p>
+          <p class="checker-note">This box runs a copy of Berea's reference check in your browser, against the Berean Standard Bible loaded from this site. For the verses you cite, it gives the same verdict as the app's own check on every test case.</p>
         </div>
         <div class="checker-input">
           <label class="sr" for="cite">A reference, with or without a quotation</label>
@@ -182,7 +183,7 @@
           <button type="button" data-run>Check</button>
         </div>
         <noscript><p class="checker-note">The check runs in your browser and needs JavaScript. Everything else on this page reads without it.</p></noscript>
-        <ol class="results" role="list" aria-live="polite" data-results></ol>
+        <ol class="results" role="list" data-results></ol>
       </div>
     </div>
   </section>

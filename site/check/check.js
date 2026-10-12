@@ -59,6 +59,9 @@
     const refSource = `\\b(${keys.map(aliasPattern).join('|')})\\.?\\s*(\\d{1,3})(?:\\s*[:.]\\s*(\\d{1,3})(?:\\s*[-\\u2013]\\s*(\\d{1,3}))?)?(?!\\d)`;
     const citationShape = () => /\b((?:[1-3]|I{1,3})\s?)?([A-Z][a-z]+(?:\s+(?:of\s+)?[A-Z][a-z]+)?)\.?\s+(\d{1,3})\s*:\s*(\d{1,3})/g;
 
+    // Identity as Dart's Ref ==: "John 3:16" and "John 3:16-16" share a label but are different refs.
+    const refKey = (r) => [r.book.id, r.chapter, r.verseStart, r.verseEnd].join(':');
+
     const label = (r) => {
       if (r.verseStart == null) return `${r.book.name} ${r.chapter}`;
       if (r.verseEnd == null || r.verseEnd === r.verseStart) return `${r.book.name} ${r.chapter}:${r.verseStart}`;
@@ -207,10 +210,10 @@
       for (const m of found) {
         buf += output.substring(cursor, m.start);
         if (exists(m.ref)) {
-          verified.set(label(m.ref), m.ref);
+          verified.set(refKey(m.ref), m.ref);
           buf += output.substring(m.start, m.end);
         } else {
-          unverified.set(label(m.ref), m.ref);
+          unverified.set(refKey(m.ref), m.ref);
           buf += `[unverified: ${label(m.ref)}]`;
         }
         cursor = m.end;
@@ -228,7 +231,7 @@
       const seen = new Set();
       const shown = [];
       for (const m of found) {
-        const key = label(m.ref);
+        const key = refKey(m.ref);
         if (seen.has(key)) continue;
         seen.add(key);
         shown.push(...passage(m.ref, text));
@@ -260,8 +263,8 @@
 
       return {
         text: out,
-        verified: [...verified.keys()],
-        unverified: [...unverified.keys()],
+        verified: [...verified.values()].map(label),
+        unverified: [...unverified.values()].map(label),
         unknownBooks,
         badQuotes,
         corrected,

@@ -24,7 +24,7 @@ flutter test
 echo "Checking the site's live reference check against the harness"
 (cd packages/harness && dart run bin/export_site.dart)
 node site/check/selftest.mjs
-if ! git diff --quiet -- site/data; then
+if [[ -n "$(git status --porcelain -- site/data)" ]]; then
   echo "site/data changed when regenerated from this database. Commit it, then release." >&2
   exit 1
 fi

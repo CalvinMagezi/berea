@@ -194,8 +194,10 @@ a:hover { color: var(--gold-soft); }
 .checker-input button:hover { background: var(--gold-soft); }
 .checker-input button:active { transform: scale(0.97); }
 .checker-input button:disabled { opacity: 0.5; cursor: default; }
-.results { list-style: none; margin: 1rem 0 0; padding: 0; min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 0.7rem; }
+.results { list-style: none; margin: 1rem 0 0; padding: 0; min-height: 0; flex: 1 1 auto; overflow-y: hidden; display: grid; gap: 0.7rem; }
 .result { padding: 0.9rem 1rem; border-radius: 16px; border: 1px solid var(--sc-hairline); background: color-mix(in oklab, var(--sc-ink) 4%, transparent); animation: arrive 0.35s var(--sc-ease-out); }
+.results.is-scrollable { overflow-y: auto; }
+.results.is-live { overscroll-behavior: contain; }
 .result--demo { animation: none; opacity: 0; will-change: opacity, transform; }
 @keyframes arrive { from { opacity: 0; transform: translateY(6px); } }
 .result-in { font: 0.8rem/1.4 var(--ui); color: var(--sc-ink-soft); margin: 0 0 0.35rem; }
@@ -272,4 +274,5 @@ a:hover { color: var(--gold-soft); }
 @media (prefers-reduced-motion: reduce) {
   .motes { display: none; }
   .film { display: none; }
+  .result { animation: none; }
 }
