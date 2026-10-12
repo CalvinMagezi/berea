@@ -22,6 +22,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
   var _draft = '';
   var _generating = false;
   String? _error;
+  String? _nearMissNote;
 
   AppState get s => widget.state;
 
@@ -51,12 +52,14 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
       _generating = true;
       _draft = '';
       _error = null;
+      _nearMissNote = null;
     });
     try {
       final page = await h.studyPage(widget.ref, onToken: (t) => setState(() => _draft += t));
       _observation.text = page.observation;
       _interpretation.text = page.interpretation;
       _application.text = page.application;
+      _nearMissNote = nearMissNotice(page.guard.nearMisses);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -121,6 +124,11 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(_error!, style: TextStyle(color: scheme.error)),
+                ),
+              if (_nearMissNote != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(_nearMissNote!, style: TextStyle(color: scheme.error, fontSize: 13)),
                 ),
               const SizedBox(height: 16),
               _Section('Observation', 'What does the text say?', _observation),
