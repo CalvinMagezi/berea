@@ -124,6 +124,32 @@ void main() {
       });
     }
 
+    test('a link never extends a comment across a blank record, a chapter or an intro', () {
+      final slots = testamentSlots(tinyV11n(), newTestament: false);
+      final prefix = writeModule(
+        dir,
+        slots,
+        {
+          const SwordKey(1, 1, 2): 'On verse two',
+          const SwordKey(1, 1, 3): '   ',
+          const SwordKey(1, 1, 0): 'Chapter one outline',
+          const SwordKey(2, 1, 5): 'Last verse of Exodus 1',
+          const SwordKey(3, 1, 2): 'Last verse of Exodus 1',
+        },
+        zCom4: false,
+        links: {
+          const SwordKey(1, 1, 4): const SwordKey(1, 1, 3),
+          const SwordKey(1, 1, 1): const SwordKey(1, 1, 0),
+          const SwordKey(3, 1, 1): const SwordKey(2, 1, 5),
+        },
+      );
+      final entries = readTestament(prefix, 'b', slots, zCom4: false);
+      expect(
+        [for (final e in entries) '${e.key}-${e.lastVerse} ${e.text}'],
+        ['1 1:0-0 Chapter one outline', '1 1:2-2 On verse two', '2 1:5-5 Last verse of Exodus 1'],
+      );
+    });
+
     test('a module in another versification is refused, not misread', () {
       final slots = testamentSlots(tinyV11n(), newTestament: false);
       final prefix = writeModule(dir, slots, {}, zCom4: false);

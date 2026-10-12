@@ -66,7 +66,8 @@ const _zCom4VerseEntryBytes = 12;
 
 /// Reads every non-empty slot of a module's testament. [prefix] is the data path plus `ot` or
 /// `nt`; [blockLetter] is `b`, `c` or `v` from the module's BlockType. Verses that link to the
-/// same text as the verse before them are folded into that entry's [SwordEntry.lastVerse].
+/// same text as the verse before them in the same chapter are folded into that entry's
+/// [SwordEntry.lastVerse]; a link anywhere else repeats text already read and is dropped.
 List<SwordEntry> readTestament(
   String prefix,
   String blockLetter,
@@ -94,7 +95,9 @@ List<SwordEntry> readTestament(
   });
 
   final out = <SwordEntry>[];
+  // The slot just before (null after an empty one), and the record behind the last entry kept.
   (int, int, int)? previous;
+  (int, int, int)? kept;
   for (var i = 0; i < slots.length; i++) {
     final key = slots[i];
     final at = i * width;
@@ -104,20 +107,32 @@ List<SwordEntry> readTestament(
         ? verseIndex.getUint32(at + 8, Endian.little)
         : verseIndex.getUint16(at + 8, Endian.little);
     final pointer = (b, o, size);
-    if (key == null || size == 0) {
+    final contiguous = pointer == previous;
+    previous = key == null || size == 0 ? null : pointer;
+    if (key == null || previous == null) continue;
+    if (pointer == kept) {
+      // Older modules also point verses with no note of their own at the last note, even
+      // across a chapter; only an unbroken run within one chapter's verses is a real range.
+      final last = out.last.key;
+      final sameRun = last.book == key.book && last.chapter == key.chapter;
+      if (contiguous && sameRun && last.verse > 0 && key.verse > 0) {
+        final run = out.removeLast();
+        out.add(SwordEntry(run.key, key.verse, run.text));
+      }
+      continue;
+    }
+    final text = _utf8OrLatin1(block(b).sublist(o, o + size));
+    if (text.trim().isEmpty) {
+      // A blank record is never kept, so nothing may be linked through it.
       previous = null;
       continue;
     }
-    final linked = pointer == previous && out.isNotEmpty && key.verse > 0;
-    previous = pointer;
-    if (linked) {
-      final last = out.removeLast();
-      out.add(SwordEntry(last.key, key.verse, last.text));
-      continue;
-    }
-    final bytes = block(b);
-    final text = _utf8OrLatin1(bytes.sublist(o, o + size));
-    if (text.trim().isEmpty) continue;
+    kept = pointer;
+    // Some modules also store a copy of a chapter's last note again under the next chapter.
+    final last = out.lastOrNull;
+    final sameChapter =
+        last != null && last.key.book == key.book && last.key.chapter == key.chapter;
+    if (last != null && text == last.text && !sameChapter) continue;
     out.add(SwordEntry(key, key.verse, text));
   }
   return out;

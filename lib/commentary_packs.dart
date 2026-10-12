@@ -28,7 +28,7 @@ const commentaryPins = <String, PackPin>{
   'calvin': PackPin('7590864d8ae89441277d5906372c6c3701354f2967939875642f1888d11ab93d', 26535568),
   'kd': PackPin('10223ab9ca957d592657a1e9e3040c9ce26b8a2f0d30fb9c61c72e566a91d1b3', 18180887),
   'barnes': PackPin('2b28dbaae0f0b42fd844507c2887d619bb8db3a06d962b7e015df2cebf60b663', 10200748),
-  'wesley': PackPin('5ec8f565204d684454a2f0f1c1f092a0f5afb4af0bc8f114f8d4d0bafaee9bfc', 3864925),
+  'wesley': PackPin('dca59c30ff37ce9b7ae0805e8d1fdbc5cb50531326d9a79fef79e60912fe69ef', 3841717),
   'tdavid': PackPin('85f3d13bfbdb6cf4cdb169e98610320df65148f83809d06af24759fca2612076', 8826308),
 };
 
@@ -46,8 +46,15 @@ class CommentaryShelf {
   /// Download progress from 0 to 1 for packs being fetched.
   final progress = <String, double>{};
 
+  /// Numbers each install's temporary file, so two installs at once never share one.
+  var _installs = 0;
+
   CommentaryShelf(this.dir, this.onChange) {
     dir.createSync(recursive: true);
+    // A download or install cut short by the app closing leaves only temporary files behind.
+    for (final f in dir.listSync().whereType<File>()) {
+      if (f.path.endsWith('.part')) f.deleteSync();
+    }
     for (final spec in commentaryPackSpecs) {
       library.open(spec.id, _path(spec));
     }
@@ -92,7 +99,7 @@ class CommentaryShelf {
   }
 
   Future<CommentaryPackSpec> _install(File source, {String? expectedId}) async {
-    final tmp = File('${dir.path}/incoming.sqlite.part');
+    final tmp = File('${dir.path}/incoming-${_installs++}.sqlite.part');
     CommentaryPackSpec? spec;
     try {
       await Isolate.run(() => _unpack(source.path, tmp.path, maxCommentaryPackBytes));
