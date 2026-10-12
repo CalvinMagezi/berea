@@ -10,4 +10,7 @@ export 'src/ollama_engine.dart';
 export 'src/prompt_builder.dart';
 export 'src/ref_parser.dart';
 export 'src/retriever.dart';
+export 'src/speech.dart';
+export 'src/speech_lexicon.dart';
 export 'src/tier.dart';
+export 'src/voice_pack.dart';

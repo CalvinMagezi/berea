@@ -29,6 +29,22 @@ const downloadableSources = [
     'CC BY 4.0',
     'Tyndale House, Cambridge, www.STEPBible.org',
   ),
+  DataSource(
+    'Kokoro-82M voice model and the Heart and Michael voices (voice pack)',
+    'Apache-2.0',
+    'hexgrad/Kokoro-82M; 8-bit ONNX export with durations by onnx-community',
+  ),
+  DataSource(
+    'CMU Pronouncing Dictionary (voice pack)',
+    'BSD-style licence. Copyright (C) 1993-2015 Carnegie Mellon University. All rights reserved.',
+    'cmusphinx/cmudict',
+  ),
+];
+
+/// Libraries the voice runs on, compiled into the app.
+const voiceLibraries = [
+  DataSource('ONNX Runtime', 'MIT', 'Microsoft, via flutter_onnxruntime (MIT) by MASIC AI'),
+  DataSource('audioplayers', 'MIT', 'Blue Fire'),
 ];
 
 /// Every dataset in the app or offered for download, with its licence and who to credit.
@@ -51,6 +67,8 @@ class AttributionsScreen extends StatelessWidget {
               for (final s in downloadableSources) _SourceTile(s.name, s.credit, s.licence),
               for (final m in commentaryModules)
                 _SourceTile(m.title, '${m.author}. ${m.source} ${m.id}', m.licence),
+              const _Heading('Voice libraries'),
+              for (final s in voiceLibraries) _SourceTile(s.name, s.credit, s.licence),
               const _Heading('Berea'),
               const _SourceTile('Berea app and harness', 'github.com/CalvinMagezi/berea', 'MIT'),
             ],

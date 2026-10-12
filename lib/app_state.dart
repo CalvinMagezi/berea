@@ -17,6 +17,7 @@ import 'models.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
 import 'study_store.dart';
+import 'voice.dart';
 
 enum EngineKind { ollama, device }
 
@@ -111,6 +112,13 @@ class AppState extends ChangeNotifier {
 
   /// Optional public domain commentaries the user has downloaded.
   late final CommentaryShelf commentary;
+
+  /// The optional on-device voice pack.
+  late final VoiceShelf voice;
+
+  /// True while the voice model is loaded; chat waits until it is closed again.
+  bool speaking = false;
+  bool _rebuildAfterVoice = false;
   Harness? harness;
   final turns = <ChatTurn>[];
   bool busy = false;
@@ -160,6 +168,7 @@ class AppState extends ChangeNotifier {
     s._keepTranslationValid();
     s.db.attachFullLexicon(s.lexiconPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
+    s.voice = VoiceShelf(Directory('${s.supportDir.path}/voice'), s.touch);
     await s._rebuildHarness();
     if (kDebugMode) unawaited(s._autorun());
     return s;
@@ -490,9 +499,45 @@ class AppState extends ChangeNotifier {
 
   String get engineLabel => harness?.engine.name ?? 'no engine';
 
-  bool get ready => harness != null && !busy;
+  bool get ready => harness != null && !busy && !speaking;
+
+  /// Runs [use] with the voice model loaded. Kokoro and the on-device language model are never
+  /// resident together, since the pair does not fit a 6 to 8 GB phone: the language model is
+  /// closed first and loaded again once the voice is closed.
+  Future<T> withVoice<T>(Future<T> Function(KokoroVoice voice) use) async {
+    if (busy || speaking) throw StateError('Berea is busy. Try again in a moment.');
+    speaking = true;
+    final hadModel = _edge != null;
+    if (hadModel) {
+      harness = null;
+      deviceState = DeviceModelState.loading;
+      await _edge!.close();
+      _edge = null;
+    }
+    notifyListeners();
+    KokoroVoice? loaded;
+    try {
+      loaded = await KokoroVoice.load(voice);
+      return await use(loaded);
+    } finally {
+      await loaded?.close();
+      speaking = false;
+      final rebuild = hadModel || _rebuildAfterVoice;
+      _rebuildAfterVoice = false;
+      if (rebuild) {
+        await _rebuildHarness();
+      } else {
+        notifyListeners();
+      }
+    }
+  }
 
   Future<void> _rebuildHarness() async {
+    if (speaking) {
+      // The language model would load beside the voice; withVoice rebuilds when it is done.
+      _rebuildAfterVoice = true;
+      return;
+    }
     await _edge?.close();
     _edge = null;
     harness = null;
@@ -581,7 +626,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> send(String question) async {
     final h = harness;
-    if (h == null) return;
+    if (h == null || speaking) return;
     final turn = ChatTurn(question);
     turns.add(turn);
     busy = true;

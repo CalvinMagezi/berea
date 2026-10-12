@@ -3,7 +3,9 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  audioplayers_linux
   flutter_edge_ai
+  flutter_onnxruntime
   sqlite3_flutter_libs
 )
 
