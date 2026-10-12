@@ -7,6 +7,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import 'app_state.dart';
+import 'voice_wav.dart';
+
+export 'voice_wav.dart';
 
 /// The longest spoken question Berea records; Gemma's audio input is meant for short clips.
 const maxVoiceDuration = Duration(seconds: 30);
@@ -20,23 +23,21 @@ const voiceTick = Duration(milliseconds: 100);
 /// A phone CPU can take a while on 30 seconds of audio, but not this long.
 const voiceTranscribeTimeout = Duration(minutes: 2);
 
-/// Gemma reads 16 kHz mono 16-bit PCM WAV.
-const voiceSampleRate = 16000;
-const voiceChannels = 1;
-const voiceBitsPerSample = 16;
+/// macOS finishes writing the file after stop returns; wait this long at most for it.
+const voiceFinalizeLimit = Duration(seconds: 2);
+const voiceFinalizePoll = Duration(milliseconds: 50);
 
-const _voiceDirName = 'berea-voice';
+/// A late writer can recreate a file just deleted, so it is deleted again after this.
+const voiceLateWriteGrace = Duration(seconds: 2);
 
-/// Older files are leftovers from a crash; a live recording is never this old.
-const staleVoiceAge = Duration(minutes: 10);
-
-const _wavPcmFormat = 1;
-const _wavHeaderBytes = 12;
-const _chunkHeaderBytes = 8;
-const _fmtMinBytes = 16;
+/// Each process records into its own private folder with this prefix in the app's cache.
+const voiceDirPrefix = 'berea-voice-';
 
 const micDeniedMessage =
     'Berea cannot use the microphone. Allow it for Berea in system Settings, then try again.';
+const micUnavailableMessage =
+    'No microphone could be opened. Check that one is connected and not in use. On Linux, '
+    'voice needs parecord and ffmpeg installed.';
 const tooShortMessage = 'Hold the microphone while you speak, or tap it to start and stop.';
 const nothingHeardMessage = 'Nothing was heard. Try again, or type your question.';
 const voiceFailedMessage = 'That recording could not be transcribed. Try again, or type it.';
@@ -47,6 +48,10 @@ const needsGemma4Message =
 const audioUnavailableMessage =
     'The audio part of Gemma 4 did not load on this device, so voice is off. Typed questions '
     'still work.';
+
+String wrongRateMessage(int? rate) =>
+    'The microphone recorded at ${rate ?? 'an unknown rate'} Hz instead of 16000 Hz, which Gemma '
+    'cannot read. Choose another input in system Settings, or type your question.';
 
 enum VoicePhase { idle, starting, recording, transcribing, confirm }
 
@@ -61,43 +66,41 @@ VoiceSupport voiceSupport(Settings settings, DeviceModelState state, {required b
   return hearsAudio ? VoiceSupport.ready : VoiceSupport.unavailable;
 }
 
-/// Null when [wav] is the 16 kHz mono 16-bit PCM Gemma reads, otherwise why it is not.
-String? wavProblem(Uint8List wav) {
-  if (wav.length < _wavHeaderBytes ||
-      String.fromCharCodes(wav, 0, 4) != 'RIFF' ||
-      String.fromCharCodes(wav, 8, 12) != 'WAVE') {
-    return 'not a WAV file';
+final _labelPrefix = RegExp(r'^(transcript|transcription)\s*:\s*', caseSensitive: false);
+final _noSpeech = RegExp(
+  r'^[\s\p{P}\p{S}]*(no speech|silence|inaudible|no audio|nothing|music|noise|um+|uh+|hmm+|ah+)?'
+  r'[\s\p{P}\p{S}]*$',
+  caseSensitive: false,
+  unicode: true,
+);
+const _openQuotes = '"\'“‘';
+const _closeQuotes = '"\'”’';
+
+/// The words alone: no label, no wrapping quotes, and empty when Gemma heard no speech.
+String cleanTranscript(String raw) {
+  var t = raw.trim().replaceFirst(_labelPrefix, '').trim();
+  while (t.length >= 2 &&
+      _openQuotes.contains(t[0]) &&
+      _closeQuotes.contains(t[t.length - 1])) {
+    t = t.substring(1, t.length - 1).trim();
   }
-  final view = ByteData.sublistView(wav);
-  var offset = _wavHeaderBytes;
-  while (offset + _chunkHeaderBytes <= wav.length) {
-    final id = String.fromCharCodes(wav, offset, offset + 4);
-    final size = view.getUint32(offset + 4, Endian.little);
-    final body = offset + _chunkHeaderBytes;
-    if (id == 'fmt ') {
-      if (size < _fmtMinBytes || body + _fmtMinBytes > wav.length) return 'short format chunk';
-      return _formatProblem(view, body);
-    }
-    offset = body + size + size % 2;
-  }
-  return 'no format chunk';
+  return _noSpeech.hasMatch(t) ? '' : t;
 }
 
-String? _formatProblem(ByteData view, int at) {
-  final format = view.getUint16(at, Endian.little);
-  final channels = view.getUint16(at + 2, Endian.little);
-  final rate = view.getUint32(at + 4, Endian.little);
-  final bits = view.getUint16(at + 14, Endian.little);
-  if (format != _wavPcmFormat) return 'not PCM';
-  if (channels != voiceChannels) return '$channels channels';
-  if (rate != voiceSampleRate) return '$rate Hz';
-  if (bits != voiceBitsPerSample) return '$bits-bit';
-  return null;
+String _messageFor(WavProblem problem, Uint8List wav) => switch (problem) {
+  WavProblem.wrongRate => wrongRateMessage(wavSampleRate(wav)),
+  WavProblem.tooShort => tooShortMessage,
+  _ => voiceFailedMessage,
+};
+
+class _WavRejected implements Exception {
+  final String message;
+  const _WavRejected(this.message);
 }
 
-/// Where recordings live while they are transcribed. Everything in it is temporary.
-Future<Directory> voiceTempDir() async =>
-    Directory('${(await getTemporaryDirectory()).path}/$_voiceDirName');
+class _MicUnavailable implements Exception {
+  const _MicUnavailable();
+}
 
 void _deleteFile(String? path) {
   if (path == null) return;
@@ -109,11 +112,30 @@ void _deleteFile(String? path) {
   }
 }
 
+/// Folders already swept in this process; a folder from an earlier run has no owner left.
+final _sweptBases = <String>{};
+
+/// Removes every recording folder an earlier run left behind, without following links.
+void _sweepBase(Directory base) {
+  if (!_sweptBases.add(base.path) || !base.existsSync()) return;
+  for (final e in base.listSync(followLinks: false)) {
+    final name = e.uri.pathSegments.where((s) => s.isNotEmpty).last;
+    final isDir = FileSystemEntity.typeSync(e.path, followLinks: false) ==
+        FileSystemEntityType.directory;
+    if (!isDir || !name.startsWith(voiceDirPrefix)) continue;
+    try {
+      e.deleteSync(recursive: true);
+    } on FileSystemException catch (err) {
+      debugPrint('Could not clear old voice recordings: ${err.osError?.errorCode}');
+    }
+  }
+}
+
 /// One voice session for the whole app; the recording is a temp file deleted on every path.
 class VoiceInput extends ChangeNotifier {
   final AudioRecorder _recorder;
   final Future<String> Function(Uint8List wav) _transcribe;
-  final Future<Directory> Function() _tempDir;
+  final Future<Directory> Function() _cacheDir;
   final Stopwatch Function() newStopwatch;
   final Duration maxDuration;
   final Duration minDuration;
@@ -122,15 +144,16 @@ class VoiceInput extends ChangeNotifier {
   VoiceInput({
     required Future<String> Function(Uint8List wav) transcribe,
     AudioRecorder? recorder,
-    Future<Directory> Function()? tempDir,
+    Future<Directory> Function()? cacheDir,
     this.newStopwatch = Stopwatch.new,
     this.maxDuration = maxVoiceDuration,
     this.minDuration = minVoiceDuration,
     this.transcribeTimeout = voiceTranscribeTimeout,
   }) : _transcribe = transcribe,
        _recorder = recorder ?? AudioRecorder(),
-       _tempDir = tempDir ?? voiceTempDir {
-    unawaited(_sweep());
+       _cacheDir = cacheDir ?? getApplicationCacheDirectory {
+    _folder = _prepareFolder();
+    unawaited(_folder.then((_) {}, onError: (_) {}));
   }
 
   VoicePhase phase = VoicePhase.idle;
@@ -147,6 +170,9 @@ class VoiceInput extends ChangeNotifier {
   /// What Gemma heard, set when [phase] is [VoicePhase.confirm].
   String transcript = '';
 
+  /// This process's private recordings folder, created after old ones are swept.
+  late final Future<Directory> _folder;
+
   /// Bumped by cancel and dispose so a late result from an older session is dropped.
   int _session = 0;
   Stopwatch? _watch;
@@ -156,6 +182,7 @@ class VoiceInput extends ChangeNotifier {
   bool _cancelRequested = false;
   bool _disposed = false;
   Future<void>? _opening;
+  final _lateDeletes = <Timer>[];
 
   Duration get elapsed {
     final e = _watch?.elapsed ?? Duration.zero;
@@ -168,6 +195,14 @@ class VoiceInput extends ChangeNotifier {
   bool get inUse => recording || phase == VoicePhase.transcribing;
 
   bool ownedBy(Object who) => owner == who;
+
+  /// A per-user cache folder, and inside it a fresh folder only this user can open.
+  Future<Directory> _prepareFolder() async {
+    final base = await _cacheDir();
+    base.createSync(recursive: true);
+    _sweepBase(base);
+    return base.createTempSync(voiceDirPrefix);
+  }
 
   Future<void> start(Object who) async {
     if (inUse || _disposed) return;
@@ -187,7 +222,7 @@ class VoiceInput extends ChangeNotifier {
       path = await opening;
     } catch (e) {
       debugPrint('Voice recording did not start: ${e.runtimeType}');
-      message = voiceFailedMessage;
+      message = e is _MicUnavailable ? micUnavailableMessage : voiceFailedMessage;
     }
     if (path == null || session != _session || _cancelRequested || _stopRequested) {
       // A release before recording began is a slip, never a zero-length question.
@@ -203,14 +238,19 @@ class VoiceInput extends ChangeNotifier {
     _notify();
   }
 
-  /// Null when permission was refused. Throws when the recorder cannot start.
+  /// Null when permission was refused. Throws when there is no usable microphone.
   Future<String?> _open() async {
-    if (!await _recorder.hasPermission()) {
+    final bool allowed;
+    try {
+      allowed = await _recorder.hasPermission();
+    } catch (_) {
+      throw const _MicUnavailable();
+    }
+    if (!allowed) {
       message = micDeniedMessage;
       return null;
     }
-    final dir = await _tempDir();
-    dir.createSync(recursive: true);
+    final dir = await _folder;
     final path = '${dir.path}/${DateTime.now().microsecondsSinceEpoch}.wav';
     try {
       await _recorder.start(
@@ -223,7 +263,7 @@ class VoiceInput extends ChangeNotifier {
       );
     } catch (_) {
       _deleteFile(path);
-      rethrow;
+      throw const _MicUnavailable();
     }
     return path;
   }
@@ -269,25 +309,47 @@ class VoiceInput extends ChangeNotifier {
       }
       transcript = heard;
       phase = VoicePhase.confirm;
+    } on _WavRejected catch (e) {
+      if (session == _session) message = e.message;
     } catch (e) {
       debugPrint('Voice transcription failed: ${e.runtimeType}');
       if (session == _session) {
         message = e is TimeoutException ? voiceTimeoutMessage : voiceFailedMessage;
       }
     } finally {
-      _deleteFile(path);
+      _deleteNowAndLater(path);
       if (session == _session && phase == VoicePhase.transcribing) phase = VoicePhase.idle;
       _notify();
     }
   }
 
-  /// The file is deleted before the model sees the audio, so only memory holds it.
+  /// The file is deleted before the model hears the audio, so from then on only memory holds it.
   Future<String> _heard(String path) async {
-    final wav = File(path).readAsBytesSync();
+    final wav = repairWavSizes(await _readFinished(path));
+    _deleteNowAndLater(path);
+    final problem = wavProblem(wav, maxDuration: maxDuration);
+    if (problem != null) {
+      debugPrint('Voice recording rejected: ${problem.name}');
+      throw _WavRejected(_messageFor(problem, wav));
+    }
+    return cleanTranscript(await _transcribe(wav).timeout(transcribeTimeout));
+  }
+
+  /// macOS replies to stop before the file is finalised, so wait for a consistent header.
+  Future<Uint8List> _readFinished(String path) async {
+    for (var waited = Duration.zero; ; waited += voiceFinalizePoll) {
+      final file = File(path);
+      final bytes = file.existsSync() ? file.readAsBytesSync() : Uint8List(0);
+      if (wavSizesConsistent(bytes) || waited >= voiceFinalizeLimit) return bytes;
+      await Future<void>.delayed(voiceFinalizePoll);
+    }
+  }
+
+  void _deleteNowAndLater(String? path) {
+    if (path == null) return;
     _deleteFile(path);
-    final problem = wavProblem(wav);
-    if (problem != null) throw FormatException('Recording is $problem');
-    return (await _transcribe(wav).timeout(transcribeTimeout)).trim();
+    _lateDeletes.add(Timer(voiceLateWriteGrace, () => _deleteFile(path)));
+    _lateDeletes.removeWhere((t) => !t.isActive);
   }
 
   /// Throws away a recording or a transcription in progress.
@@ -359,22 +421,7 @@ class VoiceInput extends ChangeNotifier {
     } catch (e) {
       debugPrint('Voice recorder did not cancel: ${e.runtimeType}');
     }
-    _deleteFile(path);
-  }
-
-  Future<void> _sweep() async {
-    try {
-      final dir = await _tempDir();
-      if (!dir.existsSync()) return;
-      final now = DateTime.now();
-      for (final f in dir.listSync().whereType<File>()) {
-        if (f.path != _path && now.difference(f.statSync().modified) > staleVoiceAge) {
-          _deleteFile(f.path);
-        }
-      }
-    } on Object catch (e) {
-      debugPrint('Could not clear old voice recordings: ${e.runtimeType}');
-    }
+    _deleteNowAndLater(path);
   }
 
   void _notify() {
@@ -397,6 +444,14 @@ class VoiceInput extends ChangeNotifier {
         await _recorder.dispose();
       } catch (e) {
         debugPrint('Voice recorder did not close: ${e.runtimeType}');
+      }
+      for (final t in _lateDeletes) {
+        t.cancel();
+      }
+      try {
+        (await _folder).deleteSync(recursive: true);
+      } on Object catch (e) {
+        debugPrint('Could not remove the voice folder: ${e.runtimeType}');
       }
     }());
     super.dispose();

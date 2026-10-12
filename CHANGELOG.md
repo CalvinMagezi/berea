@@ -16,7 +16,8 @@ Study
 - Only one voice question runs at a time across the Study tab and the quick chat, and nothing
   else uses the model while it transcribes. Changing the model waits for it to finish.
 - If Gemma 4's audio part fails to load, typed questions still work and the button says voice
-  is off.
+  is off. A missing microphone, a microphone stuck at the wrong sample rate and a recording with
+  no speech each get their own message. On Linux, voice needs parecord and ffmpeg.
 - The app asks for the microphone the first time you use voice (Android RECORD_AUDIO, iOS and
   macOS microphone permission). If you refuse, Berea says where to allow it.
 

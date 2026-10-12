@@ -311,7 +311,9 @@ docs/screenshots/
   Gemma 4 models load with the audio encoder, which also runs on the CPU; if it fails to load,
   the model loads text only and voice is turned off. Android declares
   `RECORD_AUDIO`; iOS and macOS carry `NSMicrophoneUsageDescription`, and both macOS entitlement
-  files carry `com.apple.security.device.audio-input`.
+  files carry `com.apple.security.device.audio-input`. On Linux, voice needs `parecord`
+  (PulseAudio or PipeWire) and `ffmpeg` installed. Recordings go in a private folder in the app's
+  cache and are deleted as soon as they are read.
 - A small method channel reports device memory so the settings can recommend a model.
 - Debug builds read `BEREA_AUTORUN` or `autorun.txt` in the app's documents folder and run that
   question on launch, so a headless simulator or emulator can exercise the on-device path.

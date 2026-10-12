@@ -60,7 +60,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// A fresh transcript joins what was typed for the user to check; it is never sent by itself.
   void _onVoice() {
-    final entered = _voice.phase == VoicePhase.confirm && _voicePhase != VoicePhase.confirm;
+    // The timer ticks ten times a second; only a phase change concerns the whole screen.
+    if (_voice.phase == _voicePhase) return;
+    final entered = _voice.phase == VoicePhase.confirm;
     _voicePhase = _voice.phase;
     if (entered && _voice.ownedBy(this)) {
       final typed = _input.text.trim();

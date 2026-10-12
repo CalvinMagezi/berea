@@ -23,8 +23,8 @@ const transcriptTopK = 1;
 
 const transcribeInstruction =
     'Transcribe the speech in this audio word for word. Keep every word, including question '
-    'words such as what, who and how, and end a question with a question mark. Do not answer '
-    'it or rephrase it. Reply with the transcript only.';
+    'words such as what, who and how, and punctuate it as it was spoken. Do not answer it or '
+    'rephrase it. If there is no speech, reply with nothing. Reply with the transcript only.';
 
 Future<void>? _init;
 
@@ -137,8 +137,18 @@ class EdgeAiEngine implements LlmEngine {
       }
       return out.toString().trim();
     } finally {
-      await chat.close();
+      await _forget(chat);
     }
+  }
+
+  /// The plugin keeps a chat's history, audio included, until cleared; clear it, then close.
+  Future<void> _forget(InferenceChat chat) async {
+    try {
+      await chat.clearHistory();
+    } catch (e) {
+      debugPrint('Could not clear the transcription chat: ${e.runtimeType}');
+    }
+    await chat.close();
   }
 
   Future<void> close() => model.close();

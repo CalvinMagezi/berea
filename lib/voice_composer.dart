@@ -51,6 +51,28 @@ class VoiceMicButton extends StatefulWidget {
 }
 
 class _VoiceMicButtonState extends State<VoiceMicButton> {
+  @override
+  void initState() {
+    super.initState();
+    widget.voice.addListener(_refresh);
+  }
+
+  @override
+  void didUpdateWidget(VoiceMicButton old) {
+    super.didUpdateWidget(old);
+    if (old.voice == widget.voice) return;
+    old.voice.removeListener(_refresh);
+    widget.voice.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    widget.voice.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _refresh() => setState(() {});
+
   Stopwatch? _press;
   Offset? _origin;
   bool _startedHere = false;
@@ -208,28 +230,37 @@ class VoiceStatusLine extends StatelessWidget {
   const VoiceStatusLine(this.voice, {super.key, required this.owner});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      ListenableBuilder(listenable: voice, builder: (context, _) => _build(context));
+
+  /// Only phase text is a live region; a ticking clock would be read aloud and recorded.
+  Widget _build(BuildContext context) {
     if (!voice.ownedBy(owner)) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
     final style = TextStyle(color: scheme.onSurfaceVariant, fontSize: 13);
+    Widget live(String text, [TextStyle? s]) =>
+        Semantics(liveRegion: true, child: Text(text, style: s ?? style));
     final cancel = TextButton(onPressed: voice.cancel, child: const Text('Cancel'));
     final Widget? child = switch (voice.phase) {
-      VoicePhase.starting => Text('Starting the microphone…', style: style),
+      VoicePhase.starting => live('Starting the microphone\u2026'),
       VoicePhase.recording => Row(
         children: [
           Icon(Icons.fiber_manual_record, size: 14, color: scheme.error),
           const SizedBox(width: 6),
-          Flexible(
+          Flexible(child: live('Listening. ${voice.held ? releaseHint : tapAgainHint}')),
+          const SizedBox(width: 8),
+          ExcludeSemantics(
             child: Text(
-              'Listening ${voiceClock(voice.elapsed)} of ${voiceClock(voice.maxDuration)}. '
-              '${voice.held ? releaseHint : tapAgainHint}',
+              '${voiceClock(voice.elapsed)} of ${voiceClock(voice.maxDuration)}',
               style: style,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: LinearProgressIndicator(
-              value: voice.elapsed.inMilliseconds / voice.maxDuration.inMilliseconds,
+            child: ExcludeSemantics(
+              child: LinearProgressIndicator(
+                value: voice.elapsed.inMilliseconds / voice.maxDuration.inMilliseconds,
+              ),
             ),
           ),
           cancel,
@@ -237,21 +268,18 @@ class VoiceStatusLine extends StatelessWidget {
       ),
       VoicePhase.transcribing => Row(
         children: [
-          Expanded(child: Text('Transcribing on this device…', style: style)),
+          Expanded(child: live('Transcribing on this device\u2026')),
           cancel,
         ],
       ),
-      VoicePhase.confirm => Text('Check the words, edit them if needed, then send.', style: style),
-      VoicePhase.idle when voice.message != null => Text(
+      VoicePhase.confirm => live('Check the words, edit them if needed, then send.'),
+      VoicePhase.idle when voice.message != null => live(
         voice.message!,
-        style: style.copyWith(color: scheme.error),
+        style.copyWith(color: scheme.error),
       ),
       _ => null,
     };
     if (child == null) return const SizedBox.shrink();
-    return Semantics(
-      liveRegion: true,
-      child: Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 0), child: child),
-    );
+    return Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 0), child: child);
   }
 }

@@ -17,37 +17,53 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:record/record.dart';
 import 'package:sqlite3/sqlite3.dart';
 
-/// A WAV file with [extraChunk] before the format chunk, as Core Audio writes them.
+/// A WAV file, optionally with an extra chunk first as Core Audio writes them.
 Uint8List wav({
   int rate = voiceSampleRate,
   int channels = voiceChannels,
   int bits = voiceBitsPerSample,
+  int pcmBytes = voiceBytesPerSecond,
   bool extraChunk = false,
+  bool extensible = false,
+  bool withData = true,
+  int? riffSize,
+  int? dataSize,
 }) {
-  const pcmBytes = 3200;
   final b = BytesBuilder();
   void u32(int v) => b.add((ByteData(4)..setUint32(0, v, Endian.little)).buffer.asUint8List());
   void u16(int v) => b.add((ByteData(2)..setUint16(0, v, Endian.little)).buffer.asUint8List());
-  b.add('RIFF'.codeUnits);
-  u32(0);
-  b.add('WAVE'.codeUnits);
   if (extraChunk) {
     b.add('FLLR'.codeUnits);
     u32(3);
     b.add([0, 0, 0, 0]);
   }
   b.add('fmt '.codeUnits);
-  u32(16);
-  u16(1);
+  u32(extensible ? 40 : 16);
+  u16(extensible ? 0xFFFE : 1);
   u16(channels);
   u32(rate);
   u32(rate * channels * bits ~/ 8);
   u16(channels * bits ~/ 8);
   u16(bits);
-  b.add('data'.codeUnits);
-  u32(pcmBytes);
-  b.add(Uint8List(pcmBytes));
-  return b.toBytes();
+  if (extensible) {
+    u16(22);
+    u16(bits);
+    u32(4);
+    u16(1);
+    b.add(Uint8List(14));
+  }
+  if (withData) {
+    b.add('data'.codeUnits);
+    u32(dataSize ?? pcmBytes);
+    b.add(Uint8List(pcmBytes));
+  }
+  final body = b.toBytes();
+  final out = BytesBuilder()
+    ..add('RIFF'.codeUnits)
+    ..add((ByteData(4)..setUint32(0, riffSize ?? body.length + 4, Endian.little)).buffer.asUint8List())
+    ..add('WAVE'.codeUnits)
+    ..add(body);
+  return out.toBytes();
 }
 
 class FakeRecorder implements AudioRecorder {
@@ -99,6 +115,13 @@ class ThrowingModel implements InferenceModel {
   dynamic noSuchMethod(Invocation invocation) => throw StateError('model closed');
 }
 
+/// Late deletes leave a timer behind; let it fire before the test ends.
+void voiceWidgets(String name, Future<void> Function(WidgetTester) body) =>
+    testWidgets(name, (tester) async {
+      await body(tester);
+      await tester.pump(voiceLateWriteGrace);
+    });
+
 void main() {
   late Directory dir;
   late FakeRecorder recorder;
@@ -117,7 +140,7 @@ void main() {
   VoiceInput make({
     Duration min = Duration.zero,
     Future<String> Function(Uint8List)? transcribe,
-    Future<Directory> Function()? tempDir,
+    Future<Directory> Function()? cacheDir,
   }) => VoiceInput(
     transcribe:
         transcribe ??
@@ -126,23 +149,64 @@ void main() {
           return reply;
         },
     recorder: recorder,
-    tempDir: tempDir ?? () async => dir,
+    cacheDir: cacheDir ?? () async => dir,
     newStopwatch: () => clock.stopwatch(),
     minDuration: min,
   );
 
-  bool recordingLeft() => dir.listSync().isNotEmpty;
+  bool recordingLeft() => dir.listSync(recursive: true).whereType<File>().isNotEmpty;
 
-  group('wavProblem', () {
-    test('accepts 16 kHz mono 16-bit PCM, with or without extra chunks', () {
-      expect(wavProblem(wav()), isNull);
-      expect(wavProblem(wav(extraChunk: true)), isNull);
+  group('WAV checks', () {
+    WavProblem? check(Uint8List w) => wavProblem(w, maxDuration: maxVoiceDuration);
+
+    test('accepts 16 kHz mono 16-bit PCM, plain, with extra chunks or extensible', () {
+      expect(check(wav()), isNull);
+      expect(check(wav(extraChunk: true)), isNull);
+      expect(check(wav(extensible: true)), isNull);
     });
     test('names what is wrong', () {
-      expect(wavProblem(wav(rate: 44100)), '44100 Hz');
-      expect(wavProblem(wav(channels: 2)), '2 channels');
-      expect(wavProblem(wav(bits: 8)), '8-bit');
-      expect(wavProblem(Uint8List.fromList('hello world!'.codeUnits)), 'not a WAV file');
+      expect(check(wav(rate: 44100)), WavProblem.wrongRate);
+      expect(wavSampleRate(wav(rate: 44100)), 44100);
+      expect(check(wav(channels: 2)), WavProblem.wrongChannels);
+      expect(check(wav(bits: 8)), WavProblem.wrongBits);
+      expect(check(Uint8List.fromList('hello world!'.codeUnits)), WavProblem.notWav);
+      expect(check(wav(withData: false)), WavProblem.noData);
+      expect(check(wav(pcmBytes: 0)), WavProblem.tooShort, reason: 'a header-only file');
+      expect(check(wav(riffSize: 7)), WavProblem.sizeMismatch);
+      expect(check(wav(dataSize: voiceBytesPerSecond * 2)), WavProblem.sizeMismatch);
+      expect(
+        check(wav(pcmBytes: voiceBytesPerSecond * 40)),
+        WavProblem.tooLong,
+      );
+    });
+    test('a header-only 44-byte file is rejected', () {
+      final header = wav(pcmBytes: 0);
+      expect(header.length, 44);
+      expect(check(header), WavProblem.tooShort);
+    });
+    test('sizes left unset by a streaming writer are repaired', () {
+      final unset = wav(riffSize: 0, dataSize: 0xFFFFFFFF);
+      expect(wavSizesConsistent(unset), isFalse);
+      final fixed = repairWavSizes(unset);
+      expect(wavSizesConsistent(fixed), isTrue);
+      expect(check(fixed), isNull);
+      expect(repairWavSizes(wav()), wav(), reason: 'a finished file is left alone');
+    });
+  });
+
+  group('cleanTranscript', () {
+    test('keeps the words and their punctuation as spoken', () {
+      expect(cleanTranscript('  Tell me about grace.  '), 'Tell me about grace.');
+      expect(cleanTranscript('Who were the Bereans?'), 'Who were the Bereans?');
+    });
+    test('drops labels and wrapping quotes', () {
+      expect(cleanTranscript('Transcript: "Who wrote Romans?"'), 'Who wrote Romans?');
+      expect(cleanTranscript('\u201cPray for me.\u201d'), 'Pray for me.');
+    });
+    test('no speech or filler alone is nothing heard', () {
+      for (final empty in ['', '  ', '...', '[silence]', '(no speech)', 'Um.', '*inaudible*']) {
+        expect(cleanTranscript(empty), isEmpty, reason: empty);
+      }
     });
   });
 
@@ -248,12 +312,12 @@ void main() {
           v.start(owner);
           a.flushMicrotasks();
           expect(v.phase, VoicePhase.idle);
-          expect(v.message, voiceFailedMessage);
+          expect(v.message, micUnavailableMessage);
           expect(recordingLeft(), isFalse);
         });
       }
       fakeAsync((a) {
-        final v = make(tempDir: () async => throw const FileSystemException('no temp'));
+        final v = make(cacheDir: () async => throw const FileSystemException('no cache'));
         v.start(owner);
         a.flushMicrotasks();
         expect(v.phase, VoicePhase.idle);
@@ -292,7 +356,7 @@ void main() {
 
     test('audio in the wrong format is never sent to the model', () {
       fakeAsync((a) {
-        recorder.bytes = wav(rate: 44100);
+        recorder.bytes = wav(channels: 2);
         final v = make();
         v.start(owner);
         a.elapse(const Duration(seconds: 1));
@@ -428,15 +492,94 @@ void main() {
       });
     });
 
-    test('only stale leftovers are swept', () {
+    test("an earlier run's folders are swept once, links and other files left alone", () {
       fakeAsync((a) {
-        final stale = File('${dir.path}/1.wav')..writeAsBytesSync(wav());
-        stale.setLastModifiedSync(DateTime.now().subtract(staleVoiceAge * 2));
-        final live = File('${dir.path}/2.wav')..writeAsBytesSync(wav());
+        final old = Directory('${dir.path}/${voiceDirPrefix}old')..createSync();
+        File('${old.path}/1.wav').writeAsBytesSync(wav());
+        final elsewhere = Directory.systemTemp.createTempSync('berea-voice-elsewhere');
+        final kept = File('${elsewhere.path}/keep.wav')..writeAsBytesSync(wav());
+        Link('${dir.path}/${voiceDirPrefix}link').createSync(elsewhere.path);
+        final other = File('${dir.path}/notes.txt')..writeAsStringSync('mine');
+        final first = make();
+        first.start(owner);
+        a.flushMicrotasks();
+        expect(old.existsSync(), isFalse);
+        expect(kept.existsSync(), isTrue);
+        expect(other.existsSync(), isTrue);
+
         make();
         a.flushMicrotasks();
-        expect(stale.existsSync(), isFalse);
-        expect(live.existsSync(), isTrue);
+        expect(first.phase, VoicePhase.recording);
+        expect(File(recorder.path!).existsSync(), isTrue, reason: 'a second session sweeps nothing');
+        first.cancel();
+        a.flushMicrotasks();
+        elsewhere.deleteSync(recursive: true);
+      });
+    });
+
+    test('recordings go in a folder only this user can open', () {
+      fakeAsync((a) {
+        make().start(owner);
+        a.flushMicrotasks();
+        final folder = File(recorder.path!).parent;
+        expect(folder.parent.path, dir.path);
+        expect(folder.path.split('/').last, startsWith(voiceDirPrefix));
+        if (!Platform.isWindows) expect(folder.statSync().modeString(), 'rwx------');
+      });
+    });
+
+    test('waits for the recorder to finish the file, then repairs unset sizes', () {
+      fakeAsync((a) {
+        recorder.bytes = wav(riffSize: 0, dataSize: 0);
+        final v = make();
+        v.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        v.stop();
+        a.elapse(voiceFinalizePoll * 2);
+        expect(v.phase, VoicePhase.transcribing, reason: 'still waiting for a finished header');
+        a.elapse(voiceFinalizeLimit);
+        expect(v.phase, VoicePhase.confirm);
+        expect(wavSizesConsistent(heard.single), isTrue);
+      });
+    });
+
+    test('a file a late writer recreates is deleted again', () {
+      fakeAsync((a) {
+        final v = make();
+        v.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        final path = recorder.path!;
+        v.cancel();
+        a.flushMicrotasks();
+        File(path).writeAsBytesSync(wav());
+        a.elapse(voiceLateWriteGrace);
+        expect(File(path).existsSync(), isFalse);
+      });
+    });
+
+    test('a microphone at the wrong rate says so', () {
+      fakeAsync((a) {
+        recorder.bytes = wav(rate: 48000);
+        final v = make();
+        v.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        v.stop();
+        a.flushMicrotasks();
+        expect(v.message, wrongRateMessage(48000));
+        expect(heard, isEmpty);
+      });
+    });
+
+    test('a transcript of no speech is nothing heard', () {
+      fakeAsync((a) {
+        reply = 'Transcript: [silence]';
+        final v = make();
+        v.start(owner);
+        a.elapse(const Duration(seconds: 1));
+        v.stop();
+        a.flushMicrotasks();
+        expect(v.phase, VoicePhase.idle);
+        expect(v.message, nothingHeardMessage);
       });
     });
   });
@@ -499,14 +642,15 @@ void main() {
     final mic = find.byIcon(Icons.mic_none);
     final stopIcon = find.byIcon(Icons.stop_circle_outlined);
 
-    testWidgets('tap to start, tap to stop: recording, transcribing, confirm', (tester) async {
+    voiceWidgets('tap to start, tap to stop: recording, transcribing, confirm', (tester) async {
       final pending = Completer<String>();
       final v = make(transcribe: (_) => pending.future);
       await pumpComposer(tester, v);
       await tester.tap(mic);
       await tester.pump(const Duration(seconds: 2));
       expect(v.phase, VoicePhase.recording);
-      expect(find.text('Listening 0:02 of 0:30. $tapAgainHint'), findsOneWidget);
+      expect(find.text('Listening. $tapAgainHint'), findsOneWidget);
+      expect(find.text('0:02 of 0:30'), findsOneWidget);
 
       await tester.tap(stopIcon);
       await tester.pump();
@@ -519,7 +663,7 @@ void main() {
       expect(find.text('Check the words, edit them if needed, then send.'), findsOneWidget);
     });
 
-    testWidgets('recording starts on press and stops on release', (tester) async {
+    voiceWidgets('recording starts on press and stops on release', (tester) async {
       final v = make();
       await pumpComposer(tester, v);
       final hold = await tester.startGesture(tester.getCenter(mic));
@@ -533,7 +677,7 @@ void main() {
       expect(heard, hasLength(1));
     });
 
-    testWidgets('a pointer cancel or a slide away throws the recording away', (tester) async {
+    voiceWidgets('a pointer cancel or a slide away throws the recording away', (tester) async {
       final v = make();
       await pumpComposer(tester, v);
       final taken = await tester.startGesture(tester.getCenter(mic));
@@ -554,7 +698,7 @@ void main() {
       expect(recordingLeft(), isFalse);
     });
 
-    testWidgets('a screen reader tap toggles recording', (tester) async {
+    voiceWidgets('a screen reader tap toggles recording', (tester) async {
       final semantics = tester.ensureSemantics();
       final v = make();
       await pumpComposer(tester, v);
@@ -567,7 +711,7 @@ void main() {
       semantics.dispose();
     });
 
-    testWidgets("another composer's session leaves this button and status alone", (tester) async {
+    voiceWidgets("another composer's session leaves this button and status alone", (tester) async {
       final v = make();
       await pumpComposer(tester, v, me: 'sheet');
       unawaited(v.start('tab'));
@@ -582,7 +726,7 @@ void main() {
       await tester.pump();
     });
 
-    testWidgets('without Gemma 4 the button points to Engine settings', (tester) async {
+    voiceWidgets('without Gemma 4 the button points to Engine settings', (tester) async {
       var opened = false;
       final v = make();
       await pumpComposer(
@@ -600,7 +744,7 @@ void main() {
       expect(recorder.starts, 0);
     });
 
-    testWidgets('a Gemma 4 load without audio explains that voice is off', (tester) async {
+    voiceWidgets('a Gemma 4 load without audio explains that voice is off', (tester) async {
       final v = make();
       await pumpComposer(tester, v, support: VoiceSupport.unavailable);
       await tester.tap(find.byIcon(Icons.mic_off_outlined));
@@ -609,7 +753,7 @@ void main() {
       expect(find.text('Open Settings'), findsNothing);
     });
 
-    testWidgets('a model that is still loading does not record', (tester) async {
+    voiceWidgets('a model that is still loading does not record', (tester) async {
       final v = make();
       await pumpComposer(tester, v, support: VoiceSupport.notReady);
       await tester.tap(mic);
@@ -633,7 +777,7 @@ void main() {
       return s;
     }
 
-    testWidgets('a question from the reader waits for a voice question', (tester) async {
+    voiceWidgets('a question from the reader waits for a voice question', (tester) async {
       final v = make();
       final s = await pumpChat(tester, v);
       unawaited(v.start(tester.state(find.byType(ChatScreen))));
@@ -649,7 +793,7 @@ void main() {
       expect(find.text('Study John 1:1.'), findsOneWidget);
     });
 
-    testWidgets('a transcript joins what was typed instead of replacing it', (tester) async {
+    voiceWidgets('a transcript joins what was typed instead of replacing it', (tester) async {
       final v = make();
       await pumpChat(tester, v);
       await tester.enterText(find.byType(TextField), 'About grace,');

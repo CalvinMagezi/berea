@@ -612,7 +612,7 @@ class AppState extends ChangeNotifier {
     await _rebuildHarness();
   }
 
-  /// Transcribes a spoken question with the loaded Gemma 4 model. The audio stays in memory.
+  /// Transcribes a spoken question with the loaded Gemma 4 model; the audio goes in memory.
   Future<String> transcribeVoice(Uint8List wav) async {
     final edge = _edge;
     if (edge == null || !edge.hearsAudio) {
