@@ -1,17 +1,16 @@
-"""Which BSB revision did the narrator read? python revision.py OLD.csv 43 19
+"""Which BSB revision did the narrator read? python revision.py 43 19
 
 For every aligned verse whose official text differs from an older BSB copy (the scrollmapper
 CSV Berea used before 0.3.0), scores what the model heard against both readings."""
 
 import argparse
 import json
-from pathlib import Path
 
 import ctc
-from pilot import BSB_TXT, load_official
-from text import book_numbers, csv_verses, words_of
+from paths import BSB_TXT, BUILD, READ_TEXT
+from pilot import load_official, load_read_text
+from text import book_numbers, words_of
 
-BUILD = Path("build/audio")
 
 
 def compare(book: int, old: dict, official: dict) -> list[dict]:
@@ -45,14 +44,14 @@ def _errors(text: dict, book: int, chapter: int, window: list[int], said: list[s
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("old_csv")
+    parser.add_argument("--old-csv", default=READ_TEXT)
     parser.add_argument("books", type=int, nargs="+")
     parser.add_argument("--bsb", default=BSB_TXT)
     args = parser.parse_args()
     official_by_name = load_official(args.bsb)
     numbers = book_numbers(official_by_name)
     official = {(numbers[b], c, v): t for (b, c, v), t in official_by_name.items()}
-    old = csv_verses(args.old_csv)
+    old = load_read_text(args.old_csv)
     verdicts: dict[str, int] = {}
     for book in args.books:
         for row in compare(book, old, official):

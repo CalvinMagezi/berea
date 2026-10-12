@@ -3,6 +3,7 @@
 import csv
 import re
 import sqlite3
+from contextlib import closing
 
 BSB_HEADER = "Verse\t"
 BSB_LINE = re.compile(r"^(.+) (\d+):(\d+)\t(.*)$")
@@ -69,7 +70,7 @@ def words_of(text: str) -> list[str]:
 
 def db_chapter(db_path: str, book: int, chapter: int) -> list[tuple[int, str]]:
     """The BSB verses of one chapter from the app's database, in verse order."""
-    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as db:
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as db:
         rows = db.execute(
             "SELECT verse, text FROM verses WHERE translation = 'BSB' AND book = ? AND chapter = ? "
             "ORDER BY verse",
@@ -78,6 +79,16 @@ def db_chapter(db_path: str, book: int, chapter: int) -> list[tuple[int, str]]:
     if not rows:
         raise ValueError(f"no BSB verses for book {book} chapter {chapter}")
     return rows
+
+
+def chapter_count(db_path, book: int) -> int:
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as db:
+        (count,) = db.execute(
+            "SELECT MAX(chapter) FROM verses WHERE translation = 'BSB' AND book = ?", (book,)
+        ).fetchone()
+    if count is None:
+        raise ValueError(f"no BSB chapters for book {book}")
+    return count
 
 
 def tokens(verse_text: str) -> list[str]:

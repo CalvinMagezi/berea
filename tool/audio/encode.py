@@ -1,4 +1,4 @@
-"""Decoding for the aligner, HE-AAC encoding for the app, and the encoder delay between them."""
+"""Decoding for the aligner, AAC-LC encoding for the app, and the encoder delay between them."""
 
 import subprocess
 

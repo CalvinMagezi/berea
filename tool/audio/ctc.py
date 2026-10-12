@@ -4,8 +4,9 @@ import os
 
 import numpy as np
 
+from paths import MODEL_CACHE
+
 MODEL = "facebook/wav2vec2-base-960h"
-MODEL_CACHE = "build/audio/hf"
 # Pinned so a rebuilt timing set comes from the same weights (Apache-2.0).
 MODEL_REVISION = "22aad52d435eb6dbaf354bdad9b0da84ce7d6156"
 SAMPLE_RATE = 16_000
@@ -35,7 +36,7 @@ class Vocab:
 
 def load_model():
     # The model download stays under the gitignored build folder unless the caller says otherwise.
-    os.environ.setdefault("HF_HOME", MODEL_CACHE)
+    os.environ.setdefault("HF_HOME", str(MODEL_CACHE))
     from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
     processor = Wav2Vec2Processor.from_pretrained(MODEL, revision=MODEL_REVISION)

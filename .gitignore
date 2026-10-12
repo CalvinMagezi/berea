@@ -49,3 +49,6 @@ packages/harness/.cache/
 assets/*.sqlite
 assets/*.sqlite.version
 assets/*.sqlite.tmp
+
+# Python tooling for the narration timings writes only under /build/; uv may make a venv here.
+tool/audio/.venv/

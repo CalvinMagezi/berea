@@ -9,15 +9,19 @@ from pathlib import Path
 import ctc
 import encode
 import fetch
+from paths import BUILD, DB, PACKS
+from report import timing_problems
+from text import chapter_count
 
 RELEASE = "audio-1"
 PACK_FORMAT = "1"
-PACKS = Path("build/audio-packs")
 SCHEMA = """
   CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
   CREATE TABLE chapters(chapter INTEGER PRIMARY KEY, duration_ms INTEGER NOT NULL,
     audio BLOB NOT NULL, timings TEXT NOT NULL);
 """
+# Chapter files only (001.m4a), never a pending encode left by a failed run.
+CHAPTER_FILES = "[0-9][0-9][0-9].m4a"
 TIMINGS_LICENCE = (
     "CC0 1.0. Word timings made by the Berea project and dedicated to the public domain"
 )
@@ -27,22 +31,28 @@ def pack_id(narrator: str, book: int) -> str:
     return f"{narrator}-{book:02d}"
 
 
-def build_pack(book: int, narrator: str, build: Path, out_dir: Path) -> dict:
-    """Writes <narrator>-<book>.sqlite from every encoded chapter and returns its manifest entry."""
-    chapters = sorted((build / "m4a" / f"{book:02d}").glob("*.m4a"))
-    if not chapters:
-        raise ValueError(f"no encoded chapters for book {book}; run pilot.py first")
+def build_pack(book: int, narrator: str, build: Path, out_dir: Path, db: Path) -> dict:
+    """Writes <narrator>-<book>.sqlite from every encoded chapter and returns its manifest entry.
+    Refuses a book with any chapter missing."""
+    chapters = sorted((build / "m4a" / f"{book:02d}").glob(CHAPTER_FILES))
+    expected = list(range(1, chapter_count(db, book) + 1))
+    if [int(m4a.stem) for m4a in chapters] != expected:
+        raise ValueError(f"book {book}: encoded chapters are not 1-{expected[-1]}; run pilot.py")
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{pack_id(narrator, book)}.sqlite"
     path.unlink(missing_ok=True)
-    with sqlite3.connect(path) as db:
-        db.executescript(SCHEMA)
+    con = sqlite3.connect(path)
+    try:
+        con.executescript(SCHEMA)
         meta = {**_meta(book, narrator), "priming_ms": _priming_ms(book, chapters, build)}
-        db.executemany("INSERT INTO meta VALUES (?, ?)", meta.items())
+        con.executemany("INSERT INTO meta VALUES (?, ?)", meta.items())
         for m4a in chapters:
-            db.execute("INSERT INTO chapters VALUES (?, ?, ?, ?)", _chapter_row(book, m4a, build))
+            con.execute("INSERT INTO chapters VALUES (?, ?, ?, ?)", _chapter_row(book, m4a, build))
+        con.commit()
+    finally:
+        con.close()
     _compact(path)
-    check_pack(path, book, len(chapters))
+    check_pack(path, book, db)
     return {
         "id": pack_id(narrator, book),
         "file": path.name,
@@ -80,9 +90,14 @@ def _priming_ms(book: int, chapters: list[Path], build: Path) -> str:
 
 
 def _chapter_row(book: int, m4a: Path, build: Path) -> tuple[int, int, bytes, str]:
+    """One chapter's row, refused unless its audio is the file its timings were checked on."""
     chapter = int(m4a.stem)
+    qa = json.loads((build / "qa" / f"{book:02d}" / f"{chapter:03d}.json").read_text())
+    audio = m4a.read_bytes()
+    if hashlib.sha256(audio).hexdigest() != qa.get("m4a_sha256"):
+        raise ValueError(f"{m4a}: not the audio its timings were made for; rerun pilot.py")
     timings = (build / "timings" / f"{book:02d}" / f"{chapter:03d}.json").read_text()
-    return chapter, encode.duration_ms(str(m4a)), m4a.read_bytes(), timings
+    return chapter, encode.duration_ms(str(m4a)), audio, timings
 
 
 def _compact(path: Path) -> None:
@@ -95,17 +110,27 @@ def _compact(path: Path) -> None:
         db.close()
 
 
-def check_pack(path: Path, book: int, chapter_count: int) -> None:
-    """Every chapter has audio and timings in the documented shape, in order, for this book."""
-    with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
-        meta = dict(db.execute("SELECT key, value FROM meta"))
-        rows = db.execute("SELECT chapter, duration_ms, audio, timings FROM chapters").fetchall()
+def check_pack(path: Path, book: int, db: Path) -> None:
+    """Every chapter of the book is there, with audio, and timings in the documented shape that
+    time each whitespace word of each verse the app shows exactly once, in order."""
+    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        meta = dict(con.execute("SELECT key, value FROM meta"))
+        rows = con.execute(
+            "SELECT chapter, duration_ms, audio, timings FROM chapters ORDER BY chapter"
+        ).fetchall()
+    finally:
+        con.close()
     if meta.get("format") != PACK_FORMAT or meta.get("book") != str(book):
         raise ValueError(f"{path}: wrong format or book in meta")
-    if len(rows) != chapter_count:
-        raise ValueError(f"{path}: {len(rows)} chapters, expected {chapter_count}")
+    if [r[0] for r in rows] != list(range(1, chapter_count(db, book) + 1)):
+        raise ValueError(f"{path}: chapters missing for book {book}")
     for chapter, duration_ms, audio, timings in rows:
-        _check_chapter(path, book, chapter, duration_ms, audio, json.loads(timings))
+        words = json.loads(timings)
+        _check_chapter(path, book, chapter, duration_ms, audio, words)
+        problems = timing_problems(book, chapter, words["words"], db)
+        if problems:
+            raise ValueError(f"{path}: {problems[0]}")
 
 
 def _check_chapter(path, book, chapter, duration_ms, audio, timings) -> None:
@@ -137,8 +162,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("book", type=int)
     parser.add_argument("--narrator", default="souer")
+    parser.add_argument("--db", default=DB, type=Path)
     args = parser.parse_args()
-    entry = build_pack(args.book, args.narrator, Path("build/audio"), PACKS)
+    entry = build_pack(args.book, args.narrator, BUILD, PACKS, args.db)
     write_manifest(entry, PACKS)
     print(json.dumps(entry, indent=1))
 

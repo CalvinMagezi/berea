@@ -15,6 +15,7 @@ only downloads the finished packs, pinned by SHA-256, when the user asks.
 | PyTorch 2.8.0 | BSD-3-Clause | Build time only |
 | Transformers 4.56.2 (and tokenizers, huggingface-hub, safetensors) | Apache-2.0 | Build time only |
 | NumPy | BSD-3-Clause | Build time only |
+| Other locked dependencies (`uv.lock`, macOS only) | MIT, BSD, Apache-2.0, MPL-2.0 (certifi, tqdm), PSF-2.0 (typing-extensions), CNRI-Python (regex) | Build time only |
 | pytest | MIT | Tests only |
 | ffmpeg (the local Homebrew build is GPLv3) and macOS AudioToolbox | Tools run as programs | Build time only |
 
@@ -38,7 +39,7 @@ build/audio/.venv/bin/python tool/audio/pilot.py 43 1-21    # John
 build/audio/.venv/bin/python tool/audio/pilot.py 19 1-30    # Psalms 1-30
 build/audio/.venv/bin/python tool/audio/pack.py 43          # build/audio-packs/souer-43.sqlite
 build/audio/.venv/bin/python tool/audio/report.py 43 19 --fetch-biblehub
-build/audio/.venv/bin/python tool/audio/revision.py packages/harness/.cache/BSB-scrollmapper-e1b254c.csv 43 19
+build/audio/.venv/bin/python tool/audio/revision.py 43 19
 build/audio/.venv/bin/python -m pytest tool/audio
 ```
 
@@ -78,8 +79,9 @@ under `build/` is gitignored.
 6. **Encode** (`encode.py`). AAC-LC, mono, 24 kHz, 32 kbps in `.m4a`, by AudioToolbox.
 7. **Encoder delay.** The encoded file is decoded and cross-correlated with the exact audio
    that was aligned; the measured offset is added to every timing and the chapter fails if it
-   is more than one frame (20 ms). Then the encoded file itself is aligned again and its word
-   starts compared with the shipped timings.
+   is more than one frame (20 ms). Then the encoded file itself is aligned again, and the
+   chapter fails if the median word start, or any word start outside a verse read
+   differently, moves by more than two frames. Only then does the `.m4a` replace the old one.
 
 ### Why AAC-LC and not HE-AAC
 
@@ -117,8 +119,10 @@ CREATE TABLE chapters(chapter INTEGER PRIMARY KEY, duration_ms INTEGER NOT NULL,
 - `chapters.audio`: the chapter's `.m4a` bytes; `duration_ms` is that file's duration.
 - `chapters.timings`: JSON,
   `{"book":43,"chapter":3,"narrator":"souer","words":[[verse,wordIndex,startMs,endMs],...]}`,
-  one entry for every whitespace-split word of every verse, in reading order, times in
-  milliseconds from the start of that chapter's `.m4a`.
+  one entry for every word of every verse, in reading order, times in milliseconds from the
+  start of that chapter's `.m4a`. A verse's words are its trimmed text split on `\s+` with
+  empty pieces dropped, counted from 0. A verse the BSB leaves empty (John 5:4 and 15 others)
+  has no entries; note that Dart's `''.split(RegExp(r'\s+'))` gives one empty piece, so drop it.
 
 `manifest.json`:
 
@@ -127,9 +131,10 @@ CREATE TABLE chapters(chapter INTEGER PRIMARY KEY, duration_ms INTEGER NOT NULL,
   "narrator": "souer", "chapters": 21, "bytes": ..., "sha256": "..."}]}
 ```
 
-`pack.py` checks every pack it writes: the meta stamp, one row per encoded chapter, and in each
-chapter every verse's words numbered from 0 with none skipped and every time in order and
-inside the audio.
+`pack.py` refuses a book with any chapter missing, and audio that is not the file its timings
+were checked against (by SHA-256). It then checks the pack it wrote: the meta stamp, every
+chapter of the book, and in each chapter exactly one timing per word of every verse in the
+app's database, numbered from 0, in order and inside the audio.
 
 ## Which revision Souer read
 
@@ -140,6 +145,10 @@ before 0.3.0: every verse whose wording differs was read in the older wording (f
 John 2:4 "Woman, why does this concern us?" and John 8:35 "A slave is not a permanent member of
 the family"), and the rest differ only in punctuation. So the timings are made against the
 current text the app shows, with each verse placed by what was actually said.
+
+This is only checked for John and Psalms 1-30. Before a book from the full run ships, run
+`revision.py` on it: any verdict of `official (words)` means Souer read the current wording
+there and that book must be aligned with `--read-text ""` (or a per-verse fix).
 
 ## QA
 

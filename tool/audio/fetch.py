@@ -19,6 +19,7 @@ USER_AGENT = "Berea build tool (https://github.com/CalvinMagezi/berea)"
 PAUSE_SECONDS = 2.0
 TIMEOUT_SECONDS = 120
 CHUNK_BYTES = 1 << 20
+HTTP_OK = 200
 
 
 def get(url: str) -> urllib.request.addinfourl:
@@ -55,19 +56,35 @@ def fetch_chapter(narrator: str, book: int, chapter: int, cache: Path) -> Path:
     url = NARRATORS[narrator] + name
     time.sleep(PAUSE_SECONDS)
     tmp = path.with_suffix(".part")
-    with get(url) as r, tmp.open("wb") as out:
-        while chunk := r.read(CHUNK_BYTES):
-            out.write(chunk)
+    try:
+        _download(url, tmp)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     tmp.rename(path)
+    duration_ms = encode.duration_ms(str(path))
+    if duration_ms <= 0:
+        path.unlink()
+        raise ValueError(f"{url}: not playable audio")
     manifest[name] = {
         "url": url,
         "licence": AUDIO_LICENCE,
         "sha256": _sha256(path),
         "bytes": path.stat().st_size,
-        "duration_ms": encode.duration_ms(str(path)),
+        "duration_ms": duration_ms,
     }
     manifest_path.write_text(json.dumps(manifest, indent=1, sort_keys=True))
     return path
+
+
+def _download(url: str, dest: Path) -> None:
+    """Refuses a short body: urllib does not raise when the server closes early."""
+    with get(url) as r, dest.open("wb") as out:
+        expected = r.headers.get("Content-Length")
+        while chunk := r.read(CHUNK_BYTES):
+            out.write(chunk)
+    if r.status != HTTP_OK or expected is None or dest.stat().st_size != int(expected):
+        raise OSError(f"{url}: incomplete download ({dest.stat().st_size} of {expected} bytes)")
 
 
 def _sha256(path: Path) -> str:
