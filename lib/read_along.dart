@@ -122,6 +122,12 @@ class ReadAlong {
   FlutterTts? _tts;
   _Voice? _voice;
 
+  /// For the integration test, which mutes playback and reads the player's own clock.
+  @visibleForTesting
+  AudioPlayer? get debugPlayer => _player;
+  @visibleForTesting
+  FlutterTts? get debugTts => _tts;
+
   /// Bumped by every start and stop, so a slow load that was superseded does not play.
   var _generation = 0;
 
@@ -168,10 +174,12 @@ class ReadAlong {
       await v.setSpeed(speed);
       await v.play();
     } on Object catch (e) {
-      if (generation != _generation) return;
-      state.value = state.value?.copyWith(status: ReadAlongStatus.failed, error: _describe(e));
+      if (generation == _generation) _fail(e);
     }
   }
+
+  void _fail(Object e) =>
+      state.value = state.value?.copyWith(status: ReadAlongStatus.failed, error: _describe(e));
 
   String _describe(Object e) => switch (e) {
     FormatException(:final message) => message,
@@ -322,8 +330,9 @@ class _Narration implements _Voice {
     owner._moved(i == null ? null : (verse: timings.words[i].verse, word: timings.words[i].word));
   }
 
+  /// just_audio's play() completes only when playback stops, so it is not awaited.
   @override
-  Future<void> play() => player.play();
+  Future<void> play() async => unawaited(player.play().catchError(owner._fail));
 
   @override
   Future<void> pause() => player.pause();
