@@ -20,12 +20,12 @@ void checkPin(List<int> bytes, String pinned, {required String source}) {
 
 String verseLabel(VerseRow r) => '${r.book.name} ${r.chapter}:${r.verse}';
 
-/// Throws unless [rows] hold exactly [expected] verses, each once.
-void checkVerseCount(List<VerseRow> rows, {int expected = bsbVerseCount}) {
+/// Throws unless [rows] of the text named [source] hold exactly [expected] verses, each once.
+void checkVerseCount(List<VerseRow> rows, {required String source, int expected = bsbVerseCount}) {
   final distinct = {for (final r in rows) verseLabel(r)}.length;
   if (rows.length == expected && distinct == expected) return;
   throw StateError(
-    '${rows.length} verse lines and $distinct distinct verses, expected $expected of each',
+    '$source has ${rows.length} verse lines and $distinct distinct verses, expected $expected of each',
   );
 }
 

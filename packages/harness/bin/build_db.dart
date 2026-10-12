@@ -61,7 +61,7 @@ Future<void> main(List<String> args) async {
   }
   Directory(cache).createSync(recursive: true);
   final bsb = parseBsbText(await _fetch(_bsb, '$cache/bsb.txt', pin: _bsbSha256));
-  checkVerseCount(bsb);
+  checkVerseCount(bsb, source: 'BSB');
   await _writeDiffReport(bsb, cache);
   Directory(File(out).parent.path).createSync(recursive: true);
 
@@ -149,13 +149,15 @@ void _publish(File tmp, String out, String built) {
 
 /// The report only helps a reviewer, so a failure to fetch the old text warns instead of failing.
 Future<void> _writeDiffReport(List<VerseRow> bsb, String cache) async {
-  final path = '$cache/bsb-diff.md';
+  final report = File('$cache/bsb-diff.md');
+  // Removed first so a skipped report never leaves an earlier run's report looking current.
+  if (report.existsSync()) report.deleteSync();
   try {
     final oldPath = '$cache/BSB-scrollmapper-${_oldBsbCommit.substring(0, 7)}.csv';
     final old = parseCsvBible(await _fetch(_oldBsb, oldPath, pin: _oldBsbSha256));
     final title = 'BSB: official bsb.txt against scrollmapper ${_oldBsbCommit.substring(0, 7)}';
-    File(path).writeAsStringSync(verseDiffReport(old, bsb, title: title, watched: _watchedVerses));
-    stdout.writeln('BSB diff report: $path');
+    report.writeAsStringSync(verseDiffReport(old, bsb, title: title, watched: _watchedVerses));
+    stdout.writeln('BSB diff report: ${report.path}');
   } on Object catch (e) {
     stderr.writeln('warning: skipped the BSB diff report: $e');
   }
@@ -172,7 +174,7 @@ Future<Uint8List> _fetchBytes(String url, String path, {String? pin}) async {
 
 Future<String> _fetch(String url, String path, {String? pin}) async {
   var s = utf8.decode(await _fetchBytes(url, path, pin: pin));
-  if (s.startsWith('﻿')) s = s.substring(1);
+  if (s.startsWith('\uFEFF')) s = s.substring(1);
   return s;
 }
 

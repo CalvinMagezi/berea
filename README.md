@@ -145,8 +145,10 @@ the optional lexicon pack, which is published with each release. None of these a
 
 The BSB is imported word for word from the official `bsb.txt`, and the build fails if its SHA-256 no
 longer matches the pin in `build_db.dart`. When bereanbible.com publishes a revision, review the
-new text, then update the pin. Each build also writes `.cache/bsb-diff.md`, a per-book count and
-sample of verses that differ from the older scrollmapper copy that Berea 0.2 and earlier used.
+new text, then update the pin. Each build also tries to write `.cache/bsb-diff.md`, a per-book
+count and sample of verses that differ from the older scrollmapper copy that Berea 0.2 and earlier
+used. The report is best effort: if that older copy cannot be fetched or fails its pin, the build
+warns, writes no report and carries on.
 
 Copyrighted translations such as the NIV and NLT are not bundled. Import one you own through the
 engine settings from CSV (`Book,Chapter,Verse,Text`), USFM, OSIS, Zefania XML or a zip of those.

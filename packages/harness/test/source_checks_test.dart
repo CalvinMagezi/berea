@@ -23,11 +23,20 @@ void main() {
 
   test('verse count rejects short and duplicated texts', () {
     final rows = [_row('John', 1, 1, 'a'), _row('John', 1, 2, 'b')];
-    checkVerseCount(rows, expected: 2);
-    expect(() => checkVerseCount(rows.take(1).toList(), expected: 2), throwsStateError);
+    checkVerseCount(rows, source: 'T', expected: 2);
     expect(
-      () => checkVerseCount([rows.first, rows.first], expected: 2),
-      throwsA(isA<StateError>().having((e) => e.message, 'message', contains('1 distinct'))),
+      () => checkVerseCount(rows.take(1).toList(), source: 'T', expected: 2),
+      throwsStateError,
+    );
+    expect(
+      () => checkVerseCount([rows.first, rows.first], source: 'T', expected: 2),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          allOf(startsWith('T has 2 verse lines'), contains('1 distinct')),
+        ),
+      ),
     );
   });
 
