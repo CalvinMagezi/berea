@@ -30,6 +30,7 @@ if [[ -n "$(git status --porcelain -- site/data)" ]]; then
 fi
 
 echo "Running the grounding eval against Ollama (gemma4:e2b)"
+mkdir -p "$root/build"
 (cd packages/harness && dart run bin/eval.dart --tier mid | tee "$root/build/eval-$version.txt")
 
 echo "Building release artifacts"
