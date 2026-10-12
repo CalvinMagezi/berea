@@ -147,6 +147,13 @@ void main() {
       expect(near('Psalm 119:41-42', ['Psalm 119:14']), isEmpty);
     });
 
+    test('reports the closest shown verse, a transposition before any drift', () {
+      expect(near('John 3:18', ['John 3:16', 'John 3:17']), ['John 3:18 (shown John 3:17)']);
+      expect(near('Psalm 119:41', ['Psalm 119:40', 'Psalm 119:14']), [
+        'Psalms 119:41 (shown Psalms 119:14)',
+      ]);
+    });
+
     test('an exact match beside a near miss reports only the near miss', () {
       expect(near('John 3:16 and John 3:18', ['John 3:16']), ['John 3:18 (shown John 3:16)']);
     });

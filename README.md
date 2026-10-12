@@ -236,8 +236,8 @@ docs/screenshots/
   on it before `main` runs.
 - **macOS**: the Podfile `post_install` stages the LiteRT-LM companion dylibs into the app so the
   on-device engine can load; Ollama is the default engine.
-- **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time; GPU on
-  Linux needs a vendor Vulkan driver.
+- **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time. Answers
+  run on the CPU here too, so no GPU driver is needed.
 - A small method channel reports device memory so the settings can recommend a model.
 - Debug builds read `BEREA_AUTORUN` or `autorun.txt` in the app's documents folder and run that
   question on launch, so a headless simulator or emulator can exercise the on-device path.

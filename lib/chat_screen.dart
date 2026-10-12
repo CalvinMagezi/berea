@@ -319,8 +319,7 @@ class _Citations extends StatelessWidget {
                     '${g.correctedQuotes} misquote(s) replaced with the exact words',
                   if (g.unverifiedQuotes > 0)
                     '${g.unverifiedQuotes} quoted phrase(s) not found verbatim',
-                  if (g.nearMisses.isNotEmpty)
-                    'Check the verse number: ${g.nearMisses.map((m) => m.label).join(', ')}',
+                  if (g.nearMisses.isNotEmpty) nearMissNotice(g.nearMisses)!,
                 ].join(' · '),
                 style: TextStyle(color: scheme.error, fontSize: 13),
               ),

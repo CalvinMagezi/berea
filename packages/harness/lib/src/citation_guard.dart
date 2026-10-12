@@ -44,6 +44,10 @@ class NearMiss {
   String toString() => label;
 }
 
+/// The review line shown under an answer or study page, or null when there is nothing to check.
+String? nearMissNotice(List<NearMiss> misses) =>
+    misses.isEmpty ? null : 'Check the verse number: ${misses.map((m) => m.label).join(', ')}';
+
 /// Verses either side of a shown verse that count as a near miss. A decoder that drifts on one
 /// digit lands within this, and a wider window would catch ordinary neighbouring citations.
 const nearMissVerseDrift = 2;
@@ -69,27 +73,40 @@ int _verseGap(Ref cited, int verse) {
   return verse > end ? verse - end : 0;
 }
 
-bool _isNearMiss(Ref cited, Verse v) {
-  if (cited.book.id != v.book.id) return false;
+/// Rank of a transposition match: below any drift, since a swap is the more specific evidence.
+const _transposedRank = 0;
+
+/// How close [v] is to [cited] as a near miss, lower is closer; null when it is not one.
+int? _nearMissRank(Ref cited, Verse v) {
+  if (cited.book.id != v.book.id) return null;
   final start = cited.verseStart!;
   final single = cited.verseEnd == null || cited.verseEnd == start;
-  if (cited.chapter == v.chapter && _verseGap(cited, v.verse) <= nearMissVerseDrift) return true;
-  if (!single) return false;
-  return (cited.chapter == v.chapter && _isTransposed(start, v.verse)) ||
-      (start == v.verse && _isTransposed(cited.chapter, v.chapter));
+  final sameChapter = cited.chapter == v.chapter;
+  if (single && sameChapter && _isTransposed(start, v.verse)) return _transposedRank;
+  if (single && start == v.verse && _isTransposed(cited.chapter, v.chapter)) return _transposedRank;
+  if (!sameChapter) return null;
+  final gap = _verseGap(cited, v.verse);
+  return gap <= nearMissVerseDrift ? gap : null;
 }
 
 /// References in [cited] that touch no verse in [shown] but are a near miss of one: same book and
 /// chapter within [nearMissVerseDrift] verses, or adjacent digits of the chapter or verse swapped.
-/// Whole-chapter citations and anything overlapping a shown verse are never reported.
+/// Whole-chapter citations and anything overlapping a shown verse are never reported. The shown
+/// verse reported is the closest one, a transposition before any drift.
 List<NearMiss> findNearMisses(Iterable<Ref> cited, Iterable<Verse> shown) {
   final verses = shown.toList();
   final asRefs = [for (final v in verses) Ref(v.book, v.chapter, v.verse, v.verse)];
   final out = <NearMiss>[];
   for (final r in cited) {
     if (r.verseStart == null || asRefs.any(r.overlaps)) continue;
-    final i = verses.indexWhere((v) => _isNearMiss(r, v));
-    if (i >= 0) out.add(NearMiss(r, asRefs[i]));
+    int? best, bestRank;
+    for (var i = 0; i < verses.length; i++) {
+      final rank = _nearMissRank(r, verses[i]);
+      if (rank == null || (bestRank != null && rank >= bestRank)) continue;
+      best = i;
+      bestRank = rank;
+    }
+    if (best != null) out.add(NearMiss(r, asRefs[best]));
   }
   return out;
 }
