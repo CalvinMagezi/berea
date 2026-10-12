@@ -424,7 +424,7 @@ class AppState extends ChangeNotifier {
     }
     study.importTables(contents.tables);
     // A source still being read belongs to a notebook id the backup may have reused.
-    notebooks.cancelAll();
+    if (contents.hasNotebooks) notebooks.cancelAll();
     _keepTranslationValid();
     clear();
     return skipped;

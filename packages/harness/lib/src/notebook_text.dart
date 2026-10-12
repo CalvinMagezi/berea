@@ -165,10 +165,12 @@ String _dropHidden(String html) {
     if (m.start < i) continue;
     final name = m[1]!.toLowerCase();
     out.write(html.substring(i, m.start));
-    final close = unclosed.contains(name)
+    // A self-closing tag such as <script src="a.js"/> has no content to drop.
+    final selfClosing = m[0]!.endsWith('/>');
+    final close = selfClosing || unclosed.contains(name)
         ? null
         : RegExp('</$name\\s*>', caseSensitive: false).allMatches(html, m.end).firstOrNull;
-    if (close == null) unclosed.add(name);
+    if (close == null && !selfClosing) unclosed.add(name);
     i = close?.end ?? m.end;
   }
   out.write(html.substring(i));
@@ -184,8 +186,7 @@ final _spineItem = RegExp(r'<itemref\b[^<>]*>', caseSensitive: false);
 /// Longer manifest or spine tags are skipped, which keeps attribute matching cheap.
 const _maxTagChars = 4096;
 
-/// Only these zip entries are inflated: images and fonts are never read.
-final _epubTextEntry = RegExp(r'\.(?:xml|opf|xhtml|html|htm)$', caseSensitive: false);
+final _encryptedUri = RegExp(r'''URI\s*=\s*["']([^"'<>]*)["']''');
 
 String? _attr(String tag, String name) =>
     RegExp('(?<![\\w:-])$name\\s*=\\s*["\']([^"\']*)["\']').firstMatch(tag)?.group(1);
@@ -194,16 +195,22 @@ Iterable<String> _tags(RegExp pattern, String package) =>
     pattern.allMatches(package).map((m) => m[0]!).where((t) => t.length <= _maxTagChars);
 
 /// The text of each document in an EPUB's reading order. Reads the zip with the importers' size
-/// limits, inflating only text entries. Documents listed as encrypted (DRM) are skipped;
-/// obfuscated fonts do not matter. Throws [FormatException] when the file is not an EPUB or
-/// holds more text than a source may.
+/// limits in two passes, so only the package files and the spine's documents are inflated,
+/// never images or fonts. Documents listed as encrypted (DRM) are skipped. Throws
+/// [FormatException] when the file is not an EPUB or holds more text than a source may.
 List<String> epubSections(Uint8List bytes) {
-  final files = readZip(bytes, include: _epubTextEntry.hasMatch);
-  final encryption = files['META-INF/encryption.xml'];
-  final encrypted = encryption == null ? '' : _utf8(encryption);
-  final container = files['META-INF/container.xml'];
+  final meta = readZip(
+    bytes,
+    include: (n) => n.startsWith('META-INF/') || n.toLowerCase().endsWith('.opf'),
+  );
+  final encryption = meta['META-INF/encryption.xml'];
+  final encrypted = {
+    if (encryption != null)
+      for (final m in _encryptedUri.allMatches(_utf8(encryption))) m[1]!,
+  };
+  final container = meta['META-INF/container.xml'];
   final opfPath = container == null ? null : _rootFile.firstMatch(_utf8(container))?.group(1);
-  final opf = opfPath == null ? null : files[opfPath];
+  final opf = opfPath == null ? null : meta[opfPath];
   if (opfPath == null || opf == null) {
     throw const FormatException('That file is not an EPUB.');
   }
@@ -214,13 +221,19 @@ List<String> epubSections(Uint8List bytes) {
       if ((_attr(tag, 'id'), _attr(tag, 'href')) case (final String id, final String href))
         id: href,
   };
+  final spine = [
+    for (final tag in _tags(_spineItem, package))
+      if (hrefs[_attr(tag, 'idref')] case final href?)
+        if (_resolve(base, href) case final path?)
+          if (!encrypted.contains(path) && !encrypted.contains(Uri.encodeFull(path))) path,
+  ];
+  final wanted = spine.toSet();
+  final docs = readZip(bytes, include: wanted.contains);
   final sections = <String>[];
   var chars = 0;
-  for (final tag in _tags(_spineItem, package)) {
-    final href = hrefs[_attr(tag, 'idref')];
-    final path = href == null ? null : _resolve(base, href);
-    final doc = path == null ? null : files[path];
-    if (path == null || doc == null || _isEncrypted(encrypted, path)) continue;
+  for (final path in spine) {
+    final doc = docs[path];
+    if (doc == null) continue;
     final text = htmlPlainText(_utf8(doc));
     chars += text.length;
     if (chars > maxNotebookSourceChars) throw const FormatException(tooLongMessage);
@@ -228,11 +241,6 @@ List<String> epubSections(Uint8List bytes) {
   }
   return sections;
 }
-
-/// encryption.xml names files by URI, raw or percent-encoded, relative to the zip root.
-bool _isEncrypted(String encryption, String path) =>
-    encryption.isNotEmpty &&
-    (encryption.contains(path) || encryption.contains(Uri.encodeFull(path)));
 
 String _utf8(Uint8List bytes) => utf8.decode(bytes, allowMalformed: true);
 

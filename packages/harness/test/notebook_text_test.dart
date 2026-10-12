@@ -102,7 +102,10 @@ void main() {
     write('OEBPS/text/ch1.xhtml', '<html><body><p>Chapter one.</p></body></html>');
     write('OEBPS/text/ch 2.xhtml', '<html><body><p>Chapter two.</p></body></html>');
     write('locked.xhtml', 'ciphertext');
-    write('META-INF/encryption.xml', '<encryption><CipherReference URI="locked.xhtml"/>');
+    write(
+      'META-INF/encryption.xml',
+      "<encryption><CipherReference URI='locked.xhtml'/><CipherReference URI=\"X/OEBPS/text/ch 2.xhtml\"/>",
+    );
     final zip = '${dir.path}/book.epub';
     final res = Process.runSync('zip', [
       '-q',
@@ -139,11 +142,12 @@ void main() {
     }
     // Quadratic matching took seconds for a fiftieth of this input.
     expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
-    expect(
-      htmlPlainText('<p>Kept</p><script>never closed <p>gone?'),
-      'Kept\nnever closed\ngone?',
-    );
+    expect(htmlPlainText('<p>Kept</p><script>never closed <p>gone?'), 'Kept\nnever closed\ngone?');
     expect(htmlPlainText('a<!-- open comment b'), 'a');
+    expect(
+      htmlPlainText('<body><script src="a.js"/><p>Real text</p><script>var x;</script></body>'),
+      'Real text',
+    );
   });
 
   test('EPUB with odd hrefs and look-alike attributes reads what it can', () {

@@ -175,10 +175,33 @@ void _ingestEntry((SourceRequest, SendPort) args) {
   Isolate.exit(port, result);
 }
 
+/// After a timeout, how long the killed isolate gets to leave native code.
+const ingestExitGrace = Duration(seconds: 10);
+
+/// Set when a PDF read was abandoned while still inside PDFium. PDFium is not thread safe, so no
+/// other PDF is read until the app restarts.
+var _pdfiumStuck = false;
+
+const _timedOut = Object();
+
 /// Reads [r] on a background isolate that is killed if it outlives [timeout]. Throws
 /// [FormatException] for problems the user can act on, [StateError] for anything else.
-Future<ChunkedText> ingestInBackground(SourceRequest r, {Duration timeout = ingestTimeout}) async {
+Future<ChunkedText> ingestInBackground(
+  SourceRequest r, {
+  Duration timeout = ingestTimeout,
+  Duration exitGrace = ingestExitGrace,
+}) async {
+  if (r.kind == SourceKind.pdf && _pdfiumStuck) {
+    throw const FormatException('An earlier PDF stopped responding. Restart Berea to read PDFs.');
+  }
   final port = ReceivePort();
+  final result = Completer<Object?>();
+  final exited = Completer<bool>();
+  // The result (or an error) arrives first; null follows when the isolate has exited.
+  port.listen((m) {
+    if (m == null && !exited.isCompleted) exited.complete(true);
+    if (!result.isCompleted) result.complete(m);
+  });
   final isolate = await Isolate.spawn(
     _ingestEntry,
     (r, port.sendPort),
@@ -186,10 +209,13 @@ Future<ChunkedText> ingestInBackground(SourceRequest r, {Duration timeout = inge
     onExit: port.sendPort,
   );
   try {
-    final message = await port.first.timeout(
-      timeout,
-      onTimeout: () => const _IngestFailure('That source took too long to read.'),
-    );
+    final message = await result.future.timeout(timeout, onTimeout: () => _timedOut);
+    if (identical(message, _timedOut)) {
+      isolate.kill(priority: Isolate.immediate);
+      final left = await exited.future.timeout(exitGrace, onTimeout: () => false);
+      if (!left && r.kind == SourceKind.pdf) _pdfiumStuck = true;
+      throw const FormatException('That source took too long to read.');
+    }
     return switch (message) {
       final ChunkedText c => c,
       final _IngestFailure f => throw FormatException(f.message),
