@@ -149,7 +149,7 @@ void main() {
     await addPdf(tester, s, id, dir);
 
     final hits = s.notebooks.search(id, 'loving peace');
-    expect(hits.map((h) => h.sourceTitle), contains('smoke-two-pages.pdf'));
+    expect(hits.map((h) => h.title), contains('smoke-two-pages.pdf'));
     expect(hits.firstWhere((h) => h.kind == SourceKind.pdf).page, 2);
     expect(s.notebooks.search(id, 'separate').map((h) => h.kind).toSet(), {SourceKind.passage});
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'chat_screen.dart';
+import 'notebook_chat.dart';
+import 'notebook_chat_screen.dart';
 import 'notebook_store.dart';
 import 'notebooks_screen.dart';
 import 'notes_screen.dart';
@@ -73,6 +75,30 @@ class _HomeShellState extends State<HomeShell> {
     hasCommentary: () => !widget.state.commentary.library.isEmpty,
   );
 
+  void _openNotebookChat(BuildContext context, int notebookId) {
+    final s = widget.state;
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => NotebookChatScreen(
+          store: s.notebooks,
+          notebookId: notebookId,
+          db: s.db,
+          translation: () => s.settings.translation,
+          commentary: s.commentary.library,
+          engineNotice: EngineNotice(state: s),
+          createChat: () => NotebookChat(
+            store: s.notebooks,
+            notebookId: notebookId,
+            answer: (q, history, onToken) => s.answerInNotebook(notebookId, q, history, onToken),
+            ready: () => s.harness != null,
+            engine: s,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.state;
@@ -82,7 +108,7 @@ class _HomeShellState extends State<HomeShell> {
         ChatScreen(state: s),
         ReaderScreen(state: s, onQuickChat: _quickChat),
         NotesScreen(state: s, onOpenStudy: () => _select(HomeTab.study)),
-        NotebooksScreen(store: s.notebooks, lookup: _lookup),
+        NotebooksScreen(store: s.notebooks, lookup: _lookup, onChat: _openNotebookChat),
       ],
     );
     const destinations = [

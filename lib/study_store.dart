@@ -78,7 +78,7 @@ class StudyStore {
   /// above predate it and stay `IF NOT EXISTS`.
   /// Append only: a migration that has shipped is never edited, since installs that ran it
   /// would differ from new ones. Change the schema with a new entry; a test pins each text.
-  static const migrations = [notebookSchema];
+  static const migrations = [notebookSchema, notebookChatSchema];
 
   static int get schemaVersion => migrations.length;
 
@@ -294,6 +294,7 @@ class StudyStore {
     'notebooks',
     'notebook_sources',
     'notebook_chunks',
+    'notebook_messages',
   ];
 
   Map<String, List<Map<String, Object?>>> exportTables() => {
@@ -345,6 +346,13 @@ class StudyStore {
       'end_offset': int,
       'text': String,
     },
+    'notebook_messages': {
+      'notebook_id': int,
+      'role': String,
+      'text': String,
+      'refs': String,
+      'sources': String,
+    },
   };
 
   /// Throws [FormatException] when a row has a column the table lacks, a missing or mistyped
@@ -354,6 +362,9 @@ class StudyStore {
     final notebookTables = _notebookTables.where(tables.containsKey).length;
     if (notebookTables != 0 && notebookTables != _notebookTables.length) {
       throw const FormatException('notebook tables must be backed up together');
+    }
+    if (notebookTables == 0 && tables.keys.any(_notebookChatTables.contains)) {
+      throw const FormatException('notebook conversations need their notebooks');
     }
     _validateColumns(tables);
     _validateNotebooks(tables);
@@ -375,14 +386,20 @@ class StudyStore {
         if (book is int && (book < 1 || book > books.length)) {
           throw FormatException('bad book $book in $t');
         }
-        if (t == 'messages') {
-          try {
-            if (jsonDecode(row['refs'] as String) is! List) throw const FormatException('');
-          } on FormatException {
-            throw const FormatException('messages.refs must be a JSON list');
-          }
+        if (t == 'messages') _jsonList(row, t, 'refs');
+        if (t == 'notebook_messages') {
+          _jsonList(row, t, 'refs');
+          _jsonList(row, t, 'sources');
         }
       }
+    }
+  }
+
+  static void _jsonList(Map<String, Object?> row, String table, String column) {
+    try {
+      if (jsonDecode(row[column] as String) is! List) throw const FormatException('');
+    } on FormatException {
+      throw FormatException('$table.$column must be a JSON list');
     }
   }
 
@@ -398,6 +415,10 @@ class StudyStore {
       if (SourceKind.byName(r['kind'] as String) == null) {
         throw FormatException('unknown notebook source kind ${r['kind']}');
       }
+      // Older version 2 backups have no pinned column; the database default applies.
+      if (r['pinned'] case final pinned? when pinned != 0 && pinned != 1) {
+        throw FormatException('notebook source ${r['id']} has a bad pinned flag');
+      }
       sourceText[r['id']] = r['text'] as String;
     }
     for (final r in tables['notebook_chunks'] ?? const <Map<String, Object?>>[]) {
@@ -412,10 +433,20 @@ class StudyStore {
         throw FormatException('notebook chunk ${r['id']} has a bad page');
       }
     }
+    for (final r in tables['notebook_messages'] ?? const <Map<String, Object?>>[]) {
+      if (!notebooks.contains(r['notebook_id'])) {
+        throw FormatException('notebook message ${r['id']} has no notebook');
+      }
+    }
   }
 
   /// Added in backup version 2; a version 1 backup has none of them.
   static const _notebookTables = {'notebooks', 'notebook_sources', 'notebook_chunks'};
+
+  /// Notebook conversations, added later in version 2. They follow the notebook tables: kept
+  /// when a backup has no notebooks, cleared when it has notebooks but no conversations, so a
+  /// conversation never attaches to a notebook id the backup reused.
+  static const _notebookChatTables = {'notebook_messages'};
 
   /// Replaces every user table with [tables] in one transaction; on any error nothing changes.
   /// A backup without notebook tables (version 1) leaves the notebooks on the device alone.
@@ -423,8 +454,10 @@ class StudyStore {
     validateTables(tables);
     db.execute('BEGIN');
     try {
+      final hasNotebooks = tables.keys.any(_notebookTables.contains);
       for (final t in userTables) {
         if (!tables.containsKey(t) && _notebookTables.contains(t)) continue;
+        if (!hasNotebooks && _notebookChatTables.contains(t)) continue;
         db.execute('DELETE FROM $t');
         for (final row in tables[t] ?? const <Map<String, Object?>>[]) {
           final cols = row.keys.toList();

@@ -4,6 +4,7 @@ import 'bible_db.dart';
 import 'books.dart';
 import 'ref_parser.dart';
 import 'retriever.dart';
+import 'sources.dart';
 
 class GuardResult {
   final String text;
@@ -20,15 +21,23 @@ class GuardResult {
   /// Real references that sit one slip away from a verse the model was shown. They stay verified
   /// and are surfaced for review, since a GPU decoder that corrupts digits produces exactly these.
   final List<NearMiss> nearMisses;
+
+  /// Notebook answers only: the shown chunks the answer cites, each once.
+  final List<ShownSource> sources;
+
+  /// Notebook answers only: source tags naming a source, page or section that was not shown.
+  final List<String> unverifiedSources;
   const GuardResult(
     this.text,
     this.verified,
     this.unverified,
-    this.unverifiedQuotes, [
+    this.unverifiedQuotes, {
     this.unknownBooks = const [],
     this.correctedQuotes = const [],
     this.nearMisses = const [],
-  ]);
+    this.sources = const [],
+    this.unverifiedSources = const [],
+  });
 
   int get inventedCount => unverified.length + unknownBooks.length;
 }
@@ -398,7 +407,10 @@ class CitationGuard {
   static String normalize(String s) =>
       s.toLowerCase().replaceAll(_nonWord, ' ').replaceAll(_spaces, ' ').trim();
 
-  GuardResult apply(String output, StudyContext ctx) {
+  /// Checks [output] against [shown], the context PromptBuilder says the model was shown. With
+  /// [checkSources] (notebook answers), source tags are checked too, and a quote may come from a
+  /// shown source chunk: from the cited source when it names one, never when it names a verse.
+  GuardResult apply(String output, StudyContext shown, {bool checkSources = false}) {
     final verified = <Ref>{};
     final unverified = <Ref>{};
     final buf = StringBuffer();
@@ -424,47 +436,96 @@ class CitationGuard {
       return '[unverified: ${bad.trim()}]';
     });
 
-    final shown = normalize(ctx.allVerses.map((v) => v.text).join(' '));
-    final badQuotes = <String>[];
+    final tagged = checkSources ? tagSources(shown.sources) : const <ShownSource>[];
+    final sourceCheck = checkSources ? checkSourceCitations(withBooks, tagged) : null;
+    final quotes = _checkQuotes(
+      sourceCheck?.text ?? withBooks,
+      shown,
+      checkSources ? tagged : null,
+    );
+
+    return GuardResult(
+      quotes.text,
+      verified.toList(),
+      unverified.toList(),
+      quotes.bad,
+      unknownBooks: unknown,
+      correctedQuotes: quotes.corrected,
+      nearMisses: findNearMisses(verified, shown.allVerses),
+      sources: sourceCheck?.cited ?? const [],
+      unverifiedSources: sourceCheck?.unverified ?? const [],
+    );
+  }
+
+  /// Flags quotes found in no shown text and replaces clear misquotes of one verse. [sources] is
+  /// null outside notebook answers, which keeps the Study check identical to the site's copy.
+  ({String text, List<String> bad, List<String> corrected}) _checkQuotes(
+    String text,
+    StudyContext shown,
+    List<ShownSource>? sources,
+  ) {
+    final verses = normalize(shown.allVerses.map((v) => v.text).join(' '));
+    final bad = <String>[];
     final corrected = <String>[];
-    final withRefs = withBooks;
     final out = StringBuffer();
-    cursor = 0;
-    for (final (start, end) in quoteSpans(withRefs)) {
-      final quoted = withRefs.substring(start, end);
-      if (quoted.length < minQuoteChars || shown.contains(normalize(quoted))) continue;
-      // The attribution is the nearest reference after the quote, else the nearest before it.
-      final after = withRefs.substring(end, min(withRefs.length, end + quoteCitationWindow));
-      final beforeStart = max(0, start - 1 - quoteCitationWindow);
-      final before = withRefs.substring(beforeStart, max(beforeStart, start - 1));
-      final citedAs =
-          RefParser.matches(after).firstOrNull?.ref ?? RefParser.matches(before).lastOrNull?.ref;
-      final fix = correctQuote(quoted, ctx.allVerses, citedAs: citedAs);
+    var cursor = 0;
+    for (final (start, end) in quoteSpans(text)) {
+      final quoted = text.substring(start, end);
+      final q = normalize(quoted);
+      if (quoted.length < minQuoteChars || verses.contains(q)) continue;
+      final (citedAs, citedSources) = _attribution(text, start, end, sources);
+      final pool = citedSources ?? (citedAs == null ? sources : null);
+      if (pool != null && _inAny(q, pool.map((s) => s.chunk.text))) continue;
+      // Words attributed to a source are not offered as Scripture, so no verse corrects them.
+      final fix = citedSources != null
+          ? null
+          : correctQuote(quoted, shown.allVerses, citedAs: citedAs);
       if (fix != null) {
         corrected.add(quoted);
-        out.write(withRefs.substring(cursor, start));
+        out.write(text.substring(cursor, start));
         out.write(fix);
-        out.write(withRefs[end]);
+        out.write(text[end]);
         out.write(' [quote corrected]');
         cursor = end + 1;
         continue;
       }
-      badQuotes.add(quoted);
-      out.write(withRefs.substring(cursor, end + 1));
+      bad.add(quoted);
+      out.write(text.substring(cursor, end + 1));
       out.write(' [unverified quote]');
       cursor = end + 1;
     }
-    out.write(withRefs.substring(cursor));
-    final text = out.toString();
+    out.write(text.substring(cursor));
+    return (text: out.toString(), bad: bad, corrected: corrected);
+  }
 
-    return GuardResult(
-      text,
-      verified.toList(),
-      unverified.toList(),
-      badQuotes,
-      unknown,
-      corrected,
-      findNearMisses(verified, ctx.allVerses),
-    );
+  /// Each chunk separately, so a quote never matches across the join of two chunks.
+  static bool _inAny(String normalizedQuote, Iterable<String> texts) =>
+      texts.any((t) => normalize(t).contains(normalizedQuote));
+
+  /// What a quote is attributed to: the nearest reference or source tag after it, else the
+  /// nearest before it. Source tags count only when [sources] is given; a tag naming nothing
+  /// shown (the source check has already marked it) attributes the quote to no source.
+  static (Ref?, List<ShownSource>?) _attribution(
+    String text,
+    int start,
+    int end,
+    List<ShownSource>? sources,
+  ) {
+    final after = text.substring(end, min(text.length, end + quoteCitationWindow));
+    final beforeStart = max(0, start - 1 - quoteCitationWindow);
+    final before = text.substring(beforeStart, max(beforeStart, start - 1));
+    final refAfter = RefParser.matches(after).firstOrNull;
+    final refBefore = RefParser.matches(before).lastOrNull;
+    if (sources == null) return (refAfter?.ref ?? refBefore?.ref, null);
+    final tagAfter = sourceCitationGroup.allMatches(after).firstOrNull;
+    final tagBefore = sourceCitationGroup.allMatches(before).lastOrNull;
+    if (tagAfter != null && (refAfter == null || tagAfter.start < refAfter.start)) {
+      return (null, citedChunks(tagAfter, sources));
+    }
+    if (refAfter != null) return (refAfter.ref, null);
+    if (tagBefore != null && (refBefore == null || tagBefore.end > refBefore.end)) {
+      return (null, citedChunks(tagBefore, sources));
+    }
+    return (refBefore?.ref, null);
   }
 }

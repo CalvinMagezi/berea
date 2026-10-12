@@ -27,9 +27,14 @@ class SourceLookup {
   });
 }
 
+/// Opens the conversation of notebook [notebookId].
+typedef OpenNotebookChat = void Function(BuildContext context, int notebookId);
+
 /// Wide enough for a paragraph of pasted text without filling a desktop window.
 const _pasteDialogWidth = 520.0;
 const _notePickerWidth = 480.0;
+const _citedMarkWidth = 3.0;
+const _citedPadding = 12.0;
 
 IconData kindIcon(SourceKind k) => switch (k) {
   SourceKind.text => Icons.notes,
@@ -87,7 +92,12 @@ Future<bool> _confirm(BuildContext context, String title, String body, String ac
     ) ==
     true;
 
-Future<void> _createNotebook(BuildContext context, NotebookStore store, SourceLookup lookup) async {
+Future<void> _createNotebook(
+  BuildContext context,
+  NotebookStore store,
+  SourceLookup lookup,
+  OpenNotebookChat? onChat,
+) async {
   final name = await _askName(context, title: 'New notebook');
   if (name == null || !context.mounted) return;
   try {
@@ -95,7 +105,8 @@ Future<void> _createNotebook(BuildContext context, NotebookStore store, SourceLo
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => NotebookScreen(store: store, lookup: lookup, notebookId: id),
+        builder: (_) =>
+            NotebookScreen(store: store, lookup: lookup, notebookId: id, onChat: onChat),
       ),
     );
   } on FormatException catch (e) {
@@ -108,7 +119,10 @@ class NotebooksScreen extends StatelessWidget {
   final NotebookStore store;
 
   final SourceLookup lookup;
-  const NotebooksScreen({super.key, required this.store, required this.lookup});
+
+  /// Null hides the way into a notebook's conversation, as in tests without an engine.
+  final OpenNotebookChat? onChat;
+  const NotebooksScreen({super.key, required this.store, required this.lookup, this.onChat});
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +136,7 @@ class NotebooksScreen extends StatelessWidget {
           IconButton(
             tooltip: 'New notebook',
             icon: const Icon(Icons.add),
-            onPressed: () => _createNotebook(context, store, lookup),
+            onPressed: () => _createNotebook(context, store, lookup, onChat),
           ),
           const SizedBox(width: 8),
         ],
@@ -149,7 +163,7 @@ class NotebooksScreen extends StatelessWidget {
         'A notebook gathers what you read on one passage or topic: Bible passages, commentary, '
         'your notes, pasted text, PDFs and EPUB books. Everything stays on this device.',
     action: 'Create a notebook',
-    onAction: () => _createNotebook(context, store, lookup),
+    onAction: () => _createNotebook(context, store, lookup, onChat),
   );
 
   Widget _list(BuildContext context, List<Notebook> notebooks) => ListView(
@@ -164,7 +178,8 @@ class NotebooksScreen extends StatelessWidget {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute<void>(
-              builder: (_) => NotebookScreen(store: store, lookup: lookup, notebookId: n.id),
+              builder: (_) =>
+                  NotebookScreen(store: store, lookup: lookup, notebookId: n.id, onChat: onChat),
             ),
           ),
         ),
@@ -259,11 +274,13 @@ class NotebookScreen extends StatelessWidget {
   final NotebookStore store;
   final SourceLookup lookup;
   final int notebookId;
+  final OpenNotebookChat? onChat;
   const NotebookScreen({
     super.key,
     required this.store,
     required this.lookup,
     required this.notebookId,
+    this.onChat,
   });
 
   @override
@@ -283,6 +300,12 @@ class NotebookScreen extends StatelessWidget {
         appBar: AppBar(
           title: Text(notebook.title),
           actions: [
+            if (onChat != null)
+              IconButton(
+                tooltip: 'Ask about this notebook',
+                icon: const Icon(Icons.forum_outlined),
+                onPressed: () => onChat!(context, notebookId),
+              ),
             _NotebookMenu(
               store: store,
               notebook: notebook,
@@ -324,23 +347,48 @@ class NotebookScreen extends StatelessWidget {
   ) => ListView(
     padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
     children: [
+      if (onChat != null && sources.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.tonalIcon(
+              onPressed: () => onChat!(context, notebookId),
+              icon: const Icon(Icons.forum_outlined),
+              label: const Text('Ask about these sources'),
+            ),
+          ),
+        ),
       for (final s in sources)
         ListTile(
           leading: Icon(kindIcon(s.kind)),
           title: Text(s.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-          subtitle: Text('${s.kind.label} · ${_plural(s.chunkCount, 'section', 'sections')}'),
-          trailing: IconButton(
-            tooltip: 'Remove source',
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () async {
-              final ok = await _confirm(
-                context,
-                'Remove ${s.title}?',
-                'It will be removed from this notebook. This cannot be undone.',
-                'Remove',
-              );
-              if (ok) store.removeSource(s.id);
-            },
+          subtitle: Text(
+            '${s.kind.label} · ${_plural(s.chunkCount, 'section', 'sections')}'
+            '${s.pinned ? ' · Pinned' : ''}',
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: s.pinned ? 'Unpin' : 'Pin to every answer',
+                icon: Icon(s.pinned ? Icons.push_pin : Icons.push_pin_outlined),
+                onPressed: () => store.setPinned(s.id, !s.pinned),
+              ),
+              IconButton(
+                tooltip: 'Remove source',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () async {
+                  final ok = await _confirm(
+                    context,
+                    'Remove ${s.title}?',
+                    'It will be removed from this notebook. This cannot be undone.',
+                    'Remove',
+                  );
+                  if (ok) store.removeSource(s.id);
+                },
+              ),
+            ],
           ),
           onTap: () => Navigator.push(
             context,
@@ -637,44 +685,101 @@ class _NotePickerState extends State<_NotePicker> {
 class SourceScreen extends StatelessWidget {
   final NotebookStore store;
   final NotebookSource source;
-  const SourceScreen({super.key, required this.store, required this.source});
+
+  /// The section to open at and mark, where an answer cited it; null opens at the start.
+  final int? focusOrdinal;
+  const SourceScreen({super.key, required this.store, required this.source, this.focusOrdinal});
+
+  static const _focusKey = ValueKey('focus');
 
   @override
   Widget build(BuildContext context) {
     final chunks = store.sourceChunks(source.id);
-    final scheme = Theme.of(context).colorScheme;
+    final at = chunks.indexWhere((c) => c.ordinal == focusOrdinal);
+    final focus = at < 0 ? 0 : at;
+    Widget item(int i) => _SectionView(
+      chunk: chunks[i],
+      showPage:
+          chunks[i].page != null && (i == focus || i == 0 || chunks[i - 1].page != chunks[i].page),
+      marked: at >= 0 && i == focus,
+    );
+    // The cited section is the scroll origin, so a section deep in a long book opens at once and
+    // the sections before it build lazily as the reader scrolls up.
     return Scaffold(
       appBar: AppBar(title: Text(source.title, maxLines: 1, overflow: TextOverflow.ellipsis)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-          child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-            itemCount: chunks.length,
-            itemBuilder: (context, i) {
-              final c = chunks[i];
-              final newPage = c.page != null && (i == 0 || chunks[i - 1].page != c.page);
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (newPage)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12, bottom: 4),
-                      child: Text(
-                        'PAGE ${c.page}',
-                        style: TextStyle(fontSize: 12, letterSpacing: 1.2, color: scheme.primary),
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: SelectableText(c.text, style: const TextStyle(height: 1.5)),
+          child: CustomScrollView(
+            center: _focusKey,
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (_, i) => item(focus - 1 - i),
+                    childCount: focus,
                   ),
-                ],
-              );
-            },
+                ),
+              ),
+              SliverPadding(
+                key: _focusKey,
+                padding: EdgeInsets.fromLTRB(20, focus == 0 ? 12 : 0, 20, 32),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (_, i) => item(focus + i),
+                    childCount: chunks.length - focus,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SectionView extends StatelessWidget {
+  final NotebookChunk chunk;
+  final bool showPage;
+
+  /// The section an answer cited.
+  final bool marked;
+  const _SectionView({required this.chunk, required this.showPage, required this.marked});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = SelectableText(chunk.text, style: const TextStyle(height: 1.5));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (showPage)
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 4),
+            child: Text(
+              'PAGE ${chunk.page}',
+              style: TextStyle(fontSize: 12, letterSpacing: 1.2, color: scheme.primary),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: marked
+              ? Container(
+                  key: const ValueKey('cited-section'),
+                  padding: const EdgeInsets.all(_citedPadding),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    border: Border(
+                      left: BorderSide(color: scheme.primary, width: _citedMarkWidth),
+                    ),
+                  ),
+                  child: text,
+                )
+              : text,
+        ),
+      ],
     );
   }
 }

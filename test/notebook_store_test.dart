@@ -94,7 +94,7 @@ void main() {
     expect(store.search(romans, 'loving').first.sourceId, id);
     expect(store.search(romans, 'condemnation').single.text, contains('No condemnation'));
     expect(store.search(romans, 'shepherd'), isEmpty);
-    expect(store.search(psalms, 'shepherd').single.sourceTitle, 'Psalm 23');
+    expect(store.search(psalms, 'shepherd').single.title, 'Psalm 23');
     expect(store.search(romans, '"AND" (NEAR'), isEmpty);
     expect(store.notebooks().firstWhere((n) => n.id == romans).sourceCount, 1);
 
@@ -297,7 +297,10 @@ void main() {
 
   test('shipped migrations are never edited', () async {
     // Append only: when a schema change is needed, add a migration and pin it here.
-    const pinned = ['nmY8srEE0IlsNADuGRT2qEZiWJaRUfFUtXqgjuRfsVU='];
+    const pinned = [
+      'nmY8srEE0IlsNADuGRT2qEZiWJaRUfFUtXqgjuRfsVU=',
+      'A240KlyJsB1gIQ3D4PbpGMO5Y1lM/IEDcPIp8K4pKVs=',
+    ];
     final actual = [
       for (final m in StudyStore.migrations)
         base64.encode((await Sha256().hash(utf8.encode(m.replaceAll('\r\n', '\n')))).bytes),

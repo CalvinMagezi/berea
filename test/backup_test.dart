@@ -119,7 +119,7 @@ void main() {
     expect(target.highlights(bookById(43), 3), {16});
     expect(target.studyPageFor(RefParser.parse('Psalm 23:1').first)!.application, 'A');
     expect(books.notebooks().single.title, 'Kept');
-    expect(books.search(kept, 'grace').single.sourceTitle, 'Mine');
+    expect(books.search(kept, 'grace').single.title, 'Mine');
   });
 
   test('notebook rows that do not fit together are rejected before anything changes', () async {

@@ -6,7 +6,6 @@ import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
 import 'models.dart';
 
-const contextPadding = 512;
 const initTimeout = Duration(seconds: 30);
 
 /// CPU, not GPU: Gemma 4 E2B on some phone GPUs corrupts digits (LiteRT-LM #2202, still open in
@@ -52,7 +51,7 @@ class EdgeAiEngine implements LlmEngine {
   /// Loads the active model sized for [tier]. Download it first with [download].
   static Future<EdgeAiEngine> load(EdgeModel m, Tier tier) async {
     final model = await FlutterEdgeAi.getActiveModel(
-      maxTokens: tier.promptTokens + tier.maxOutput + contextPadding,
+      maxTokens: tier.contextWindow,
       preferredBackend: answerBackend,
     );
     return EdgeAiEngine(model, m);

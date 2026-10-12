@@ -95,9 +95,27 @@ class ChatTurn {
   int unverifiedQuotes = 0;
   int correctedQuotes = 0;
   List<NearMiss> nearMisses = const [];
+
+  /// Notebook answers only: the chunks cited, and tags naming nothing that was shown.
+  List<ShownSource> sources = const [];
+  List<String> unverifiedSources = const [];
   bool done = false;
   String? error;
   ChatTurn(this.question);
+
+  /// Takes the checked answer and what the check found.
+  void take(GuardResult g) {
+    answer = g.text;
+    verified = g.verified;
+    unverified = g.unverified;
+    unknownBooks = g.unknownBooks;
+    unverifiedQuotes = g.unverifiedQuotes.length;
+    correctedQuotes = g.correctedQuotes.length;
+    nearMisses = g.nearMisses;
+    sources = g.sources;
+    unverifiedSources = g.unverifiedSources;
+    done = true;
+  }
 }
 
 enum DeviceModelState { notInstalled, downloading, loading, ready, failed }
@@ -520,7 +538,7 @@ class AppState extends ChangeNotifier {
   LlmEngine _ollama() => OllamaEngine(
     model: settings.model,
     baseUrl: settings.ollamaUrl,
-    numCtx: settings.tier.promptTokens + settings.tier.maxOutput + contextPadding,
+    numCtx: settings.tier.contextWindow,
   );
 
   Future<LlmEngine?> _device() async {
@@ -587,40 +605,76 @@ class AppState extends ChangeNotifier {
     await _rebuildHarness();
   }
 
-  Future<void> send(String question) async {
+  /// Runs [answer] on the engine unless one is already being written: the Study chat and the
+  /// notebook chats share one engine, which runs one generation at a time. Null when nothing ran.
+  Future<T?> runExclusive<T>(Future<T> Function(Harness h) answer) async {
     final h = harness;
-    if (h == null) return;
-    final turn = ChatTurn(question);
-    turns.add(turn);
+    if (h == null || busy) return null;
     busy = true;
     notifyListeners();
     try {
-      final result = await h.ask(
-        question,
-        onToken: (t) {
-          turn.answer += t;
-          notifyListeners();
-        },
+      return await answer(h);
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> send(String question) async {
+    if (!ready) return;
+    final turn = ChatTurn(question);
+    turns.add(turn);
+    try {
+      final result = await runExclusive(
+        (h) => h.ask(
+          question,
+          onToken: (t) {
+            turn.answer += t;
+            notifyListeners();
+          },
+        ),
       );
-      turn
-        ..answer = result.text
-        ..verified = result.guard.verified
-        ..unverified = result.guard.unverified
-        ..unknownBooks = result.guard.unknownBooks
-        ..unverifiedQuotes = result.guard.unverifiedQuotes.length
-        ..correctedQuotes = result.guard.correctedQuotes.length
-        ..nearMisses = result.guard.nearMisses
-        ..done = true;
+      if (result == null) {
+        turns.remove(turn);
+        return;
+      }
+      turn.take(result.guard);
       conversationId ??= study.createConversation(question);
       study.addMessage(conversationId!, 'user', question, const []);
       study.addMessage(conversationId!, 'assistant', turn.answer, turn.verified);
     } catch (e) {
       turn.error = e.toString();
     } finally {
-      busy = false;
       notifyListeners();
     }
   }
+
+  /// Answers [question] inside notebook [notebookId] from its sources, pinned ones first, and
+  /// installed commentary on the passages in view, after [history]. Null when the engine is
+  /// missing or busy with another answer.
+  Future<TurnResult?> answerInNotebook(
+    int notebookId,
+    String question,
+    List<ChatMessage> history,
+    void Function(String token) onToken,
+  ) => runExclusive((base) {
+    final h = Harness(
+      db: db,
+      engine: base.engine,
+      systemPrompt: systemPrompt,
+      tier: settings.tier,
+      translation: settings.translation,
+      notebook: true,
+    )..history.addAll(history);
+    final sources = notebookSources(
+      index: NotebookIndex(notebooks.db, notebookId),
+      question: question,
+      tier: settings.tier,
+      pinned: notebooks.pinnedSources(notebookId),
+      commentary: commentary.library,
+    );
+    return h.ask(question, sources: sources, onToken: onToken);
+  });
 
   void clear() {
     turns.clear();

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -9,20 +10,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'pdf_text.dart';
 import 'study_store.dart';
 
-/// Where a notebook source came from. Stored by name, so names never change.
-enum SourceKind {
-  text('Pasted text'),
-  note('Your note'),
-  passage('Bible passage'),
-  commentary('Commentary'),
-  pdf('PDF'),
-  epub('EPUB');
-
-  final String label;
-  const SourceKind(this.label);
-
-  static SourceKind? byName(String name) => values.where((k) => k.name == name).firstOrNull;
-}
+export 'package:berea_harness/berea_harness.dart' show SourceKind, notebookSchema;
 
 /// A PDF or EPUB larger than this is refused before it is read.
 const maxNotebookFileBytes = 64 * 1024 * 1024;
@@ -36,32 +24,14 @@ const maxSourcesPerNotebook = 100;
 const notebookSearchLimit = 8;
 const maxNotebookTitleChars = 80;
 
-// Ids never get reused and triggers keep the index, so a late read or a restore stays consistent.
-const notebookSchema = '''
-  CREATE TABLE IF NOT EXISTS notebooks(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL,
-    created INTEGER, updated INTEGER);
-  CREATE TABLE IF NOT EXISTS notebook_sources(id INTEGER PRIMARY KEY AUTOINCREMENT,
-    notebook_id INTEGER NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL,
-    origin TEXT NOT NULL DEFAULT '', text TEXT NOT NULL, created INTEGER);
-  CREATE INDEX IF NOT EXISTS notebook_sources_notebook ON notebook_sources(notebook_id);
-  CREATE TABLE IF NOT EXISTS notebook_chunks(id INTEGER PRIMARY KEY, source_id INTEGER NOT NULL,
-    ordinal INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL,
-    page INTEGER, text TEXT NOT NULL);
-  CREATE INDEX IF NOT EXISTS notebook_chunks_source ON notebook_chunks(source_id, ordinal);
-  CREATE VIRTUAL TABLE IF NOT EXISTS notebook_chunks_fts USING fts5(text,
-    content='notebook_chunks', content_rowid='id', tokenize='porter unicode61');
-  CREATE TRIGGER IF NOT EXISTS notebook_chunks_ai AFTER INSERT ON notebook_chunks BEGIN
-    INSERT INTO notebook_chunks_fts(rowid, text) VALUES (new.id, new.text);
-  END;
-  CREATE TRIGGER IF NOT EXISTS notebook_chunks_ad AFTER DELETE ON notebook_chunks BEGIN
-    INSERT INTO notebook_chunks_fts(notebook_chunks_fts, rowid, text)
-      VALUES ('delete', old.id, old.text);
-  END;
-  CREATE TRIGGER IF NOT EXISTS notebook_chunks_au AFTER UPDATE ON notebook_chunks BEGIN
-    INSERT INTO notebook_chunks_fts(notebook_chunks_fts, rowid, text)
-      VALUES ('delete', old.id, old.text);
-    INSERT INTO notebook_chunks_fts(rowid, text) VALUES (new.id, new.text);
-  END;
+/// Study store migration 1: pins, and one conversation per notebook. The answer's verse
+/// references and cited source chunks are JSON lists beside its text.
+const notebookChatSchema = '''
+  ALTER TABLE notebook_sources ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE IF NOT EXISTS notebook_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,
+    notebook_id INTEGER NOT NULL, role TEXT NOT NULL, text TEXT NOT NULL,
+    refs TEXT NOT NULL DEFAULT '[]', sources TEXT NOT NULL DEFAULT '[]', created INTEGER);
+  CREATE INDEX IF NOT EXISTS notebook_messages_notebook ON notebook_messages(notebook_id, id);
 ''';
 
 class Notebook {
@@ -79,14 +49,29 @@ class NotebookSource {
   final String title;
   final String origin;
   final int chunkCount;
+
+  /// Pinned sources are offered to every answer in the notebook's chat, not only when they match.
+  final bool pinned;
   const NotebookSource(
     this.id,
     this.notebookId,
     this.kind,
     this.title,
     this.origin,
-    this.chunkCount,
-  );
+    this.chunkCount, {
+    this.pinned = false,
+  });
+}
+
+/// One message of a notebook's conversation. An answer keeps the verse references and source
+/// chunks it cited, so its chips still open them after the app restarts.
+class NotebookMessage {
+  final String role;
+  final String text;
+  final List<Ref> refs;
+  final List<ShownSource> sources;
+  const NotebookMessage(this.role, this.text, this.refs, this.sources);
+  bool get isUser => role == 'user';
 }
 
 /// A searchable slice of a source, with what a citation needs: the source, the character range
@@ -265,11 +250,16 @@ class NotebookStore extends ChangeNotifier {
   List<PendingSource> pendingFor(int notebookId) =>
       pending.where((p) => p.notebookId == notebookId && !p.cancelled).toList();
 
+  /// Counts the times the notebook tables were replaced underneath (a restore), so an answer
+  /// written across one is not saved into a notebook that may now be another.
+  int epoch = 0;
+
   /// Drops every source being read. Call after the notebook tables are replaced underneath.
   void cancelAll() {
     for (final p in pending) {
       p.cancelled = true;
     }
+    epoch++;
     _changed();
   }
 
@@ -328,6 +318,7 @@ class NotebookStore extends ChangeNotifier {
         [id],
       );
       db.execute('DELETE FROM notebook_sources WHERE notebook_id = ?', [id]);
+      db.execute('DELETE FROM notebook_messages WHERE notebook_id = ?', [id]);
       db.execute('DELETE FROM notebooks WHERE id = ?', [id]);
     });
     _changed();
@@ -335,19 +326,47 @@ class NotebookStore extends ChangeNotifier {
 
   List<NotebookSource> sources(int notebookId) => [
     for (final r in db.select(
-      'SELECT s.id, s.notebook_id, s.kind, s.title, s.origin, '
+      'SELECT s.id, s.notebook_id, s.kind, s.title, s.origin, s.pinned, '
       '(SELECT COUNT(*) FROM notebook_chunks c WHERE c.source_id = s.id) AS chunks '
       'FROM notebook_sources s WHERE s.notebook_id = ? ORDER BY s.created, s.id',
       [notebookId],
     ))
-      NotebookSource(
-        r['id'] as int,
-        r['notebook_id'] as int,
-        SourceKind.byName(r['kind'] as String) ?? SourceKind.text,
-        r['title'] as String,
-        r['origin'] as String,
-        r['chunks'] as int,
-      ),
+      _source(r),
+  ];
+
+  static NotebookSource _source(Row r) => NotebookSource(
+    r['id'] as int,
+    r['notebook_id'] as int,
+    SourceKind.byName(r['kind'] as String) ?? SourceKind.text,
+    r['title'] as String,
+    r['origin'] as String,
+    r['chunks'] as int,
+    pinned: r['pinned'] == 1,
+  );
+
+  /// The source with [id], or null when it has been removed.
+  NotebookSource? source(int id) {
+    final rows = db.select(
+      'SELECT s.id, s.notebook_id, s.kind, s.title, s.origin, s.pinned, '
+      '(SELECT COUNT(*) FROM notebook_chunks c WHERE c.source_id = s.id) AS chunks '
+      'FROM notebook_sources s WHERE s.id = ?',
+      [id],
+    );
+    return rows.isEmpty ? null : _source(rows.first);
+  }
+
+  void setPinned(int sourceId, bool pinned) {
+    db.execute('UPDATE notebook_sources SET pinned = ? WHERE id = ?', [pinned ? 1 : 0, sourceId]);
+    _changed();
+  }
+
+  /// Ids of the notebook's pinned sources.
+  List<int> pinnedSources(int notebookId) => [
+    for (final r in db.select(
+      'SELECT id FROM notebook_sources WHERE notebook_id = ? AND pinned = 1 ORDER BY created, id',
+      [notebookId],
+    ))
+      r['id'] as int,
   ];
 
   /// Returns the new source id, or null when its notebook went away while it was read.
@@ -451,20 +470,51 @@ class NotebookStore extends ChangeNotifier {
       .toList();
 
   /// The chunks of a notebook that best match any word of [query], best first.
-  List<NotebookChunk> search(int notebookId, String query, {int limit = notebookSearchLimit}) {
-    final q = notebookFtsQuery(query);
-    if (q == null) return const [];
-    return db
-        .select(
-          'SELECT $_chunkColumns FROM notebook_chunks_fts f '
-          'JOIN notebook_chunks c ON c.id = f.rowid '
-          'JOIN notebook_sources s ON s.id = c.source_id '
-          'WHERE notebook_chunks_fts MATCH ? AND s.notebook_id = ? '
-          'ORDER BY bm25(notebook_chunks_fts) LIMIT ?',
-          [q, notebookId, limit],
-        )
-        .map(_chunk)
-        .toList();
+  List<SourceChunk> search(int notebookId, String query, {int limit = notebookSearchLimit}) =>
+      NotebookIndex(db, notebookId).search(query, limit: limit);
+
+  /// The notebook's conversation, oldest first.
+  List<NotebookMessage> messages(int notebookId) => [
+    for (final r in db.select(
+      'SELECT role, text, refs, sources FROM notebook_messages WHERE notebook_id = ? ORDER BY id',
+      [notebookId],
+    ))
+      NotebookMessage(r['role'] as String, r['text'] as String, _refs(r['refs'] as String), [
+        for (final s in jsonDecode(r['sources'] as String) as List) ?ShownSource.fromJson(s),
+      ]),
+  ];
+
+  static List<Ref> _refs(String json) => [
+    for (final label in (jsonDecode(json) as List).whereType<String>()) ...RefParser.parse(label),
+  ];
+
+  /// Appends to the conversation; false, saving nothing, when the notebook has gone.
+  bool addMessage(
+    int notebookId,
+    String role,
+    String text, {
+    List<Ref> refs = const [],
+    List<ShownSource> sources = const [],
+  }) {
+    if (db.select('SELECT 1 FROM notebooks WHERE id = ?', [notebookId]).isEmpty) return false;
+    db.execute(
+      'INSERT INTO notebook_messages(notebook_id, role, text, refs, sources, created) '
+      'VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        notebookId,
+        role,
+        text,
+        jsonEncode([for (final r in refs) r.label]),
+        jsonEncode([for (final s in sources) s.toJson()]),
+        _now(),
+      ],
+    );
+    return true;
+  }
+
+  void clearMessages(int notebookId) {
+    db.execute('DELETE FROM notebook_messages WHERE notebook_id = ?', [notebookId]);
+    _changed();
   }
 
   void _transaction(void Function() body) {
