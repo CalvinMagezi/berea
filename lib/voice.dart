@@ -142,15 +142,14 @@ class VoiceInput extends ChangeNotifier {
   final Duration transcribeTimeout;
 
   VoiceInput({
-    required Future<String> Function(Uint8List wav) transcribe,
+    required this._transcribe,
     AudioRecorder? recorder,
     Future<Directory> Function()? cacheDir,
     this.newStopwatch = Stopwatch.new,
     this.maxDuration = maxVoiceDuration,
     this.minDuration = minVoiceDuration,
     this.transcribeTimeout = voiceTranscribeTimeout,
-  }) : _transcribe = transcribe,
-       _recorder = recorder ?? AudioRecorder(),
+  }) : _recorder = recorder ?? AudioRecorder(),
        _cacheDir = cacheDir ?? getApplicationCacheDirectory {
     _folder = _prepareFolder();
     unawaited(_folder.then((_) {}, onError: (_) {}));

@@ -65,6 +65,12 @@ the retrieved Scripture, lexicon and cross references, then edited and kept by y
 **Notes.** Saved studies, study pages, notes and highlights in one searchable place. Export a study
 or everything to Markdown.
 
+**Notebooks.** Gather what you read on one passage or topic: Bible passages, commentary from the
+installed packs, your notes, pasted text, PDFs and EPUB books. Berea reads each source on the
+device, splits it into sections that remember where they came from (and the PDF page), and
+indexes them for search. A source is a copy taken when you add it, so editing a note later does
+not change the notebook. Chat over a notebook comes next.
+
 **Backup.** One encrypted file (AES-256-GCM, key from your passphrase) that you keep wherever you
 like. Restore checks the file before it replaces anything.
 
@@ -206,8 +212,25 @@ engine settings from CSV (`Book,Chapter,Verse,Text`), USFM, OSIS, Zefania XML or
 A normalised copy is kept under the app's support folder, re-imported after a database rebuild,
 and never leaves the device.
 
-User data (notes, highlights, saved studies, study pages and plan progress) lives in
-`study.sqlite` next to the Bible database.
+User data (notes, highlights, saved studies, study pages, plan progress and notebooks) lives in
+`study.sqlite` next to the Bible database. Notebook tables (`notebooks`, `notebook_sources` with
+the normalised text, `notebook_chunks` with character offsets and PDF page numbers, and the
+`notebook_chunks_fts` index kept in step by triggers) are added by a `user_version` migration,
+and backups carry them from version 2 on.
+
+PDF text is read with [PDFium](https://pdfium.googlesource.com/pdfium/) through
+`pdfium_flutter` and `pdfium_dart` (MIT). PDFium is BSD 3-Clause and Apache 2.0; the binaries
+also carry FreeType (FreeType License), libjpeg-turbo, OpenJPEG, Little CMS, libpng, zlib,
+Abseil and ICU under their own permissive licences. Their full texts are kept in
+`licenses/pdfium/` and shown on the app's licence page (Settings, Commentaries, Licences and
+sources, Software licences). On iOS the pod fetches a PDFium build pinned by SHA-256. On
+Android, Windows, Linux and macOS the package's build hook downloads `bblanchon/pdfium-binaries`
+`chromium/7811` without a hash check unless the file is already in place, so run
+`tool/pin_pdfium.sh <target>` (for example `mac-arm64`) after `flutter pub get` to put SHA-256
+checked copies there first; CI and `tool/release.sh` do. On macOS both are built and land in the same
+case-insensitive Frameworks folder, so which copy ships depends on build order (see
+`TECHDEBT.md`). The app itself never downloads PDFium. EPUB is read with the harness's own zip reader and a
+small XHTML to text step.
 
 ## Build and run
 
@@ -217,6 +240,7 @@ Requirements: Flutter 3.47+, Dart 3.13+. Xcode 27 for iOS and macOS, Android SDK
 git clone https://github.com/CalvinMagezi/berea && cd berea
 cd packages/harness && dart pub get && dart run bin/build_db.dart && cd ../..
 flutter pub get
+tool/pin_pdfium.sh mac-arm64   # SHA-256 checked PDFium for this Mac (see Data)
 flutter run -d macos      # or -d <android device> / -d <ios simulator>
 ```
 
@@ -234,6 +258,7 @@ Tests:
 
 ```bash
 cd packages/harness && dart test && cd ../.. && flutter test
+flutter test integration_test -d macos   # notebooks smoke test, real app, throwaway data folder
 ```
 
 Release (builds the data, runs every check and the eval, builds Android and macOS, tags):
@@ -252,7 +277,7 @@ Each app release also carries the APK as `berea-android-arm64.apk`, which the si
 ```
 lib/
   main.dart            boots the app
-  home_shell.dart      Study, Bible and Notes tabs, quick chat sheet
+  home_shell.dart      Study, Bible, Notes and Notebooks tabs, quick chat sheet
   chat_screen.dart     streamed answers, citation chips, verse of the day, today's reading
   voice.dart, voice_composer.dart  hold-to-talk recording, Gemma 4 transcription, mic button
   reader_screen.dart   offline reader, parallel text, selection bar, chapter picker
@@ -265,6 +290,9 @@ lib/
   study_page_screen.dart  observation, interpretation, application
   plans.dart, plans_screen.dart  reading plans
   notes_screen.dart    saved studies, study pages and notes
+  notebooks_screen.dart  notebooks, their sources, add-source flows and the source reader
+  notebook_store.dart  notebook tables, background ingestion, chunk listing and search for chat
+  pdf_text.dart        PDF page text through PDFium
   export.dart          Markdown export
   backup.dart          encrypted backup and restore
   device.dart          device memory for the model recommendation
@@ -274,7 +302,8 @@ lib/
   study_store.dart     local SQLite for everything the user writes
   theme.dart           colour tokens, parchment and ink with a lamp-gold accent
 packages/harness/
-  lib/src/             RefParser, BibleDb, Retriever, PromptBuilder, CitationGuard, importers, engines
+  lib/src/             RefParser, BibleDb, Retriever, PromptBuilder, CitationGuard, importers, engines,
+                       notebook chunking, EPUB and HTML text
   bin/build_db.dart    builds assets/berea.sqlite from the datasets above
   bin/build_lexicon_pack.dart  builds the optional LSJ pack
   bin/build_commentary.dart  builds the optional commentary packs from SWORD modules
@@ -285,6 +314,7 @@ packages/harness/
   eval/golden.json     questions with expected references and adversarial bait
 tool/release.sh        local release
 tool/build_site.sh     builds the public site from site/ into build/site
+tool/audio/            build-time word timings and audio packs for the CC0 narration (Python)
 site/                  the public page, deployed to GitHub Pages
   check/               a JavaScript copy of the reference check; selftest.mjs proves it matches
   vendor/scrollcraft/  scroll engine from nateherkai/scroll-craft (MIT)
