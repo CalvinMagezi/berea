@@ -146,14 +146,14 @@ class AppState extends ChangeNotifier {
   String? deviceError;
   EdgeAiEngine? _edge;
 
-  static Future<AppState> bootstrap() async {
+  static Future<AppState> bootstrap({Directory? supportDir, SharedPreferences? prefs}) async {
     final s = AppState();
-    s.supportDir = await getApplicationSupportDirectory();
+    s.supportDir = supportDir ?? await getApplicationSupportDirectory();
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir));
     s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
-    s.prefs = await SharedPreferences.getInstance();
+    s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
     s.deviceGb = bytes == null ? null : bytes / bytesPerGb;
     s.settings = Settings.load(s.prefs);
@@ -170,7 +170,7 @@ class AppState extends ChangeNotifier {
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
     s.voice = VoiceShelf(Directory('${s.supportDir.path}/voice'), s.touch);
     await s._rebuildHarness();
-    if (kDebugMode) unawaited(s._autorun());
+    if (kDebugMode && supportDir == null) unawaited(s._autorun());
     return s;
   }
 
@@ -507,12 +507,14 @@ class AppState extends ChangeNotifier {
   Future<T> withVoice<T>(Future<T> Function(KokoroVoice voice) use) async {
     if (busy || speaking) throw StateError('Berea is busy. Try again in a moment.');
     speaking = true;
+    notifyListeners();
     var hadModel = false;
     KokoroVoice? loaded;
     try {
-      // A model load already under way would otherwise finish beside the voice.
+      // A model load already under way would otherwise finish beside the voice. Its failure
+      // is the language model's to report, not a reason to refuse to speak.
       while (_rebuilding != null) {
-        await _rebuilding;
+        await _rebuilding!.catchError((Object _) {});
       }
       hadModel = _edge != null;
       if (hadModel) {
@@ -571,9 +573,16 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadHarness() async {
-    await _edge?.close();
-    _edge = null;
+    if (speaking) {
+      // Queued before the voice started; loading now would only be closed again at once.
+      _rebuildAfterVoice = true;
+      return;
+    }
+    // Drop the harness first, so nothing starts a turn on an engine that is closing.
     harness = null;
+    final old = _edge;
+    _edge = null;
+    await old?.close();
     final engine = settings.engine == EngineKind.ollama ? _ollama() : await _device();
     if (engine != null) harness = _newHarness(engine);
     notifyListeners();

@@ -210,14 +210,19 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
   Future<void> _speak(KokoroSpeaker speaker) => _guard(() async {
     await _player.stop();
     _finish();
-    setState(() => _status = 'Loading the voice…');
+    _show('Loading the voice…');
     final speech = await widget.state.withVoice((v) => v.speak(_verse, speaker));
     if (!mounted) return;
     // The platform's temporary folder is not guaranteed to exist yet (a sandboxed Mac app).
     final dir = (await getTemporaryDirectory())..createSync(recursive: true);
     final file = File('${dir.path}/berea-voice-${DateTime.now().microsecondsSinceEpoch}.wav');
-    await file.writeAsBytes(wavBytes(speech.samples));
-    await _debugDump(speaker, file, speech);
+    try {
+      await file.writeAsBytes(wavBytes(speech.samples));
+      await _debugDump(speaker, file, speech);
+    } catch (_) {
+      if (file.existsSync()) file.deleteSync();
+      rethrow;
+    }
     if (!mounted) {
       file.deleteSync();
       return;
@@ -250,7 +255,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
   Future<void> _benchmark() => _guard(() async {
     await _player.stop();
     _finish();
-    setState(() => _status = 'Running the benchmark…');
+    _show('Running the benchmark…');
     final text = _passageText(_benchmarkPassage);
     final rssBefore = ProcessInfo.currentRss;
     final clock = Stopwatch()..start();

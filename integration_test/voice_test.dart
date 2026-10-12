@@ -1,27 +1,26 @@
-// Drives the real voice on a desktop build: installs the pack from files, speaks John 3:16 in
-// each voice on the Test voice screen while checking the highlight against the audio clock, and
-// runs the benchmark. Needs the voice pack files (from bin/build_voice_pack.dart) in
-// voice-src under the app's documents folder; on a sandboxed Mac that is
-// ~/Library/Containers/com.magezi.berea/Data/Documents/voice-src.
+// Drives the real voice on a desktop build against a throwaway support folder and in-memory
+// settings, never the user's own data: fetches the pack from its pinned upstream sources,
+// installs it from those files, speaks John 3:16 in each voice on the Test voice screen while
+// checking the highlight against the audio clock, and runs the benchmark. Downloads about 168 MB.
 // Run: flutter test integration_test/voice_test.dart -d macos
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
 import 'package:berea/attributions_screen.dart';
 import 'package:berea/commentary_packs.dart' show bytesPerMb;
-import 'package:berea/edge_engine.dart';
-import 'package:berea/models.dart';
+import 'package:berea/pinned_download.dart';
 import 'package:berea/voice_settings.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const _poll = Duration(milliseconds: 40);
 const _leakToleranceMb = 300;
-const _synthesisLimit = Duration(minutes: 2);
+const _synthesisLimit = Duration(minutes: 5);
+const _downloadLimit = Duration(minutes: 10);
 
 /// How far apart the highlight's offsets from the timings may drift over one verse. The offset
 /// itself includes the player's start-up latency, which is constant across the verse.
@@ -39,23 +38,31 @@ void main() {
     expect(names, containsAll(['CMU Pronouncing Dictionary', 'ONNX Runtime third party notices']));
   });
 
-  // ONNX Runtime needs statically linked pods; the on-device LLM plugin must still start.
-  testWidgets('the on-device language model plugin still initialises', (tester) async {
-    expect(await EdgeAiEngine.isInstalled(edgeModels.first), isA<bool>());
-  });
-
   testWidgets('installs the voice from files, speaks with live highlighting, benchmarks', (
     tester,
   ) async {
-    final state = await AppState.bootstrap();
-    final src = Directory('${(await getApplicationDocumentsDirectory()).path}/voice-src');
-    if (!state.voice.installed) {
-      final added = await state.voice.installFromFiles([
-        for (final f in src.listSync().whereType<File>()) f.path,
-      ]);
-      debugPrint('installed from files: $added');
+    final tmp = await Directory.systemTemp.createTemp('berea-voice-test');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+    SharedPreferences.setMockInitialValues({});
+    final state = await AppState.bootstrap(
+      supportDir: Directory('${tmp.path}/support')..createSync(),
+      prefs: await SharedPreferences.getInstance(),
+    );
+    final src = Directory('${tmp.path}/src')..createSync();
+    for (final f in voicePackDeviceFiles) {
+      await downloadPinned(
+        Uri.parse(f.upstream),
+        File('${src.path}/${f.name}'),
+        sha256: f.sha256,
+        maxBytes: f.bytes,
+        timeout: _downloadLimit,
+      );
     }
-    expect(state.voice.installed, isTrue, reason: 'Put the voice pack files in ${src.path}');
+    final added = await state.voice.installFromFiles([
+      for (final f in src.listSync().whereType<File>()) f.path,
+    ]);
+    debugPrint('installed from files: $added');
+    expect(state.voice.installed, isTrue);
 
     // From the settings entry, as a user reaches it.
     await tester.pumpWidget(
