@@ -29,6 +29,16 @@ const downloadableSources = [
     'CC BY 4.0',
     'Tyndale House, Cambridge, www.STEPBible.org',
   ),
+  DataSource(
+    'Berean Standard Bible audio narration',
+    'Public domain (CC0 1.0)',
+    'Narrated by Bob Souer, bereanbible.com/audio',
+  ),
+  DataSource(
+    'Narration word timings',
+    'Public domain (CC0 1.0)',
+    'Made by the Berea project from the narration above',
+  ),
 ];
 
 /// Every dataset in the app or offered for download, with its licence and who to credit.

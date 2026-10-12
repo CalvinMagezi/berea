@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'home_shell.dart';
+import 'read_along.dart';
 import 'theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initReadAlongAudio();
   runApp(const BereaApp());
 }
 

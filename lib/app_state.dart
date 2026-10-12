@@ -14,8 +14,10 @@ import 'backup.dart';
 import 'commentary_packs.dart';
 import 'edge_engine.dart';
 import 'models.dart';
+import 'narration_packs.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
+import 'read_along.dart';
 import 'study_store.dart';
 
 enum EngineKind { ollama, device }
@@ -111,6 +113,10 @@ class AppState extends ChangeNotifier {
 
   /// Optional public domain commentaries the user has downloaded.
   late final CommentaryShelf commentary;
+
+  /// Optional narration packs, one per book, for reading along.
+  late final NarrationShelf narration;
+  late final ReadAlong readAlong;
   Harness? harness;
   final turns = <ChatTurn>[];
   bool busy = false;
@@ -138,9 +144,10 @@ class AppState extends ChangeNotifier {
   String? deviceError;
   EdgeAiEngine? _edge;
 
-  static Future<AppState> bootstrap() async {
+  /// [supportDir] replaces the app's support folder, so a test never touches real data.
+  static Future<AppState> bootstrap({Directory? supportDir}) async {
     final s = AppState();
-    s.supportDir = await getApplicationSupportDirectory();
+    s.supportDir = supportDir ?? await getApplicationSupportDirectory();
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir));
     s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
@@ -160,8 +167,14 @@ class AppState extends ChangeNotifier {
     s._keepTranslationValid();
     s.db.attachFullLexicon(s.lexiconPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
+    s.narration = NarrationShelf(
+      Directory('${s.supportDir.path}/narration'),
+      s.touch,
+      chapterCount: (b) => s.db.chapterCount(bookById(b)),
+    );
+    s.readAlong = ReadAlong(s.narration);
     await s._rebuildHarness();
-    if (kDebugMode) unawaited(s._autorun());
+    if (kDebugMode && supportDir == null) unawaited(s._autorun());
     return s;
   }
 
@@ -288,6 +301,11 @@ class AppState extends ChangeNotifier {
   }
 
   void setReader(Book book, int chapter, [int? verse]) {
+    // Reading along follows one chapter; moving to another ends it.
+    final reading = readAlong.state.value;
+    if (reading != null && (reading.book != book.id || reading.chapter != chapter)) {
+      unawaited(readAlong.stop());
+    }
     readerBook = book.id;
     readerChapter = chapter;
     readerTargetVerse = verse;

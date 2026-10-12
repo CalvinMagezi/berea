@@ -2,11 +2,12 @@ package com.magezi.berea
 
 import android.app.ActivityManager
 import android.content.Context
-import io.flutter.embedding.android.FlutterActivity
+import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+// AudioServiceActivity shares its engine with the background narration service.
+class MainActivity : AudioServiceActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         // Total RAM lets the app recommend a model and size its context. Nothing leaves the device.

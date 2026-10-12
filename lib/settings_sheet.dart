@@ -8,6 +8,8 @@ import 'app_state.dart';
 import 'backup.dart';
 import 'commentary_settings.dart';
 import 'models.dart';
+import 'narration_settings.dart';
+import 'read_along.dart';
 
 const minPassphraseLength = 8;
 
@@ -379,6 +381,10 @@ class _SettingsDialogState extends State<_SettingsDialog> {
               const Divider(height: 24),
               CommentarySettings(state: widget.state, onMessage: _say),
               const Divider(height: 24),
+              if (readAlongSupported) ...[
+                NarrationSettings(state: widget.state, onMessage: _say),
+                const Divider(height: 24),
+              ],
               Text('Your data', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),
               Text(

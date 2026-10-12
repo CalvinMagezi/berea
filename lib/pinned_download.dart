@@ -50,3 +50,51 @@ Future<void> downloadPinned(
 }
 
 String hexOf(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+
+const bytesPerMb = 1024 * 1024;
+
+/// Size and SHA-256 of a file published on a data-only release, from that build's manifest.
+class PackPin {
+  final String sha256;
+  final int bytes;
+  const PackPin(this.sha256, this.bytes);
+
+  String get sizeLabel => '${(bytes / bytesPerMb).round()} MB';
+}
+
+/// Progress is reported in whole percents, so a download redraws the app at most this often.
+const _progressSteps = 100;
+
+/// Wraps [onStep] so it runs only when progress reaches a new whole percent.
+void Function(double fraction) wholePercents(void Function(double fraction) onStep) {
+  var shown = 0;
+  return (f) {
+    final step = (f * _progressSteps).floor();
+    if (step == shown) return;
+    shown = step;
+    onStep(f);
+  };
+}
+
+const _gzipMagic = [0x1f, 0x8b];
+
+/// Copies [from] to [to], gunzipping when it is gzipped, and stops past [maxBytes] so a
+/// hostile file cannot fill the disk. Meant for `Isolate.run`, off the UI isolate.
+Future<void> copyUnpacked(String from, String to, int maxBytes) async {
+  final source = File(from);
+  final head = await source.openRead(0, _gzipMagic.length).expand((b) => b).toList();
+  final gzipped =
+      head.length == _gzipMagic.length && head[0] == _gzipMagic[0] && head[1] == _gzipMagic[1];
+  final data = gzipped ? source.openRead().transform(gzip.decoder) : source.openRead();
+  final sink = File(to).openWrite();
+  var written = 0;
+  try {
+    await for (final chunk in data) {
+      written += chunk.length;
+      if (written > maxBytes) throw const FormatException('That file is too large to be a pack.');
+      sink.add(chunk);
+    }
+  } finally {
+    await sink.close();
+  }
+}

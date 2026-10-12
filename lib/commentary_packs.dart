@@ -11,16 +11,6 @@ import 'pinned_download.dart';
 const commentaryReleaseUrl = 'https://github.com/CalvinMagezi/berea/releases/download/commentary-1';
 
 /// Size and SHA-256 of each published `.gz` file, from build/commentary/manifest.json.
-class PackPin {
-  final String sha256;
-  final int bytes;
-  const PackPin(this.sha256, this.bytes);
-
-  String get sizeLabel => '${(bytes / bytesPerMb).round()} MB';
-}
-
-const bytesPerMb = 1024 * 1024;
-
 const commentaryPins = <String, PackPin>{
   'core': PackPin('a8013704eedc58e28c7f5305c51752c626855b8fc718a04e4f4b748c2b1eff5c', 19984091),
   'mhc': PackPin('31189ae6f3f4cfbdbfada315603defcb73c09234e50c6acfb9536cbdca40c3e0', 25536620),
@@ -35,9 +25,6 @@ const commentaryPins = <String, PackPin>{
 /// Unpacked size cap for a pack picked from a file; the largest published pack is under 64 MB.
 const maxCommentaryPackBytes = 160 * bytesPerMb;
 const commentaryDownloadTimeout = Duration(minutes: 10);
-
-/// Progress is reported in whole percents, so a download redraws the app at most this often.
-const _progressSteps = 100;
 
 /// The installed commentary packs, one SQLite file each under the app's support folder.
 /// Downloads happen only when the user asks.
@@ -76,7 +63,6 @@ class CommentaryShelf {
     final gz = File('${_path(spec)}.gz.part');
     progress[spec.id] = 0;
     onChange();
-    var shownStep = 0;
     try {
       await downloadPinned(
         Uri.parse('$commentaryReleaseUrl/${spec.fileName}.gz'),
@@ -84,13 +70,10 @@ class CommentaryShelf {
         sha256: pin.sha256,
         maxBytes: pin.bytes,
         timeout: commentaryDownloadTimeout,
-        onProgress: (f) {
+        onProgress: wholePercents((f) {
           progress[spec.id] = f;
-          final step = (f * _progressSteps).floor();
-          if (step == shownStep) return;
-          shownStep = step;
           onChange();
-        },
+        }),
       );
       await _install(gz, expectedId: spec.id);
     } finally {
@@ -114,7 +97,7 @@ class CommentaryShelf {
     try {
       // Locals only: a closure that touched `this` would try to send the open databases.
       final (from, to, cap) = (source.path, tmp.path, maxPackBytes);
-      await Isolate.run(() => _unpack(from, to, cap));
+      await Isolate.run(() => copyUnpacked(from, to, cap));
       final id = CommentaryLibrary.packIdOf(tmp.path);
       spec = commentaryPackSpecs.where((s) => s.id == id).firstOrNull;
       if (spec == null || (expectedId != null && spec.id != expectedId)) {
@@ -135,28 +118,5 @@ class CommentaryShelf {
     final f = File(_path(spec));
     if (f.existsSync()) f.deleteSync();
     onChange();
-  }
-}
-
-const _gzipMagic = [0x1f, 0x8b];
-
-/// Copies [from] to [to], gunzipping when it is gzipped, and stops past [maxBytes] so a
-/// hostile file cannot fill the disk. Runs off the UI isolate.
-Future<void> _unpack(String from, String to, int maxBytes) async {
-  final source = File(from);
-  final head = await source.openRead(0, _gzipMagic.length).expand((b) => b).toList();
-  final gzipped =
-      head.length == _gzipMagic.length && head[0] == _gzipMagic[0] && head[1] == _gzipMagic[1];
-  final data = gzipped ? source.openRead().transform(gzip.decoder) : source.openRead();
-  final sink = File(to).openWrite();
-  var written = 0;
-  try {
-    await for (final chunk in data) {
-      written += chunk.length;
-      if (written > maxBytes) throw const FormatException('That file is too large to be a pack.');
-      sink.add(chunk);
-    }
-  } finally {
-    await sink.close();
   }
 }
