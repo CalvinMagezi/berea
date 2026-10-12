@@ -116,7 +116,9 @@ def run_chapter(book: int, chapter: int, args, model) -> dict:
         "verse_count": len(verses),
         "m4a_sha256": hashlib.sha256(pending.read_bytes()).hexdigest(),
     }
-    for kind, data in (("timings", timings), ("qa", qa)):
+    # qa first: its audio hash is what pack.py trusts, so a crash between the two never pairs
+    # new timings with old audio.
+    for kind, data in (("qa", qa), ("timings", timings)):
         out = BUILD / kind / f"{book:02d}" / f"{chapter:03d}.json"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(data, separators=(",", ":")))
