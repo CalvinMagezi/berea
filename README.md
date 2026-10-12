@@ -118,8 +118,9 @@ cd packages/harness && dart run bin/eval.dart --tier mid --model gemma4:e2b
 Runs 40 golden questions through the harness against Ollama, 8 of them adversarial (a chapter or
 book that does not exist, Psalm 151, popular sayings that are not in the Bible), and reports
 invented references, expected reference coverage, unverified quotes and misattributed sayings. A
-release needs zero invented references and zero misattributions. Last run on gemma4:e2b: 0
-invented, 28 of 28 expected references, 0 misattributed, 8 of 8 adversarial.
+release needs zero invented references and zero misattributions. Last run on gemma4:e2b, against
+the official BSB text: 0 invented, 28 of 28 expected references, 0 misattributed, 8 of 8
+adversarial.
 
 `dart run bin/retrieval_check.dart` checks topical retrieval without a model: 7 of 8 topical
 questions put a well-known passage on the topic in front of the model.
@@ -128,7 +129,7 @@ questions put a well-known passage on the topic in front of the model.
 
 | Dataset | Licence | Role |
 |---------|---------|------|
-| Berean Standard Bible | Public domain (CC0) | Default translation |
+| Berean Standard Bible | Public domain (CC0) | Default translation, the official text from [bereanbible.com](https://bereanbible.com) (`bsb.txt`), pinned by SHA-256 |
 | King James Version | Public domain | Second translation |
 | World English Bible | Public domain | Third translation, from the ebible.org USFM |
 | STEPBible TAHOT and TAGNT | CC BY 4.0 | Every Hebrew and Greek word with transliteration, gloss, Strong's number and morphology |
@@ -141,6 +142,13 @@ questions put a well-known passage on the topic in front of the model.
 93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k cross references,
 366 daily verses) and a small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
 the optional lexicon pack, which is published with each release. None of these are committed.
+
+The BSB is imported word for word from the official `bsb.txt`, and the build fails if its SHA-256 no
+longer matches the pin in `build_db.dart`. When bereanbible.com publishes a revision, review the
+new text, then update the pin. Each build also tries to write `.cache/bsb-diff.md`, a per-book
+count and sample of verses that differ from the older scrollmapper copy that Berea 0.2 and earlier
+used. The report is best effort: if that older copy cannot be fetched or fails its pin, the build
+warns, writes no report and carries on.
 
 Copyrighted translations such as the NIV and NLT are not bundled. Import one you own through the
 engine settings from CSV (`Book,Chapter,Verse,Text`), USFM, OSIS, Zefania XML or a zip of those.

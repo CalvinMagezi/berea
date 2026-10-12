@@ -9,6 +9,12 @@ Grounding
 - A real reference one slip away from a verse the model was shown (John 3:18 when it was shown
   John 3:16, or Isaiah 35:5 for 53:5) is kept but marked "Check the verse number".
 
+Bible
+- The Berean Standard Bible now comes from the official text at bereanbible.com, pinned by
+  SHA-256, instead of an older third-party copy. 1,474 verses read differently, for example
+  "every winged bird" in Genesis 1:21 and "the Spirit of adoption to sonship" in Romans 8:15.
+  The text now matches the narrated BSB audio. KJV and WEB are unchanged.
+
 Site
 - The public site is rebuilt on the scroll-craft engine (vendored, MIT): a scrubbed lamplight
   film, one real answer walked through as you scroll, and a live copy of the reference check
