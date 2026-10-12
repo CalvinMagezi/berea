@@ -82,7 +82,7 @@ void main() {
 
   test('notebooks round trip in a version 2 backup, search index included', () async {
     final source = StudyStore(sqlite3.openInMemory());
-    final books = NotebookStore(source.db, () {});
+    final books = NotebookStore(source.db);
     final nb = books.createNotebook('Romans 8');
     final long = List.filled(50, 'Nothing can separate us from the love of God.').join(' ');
     await books.addSource(nb, SourceRequest(SourceKind.text, 'Pasted', text: long));
@@ -90,7 +90,7 @@ void main() {
     final bytes = await createBackup(source, const {}, 'correct horse');
 
     final target = StudyStore(sqlite3.openInMemory());
-    final targetBooks = NotebookStore(target.db, () {});
+    final targetBooks = NotebookStore(target.db);
     targetBooks.createNotebook('Replaced');
     final contents = await readBackup(bytes, 'correct horse');
     expect(contents.version, backupVersion);
@@ -109,7 +109,7 @@ void main() {
     expect(contents.version, 1);
     expect(contents.hasNotebooks, isFalse);
     final target = StudyStore(sqlite3.openInMemory());
-    final books = NotebookStore(target.db, () {});
+    final books = NotebookStore(target.db);
     final kept = books.createNotebook('Kept');
     await books.addSource(kept, const SourceRequest(SourceKind.text, 'Mine', text: 'Grace.'));
     target.addNote(RefParser.parse('Genesis 1:1').first, 'Replaced.');
@@ -124,7 +124,7 @@ void main() {
 
   test('notebook rows that do not fit together are rejected before anything changes', () async {
     final store = StudyStore(sqlite3.openInMemory());
-    final books = NotebookStore(store.db, () {});
+    final books = NotebookStore(store.db);
     final nb = books.createNotebook('Keep me');
     await books.addSource(nb, const SourceRequest(SourceKind.text, 'T', text: 'In the beginning.'));
     final good = store.exportTables();
@@ -135,6 +135,8 @@ void main() {
       ],
     };
     for (final bad in [
+      {...good}..remove('notebook_chunks'),
+      {'notebooks': good['notebooks']!},
       edited('notebook_chunks', {'text': 'In the end.'}),
       edited('notebook_chunks', {'end_offset': 9999}),
       edited('notebook_chunks', {'source_id': 42}),
@@ -147,6 +149,14 @@ void main() {
     }
     expect(books.notebooks().single.title, 'Keep me');
     expect(books.search(nb, 'beginning'), hasLength(1));
+    // A table older than notebooks that the backup lacks is still cleared, as before.
+    store.toggleHighlight(bookById(43), 3, 16);
+    store.importTables({
+      for (final t in ['notes', 'conversations', 'messages', 'plan_progress', 'study_pages'])
+        t: const [],
+    });
+    expect(store.highlights(bookById(43), 3), isEmpty);
+    expect(books.notebooks().single.title, 'Keep me');
   });
 
   test('a file that is not a backup is rejected', () async {

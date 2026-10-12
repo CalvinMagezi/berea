@@ -48,14 +48,19 @@ Future<Uint8List> createBackup(
   Map<String, String> importedTranslations,
   String passphrase,
 ) async {
-  final payload = gzip.encode(
-    utf8.encode(
-      jsonEncode({
-        'version': backupVersion,
-        'created': DateTime.now().toUtc().toIso8601String(),
-        'tables': store.exportTables(),
-        'imports': importedTranslations,
-      }),
+  final tables = store.exportTables();
+  final created = DateTime.now().toUtc().toIso8601String();
+  // Notebooks can make this large; encode off the UI isolate. Locals only cross over.
+  final payload = await Isolate.run(
+    () => gzip.encode(
+      utf8.encode(
+        jsonEncode({
+          'version': backupVersion,
+          'created': created,
+          'tables': tables,
+          'imports': importedTranslations,
+        }),
+      ),
     ),
   );
   final salt = SecretKeyData.random(length: _saltBytes).bytes;
@@ -121,7 +126,9 @@ Future<BackupContents> readBackup(Uint8List bytes, String passphrase) async {
     throw const BackupException('Wrong passphrase, or the file is damaged.');
   }
   try {
-    final json = jsonDecode(utf8.decode(gzip.decode(clear))) as Map<String, dynamic>;
+    final json = await Isolate.run(
+      () => jsonDecode(utf8.decode(gzip.decode(clear))),
+    ) as Map<String, dynamic>;
     final version = json['version'];
     if (version is! int || !_readableVersions.contains(version)) {
       throw BackupException('Backup version $version is not supported.');

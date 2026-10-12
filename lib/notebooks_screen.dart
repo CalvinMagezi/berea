@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -81,12 +82,7 @@ Future<bool> _confirm(BuildContext context, String title, String body, String ac
     ) ==
     true;
 
-Future<void> _createNotebook(
-  BuildContext context,
-  NotebookStore store,
-  Listenable changes,
-  SourceLookup lookup,
-) async {
+Future<void> _createNotebook(BuildContext context, NotebookStore store, SourceLookup lookup) async {
   final name = await _askName(context, title: 'New notebook');
   if (name == null || !context.mounted) return;
   try {
@@ -94,8 +90,7 @@ Future<void> _createNotebook(
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) =>
-            NotebookScreen(store: store, changes: changes, lookup: lookup, notebookId: id),
+        builder: (_) => NotebookScreen(store: store, lookup: lookup, notebookId: id),
       ),
     );
   } on FormatException catch (e) {
@@ -107,15 +102,8 @@ Future<void> _createNotebook(
 class NotebooksScreen extends StatelessWidget {
   final NotebookStore store;
 
-  /// Fires when notebooks change, so the list stays current.
-  final Listenable changes;
   final SourceLookup lookup;
-  const NotebooksScreen({
-    super.key,
-    required this.store,
-    required this.changes,
-    required this.lookup,
-  });
+  const NotebooksScreen({super.key, required this.store, required this.lookup});
 
   @override
   Widget build(BuildContext context) {
@@ -129,13 +117,13 @@ class NotebooksScreen extends StatelessWidget {
           IconButton(
             tooltip: 'New notebook',
             icon: const Icon(Icons.add),
-            onPressed: () => _createNotebook(context, store, changes, lookup),
+            onPressed: () => _createNotebook(context, store, lookup),
           ),
           const SizedBox(width: 8),
         ],
       ),
       body: ListenableBuilder(
-        listenable: changes,
+        listenable: store,
         builder: (context, _) {
           final notebooks = store.notebooks();
           return Center(
@@ -156,7 +144,7 @@ class NotebooksScreen extends StatelessWidget {
         'A notebook gathers what you read on one passage or topic: Bible passages, commentary, '
         'your notes, pasted text, PDFs and EPUB books. Everything stays on this device.',
     action: 'Create a notebook',
-    onAction: () => _createNotebook(context, store, changes, lookup),
+    onAction: () => _createNotebook(context, store, lookup),
   );
 
   Widget _list(BuildContext context, List<Notebook> notebooks) => ListView(
@@ -171,8 +159,7 @@ class NotebooksScreen extends StatelessWidget {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute<void>(
-              builder: (_) =>
-                  NotebookScreen(store: store, changes: changes, lookup: lookup, notebookId: n.id),
+              builder: (_) => NotebookScreen(store: store, lookup: lookup, notebookId: n.id),
             ),
           ),
         ),
@@ -265,25 +252,28 @@ class _EmptyState extends StatelessWidget {
 /// One notebook: its sources, any being read, and the ways to add more.
 class NotebookScreen extends StatelessWidget {
   final NotebookStore store;
-  final Listenable changes;
   final SourceLookup lookup;
   final int notebookId;
   const NotebookScreen({
     super.key,
     required this.store,
-    required this.changes,
     required this.lookup,
     required this.notebookId,
   });
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: changes,
+    listenable: store,
     builder: (context, _) {
       final notebook = store.notebook(notebookId);
-      if (notebook == null) return const Scaffold(body: SizedBox.shrink());
+      if (notebook == null) {
+        return Scaffold(
+          appBar: AppBar(),
+          body: const Center(child: Text('This notebook has been deleted.')),
+        );
+      }
       final sources = store.sources(notebookId);
-      final pending = store.pending.where((p) => p.notebookId == notebookId).toList();
+      final pending = store.pendingFor(notebookId);
       return Scaffold(
         appBar: AppBar(
           title: Text(notebook.title),
@@ -546,8 +536,18 @@ class NotebookScreen extends StatelessWidget {
     } on FormatException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('${r.title}: ${e.message}')));
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('${r.title} could not be added: $e')));
+      debugPrint('Notebook source failed: $e');
+      messenger.showSnackBar(SnackBar(content: Text('${r.title} could not be read.')));
+    } finally {
+      if (r.path != null) unawaited(_clearPickedFiles());
     }
+  }
+
+  /// Phones copy a picked file into the app cache; clear the copies once none is waiting.
+  Future<void> _clearPickedFiles() async {
+    if (store.pending.any((p) => p.kind == SourceKind.pdf || p.kind == SourceKind.epub)) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+    await FilePicker.clearTemporaryFiles();
   }
 }
 

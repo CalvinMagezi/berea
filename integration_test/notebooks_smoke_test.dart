@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:berea/app_state.dart';
 import 'package:berea/home_shell.dart';
+import 'package:berea/licences.dart';
 import 'package:berea/notebook_store.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -53,6 +55,11 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('notebooks on the real app: pasted text, a passage and a PDF', (tester) async {
+    registerBundledLicences();
+    final packages = await tester.runAsync(
+      () async => {for (final l in await LicenseRegistry.licenses.toList()) ...l.packages},
+    );
+    expect(packages, containsAll(['PDFium', 'FreeType (in PDFium)', 'ICU (in PDFium)']));
     final s = await AppState.bootstrap();
     // A failed earlier run must not leave its notebook in the app's real data.
     for (final n in s.notebooks.notebooks().where((n) => n.title == 'Smoke test notebook')) {

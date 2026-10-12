@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'home_shell.dart';
+import 'licences.dart';
 import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  registerBundledLicences();
   runApp(const BereaApp());
 }
 

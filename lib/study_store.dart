@@ -80,6 +80,8 @@ class StudyStore {
 
   static int get schemaVersion => _migrations.length;
 
+  /// A file from a newer Berea (a downgrade) is opened as it is: later migrations only add
+  /// tables, so the ones this version reads keep their meaning.
   void _migrate() {
     final version = db.select('PRAGMA user_version').first.values.first as int;
     for (var v = version; v < _migrations.length; v++) {
@@ -347,6 +349,10 @@ class StudyStore {
   /// value, a book outside the 66, saved references that are not a list, or notebook rows that
   /// do not fit together.
   void validateTables(Map<String, List<Map<String, Object?>>> tables) {
+    final notebookTables = _notebookTables.where(tables.containsKey).length;
+    if (notebookTables != 0 && notebookTables != _notebookTables.length) {
+      throw const FormatException('notebook tables must be backed up together');
+    }
     _validateColumns(tables);
     _validateNotebooks(tables);
   }
@@ -406,16 +412,19 @@ class StudyStore {
     }
   }
 
-  /// Replaces each user table in [tables] in one transaction; on any error nothing changes.
-  /// Tables the backup does not hold are kept, so an older backup leaves notebooks alone.
+  /// Added in backup version 2; a version 1 backup has none of them.
+  static const _notebookTables = {'notebooks', 'notebook_sources', 'notebook_chunks'};
+
+  /// Replaces every user table with [tables] in one transaction; on any error nothing changes.
+  /// A backup without notebook tables (version 1) leaves the notebooks on the device alone.
   void importTables(Map<String, List<Map<String, Object?>>> tables) {
     validateTables(tables);
     db.execute('BEGIN');
     try {
       for (final t in userTables) {
-        if (!tables.containsKey(t)) continue;
+        if (!tables.containsKey(t) && _notebookTables.contains(t)) continue;
         db.execute('DELETE FROM $t');
-        for (final row in tables[t]!) {
+        for (final row in tables[t] ?? const <Map<String, Object?>>[]) {
           final cols = row.keys.toList();
           db.execute(
             'INSERT INTO $t(${cols.join(', ')}) VALUES (${List.filled(cols.length, '?').join(', ')})',

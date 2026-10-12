@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:berea/licences.dart';
 import 'package:berea/notebook_store.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -52,20 +53,20 @@ void main() {
     final store = StudyStore.open(path);
     expect(store.notes().single.text, 'Loved first.');
     expect(store.db.select('PRAGMA user_version').first.values.first, StudyStore.schemaVersion);
-    final notebooks = NotebookStore(store.db, () {});
+    final notebooks = NotebookStore(store.db);
     expect(notebooks.notebooks(), isEmpty);
     notebooks.createNotebook('Romans 8');
     store.close();
 
     // Opening again runs no migration twice and loses nothing.
     final again = StudyStore.open(path);
-    expect(NotebookStore(again.db, () {}).notebooks().single.title, 'Romans 8');
+    expect(NotebookStore(again.db).notebooks().single.title, 'Romans 8');
     expect(again.notes().single.text, 'Loved first.');
     again.close();
   });
 
   test('sources are chunked off the UI isolate, searched with stemming, and scoped', () async {
-    final store = NotebookStore(StudyStore(sqlite3.openInMemory()).db, () {});
+    final store = NotebookStore(StudyStore(sqlite3.openInMemory()).db);
     final romans = store.createNotebook('  Romans   8 ');
     final psalms = store.createNotebook('Psalms');
     expect(store.notebook(romans)!.title, 'Romans 8');
@@ -115,14 +116,14 @@ void main() {
     final gate = Completer<void>();
     final store = NotebookStore(
       StudyStore(sqlite3.openInMemory()).db,
-      () {},
       ingest: (r) async {
         await gate.future;
         return ingestSource(r);
       },
     );
+    final kept = store.createNotebook('Kept');
     final id = store.createNotebook('Gone soon');
-    final empty = store.addSource(id, const SourceRequest(SourceKind.text, 'Blank', text: '  '));
+    final empty = store.addSource(kept, const SourceRequest(SourceKind.text, 'Blank', text: '  '));
     final orphan = store.addSource(id, const SourceRequest(SourceKind.text, 'T', text: 'Grace.'));
     expect(store.pending.map((p) => p.title), ['Blank', 'T']);
     store.deleteNotebook(id);
@@ -138,7 +139,6 @@ void main() {
     var running = 0, most = 0;
     final store = NotebookStore(
       StudyStore(sqlite3.openInMemory()).db,
-      () {},
       ingest: (r) async {
         most = ++running > most ? running : most;
         await Future<void>.delayed(const Duration(milliseconds: 5));
@@ -229,5 +229,66 @@ void main() {
     final chapter = commentarySources(library, 'John 3');
     expect(chapter.last.text, 'loved. Ro 5:8\n\nsent.');
     expect(commentarySources(library, 'not a reference'), isEmpty);
+  });
+
+  test('a source read for a deleted notebook never lands in the next one made', () async {
+    final gate = Completer<void>();
+    final store = NotebookStore(
+      StudyStore(sqlite3.openInMemory()).db,
+      ingest: (r) async {
+        await gate.future;
+        return ingestSource(r);
+      },
+    );
+    store.createNotebook('Older');
+    final doomed = store.createNotebook('Deleted while reading');
+    final late = store.addSource(doomed, const SourceRequest(SourceKind.text, 'T', text: 'x'));
+    store.deleteNotebook(doomed);
+    final fresh = store.createNotebook('Made afterwards');
+    expect(fresh, isNot(doomed));
+    expect(store.pendingFor(fresh), isEmpty);
+    gate.complete();
+    expect(await late, isNull);
+    expect(store.sources(fresh), isEmpty);
+  });
+
+  test('a restore cancels every source still being read', () async {
+    final gate = Completer<void>();
+    final store = NotebookStore(
+      StudyStore(sqlite3.openInMemory()).db,
+      ingest: (r) async {
+        await gate.future;
+        return ingestSource(r);
+      },
+    );
+    final id = store.createNotebook('Mine');
+    final reading = store.addSource(id, const SourceRequest(SourceKind.text, 'T', text: 'x'));
+    store.cancelAll();
+    expect(store.pendingFor(id), isEmpty);
+    gate.complete();
+    expect(await reading, isNull);
+    expect(store.sources(id), isEmpty);
+  });
+
+  test('background reading reports problems and gives up on a source that hangs', () async {
+    await expectLater(
+      ingestInBackground(const SourceRequest(SourceKind.text, 'Blank', text: '   ')),
+      throwsA(isA<FormatException>().having((e) => e.message, 'message', contains('No text'))),
+    );
+    final big = List.filled(200000, 'word').join(' ');
+    await expectLater(
+      ingestInBackground(SourceRequest(SourceKind.text, 'Slow', text: big), timeout: Duration.zero),
+      throwsA(isA<FormatException>().having((e) => e.message, 'message', contains('too long'))),
+    );
+    final ok = await ingestInBackground(const SourceRequest(SourceKind.text, 'T', text: 'Grace.'));
+    expect(ok.chunks.single.text, 'Grace.');
+  });
+
+  test('every PDFium licence the app registers is in the repository and the asset list', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    expect(pubspec, contains('- licenses/pdfium/'));
+    for (final file in pdfiumLicences.keys) {
+      expect(File('licenses/pdfium/$file').existsSync(), isTrue, reason: file);
+    }
   });
 }

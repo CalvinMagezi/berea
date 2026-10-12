@@ -211,6 +211,9 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       if (contents.hasNotebooks) count('notebooks', 'notebook', 'notebooks'),
       if (contents.imports.isNotEmpty) 'translations ${contents.imports.keys.join(', ')}',
     ].join(', ');
+    final replaced = contents.hasNotebooks
+        ? 'note, study, plan, highlight and notebook'
+        : 'note, study, plan and highlight';
     final notebooksNote = contents.hasNotebooks
         ? ''
         : ' This backup was made before notebooks, so your notebooks are kept.';
@@ -219,8 +222,8 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       builder: (ctx) => AlertDialog(
         title: const Text('Replace your data?'),
         content: Text(
-          'This backup holds $summary. Restoring replaces every note, study, plan, highlight '
-          'and notebook on this device with it. This cannot be undone.$notebooksNote',
+          'This backup holds $summary. Restoring replaces every $replaced on this device '
+          'with it. This cannot be undone.$notebooksNote',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),

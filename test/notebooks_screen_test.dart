@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
-  late ValueNotifier<int> changes;
   late NotebookStore store;
   final lookup = SourceLookup(
     notes: () => const [],
@@ -16,12 +15,11 @@ void main() {
   );
 
   setUp(() {
-    changes = ValueNotifier(0);
-    store = NotebookStore(StudyStore(sqlite3.openInMemory()).db, () => changes.value++);
+    store = NotebookStore(StudyStore(sqlite3.openInMemory()).db);
   });
 
   Widget app() => MaterialApp(
-    home: NotebooksScreen(store: store, changes: changes, lookup: lookup),
+    home: NotebooksScreen(store: store, lookup: lookup),
   );
 
   testWidgets('with no notebooks the screen says what they are and how to start', (tester) async {
@@ -67,11 +65,11 @@ void main() {
 
   testWidgets('a source being read shows progress until it is saved', (tester) async {
     final id = store.createNotebook('Pending');
-    store.pending.add(const PendingSource(0, SourceKind.pdf, 'other notebook'));
+    store.pending.add(PendingSource(0, SourceKind.pdf, 'other notebook'));
     store.pending.add(PendingSource(id, SourceKind.pdf, 'Big book.pdf'));
     await tester.pumpWidget(
       MaterialApp(
-        home: NotebookScreen(store: store, changes: changes, lookup: lookup, notebookId: id),
+        home: NotebookScreen(store: store, lookup: lookup, notebookId: id),
       ),
     );
     expect(find.text('Big book.pdf'), findsOneWidget);

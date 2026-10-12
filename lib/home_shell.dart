@@ -82,7 +82,7 @@ class _HomeShellState extends State<HomeShell> {
         ChatScreen(state: s),
         ReaderScreen(state: s, onQuickChat: _quickChat),
         NotesScreen(state: s, onOpenStudy: () => _select(HomeTab.study)),
-        NotebooksScreen(store: s.notebooks, changes: s, lookup: _lookup),
+        NotebooksScreen(store: s.notebooks, lookup: _lookup),
       ],
     );
     const destinations = [

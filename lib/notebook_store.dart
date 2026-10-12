@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:berea_harness/berea_harness.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'pdf_text.dart';
@@ -32,12 +33,13 @@ const maxPdfPages = 2000;
 const maxSourcesPerNotebook = 100;
 const maxNotebookTitleChars = 80;
 
-/// Notebook tables in study.sqlite. Chunks are indexed for search by an external content FTS5
+/// Notebook tables in study.sqlite. Ids are never reused, so a source still being read cannot
+/// land in a notebook made after its own was deleted. Chunks are indexed for search by an external content FTS5
 /// table that triggers keep in step, so restoring the chunk rows restores the index.
 const notebookSchema = '''
-  CREATE TABLE IF NOT EXISTS notebooks(id INTEGER PRIMARY KEY, title TEXT NOT NULL,
+  CREATE TABLE IF NOT EXISTS notebooks(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL,
     created INTEGER, updated INTEGER);
-  CREATE TABLE IF NOT EXISTS notebook_sources(id INTEGER PRIMARY KEY,
+  CREATE TABLE IF NOT EXISTS notebook_sources(id INTEGER PRIMARY KEY AUTOINCREMENT,
     notebook_id INTEGER NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL,
     origin TEXT NOT NULL DEFAULT '', text TEXT NOT NULL, created INTEGER);
   CREATE INDEX IF NOT EXISTS notebook_sources_notebook ON notebook_sources(notebook_id);
@@ -152,22 +154,69 @@ String _checkedFile(SourceRequest r) {
   return path;
 }
 
-/// Ingests [r] on a background isolate. Top level so the closure captures nothing but [r].
-Future<ChunkedText> ingestInBackground(SourceRequest r) => Isolate.run(() => ingestSource(r));
+/// A source still being read after this long is abandoned and its isolate killed, so one
+/// hostile file cannot hold up every source queued behind it.
+const ingestTimeout = Duration(minutes: 5);
+
+class _IngestFailure {
+  final String message;
+  const _IngestFailure(this.message);
+}
+
+/// Background isolate entry point; it receives only the request and a port.
+void _ingestEntry((SourceRequest, SendPort) args) {
+  final (r, port) = args;
+  Object result;
+  try {
+    result = ingestSource(r);
+  } on FormatException catch (e) {
+    result = _IngestFailure(e.message);
+  }
+  Isolate.exit(port, result);
+}
+
+/// Reads [r] on a background isolate that is killed if it outlives [timeout]. Throws
+/// [FormatException] for problems the user can act on, [StateError] for anything else.
+Future<ChunkedText> ingestInBackground(SourceRequest r, {Duration timeout = ingestTimeout}) async {
+  final port = ReceivePort();
+  final isolate = await Isolate.spawn(
+    _ingestEntry,
+    (r, port.sendPort),
+    onError: port.sendPort,
+    onExit: port.sendPort,
+  );
+  try {
+    final message = await port.first.timeout(
+      timeout,
+      onTimeout: () => const _IngestFailure('That source took too long to read.'),
+    );
+    return switch (message) {
+      final ChunkedText c => c,
+      final _IngestFailure f => throw FormatException(f.message),
+      _ => throw StateError('Reading stopped: $message'),
+    };
+  } finally {
+    isolate.kill(priority: Isolate.immediate);
+    port.close();
+  }
+}
 
 /// A source being read, shown with a progress indicator until it is saved or fails.
 class PendingSource {
   final int notebookId;
   final SourceKind kind;
   final String title;
-  const PendingSource(this.notebookId, this.kind, this.title);
+
+  /// Set when its notebook is deleted or a backup replaces the notebooks; nothing is saved.
+  bool cancelled = false;
+  PendingSource(this.notebookId, this.kind, this.title);
 }
 
 /// Notebooks, their sources and the chunks a later chat retrieves from. Lives in study.sqlite
-/// beside the user's notes, so it is backed up and restored with them.
-class NotebookStore {
+/// beside the user's notes, so it is backed up and restored with them. Notifies its own
+/// listeners, so notebook screens do not rebuild on every streamed chat token.
+class NotebookStore extends ChangeNotifier {
   final Database db;
-  final void Function() onChange;
 
   /// Reads a source; tests replace it to control timing.
   final Future<ChunkedText> Function(SourceRequest) ingest;
@@ -179,7 +228,21 @@ class NotebookStore {
   /// One ingestion at a time: PDFium is not thread safe, and it keeps memory use flat.
   Future<void> _queue = Future.value();
 
-  NotebookStore(this.db, this.onChange, {this.ingest = ingestInBackground});
+  NotebookStore(this.db, {this.ingest = ingestInBackground});
+
+  void _changed() => notifyListeners();
+
+  /// Sources still being read for [notebookId].
+  List<PendingSource> pendingFor(int notebookId) =>
+      pending.where((p) => p.notebookId == notebookId && !p.cancelled).toList();
+
+  /// Drops every source being read. Call after the notebook tables are replaced underneath.
+  void cancelAll() {
+    for (final p in pending) {
+      p.cancelled = true;
+    }
+    _changed();
+  }
 
   static int _now() => DateTime.now().millisecondsSinceEpoch;
 
@@ -211,7 +274,7 @@ class NotebookStore {
       _now(),
     ]);
     final id = db.lastInsertRowId;
-    onChange();
+    _changed();
     return id;
   }
 
@@ -221,11 +284,14 @@ class NotebookStore {
       _now(),
       id,
     ]);
-    onChange();
+    _changed();
   }
 
   /// Removes the notebook with its sources and chunks in one transaction.
   void deleteNotebook(int id) {
+    for (final p in pending.where((p) => p.notebookId == id)) {
+      p.cancelled = true;
+    }
     _transaction(() {
       db.execute(
         'DELETE FROM notebook_chunks WHERE source_id IN '
@@ -235,7 +301,7 @@ class NotebookStore {
       db.execute('DELETE FROM notebook_sources WHERE notebook_id = ?', [id]);
       db.execute('DELETE FROM notebooks WHERE id = ?', [id]);
     });
-    onChange();
+    _changed();
   }
 
   List<NotebookSource> sources(int notebookId) => [
@@ -256,30 +322,30 @@ class NotebookStore {
   ];
 
   /// Reads [r] off the UI isolate, then saves it with its chunks in one transaction. Returns the
-  /// new source id, or null when the notebook was deleted meanwhile. Throws [FormatException]
-  /// with a message for the user when the source cannot be read.
+  /// new source id, or null when the notebook was deleted or the notebooks were restored
+  /// meanwhile. Throws [FormatException] with a message for the user when the source cannot
+  /// be read.
   Future<int?> addSource(int notebookId, SourceRequest r) async {
-    if (sources(notebookId).length + _pendingFor(notebookId) >= maxSourcesPerNotebook) {
+    if (sources(notebookId).length + pendingFor(notebookId).length >= maxSourcesPerNotebook) {
       throw const FormatException('A notebook holds up to $maxSourcesPerNotebook sources.');
     }
     final job = PendingSource(notebookId, r.kind, r.title);
     pending.add(job);
-    onChange();
+    _changed();
     final previous = _queue;
     final done = Completer<void>();
     _queue = done.future;
     try {
       await previous;
+      if (job.cancelled) return null;
       final chunked = await ingest(r);
-      return _save(notebookId, r, chunked);
+      return job.cancelled ? null : _save(notebookId, r, chunked);
     } finally {
       done.complete();
       pending.remove(job);
-      onChange();
+      _changed();
     }
   }
-
-  int _pendingFor(int notebookId) => pending.where((p) => p.notebookId == notebookId).length;
 
   int? _save(int notebookId, SourceRequest r, ChunkedText chunked) {
     if (db.select('SELECT 1 FROM notebooks WHERE id = ?', [notebookId]).isEmpty) return null;
@@ -312,7 +378,7 @@ class NotebookStore {
       db.execute('DELETE FROM notebook_chunks WHERE source_id = ?', [sourceId]);
       db.execute('DELETE FROM notebook_sources WHERE id = ?', [sourceId]);
     });
-    onChange();
+    _changed();
   }
 
   /// The normalised text a source's chunk offsets point into.

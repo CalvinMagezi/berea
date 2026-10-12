@@ -41,11 +41,12 @@ String _pageText(PDFium pdfium, FPDF_DOCUMENT doc, int index) {
     if (text == nullptr) return '';
     final n = pdfium.FPDFText_CountChars(text);
     if (n <= 0) return '';
-    // UTF-16 code units plus the terminator PDFium writes.
-    final buffer = malloc<UnsignedShort>(n + 1);
+    // Room for every character as a surrogate pair, plus the terminator PDFium writes.
+    final capacity = 2 * n + 1;
+    final buffer = malloc<UnsignedShort>(capacity);
     try {
-      final written = pdfium.FPDFText_GetText(text, 0, n, buffer);
-      final units = buffer.cast<Uint16>().asTypedList(n + 1);
+      final written = pdfium.FPDFText_GetText(text, 0, n, buffer).clamp(0, capacity);
+      final units = buffer.cast<Uint16>().asTypedList(capacity);
       return String.fromCharCodes(units, 0, written > 0 ? written - 1 : 0);
     } finally {
       malloc.free(buffer);

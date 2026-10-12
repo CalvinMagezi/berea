@@ -39,7 +39,8 @@ const bundledSoftware = [
         'Little CMS, libpng, zlib, Abseil and ICU under their own permissive licences',
     'The PDFium Authors; binaries by Benoit Blanchon (MIT) and pdfium_flutter by Takashi '
         'Kawasaki (MIT). Portions of this software are copyright The FreeType Project '
-        '(www.freetype.org). All rights reserved.',
+        '(www.freetype.org). All rights reserved. This software is based in part on the work of '
+        'the Independent JPEG Group. Full texts are under Software licences below.',
   ),
 ];
 
@@ -66,6 +67,12 @@ class AttributionsScreen extends StatelessWidget {
               const _Heading('Berea'),
               const _SourceTile('Berea app and harness', 'github.com/CalvinMagezi/berea', 'MIT'),
               for (final s in bundledSoftware) _SourceTile(s.name, s.credit, s.licence),
+              ListTile(
+                title: const Text('Software licences'),
+                subtitle: const Text('Full licence texts for the code and libraries in Berea'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => showLicensePage(context: context, applicationName: 'Berea'),
+              ),
             ],
           ),
         ),

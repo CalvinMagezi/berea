@@ -124,9 +124,55 @@ void main() {
     expect(notebookFtsQuery('Ἰησοῦς χάρις café'), '"ἰησοῦς" OR "χάρις" OR "café"');
     expect(notebookFtsQuery('"AND" (NEAR -x*'), '"and" OR "near" OR "x"');
     expect(notebookFtsQuery('  ?! '), isNull);
+    expect(notebookFtsQuery('שָׁלוֹם'), '"שָׁלוֹם"');
     expect(
       notebookFtsQuery(List.generate(40, (i) => 'w$i').join(' '))!.split(' OR ').length,
       maxNotebookQueryTerms,
     );
+  });
+
+  test('hostile markup is stripped in linear time', () {
+    const size = 400000;
+    final watch = Stopwatch()..start();
+    for (final unit in ['<', '<item ', '<!--', '<nav>', '<script x="', '<p ']) {
+      htmlPlainText(unit * (size ~/ unit.length));
+    }
+    // Quadratic matching took seconds for a fiftieth of this input.
+    expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
+    expect(
+      htmlPlainText('<p>Kept</p><script>never closed <p>gone?'),
+      'Kept\nnever closed\ngone?',
+    );
+    expect(htmlPlainText('a<!-- open comment b'), 'a');
+  });
+
+  test('EPUB with odd hrefs and look-alike attributes reads what it can', () {
+    final dir = Directory.systemTemp.createTempSync('berea_epub_odd');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    void write(String path, String text) => File('${dir.path}/$path')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(text);
+    write('META-INF/container.xml', "<container><rootfile full-path='content.opf'/></container>");
+    write(
+      'content.opf',
+      '<package><manifest>'
+          '<item data-id="x" id="good" href="good.xhtml"/>'
+          '<item id="bad" href="bad%zz.xhtml"/>'
+          '</manifest><spine><itemref idref="bad"/><itemref idref="good"/></spine></package>',
+    );
+    write('good.xhtml', '<p>Readable.</p>');
+    write('cover.png', 'not text, never inflated');
+    final zip = '${dir.path}/odd.epub';
+    final res = Process.runSync('zip', [
+      '-q',
+      '-r',
+      zip,
+      'META-INF',
+      'content.opf',
+      'good.xhtml',
+      'cover.png',
+    ], workingDirectory: dir.path);
+    if (res.exitCode != 0) return markTestSkipped('zip tool not available');
+    expect(epubSections(Uint8List.fromList(File(zip).readAsBytesSync())), ['Readable.']);
   });
 }

@@ -13,6 +13,8 @@ const notebookChunkMinChars = 400;
 /// About 600 pages of prose. Larger sources are refused rather than cut short silently.
 const maxNotebookSourceChars = 1500000;
 
+const tooLongMessage = 'That source is too long. The limit is about 600 pages of text.';
+
 /// Search uses at most this many distinct words from a query.
 const maxNotebookQueryTerms = 16;
 
@@ -63,9 +65,7 @@ ChunkedText chunkSections(List<String> sections, {bool paged = false}) {
     final start = buffer.length;
     buffer.write(section);
     spans.add((start, buffer.length, paged ? i + 1 : null));
-    if (buffer.length > maxNotebookSourceChars) {
-      throw const FormatException('That source is too long. The limit is about 600 pages of text.');
-    }
+    if (buffer.length > maxNotebookSourceChars) throw const FormatException(tooLongMessage);
   }
   if (buffer.isEmpty) {
     throw const FormatException('No text was found in that source.');
@@ -123,44 +123,82 @@ int _breakBefore(String text, int start, int limit) {
   return unit >= _highSurrogateFirst && unit <= _highSurrogateLast ? limit - 1 : limit;
 }
 
-final _dropBlocks = RegExp(
-  r'<(head|script|style|nav)\b[^>]*>.*?</\1\s*>',
-  caseSensitive: false,
-  dotAll: true,
-);
-final _htmlComments = RegExp(r'<!--.*?-->', dotAll: true);
+// Every tag pattern stops at the next '<', so hostile input such as '<<<<' stays linear.
+final _hiddenOpen = RegExp(r'<(head|script|style|nav)\b[^<>]*>', caseSensitive: false);
 final _htmlBreaks = RegExp(
-  r'</?(?:p|div|br|h[1-6]|li|ul|ol|tr|table|blockquote|section|article|header|footer|aside|hr|dd|dt|pre)\b[^>]*>',
+  r'</?(?:p|div|br|h[1-6]|li|ul|ol|tr|table|blockquote|section|article|header|footer|aside|hr|dd|dt|pre)\b[^<>]*>',
   caseSensitive: false,
 );
-final _htmlTags = RegExp(r'<[^>]*>');
+final _htmlTags = RegExp(r'<[^<>]*>');
 
-/// Plain text from an HTML or XHTML document: head, scripts and styles dropped, block elements
-/// turned into line breaks, entities decoded.
+/// Plain text from an HTML or XHTML document: comments, head, scripts and styles dropped, block
+/// elements turned into line breaks, entities decoded.
 String htmlPlainText(String html) => normalizeSourceText(
   decodeHtmlEntities(
-    html
-        .replaceAll(_htmlComments, '')
-        .replaceAll(_dropBlocks, '')
-        .replaceAll(_htmlBreaks, '\n')
-        .replaceAll(_htmlTags, ''),
+    _dropHidden(_dropComments(html)).replaceAll(_htmlBreaks, '\n').replaceAll(_htmlTags, ''),
   ),
 );
 
+/// Removes comments in one pass; an unclosed comment runs to the end, as in a browser.
+String _dropComments(String html) {
+  final out = StringBuffer();
+  var i = 0;
+  while (true) {
+    final open = html.indexOf('<!--', i);
+    if (open < 0) break;
+    out.write(html.substring(i, open));
+    final close = html.indexOf('-->', open + 4);
+    if (close < 0) return out.toString();
+    i = close + 3;
+  }
+  out.write(html.substring(i));
+  return out.toString();
+}
+
+/// Removes head, script, style and nav elements with their content. A tag whose closing tag is
+/// missing loses only itself and is not searched for again, so the pass stays linear.
+String _dropHidden(String html) {
+  final out = StringBuffer();
+  final unclosed = <String>{};
+  var i = 0;
+  for (final m in _hiddenOpen.allMatches(html)) {
+    if (m.start < i) continue;
+    final name = m[1]!.toLowerCase();
+    out.write(html.substring(i, m.start));
+    final close = unclosed.contains(name)
+        ? null
+        : RegExp('</$name\\s*>', caseSensitive: false).allMatches(html, m.end).firstOrNull;
+    if (close == null) unclosed.add(name);
+    i = close?.end ?? m.end;
+  }
+  out.write(html.substring(i));
+  return out.toString();
+}
+
 // ponytail: regex over the OPF, not an XML parser; enough for EPUB 2 and 3 packages. Use
 // package:xml if real files carry attributes this misses.
-final _rootFile = RegExp(r'''<rootfile\b[^>]*full-path\s*=\s*["']([^"']+)["']''');
-final _manifestItem = RegExp(r'<item\b[^>]*>', caseSensitive: false);
-final _spineItem = RegExp(r'<itemref\b[^>]*>', caseSensitive: false);
+final _rootFile = RegExp(r"""<rootfile\b[^<>]*full-path\s*=\s*["']([^"'<>]+)["']""");
+final _manifestItem = RegExp(r'<item\b[^<>]*>', caseSensitive: false);
+final _spineItem = RegExp(r'<itemref\b[^<>]*>', caseSensitive: false);
+
+/// Longer manifest or spine tags are skipped, which keeps attribute matching cheap.
+const _maxTagChars = 4096;
+
+/// Only these zip entries are inflated: images and fonts are never read.
+final _epubTextEntry = RegExp(r'\.(?:xml|opf|xhtml|html|htm)$', caseSensitive: false);
 
 String? _attr(String tag, String name) =>
-    RegExp('\\b$name\\s*=\\s*["\']([^"\']*)["\']').firstMatch(tag)?.group(1);
+    RegExp('(?<![\\w:-])$name\\s*=\\s*["\']([^"\']*)["\']').firstMatch(tag)?.group(1);
+
+Iterable<String> _tags(RegExp pattern, String package) =>
+    pattern.allMatches(package).map((m) => m[0]!).where((t) => t.length <= _maxTagChars);
 
 /// The text of each document in an EPUB's reading order. Reads the zip with the importers' size
-/// limits. Documents listed as encrypted (DRM) are skipped; obfuscated fonts do not matter.
-/// Throws [FormatException] when the file is not an EPUB.
+/// limits, inflating only text entries. Documents listed as encrypted (DRM) are skipped;
+/// obfuscated fonts do not matter. Throws [FormatException] when the file is not an EPUB or
+/// holds more text than a source may.
 List<String> epubSections(Uint8List bytes) {
-  final files = readZip(bytes);
+  final files = readZip(bytes, include: _epubTextEntry.hasMatch);
   final encryption = files['META-INF/encryption.xml'];
   final encrypted = encryption == null ? '' : _utf8(encryption);
   final container = files['META-INF/container.xml'];
@@ -172,28 +210,41 @@ List<String> epubSections(Uint8List bytes) {
   final package = _utf8(opf);
   final base = opfPath.contains('/') ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1) : '';
   final hrefs = <String, String>{
-    for (final m in _manifestItem.allMatches(package))
-      if ((_attr(m[0]!, 'id'), _attr(m[0]!, 'href')) case (final String id, final String href))
+    for (final tag in _tags(_manifestItem, package))
+      if ((_attr(tag, 'id'), _attr(tag, 'href')) case (final String id, final String href))
         id: href,
   };
   final sections = <String>[];
-  for (final m in _spineItem.allMatches(package)) {
-    final href = hrefs[_attr(m[0]!, 'idref')];
+  var chars = 0;
+  for (final tag in _tags(_spineItem, package)) {
+    final href = hrefs[_attr(tag, 'idref')];
     final path = href == null ? null : _resolve(base, href);
-    final doc = files[path];
-    if (doc != null && !encrypted.contains('"$path"')) {
-      sections.add(htmlPlainText(_utf8(doc)));
-    }
+    final doc = path == null ? null : files[path];
+    if (path == null || doc == null || _isEncrypted(encrypted, path)) continue;
+    final text = htmlPlainText(_utf8(doc));
+    chars += text.length;
+    if (chars > maxNotebookSourceChars) throw const FormatException(tooLongMessage);
+    sections.add(text);
   }
   return sections;
 }
+
+/// encryption.xml names files by URI, raw or percent-encoded, relative to the zip root.
+bool _isEncrypted(String encryption, String path) =>
+    encryption.isNotEmpty &&
+    (encryption.contains(path) || encryption.contains(Uri.encodeFull(path)));
 
 String _utf8(Uint8List bytes) => utf8.decode(bytes, allowMalformed: true);
 
 /// [href] relative to the OPF folder [base], without its fragment, percent-decoded and with
 /// `..` segments resolved.
-String _resolve(String base, String href) {
-  final path = Uri.decodeFull(href.split('#').first);
+String? _resolve(String base, String href) {
+  final String path;
+  try {
+    path = Uri.decodeFull(href.split('#').first);
+  } on ArgumentError {
+    return null;
+  }
   final parts = <String>[];
   for (final segment in '$base$path'.split('/')) {
     if (segment == '..') {
@@ -205,7 +256,8 @@ String _resolve(String base, String href) {
   return parts.join('/');
 }
 
-final _queryWord = RegExp(r'[\p{L}\p{N}]+', unicode: true);
+// Marks stay inside the word, so pointed Hebrew and accented Greek search as whole words.
+final _queryWord = RegExp(r'[\p{L}\p{M}\p{N}]+', unicode: true);
 
 /// An FTS5 query matching any word of [text], each quoted so no input can act as an operator.
 /// Null when [text] has no words.

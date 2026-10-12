@@ -218,11 +218,13 @@ and backups carry them from version 2 on.
 PDF text is read with [PDFium](https://pdfium.googlesource.com/pdfium/) through
 `pdfium_flutter` and `pdfium_dart` (MIT). PDFium is BSD 3-Clause and Apache 2.0; the binaries
 also carry FreeType (FreeType License), libjpeg-turbo, OpenJPEG, Little CMS, libpng, zlib,
-Abseil and ICU under their own permissive licences, listed under Settings, Commentaries,
-Licences and sources. On iOS and macOS the pod fetches a PDFium build pinned by SHA-256; on
-Android, Windows, Linux (and macOS native assets) the package's build hook downloads
-`bblanchon/pdfium-binaries` `chromium/7811` at build time without a hash pin (see `TECHDEBT.md`).
-The app itself never downloads PDFium. EPUB is read with the harness's own zip reader and a
+Abseil and ICU under their own permissive licences. Their full texts are kept in
+`licenses/pdfium/` and shown on the app's licence page (Settings, Commentaries, Licences and
+sources, Software licences). On iOS the pod fetches a PDFium build pinned by SHA-256. On
+Android, Windows and Linux the package's build hook downloads `bblanchon/pdfium-binaries`
+`chromium/7811` at build time without a hash pin. On macOS both are built and land in the same
+case-insensitive Frameworks folder, so which copy ships depends on build order (see
+`TECHDEBT.md`). The app itself never downloads PDFium. EPUB is read with the harness's own zip reader and a
 small XHTML to text step.
 
 ## Build and run

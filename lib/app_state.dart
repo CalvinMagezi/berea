@@ -148,7 +148,7 @@ class AppState extends ChangeNotifier {
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir));
     s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
-    s.notebooks = NotebookStore(s.study.db, s.touch);
+    s.notebooks = NotebookStore(s.study.db);
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
     s.prefs = await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
@@ -423,6 +423,8 @@ class AppState extends ChangeNotifier {
       File('${importsDir.path}/${e.key}.csv').writeAsStringSync(e.value.csv);
     }
     study.importTables(contents.tables);
+    // A source still being read belongs to a notebook id the backup may have reused.
+    notebooks.cancelAll();
     _keepTranslationValid();
     clear();
     return skipped;

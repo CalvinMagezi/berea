@@ -13,9 +13,10 @@ Notebooks
   in the source and their PDF page, and indexed for search, ready for chat over a notebook.
 - Limits: files up to 64 MB, PDFs up to 2,000 pages, about 600 pages of text per source and 100
   sources per notebook. Scanned PDFs without a text layer and DRM-protected EPUB chapters are not
-  read.
+  read. A source still being read after five minutes is abandoned, so one bad file cannot hold
+  up the others.
 - PDF text comes from PDFium, bundled with the app (BSD and Apache licensed, through the MIT
-  pdfium_flutter package).
+  pdfium_flutter package). Its licence texts are on a new Software licences page.
 - Backups are now version 2 and include notebooks. Version 1 backups still restore, and leave the
   notebooks on the device as they are.
 

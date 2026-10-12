@@ -40,3 +40,4 @@ flutter:
     - assets/berea.sqlite
     - assets/berea.sqlite.version
     - prompts/system.md
+    - licenses/pdfium/
