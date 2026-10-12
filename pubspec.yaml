@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 0.3.0+3
 
 environment:
-  sdk: ^3.11.5
+  sdk: ^3.13.0
 
 dependencies:
   flutter:
@@ -20,11 +20,15 @@ dependencies:
   file_picker: ^13.1.0
   cryptography: ^2.9.0
   http: ^1.6.0
+  pdfium_flutter: ^0.3.1
+  ffi: ^2.2.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  integration_test:
+    sdk: flutter
 
 flutter:
   # CocoaPods only: SPM debug builds embed an absolute host rpath that the iOS simulator cannot
@@ -36,3 +40,4 @@ flutter:
     - assets/berea.sqlite
     - assets/berea.sqlite.version
     - prompts/system.md
+    - licenses/pdfium/

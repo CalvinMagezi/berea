@@ -14,6 +14,7 @@ import 'backup.dart';
 import 'commentary_packs.dart';
 import 'edge_engine.dart';
 import 'models.dart';
+import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
 import 'study_store.dart';
@@ -107,6 +108,9 @@ class AppState extends ChangeNotifier {
   late final SharedPreferences prefs;
   late Settings settings;
   late final StudyStore study;
+
+  /// Notebooks share study.sqlite, so they are backed up and restored with the notes.
+  late final NotebookStore notebooks;
   late final Directory supportDir;
 
   /// Optional public domain commentaries the user has downloaded.
@@ -138,14 +142,16 @@ class AppState extends ChangeNotifier {
   String? deviceError;
   EdgeAiEngine? _edge;
 
-  static Future<AppState> bootstrap() async {
+  /// Overrides let a test run the real app without opening the user's data.
+  static Future<AppState> bootstrap({Directory? supportDir, SharedPreferences? prefs}) async {
     final s = AppState();
-    s.supportDir = await getApplicationSupportDirectory();
+    s.supportDir = supportDir ?? await getApplicationSupportDirectory();
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir));
     s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
+    s.notebooks = NotebookStore(s.study.db);
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
-    s.prefs = await SharedPreferences.getInstance();
+    s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
     s.deviceGb = bytes == null ? null : bytes / bytesPerGb;
     s.settings = Settings.load(s.prefs);
@@ -161,7 +167,7 @@ class AppState extends ChangeNotifier {
     s.db.attachFullLexicon(s.lexiconPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
     await s._rebuildHarness();
-    if (kDebugMode) unawaited(s._autorun());
+    if (kDebugMode && supportDir == null) unawaited(s._autorun());
     return s;
   }
 
@@ -418,6 +424,8 @@ class AppState extends ChangeNotifier {
       File('${importsDir.path}/${e.key}.csv').writeAsStringSync(e.value.csv);
     }
     study.importTables(contents.tables);
+    // A source still being read belongs to a notebook id the backup may have reused.
+    if (contents.hasNotebooks) notebooks.cancelAll();
     _keepTranslationValid();
     clear();
     return skipped;
