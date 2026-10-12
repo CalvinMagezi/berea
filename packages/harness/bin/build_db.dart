@@ -61,7 +61,6 @@ Future<void> main(List<String> args) async {
     if (args[i] == '--cache') cache = args[i + 1];
   }
   Directory(cache).createSync(recursive: true);
-  // Checked before the old database is deleted, so a tripped pin leaves the last good build.
   final bsb = parseBsbText(await _fetch(_bsb, '$cache/bsb.txt', sha256: _bsbSha256));
   _checkBsb(bsb);
   final oldBsb = parseCsvBible(
@@ -74,9 +73,11 @@ Future<void> main(List<String> args) async {
   File('$cache/bsb-diff.md').writeAsStringSync(bsbDiffReport(oldBsb, bsb));
   stdout.writeln('BSB diff report: $cache/bsb-diff.md');
   Directory(File(out).parent.path).createSync(recursive: true);
-  if (File(out).existsSync()) File(out).deleteSync();
+  // Built aside and renamed at the end, so any failure leaves the last good database in place.
+  final tmp = '$out.tmp';
+  if (File(tmp).existsSync()) File(tmp).deleteSync();
 
-  final db = sqlite3.open(out);
+  final db = sqlite3.open(tmp);
   db.execute('''
     PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;
     CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, chapter INTEGER, verse INTEGER, text TEXT);
@@ -121,19 +122,20 @@ Future<void> main(List<String> args) async {
 
   final built = DateTime.now().toUtc().toIso8601String();
   db.execute("INSERT INTO meta VALUES('built', '$built')");
-  // The app compares this small file to decide whether to recopy the database, so it never has
-  // to load the full asset just to check.
-  File('$out.version').writeAsStringSync(built);
   db.execute(
     "INSERT INTO meta VALUES('translations', '${['BSB', ...scrollmapperTranslations, 'WEB'].join(',')}')",
   );
-  db.execute("INSERT INTO meta VALUES('bsb_source', '$_bsb sha256:$_bsbSha256')");
+  db.execute("INSERT INTO meta VALUES('bsb_source', ?)", ['$_bsb sha256:$_bsbSha256']);
   db.execute('VACUUM');
   for (final t in ['verses', 'words', 'lexicon', 'xrefs']) {
     final n = db.select('SELECT COUNT(*) AS n FROM $t').first['n'];
     stdout.writeln('$t: $n rows');
   }
   db.dispose();
+  File(tmp).renameSync(out);
+  // The app compares this small file to decide whether to recopy the database, so it never has
+  // to load the full asset just to check. Written last so it never stamps an unfinished build.
+  File('$out.version').writeAsStringSync(built);
   stdout.writeln('wrote $out (${(File(out).lengthSync() / 1048576).toStringAsFixed(1)} MB)');
 }
 
@@ -215,8 +217,8 @@ String bsbDiffReport(List<VerseRow> old, List<VerseRow> fresh) {
       ..writeln()
       ..writeln('**$label**')
       ..writeln()
-      ..writeln('- old: ${before[label]}')
-      ..writeln('- new: ${after[label]}');
+      ..writeln('- old: ${before[label] ?? '(absent)'}')
+      ..writeln('- new: ${after[label] ?? '(absent)'}');
   }
   return out.toString();
 }

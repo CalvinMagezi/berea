@@ -142,7 +142,7 @@ questions put a well-known passage on the topic in front of the model.
 366 daily verses) and a small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
 the optional lexicon pack, which is published with each release. None of these are committed.
 
-The BSB is imported verbatim from the official `bsb.txt`, and the build fails if its SHA-256 no
+The BSB is imported word for word from the official `bsb.txt`, and the build fails if its SHA-256 no
 longer matches the pin in `build_db.dart`. When bereanbible.com publishes a revision, review the
 new text, then update the pin. Each build also writes `.cache/bsb-diff.md`, a per-book count and
 sample of verses that differ from the older scrollmapper copy that Berea 0.2 and earlier used.

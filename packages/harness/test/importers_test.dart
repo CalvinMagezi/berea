@@ -41,7 +41,7 @@ void main() {
 
   test('official bsb.txt: notice and header skipped, CRLF, singular Psalm, omitted verses', () {
     const txt =
-        '﻿The Holy Bible, Berean Standard Bible, BSB is produced in cooperation with ... \t\r\n'
+        '\uFEFFThe Holy Bible, Berean Standard Bible, BSB is produced in cooperation with ... \t\r\n'
         'This text of God\'s Word has been dedicated to the public domain.\t\r\n'
         'Verse\tBerean Standard Bible\r\n'
         'Genesis 1:1\tIn the beginning God created the heavens and the earth.\r\n'

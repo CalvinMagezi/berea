@@ -33,10 +33,10 @@ final _bsbVerse = RegExp(r'^(.+) (\d+):(\d+)\t(.*)$');
 const _bsbHeader = 'Verse\t';
 
 /// The official bereanbible.com bsb.txt: notice lines, a `Verse<TAB>...` header, then one
-/// `Book C:V<TAB>Text` line per verse. Any other line after the header throws, so nothing is
-/// silently dropped. A verse the translation omits (Matthew 17:21) keeps an empty text.
+/// `Book C:V<TAB>Text` line per verse. Any other non-blank line after the header throws, so no
+/// verse is silently dropped. A verse the translation omits (Matthew 17:21) keeps an empty text.
 List<VerseRow> parseBsbText(String text) {
-  if (text.startsWith('﻿')) text = text.substring(1);
+  if (text.startsWith('\uFEFF')) text = text.substring(1);
   final lines = const LineSplitter().convert(text);
   final header = lines.indexWhere((l) => l.startsWith(_bsbHeader));
   if (header < 0) throw const FormatException('expected a "Verse<TAB>..." header row');
