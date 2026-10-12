@@ -9,6 +9,10 @@ import 'models.dart';
 const contextPadding = 512;
 const initTimeout = Duration(seconds: 30);
 
+/// CPU, not GPU: Gemma 4 E2B on some phone GPUs corrupts digits (LiteRT-LM #2202, still open in
+/// v0.18.0), and a corrupted verse number that still exists would pass the citation check.
+const answerBackend = PreferredBackend.cpu;
+
 Future<void>? _init;
 
 /// Plugin setup runs once, lazily, and never blocks the first frame.
@@ -49,7 +53,7 @@ class EdgeAiEngine implements LlmEngine {
   static Future<EdgeAiEngine> load(EdgeModel m, Tier tier) async {
     final model = await FlutterEdgeAi.getActiveModel(
       maxTokens: tier.promptTokens + tier.maxOutput + contextPadding,
-      preferredBackend: PreferredBackend.gpu,
+      preferredBackend: answerBackend,
     );
     return EdgeAiEngine(model, m);
   }

@@ -39,6 +39,31 @@ void main() {
     );
   });
 
+  test('official bsb.txt: notice and header skipped, CRLF, singular Psalm, omitted verses', () {
+    const txt =
+        '\uFEFFThe Holy Bible, Berean Standard Bible, BSB is produced in cooperation with ... \t\r\n'
+        'This text of God\'s Word has been dedicated to the public domain.\t\r\n'
+        'Verse\tBerean Standard Bible\r\n'
+        'Genesis 1:1\tIn the beginning God created the heavens and the earth.\r\n'
+        'Psalm 3:1\tA Psalm of David. O LORD, how my foes have increased!\r\n'
+        'Song of Solomon 1:1\tThis is Solomon’s Song of Songs.\r\n'
+        'Matthew 17:21\t\r\n'
+        '3 John 1:15\tPeace to you.\r\n';
+    expect(parseBsbText(txt).map((r) => '${r.book.name} ${r.chapter}:${r.verse}|${r.text}'), [
+      'Genesis 1:1|In the beginning God created the heavens and the earth.',
+      'Psalms 3:1|A Psalm of David. O LORD, how my foes have increased!',
+      'Song of Solomon 1:1|This is Solomon’s Song of Songs.',
+      'Matthew 17:21|',
+      '3 John 1:15|Peace to you.',
+    ]);
+    expect(() => parseBsbText('Genesis 1:1\tx\r\n'), throwsFormatException);
+    expect(() => parseBsbText('Verse\tBSB\r\nNarnia 1:1\tx\r\n'), throwsFormatException);
+    expect(
+      () => parseBsbText('Verse\tBSB\r\nGenesis 1:1\tx\r\nA heading\r\n'),
+      throwsFormatException,
+    );
+  });
+
   test('OSIS container and milestone verses, notes skipped', () {
     const container =
         '<osis><div><verse osisID="Gen.1.1">In the <note>n</note>beginning.</verse>'

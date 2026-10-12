@@ -40,7 +40,7 @@ Future<void> main(List<String> args) async {
   final cases = (jsonDecode(File('eval/golden.json').readAsStringSync()) as List)
       .cast<Map<String, dynamic>>();
   var invented = 0, badQuotes = 0, expected = 0, covered = 0, misattributed = 0, adversarialOk = 0;
-  var adversarial = 0;
+  var adversarial = 0, nearMisses = 0;
   final sw = Stopwatch()..start();
   for (final c in cases) {
     h.history.clear();
@@ -59,6 +59,7 @@ Future<void> main(List<String> args) async {
     covered += hit;
     invented += inventedHere.length;
     badQuotes += r.guard.unverifiedQuotes.length;
+    nearMisses += r.guard.nearMisses.length;
     if (misattr) misattributed++;
     final ok = inventedHere.isEmpty && hit == want.length && !misattr;
     if (c['kind'] == 'adversarial') {
@@ -69,7 +70,8 @@ Future<void> main(List<String> args) async {
       '${ok ? 'ok ' : 'MISS'} ${c['q']}  expect ${want.length} got $hit'
       '${inventedHere.isEmpty ? '' : '  invented: ${inventedHere.join(', ')}'}'
       '${misattr ? '  misattributed: "${misSentence.trim()}"' : ''}'
-      '${r.guard.unverifiedQuotes.isEmpty ? '' : '  bad quotes: ${r.guard.unverifiedQuotes.length}'}',
+      '${r.guard.unverifiedQuotes.isEmpty ? '' : '  bad quotes: ${r.guard.unverifiedQuotes.length}'}'
+      '${r.guard.nearMisses.isEmpty ? '' : '  near misses: ${r.guard.nearMisses.join(', ')}'}',
     );
   }
   stdout.writeln(
@@ -77,7 +79,8 @@ Future<void> main(List<String> args) async {
   );
   stdout.writeln(
     'invented refs: $invented | coverage: $covered/$expected | unverified quotes: $badQuotes'
-    ' | misattributed sayings: $misattributed | adversarial passed: $adversarialOk/$adversarial',
+    ' | misattributed sayings: $misattributed | adversarial passed: $adversarialOk/$adversarial'
+    ' | near misses to review: $nearMisses',
   );
   h.db.close();
   exit(invented == 0 && misattributed == 0 ? 0 : 1);

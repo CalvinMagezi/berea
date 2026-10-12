@@ -123,8 +123,9 @@ cd packages/harness && dart run bin/eval.dart --tier mid --model gemma4:e2b
 Runs 40 golden questions through the harness against Ollama, 8 of them adversarial (a chapter or
 book that does not exist, Psalm 151, popular sayings that are not in the Bible), and reports
 invented references, expected reference coverage, unverified quotes and misattributed sayings. A
-release needs zero invented references and zero misattributions. Last run on gemma4:e2b: 0
-invented, 28 of 28 expected references, 0 misattributed, 8 of 8 adversarial.
+release needs zero invented references and zero misattributions. Last run on gemma4:e2b, against
+the official BSB text: 0 invented, 28 of 28 expected references, 0 misattributed, 8 of 8
+adversarial.
 
 `dart run bin/retrieval_check.dart` checks topical retrieval without a model: 7 of 8 topical
 questions put a well-known passage on the topic in front of the model.
@@ -133,7 +134,7 @@ questions put a well-known passage on the topic in front of the model.
 
 | Dataset | Licence | Role |
 |---------|---------|------|
-| Berean Standard Bible | Public domain (CC0) | Default translation |
+| Berean Standard Bible | Public domain (CC0) | Default translation, the official text from [bereanbible.com](https://bereanbible.com) (`bsb.txt`), pinned by SHA-256 |
 | King James Version | Public domain | Second translation |
 | World English Bible | Public domain | Third translation, from the ebible.org USFM |
 | STEPBible TAHOT and TAGNT | CC BY 4.0 | Every Hebrew and Greek word with transliteration, gloss, Strong's number and morphology |
@@ -173,6 +174,13 @@ Commentaries, Licences and sources.
 366 daily verses) and a small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
 the optional lexicon pack, which is published with each release. None of these are committed.
 
+The BSB is imported word for word from the official `bsb.txt`, and the build fails if its SHA-256 no
+longer matches the pin in `build_db.dart`. When bereanbible.com publishes a revision, review the
+new text, then update the pin. Each build also tries to write `.cache/bsb-diff.md`, a per-book
+count and sample of verses that differ from the older scrollmapper copy that Berea 0.2 and earlier
+used. The report is best effort: if that older copy cannot be fetched or fails its pin, the build
+warns, writes no report and carries on.
+
 `bin/build_commentary.dart` builds the commentary packs into `build/commentary/` with a
 `manifest.json` of sizes, entry counts and SHA-256 pins. It reads the SWORD zCom files with a
 small pure Dart reader (`lib/src/sword.dart`); libsword and pysword (both GPL) are not used at
@@ -187,8 +195,8 @@ verse 0; Matthew Henry's section-start keys are expanded to ranges, and Calvin's
 prefaces (kept at Genesis 1:1, Psalm 1:1 and the first verse of other books) and the book
 prefaces and chapter outlines that Keil and Delitzsch, Clarke and Barnes keep before their
 first verse heading become introductions instead of verse comments. Spurgeon's Treasury of
-David, which holds a whole psalm at its first verse, is split at its "Verse N" paragraphs. After a build, publish the `.gz` files to the
-`commentary-1` release and copy the pins from `manifest.json` into `lib/commentary_packs.dart`.
+David, which holds a whole psalm at its first verse, is split at its "Verse N" paragraphs. After a build, publish the `.gz` files
+to the `commentary-1` release and copy the pins from `manifest.json` into `lib/commentary_packs.dart`.
 
 Copyrighted translations such as the NIV and NLT are not bundled. Import one you own through the
 engine settings from CSV (`Book,Chapter,Verse,Text`), USFM, OSIS, Zefania XML or a zip of those.
@@ -280,7 +288,8 @@ docs/screenshots/
 
 ## Platform notes
 
-- **Android**: `minSdk 30`, arm64 only (LiteRT-LM). The emulator runs models on CPU.
+- **Android**: `minSdk 30`, arm64 only (LiteRT-LM). Answers run on the CPU on every platform:
+  GPU decode corrupts digits on some phones (LiteRT-LM #2202), and verse numbers are digits.
 - **iOS**: deployment target 15.0, CocoaPods only, extended-virtual-addressing and
   increased-memory-limit entitlements so a 2.6 GB model fits on a real iPhone. Swift Package
   Manager is turned off in `pubspec.yaml`: SPM debug builds embed an absolute host rpath, and when
@@ -288,8 +297,8 @@ docs/screenshots/
   on it before `main` runs.
 - **macOS**: the Podfile `post_install` stages the LiteRT-LM companion dylibs into the app so the
   on-device engine can load; Ollama is the default engine.
-- **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time; GPU on
-  Linux needs a vendor Vulkan driver.
+- **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time. Answers
+  run on the CPU here too, so no GPU driver is needed.
 - A small method channel reports device memory so the settings can recommend a model.
 - Debug builds read `BEREA_AUTORUN` or `autorun.txt` in the app's documents folder and run that
   question on launch, so a headless simulator or emulator can exercise the on-device path.
@@ -311,7 +320,8 @@ keep it somewhere you trust.
 
 Everything below keeps the core: zero data, fully offline, fully private.
 
-- Real-device performance numbers for GPU backends on Android and iPhone.
+- GPU answers again once a real Mali phone shows LiteRT-LM #2202 fixed (see `TECHDEBT.md`), with
+  real-device performance numbers for Android and iPhone.
 - Keep one on-device conversation open across turns, if a real GPU phone shows a net win (the
   emulator did not; see `TECHDEBT.md`).
 - On-device embeddings for semantic search, if the retrieval check falls short.

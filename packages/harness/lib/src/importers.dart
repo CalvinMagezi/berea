@@ -29,6 +29,28 @@ List<VerseRow> parseCsvBible(String csv) {
   ];
 }
 
+final _bsbVerse = RegExp(r'^(.+) (\d+):(\d+)\t(.*)$');
+const _bsbHeader = 'Verse\t';
+
+/// bereanbible.com bsb.txt (`Book C:V<TAB>Text` after a header); any other line throws.
+List<VerseRow> parseBsbText(String text) {
+  if (text.startsWith('\uFEFF')) text = text.substring(1);
+  final lines = const LineSplitter().convert(text);
+  final header = lines.indexWhere((l) => l.startsWith(_bsbHeader));
+  if (header < 0) throw const FormatException('expected a "Verse<TAB>..." header row');
+  return [
+    for (final line in lines.skip(header + 1))
+      if (line.trim().isNotEmpty) _bsbRow(line),
+  ];
+}
+
+VerseRow _bsbRow(String line) {
+  final m = _bsbVerse.firstMatch(line);
+  if (m == null) throw FormatException('not a verse line: "$line"');
+  final book = bookFor(m[1]!) ?? (throw FormatException('unknown book "${m[1]}"'));
+  return (book: book, chapter: int.parse(m[2]!), verse: int.parse(m[3]!), text: m[4]!.trim());
+}
+
 /// A footnote or cross reference closed by its own marker before the next verse or chapter. An
 /// unclosed opener is not matched, so its following text is kept rather than scripture deleted;
 /// the stray marker itself is removed with the other markers.
