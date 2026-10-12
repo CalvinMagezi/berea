@@ -83,7 +83,7 @@ class StudyStore {
   static int get schemaVersion => migrations.length;
 
   /// A file from a newer Berea (a downgrade) is opened as it is: later migrations only add
-  /// tables, so the ones this version reads keep their meaning.
+  /// tables, and columns with defaults, so what this version reads keeps its meaning.
   void _migrate() {
     final version = db.select('PRAGMA user_version').first.values.first as int;
     for (var v = version; v < migrations.length; v++) {
@@ -416,7 +416,7 @@ class StudyStore {
         throw FormatException('unknown notebook source kind ${r['kind']}');
       }
       // Older version 2 backups have no pinned column; the database default applies.
-      if (r['pinned'] case final pinned? when pinned != 0 && pinned != 1) {
+      if (r.containsKey('pinned') && r['pinned'] != 0 && r['pinned'] != 1) {
         throw FormatException('notebook source ${r['id']} has a bad pinned flag');
       }
       sourceText[r['id']] = r['text'] as String;
@@ -436,6 +436,9 @@ class StudyStore {
     for (final r in tables['notebook_messages'] ?? const <Map<String, Object?>>[]) {
       if (!notebooks.contains(r['notebook_id'])) {
         throw FormatException('notebook message ${r['id']} has no notebook');
+      }
+      if (r['role'] != 'user' && r['role'] != 'assistant') {
+        throw FormatException('notebook message ${r['id']} has role ${r['role']}');
       }
     }
   }

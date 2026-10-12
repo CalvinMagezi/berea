@@ -44,6 +44,9 @@ const fixtureInputs = [
   '\u201cGod so loved the world that He gave His only Son\u201d (John 3:16) John 3:16-16',
   'John 3:16 and John 3:16-15',
   '\u201cIn the beginning God created the heavens and the earth.\u201d',
+  '\u201c\u1f10\u03bd \u1f00\u03c1\u03c7\u1fc7 \u1f26\u03bd \u1f41 \u03bb\u03cc\u03b3\u03bf\u03c2, '
+      '\u03ba\u03b1\u1f76 \u1f41 \u03bb\u03cc\u03b3\u03bf\u03c2\u201d (John 1:1)',
+  '\u201c!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\u201d (John 1:1)',
 ];
 
 String opt(List<String> args, String name, String fallback) {

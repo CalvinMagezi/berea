@@ -16,8 +16,14 @@ class NotebookChatScreen extends StatefulWidget {
   final NotebookStore store;
   final int notebookId;
 
-  /// Makes this screen's conversation; the screen disposes it.
-  final NotebookChat Function() createChat;
+  /// The notebook's conversation, which outlives this screen.
+  final NotebookChat chat;
+
+  /// Changes when the engine does (loaded, busy, settings), so the screen can follow it.
+  final Listenable? engine;
+
+  /// Shown above the input when answers leave this device, such as to Ollama on another computer.
+  final String? Function()? privacyNotice;
   final BibleDb db;
   final String Function() translation;
   final CommentaryLibrary commentary;
@@ -28,7 +34,9 @@ class NotebookChatScreen extends StatefulWidget {
     super.key,
     required this.store,
     required this.notebookId,
-    required this.createChat,
+    required this.chat,
+    this.engine,
+    this.privacyNotice,
     required this.db,
     required this.translation,
     required this.commentary,
@@ -40,7 +48,8 @@ class NotebookChatScreen extends StatefulWidget {
 }
 
 class _NotebookChatScreenState extends State<NotebookChatScreen> {
-  late final NotebookChat _chat = widget.createChat();
+  late final NotebookChat _chat = widget.chat;
+  late final Listenable _changes = Listenable.merge([_chat, ?widget.engine]);
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _focus = FocusNode();
@@ -48,14 +57,12 @@ class _NotebookChatScreenState extends State<NotebookChatScreen> {
   @override
   void initState() {
     super.initState();
-    _chat.addListener(_onChange);
+    _changes.addListener(_onChange);
   }
 
   @override
   void dispose() {
-    _chat
-      ..removeListener(_onChange)
-      ..dispose();
+    _changes.removeListener(_onChange);
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
@@ -99,6 +106,8 @@ class _NotebookChatScreenState extends State<NotebookChatScreen> {
     }
     final source = c.sourceId == null ? null : widget.store.source(c.sourceId!);
     if (source == null) return _say('That source has been removed from the notebook.');
+    // A restore can give the id to another source; the saved title tells them apart.
+    if (source.title != c.title) return _say('That source is no longer in this notebook.');
     Navigator.push(
       context,
       MaterialPageRoute<void>(
@@ -144,6 +153,7 @@ class _NotebookChatScreenState extends State<NotebookChatScreen> {
             children: [
               Expanded(child: _chat.turns.isEmpty ? const _Intro() : _turns()),
               if (!_chat.ready() && widget.engineNotice != null) widget.engineNotice!,
+              if (widget.privacyNotice?.call() case final notice?) _Notice(notice),
               ChatInputBar(
                 controller: _input,
                 focus: _focus,
@@ -167,6 +177,20 @@ class _NotebookChatScreenState extends State<NotebookChatScreen> {
       db: widget.db,
       translation: widget.translation(),
       onSource: _open,
+    ),
+  );
+}
+
+class _Notice extends StatelessWidget {
+  final String text;
+  const _Notice(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+    child: Text(
+      text,
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
     ),
   );
 }

@@ -65,6 +65,8 @@ const _guidePage2 =
     'The Bereans had three habits: they received the word eagerly, they examined the '
     'Scriptures every day, and they compared what they heard with what was written.';
 const _misquote = 'My note says John 3:16 promises that whoever believes will become rich.';
+const _friendQuote =
+    'For God so loved the world that whoever believes in him will become rich and never be sick';
 
 void main() {
   final db = _db();
@@ -77,9 +79,19 @@ void main() {
     text: 'Love is the spring of the gift.',
     ref: RefParser.parse('John 3:16').first,
   );
+  final cTag = packTag(commentary, <String>{});
+  final friend = _chunk(
+    6,
+    0,
+    'A friend wrote: John 3:16 says, "$_friendQuote." Faith brings wealth.',
+  );
+  final split = [
+    _chunk(7, 0, 'The first part ends with grace and'),
+    _chunk(7, 1, 'truth for all who listen closely to the word.'),
+  ];
   final shown = PromptBuilder('SYS')
       .build(
-        _ctx(db, 'John 3:16', sources: [guide, note, commentary]),
+        _ctx(db, 'John 3:16', sources: [guide, note, commentary, friend, ...split]),
         const [],
         'Q',
         Tier.mid,
@@ -161,6 +173,57 @@ void main() {
       expect(built.messages.last.content, contains('SOURCES\n$noSourcesShown'));
     });
 
+    test('a source too long for a small tier is cut to fit rather than reported missing', () {
+      final greek = List.filled(400, 'ἀγάπη').join(' ');
+      final built = PromptBuilder('SYS').build(
+        _ctx(db, 'John 3:16', sources: [_chunk(2, 0, greek)]),
+        const [],
+        'Q',
+        Tier.low,
+        notebook: true,
+      );
+      final user = built.messages.last.content;
+      expect(user, isNot(contains(noSourcesShown)));
+      expect(user, contains('[S2 §1] (Guide, Pasted text) ἀγάπη'));
+      expect(built.shown.sources.single.text.length, lessThan(greek.length));
+      expect(greek, startsWith(built.shown.sources.single.text));
+    });
+
+    test('with no verse shown the note against quoting from memory stays beside SOURCES', () {
+      final built = PromptBuilder('SYS').build(
+        _ctx(db, 'no reference here', sources: [guide]),
+        const [],
+        'Q',
+        Tier.mid,
+        notebook: true,
+      );
+      final user = built.messages.last.content;
+      expect(user, contains(noPassagesLoaded));
+      expect(user, contains('SOURCES\n[S3 p.2]'));
+    });
+
+    test('the whole prompt stays within the budget, however long the question', () {
+      final big = _db(extra: 200);
+      final longQuestion = List.filled(4000, 'why').join(' ');
+      final history = [
+        for (var i = 0; i < 4; i++) ChatMessage.user(List.filled(300, 'grace').join(' ')),
+      ];
+      for (final tier in Tier.values) {
+        for (final notebook in [false, true]) {
+          final built = PromptBuilder('SYS').build(
+            _ctx(big, 'John 4', sources: [guide, note, commentary]),
+            history,
+            longQuestion,
+            tier,
+            notebook: notebook,
+          );
+          final total = built.messages.fold(0, (sum, m) => sum + estimateTokens(m.content));
+          expect(total, lessThanOrEqualTo(tier.promptTokens), reason: '${tier.name} $notebook');
+          expect(built.messages.last.content, contains('[question shortened]'));
+        }
+      }
+    });
+
     test('estimates are high for digits, punctuation, Greek and Hebrew', () {
       expect(estimateTokens('grace and peace'), 4);
       expect(estimateTokens('3:16'), 4);
@@ -170,8 +233,21 @@ void main() {
   });
 
   group('tags', () {
-    test('a page for a PDF, a section otherwise, and commentary numbered in order', () {
-      expect(tagSources(shown.sources).map((s) => s.tag), ['S3 p.2', 'S5 §1', 'C1']);
+    test('a page for a PDF, a section otherwise, and a stable number for commentary', () {
+      expect(tagSources(shown.sources).map((s) => s.tag).take(3), ['S3 p.2', 'S5 §1', cTag]);
+      expect(cTag, matches(RegExp(r'^C\d{4}$')));
+      // The same passage keeps its tag in another answer, wherever it falls in the prompt.
+      final other = commentary.withText('x');
+      final again = SourceChunk(
+        title: 'Another commentary on John 3:16',
+        kind: SourceKind.commentary,
+        ordinal: 0,
+        text: 'Another.',
+        ref: commentary.ref,
+      );
+      expect(tagSources([again, other]).last.tag, cTag);
+      final twins = tagSources([commentary, commentary.withText('y')]);
+      expect(twins.first.tag, isNot(twins.last.tag));
     });
 
     test('a tag is never read as a verse reference', () {
@@ -195,21 +271,39 @@ void main() {
   group('source citations', () {
     test('shown sources, pages and sections are kept; anything else is marked', () {
       final r = check(
-        'Three habits [S3 p.2]. A note [S5 §1] and [S5]. Henry [C1]. '
-        'Invented [S3 p.9], [S4], [S5 §2], [C2], [C1 p.3], [S3 pp. 2-3].',
+        'Three habits [S3 p.2]. A note [S5 §1] and [S5]. Henry [$cTag]. '
+        'Invented [S3 p.9], [S4], [S5 §2], [C2], [$cTag p.3], [S3 pp. 2-3].',
       );
-      expect(r.sources.map((s) => s.tag), ['S3 p.2', 'S5 §1', 'C1']);
-      expect(r.unverifiedSources, ['S3 p.9', 'S4', 'S5 §2', 'C2', 'C1 p.3', 'S3 pp. 2-3']);
+      expect(r.sources.map((s) => s.tag), ['S3 p.2', 'S5 §1', cTag]);
+      expect(r.unverifiedSources, ['S3 p.9', 'S4', 'S5 §2', 'C2', '$cTag p.3', 'S3 pp. 2-3']);
       expect(r.text, contains('Three habits [S3 p.2].'));
       expect(r.text, contains('Invented [unverified source: S3 p.9], [unverified source: S4]'));
       expect(r.inventedCount, 0);
     });
 
     test('several tags in one bracket are judged one by one, in any common spelling', () {
-      final r = check('Both say so (S3, page 2; S7) and [s5 section 1].');
+      final r = check('Both say so [S3, page 2; S8] and [s5 section 1]. Sunday (S8) is prose.');
       expect(r.sources.map((s) => s.tag), ['S3 p.2', 'S5 §1']);
-      expect(r.unverifiedSources, ['S7']);
-      expect(r.text, contains('[S3, page 2; unverified source: S7]'));
+      expect(r.unverifiedSources, ['S8']);
+      expect(r.text, contains('[S3, page 2; unverified source: S8]'));
+      expect(r.text, contains('Sunday (S8) is prose.'));
+    });
+
+    test('brackets that mean a source but are not a tag are marked whole', () {
+      const loose = [
+        'S99999999999',
+        'S3 p.123456',
+        'S3 and S9',
+        'S 9',
+        'Source 9',
+        'S9 §2\u2013§4',
+      ];
+      final r = check(loose.map((t) => 'See [$t].').join(' '));
+      expect(r.unverifiedSources, loose);
+      for (final t in loose) {
+        expect(r.text, contains('[unverified source: $t]'));
+      }
+      expect(check('A list [1] and [see above] stay.').text, 'A list [1] and [see above] stay.');
     });
 
     test('a Study answer leaves tags alone, as the site check does', () {
@@ -234,6 +328,34 @@ void main() {
         check('Your note claims "whoever believes will become rich" [S5 §1].').unverifiedQuotes,
         isEmpty,
       );
+    });
+
+    test('a source that misquotes Scripture cannot vouch for the misquote', () {
+      final tagged = check('John 3:16 says "$_friendQuote" [S6 §1].');
+      expect(tagged.rewordedQuotes, [_friendQuote]);
+      expect(tagged.text, contains('" [differs from Scripture] [S6 §1]'));
+      final bare = check('The verse says "$_friendQuote".');
+      expect(bare.rewordedQuotes, [_friendQuote]);
+      expect(bare.correctedQuotes, isEmpty);
+    });
+
+    test('a quote may run across two sections that follow each other in one source', () {
+      final r = check('It says "ends with grace and truth for all who listen" [S7 §1].');
+      expect(r.unverifiedQuotes, isEmpty);
+      expect(r.rewordedQuotes, isEmpty);
+    });
+
+    test('tag groups that follow a quote cite it together', () {
+      final r = check('It says "they examined the Scriptures every day" [S5 §1] [S3 p.2].');
+      expect(r.unverifiedQuotes, isEmpty);
+    });
+
+    test('a quote in another script is checked like an English one', () {
+      const greek = 'Ἐν ἀρχῇ ἦν ὁ λόγος, καὶ ὁ λόγος ἦν πρὸς τὸν θεόν';
+      expect(guard.apply('John wrote "$greek".', shown).unverifiedQuotes, [greek]);
+      const marks = '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!';
+      expect(guard.apply('He shouted "$marks".', shown).unverifiedQuotes, [marks]);
+      expect(CitationGuard.normalize('Ἐν ἀρχῇ, Λόγος!'), 'ἐν ἀρχῇ λόγος');
     });
 
     test('a quote attributed to a source is never corrected toward a verse', () {

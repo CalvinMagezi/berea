@@ -121,7 +121,7 @@ Future<bool> _notebook(Harness h, List<String> args) async {
     stderr.writeln('Not a commentary pack: ${args[packAt + 1]}');
     return false;
   }
-  var invented = 0, inventedSources = 0, badQuotes = 0, misattributed = 0;
+  var invented = 0, inventedSources = 0, badQuotes = 0, reworded = 0, misattributed = 0;
   var expected = 0, covered = 0, wantSources = 0, citedSources = 0;
   var adversarial = 0, adversarialOk = 0;
   final sw = Stopwatch()..start();
@@ -155,6 +155,7 @@ Future<bool> _notebook(Harness h, List<String> args) async {
     invented += inventedHere.length;
     inventedSources += inventedSourcesHere.length;
     badQuotes += g.unverifiedQuotes.length;
+    reworded += g.rewordedQuotes.length;
     if (misSentence != null) misattributed++;
     final ok =
         inventedHere.isEmpty &&
@@ -174,7 +175,8 @@ Future<bool> _notebook(Harness h, List<String> args) async {
       '${g.unverifiedSources.isEmpty ? '' : '  unverified sources: ${g.unverifiedSources.join(', ')}'}'
       '${misSentence == null ? '' : '  misattributed: "${misSentence.trim()}"'}'
       '${coverageOk ? '' : '  claimed coverage the notebook lacks'}'
-      '${g.unverifiedQuotes.isEmpty ? '' : '  bad quotes: ${g.unverifiedQuotes.length}'}',
+      '${g.unverifiedQuotes.isEmpty ? '' : '  bad quotes: ${g.unverifiedQuotes.length}'}'
+      '${g.rewordedQuotes.isEmpty ? '' : '  differ from Scripture: ${g.rewordedQuotes.length}'}',
     );
     if (args.contains('--show')) stdout.writeln('    ${r.text.replaceAll('\n', '\n    ')}\n');
   }
@@ -187,7 +189,8 @@ Future<bool> _notebook(Harness h, List<String> args) async {
   stdout.writeln(
     'invented refs: $invented | invented source citations: $inventedSources | verse coverage: '
     '$covered/$expected | source coverage: $citedSources/$wantSources | unverified quotes: '
-    '$badQuotes | misattributed sayings: $misattributed | adversarial passed: '
+    '$badQuotes | quotes differing from Scripture: $reworded | misattributed sayings: '
+    '$misattributed | adversarial passed: '
     '$adversarialOk/$adversarial',
   );
   return invented == 0 && inventedSources == 0 && misattributed == 0;

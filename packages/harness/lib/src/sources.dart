@@ -90,6 +90,10 @@ class SourceChunk {
 
   /// Identity across turns: a notebook chunk by source and section, a pack passage by place.
   String get key => fromPack ? 'C|${ref?.label}|$title|$ordinal' : 'S|$sourceId|$ordinal';
+
+  /// True when [o] is part of the same source: the same notebook source, or the same comment.
+  bool sameSource(SourceChunk o) =>
+      fromPack ? o.fromPack && o.title == title && o.ref == ref : o.sourceId == sourceId;
 }
 
 /// A chunk as the model was shown it, with the tag it is cited by: "S3 p.14" for a PDF page,
@@ -131,15 +135,43 @@ class ShownSource {
   }
 }
 
-/// Tags for [chunks] in the order they were shown. Notebook sources keep their id, so a tag means
-/// the same source in every answer; commentary from a pack is numbered in order.
+/// Tags for [chunks] in the order they were shown. Notebook sources keep their id and pack
+/// commentary a number drawn from where it comments, so a tag means the same passage in every
+/// answer and an earlier answer in the history never names something else.
 List<ShownSource> tagSources(Iterable<SourceChunk> chunks) {
-  var commentary = 0;
-  return [for (final c in chunks) ShownSource(c.fromPack ? 'C${++commentary}' : notebookTag(c), c)];
+  final used = <String>{};
+  final out = <ShownSource>[];
+  for (final c in chunks) {
+    final tag = c.fromPack ? packTag(c, used) : notebookTag(c);
+    if (c.fromPack) used.add(tag);
+    out.add(ShownSource(tag, c));
+  }
+  return out;
 }
 
 String notebookTag(SourceChunk c) =>
     c.page != null ? 'S${c.sourceId} p.${c.page}' : 'S${c.sourceId} §${c.ordinal + 1}';
+
+/// Pack commentary tags run from C1000 to C9999.
+const _packTagFirst = 1000;
+const _packTagCount = 9000;
+const _fnvOffset = 0x811c9dc5;
+const _fnvPrime = 0x01000193;
+const _mask32 = 0xffffffff;
+
+/// A stable tag for pack commentary [c] from its place (FNV-1a of [SourceChunk.key]), moved on
+/// past any tag already in [used] so two passages in one prompt never share one.
+String packTag(SourceChunk c, Set<String> used) {
+  var h = _fnvOffset;
+  for (final u in c.key.codeUnits) {
+    h = ((h ^ u) * _fnvPrime) & _mask32;
+  }
+  var n = h % _packTagCount;
+  while (used.contains('C${_packTagFirst + n}')) {
+    n = (n + 1) % _packTagCount;
+  }
+  return 'C${_packTagFirst + n}';
+}
 
 /// One tag: the source, then optionally a page ("p.14", "pp. 14-15", "page 14") or a section
 /// ("§3", "section 3"), possibly a range.
@@ -150,11 +182,19 @@ final _tag = RegExp(
   caseSensitive: false,
 );
 
-/// Brackets or parentheses holding only tags, several separated by ";" or ",".
+/// Square brackets holding only tags, several separated by ";" or ",". Parentheses are prose:
+/// the notebook rules ask for square brackets, and "(S1)" may mean anything.
 final sourceCitationGroup = RegExp(
-  '[\\[(]\\s*$_tagShape(?:\\s*[;,]\\s*$_tagShape)*\\s*[\\])]',
+  '\\[\\s*$_tagShape(?:\\s*[;,]\\s*$_tagShape)*\\s*\\]',
   caseSensitive: false,
 );
+
+/// Any square brackets on one line, judged one by one.
+final _bracket = RegExp(r'\[[^\[\]\n]{1,160}\]');
+
+/// What a model writes when it means a source but not in the tag form: "[S 9]", "[Source 9]",
+/// "[S3 and S9]", "[S9 §2-§4]", or a number too long to be a source.
+final _looseTag = RegExp(r'^\[\s*(?:S|C|sources?)\s*#?\s*\d', caseSensitive: false);
 
 /// The shown chunk [t] cites, or null when the source, page or section was not shown.
 ShownSource? _resolve(Match t, List<ShownSource> shown) {
@@ -183,13 +223,21 @@ class SourceCheck {
 }
 
 /// Keeps each tag in [output] that names a shown chunk and marks the rest
-/// "unverified source: S9 p.40", in place, as invented verse references are marked.
+/// "unverified source: S9 p.40", in place, as invented verse references are marked. Brackets that
+/// look like a source citation but are not in the tag form are marked whole.
 SourceCheck checkSourceCitations(String output, List<ShownSource> shown) {
   final cited = <String, ShownSource>{};
   final unverified = <String>[];
-  final text = output.replaceAllMapped(sourceCitationGroup, (g) {
+  final text = output.replaceAllMapped(_bracket, (b) {
+    final whole = b[0]!;
+    if (sourceCitationGroup.matchAsPrefix(whole)?.end != whole.length) {
+      if (!_looseTag.hasMatch(whole)) return whole;
+      final inner = whole.substring(1, whole.length - 1).trim();
+      unverified.add(inner);
+      return '[unverified source: $inner]';
+    }
     final parts = <String>[];
-    for (final t in _tag.allMatches(g[0]!)) {
+    for (final t in _tag.allMatches(whole)) {
       final hit = _resolve(t, shown);
       if (hit != null) {
         cited.putIfAbsent(hit.tag, () => hit);
@@ -210,9 +258,7 @@ List<ShownSource>? citedChunks(Match group, List<ShownSource> shown) {
   for (final t in _tag.allMatches(group[0]!)) {
     if (_resolve(t, shown) case final hit?) {
       // A quote may come from any shown part of the cited source, not only the page named.
-      out.addAll(
-        hit.chunk.fromPack ? [hit] : shown.where((s) => s.chunk.sourceId == hit.chunk.sourceId),
-      );
+      out.addAll(shown.where((s) => s.chunk.sameSource(hit.chunk)));
     }
   }
   return out.isEmpty ? null : out;
@@ -364,7 +410,7 @@ List<Ref> commentaryAnchors(String question, List<Ref> notebookPassages) {
 }
 
 /// What a notebook answer may draw on, best first and each chunk once: sections of pinned
-/// sources that match, the rest of the pinned sources from the start, search hits across the
+/// sources that match, then their starts (half the candidates at most), search hits across the
 /// notebook, commentary on the passages in view, then the start of every source. The prompt
 /// builder keeps as many as the tier's source budget allows.
 List<SourceChunk> notebookSources({
@@ -375,11 +421,16 @@ List<SourceChunk> notebookSources({
   CommentaryLibrary? commentary,
 }) {
   final pins = pinned.toList();
+  // Pins take at most half the candidates, so matches elsewhere in the notebook still arrive.
+  final pinnedShare = (tier.sourceK + 1) ~/ 2;
+  final pinnedChunks = pins.isEmpty
+      ? const <SourceChunk>[]
+      : _unique([
+          ...index.search(question, limit: pinnedShare, within: pins),
+          ...index.openings(limit: pinnedShare, within: pins),
+        ]).take(pinnedShare);
   final candidates = [
-    if (pins.isNotEmpty) ...[
-      ...index.search(question, limit: tier.sourceK, within: pins),
-      ...index.openings(limit: tier.sourceK, within: pins),
-    ],
+    ...pinnedChunks,
     ...index.search(question, limit: tier.sourceK),
     if (commentary != null)
       ...commentaryChunks(
@@ -390,9 +441,13 @@ List<SourceChunk> notebookSources({
       ),
     ...index.openings(limit: tier.sourceK),
   ];
+  return _unique(candidates);
+}
+
+List<SourceChunk> _unique(Iterable<SourceChunk> chunks) {
   final seen = <String>{};
   return [
-    for (final c in candidates)
+    for (final c in chunks)
       if (seen.add(c.key)) c,
   ];
 }

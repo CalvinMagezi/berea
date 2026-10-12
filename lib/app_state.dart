@@ -14,6 +14,7 @@ import 'backup.dart';
 import 'commentary_packs.dart';
 import 'edge_engine.dart';
 import 'models.dart';
+import 'notebook_chat.dart';
 import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
@@ -99,6 +100,7 @@ class ChatTurn {
   /// Notebook answers only: the chunks cited, and tags naming nothing that was shown.
   List<ShownSource> sources = const [];
   List<String> unverifiedSources = const [];
+  int rewordedQuotes = 0;
   bool done = false;
   String? error;
   ChatTurn(this.question);
@@ -114,6 +116,7 @@ class ChatTurn {
     nearMisses = g.nearMisses;
     sources = g.sources;
     unverifiedSources = g.unverifiedSources;
+    rewordedQuotes = g.rewordedQuotes.length;
     done = true;
   }
 }
@@ -647,6 +650,34 @@ class AppState extends ChangeNotifier {
     } finally {
       notifyListeners();
     }
+  }
+
+  final _notebookChats = <int, NotebookChat>{};
+
+  /// The conversation of notebook [id], kept while the app runs so an answer that finishes after
+  /// its screen closed is still shown; read again after a restore replaced the notebooks.
+  NotebookChat notebookChat(int id) {
+    final kept = _notebookChats[id];
+    if (kept != null && kept.epoch == notebooks.epoch) return kept;
+    return _notebookChats[id] = NotebookChat(
+      store: notebooks,
+      notebookId: id,
+      answer: (q, history, onToken) => answerInNotebook(id, q, history, onToken),
+      ready: () => harness != null,
+    );
+  }
+
+  /// The Ollama host notebook answers go to when it is not this device, else null.
+  String? get offDeviceHost {
+    if (settings.engine != EngineKind.ollama) return null;
+    final host = Uri.tryParse(settings.ollamaUrl)?.host.toLowerCase() ?? '';
+    final local =
+        host == 'localhost' ||
+        host.endsWith('.localhost') ||
+        host == '::1' ||
+        host == '[::1]' ||
+        host.startsWith('127.');
+    return local ? null : (host.isEmpty ? settings.ollamaUrl : host);
   }
 
   /// Answers [question] inside notebook [notebookId] from its sources, pinned ones first, and

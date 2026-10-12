@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'chat_screen.dart';
-import 'notebook_chat.dart';
 import 'notebook_chat_screen.dart';
 import 'notebook_store.dart';
 import 'notebooks_screen.dart';
@@ -87,13 +86,13 @@ class _HomeShellState extends State<HomeShell> {
           translation: () => s.settings.translation,
           commentary: s.commentary.library,
           engineNotice: EngineNotice(state: s),
-          createChat: () => NotebookChat(
-            store: s.notebooks,
-            notebookId: notebookId,
-            answer: (q, history, onToken) => s.answerInNotebook(notebookId, q, history, onToken),
-            ready: () => s.harness != null,
-            engine: s,
-          ),
+          chat: s.notebookChat(notebookId),
+          engine: s,
+          privacyNotice: () => switch (s.offDeviceHost) {
+            final host? =>
+              'Questions here send sections of your sources to the Ollama server at $host.',
+            null => null,
+          },
         ),
       ),
     );

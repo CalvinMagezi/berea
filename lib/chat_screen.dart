@@ -330,6 +330,7 @@ class _Citations extends StatelessWidget {
           if (notInScripture.isNotEmpty ||
               g.unverifiedQuotes > 0 ||
               g.correctedQuotes > 0 ||
+              g.rewordedQuotes > 0 ||
               g.nearMisses.isNotEmpty ||
               g.unverifiedSources.isNotEmpty)
             Padding(
@@ -341,6 +342,8 @@ class _Citations extends StatelessWidget {
                     'Not among the sources shown: ${g.unverifiedSources.join(', ')}',
                   if (g.correctedQuotes > 0)
                     '${g.correctedQuotes} misquote(s) replaced with the exact words',
+                  if (g.rewordedQuotes > 0)
+                    '${g.rewordedQuotes} quote(s) from a source differ from the verse shown',
                   if (g.unverifiedQuotes > 0)
                     '${g.unverifiedQuotes} quoted phrase(s) not found verbatim',
                   if (g.nearMisses.isNotEmpty) nearMissNotice(g.nearMisses)!,

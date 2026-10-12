@@ -161,7 +161,8 @@ class NotebooksScreen extends StatelessWidget {
     title: 'No notebooks yet',
     body:
         'A notebook gathers what you read on one passage or topic: Bible passages, commentary, '
-        'your notes, pasted text, PDFs and EPUB books. Everything stays on this device.',
+        'your notes, pasted text, PDFs and EPUB books. Everything stays on this device, unless '
+        'you set Berea to answer with an Ollama server on another computer.',
     action: 'Create a notebook',
     onAction: () => _createNotebook(context, store, lookup, onChat),
   );

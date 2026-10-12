@@ -13,33 +13,29 @@ typedef NotebookAnswer = Future<TurnResult?> Function(
 
 const engineBusyMessage = 'Berea is answering another question. Try again when it has finished.';
 
-/// One notebook's conversation: its turns, saved in study.sqlite after each answer.
+/// One notebook's conversation: its turns, saved in study.sqlite after each answer. The app keeps
+/// one per notebook for as long as it runs, so an answer that finishes after its screen closed is
+/// there when the screen opens again.
 class NotebookChat extends ChangeNotifier {
   final NotebookStore store;
   final int notebookId;
   final NotebookAnswer answer;
 
-  /// Whether an engine is ready to take a question; [engine] says when that may have changed.
+  /// Whether an engine is ready to take a question.
   final bool Function() ready;
-  final Listenable? engine;
   final turns = <ChatTurn>[];
   bool answering = false;
+
+  /// The notebook tables this conversation was read from; a restore makes it stale.
+  final int epoch;
 
   NotebookChat({
     required this.store,
     required this.notebookId,
     required this.answer,
     required this.ready,
-    this.engine,
-  }) {
-    engine?.addListener(notifyListeners);
+  }) : epoch = store.epoch {
     _load();
-  }
-
-  @override
-  void dispose() {
-    engine?.removeListener(notifyListeners);
-    super.dispose();
   }
 
   void _load() {
@@ -73,7 +69,6 @@ class NotebookChat extends ChangeNotifier {
     if (!canSend) return;
     final history = _history;
     final turn = ChatTurn(question);
-    final epoch = store.epoch;
     turns.add(turn);
     answering = true;
     notifyListeners();
@@ -91,14 +86,7 @@ class NotebookChat extends ChangeNotifier {
       turn.take(result.guard);
       // A restore during the answer may have given this notebook's id to another notebook.
       if (store.epoch != epoch) return;
-      store.addMessage(notebookId, 'user', question);
-      store.addMessage(
-        notebookId,
-        'assistant',
-        turn.answer,
-        refs: turn.verified,
-        sources: turn.sources,
-      );
+      store.addExchange(notebookId, question, turn.answer, turn.verified, turn.sources);
     } catch (e) {
       turn
         ..error = e.toString()

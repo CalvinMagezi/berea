@@ -70,7 +70,8 @@ not change the notebook.
 
 **Notebook chat.** Ask inside a notebook and the answer draws on its sources as well as
 Scripture. Each source is cited by a tag: `[S3 p.14]` for page 14 of a PDF, `[S3 §2]` for the
-second section of anything else, `[C1]` for commentary from an installed pack. Tap the chip under
+second section of anything else, `[C4821]` for commentary from an installed pack (a number fixed
+by the passage, so it means the same in every answer). Tap the chip under
 the answer to open the source at that section. Pin a source to offer it to every answer. Each
 notebook keeps one conversation, saved with it and included in backups.
 
@@ -116,10 +117,14 @@ Each turn runs a fixed pipeline, not a free agent loop:
    verses, and citations of books that do not exist, become `[unverified: ...]`. A quoted phrase
    of 30+ characters that is not verbatim in any passage the model was shown is replaced with the
    exact words when one shown verse is clearly its source (`[quote corrected]`), and otherwise
-   marked `[unverified quote]`. In a notebook it also checks every source tag: a source, page or
-   section that was not shown becomes `[unverified source: S9 p.40]`. A quote followed by a
-   source tag must be in that source's shown text; a quote attributed to a verse must be in the
-   verses, so a source that misquotes Scripture can never vouch for the misquote.
+   marked `[unverified quote]`. Quotes in any script are compared, not only English. In a
+   notebook it also checks every source tag in square brackets: a source, page or section that
+   was not shown, or anything bracketed that means a source but is not a tag (`[Source 9]`,
+   `[S3 and S9]`), becomes `[unverified source: ...]`. A quote followed by a source tag must be
+   in that source's shown text; a quote attributed to a verse must be in the verses. A quote a
+   source supports but that reads as a shown verse reworded is marked
+   `[differs from Scripture]`, so a source that misquotes Scripture can never vouch for the
+   misquote.
 
 ### Model tiers
 

@@ -512,6 +512,18 @@ class NotebookStore extends ChangeNotifier {
     return true;
   }
 
+  /// A question and its answer, saved together or not at all.
+  void addExchange(
+    int notebookId,
+    String question,
+    String answer,
+    List<Ref> refs,
+    List<ShownSource> sources,
+  ) => _transaction(() {
+    if (!addMessage(notebookId, 'user', question)) return;
+    addMessage(notebookId, 'assistant', answer, refs: refs, sources: sources);
+  });
+
   void clearMessages(int notebookId) {
     db.execute('DELETE FROM notebook_messages WHERE notebook_id = ?', [notebookId]);
     _changed();

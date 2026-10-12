@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:berea/backup.dart';
@@ -220,6 +221,8 @@ void main() {
         edited('notebook_messages', {'refs': 'nope'}),
         edited('notebook_messages', {'text': null}),
         edited('notebook_sources', {'pinned': 7}),
+        edited('notebook_sources', {'pinned': null}),
+        edited('notebook_messages', {'role': 'system'}),
         {'notebook_messages': good['notebook_messages']!},
       ]) {
         expect(() => study.importTables(bad), throwsFormatException, reason: '$bad');
@@ -258,14 +261,15 @@ void main() {
       );
     }
 
-    Widget screen(String answer) => MaterialApp(
+    Widget screen(NotebookChat chat, {String? Function()? privacy}) => MaterialApp(
       home: NotebookChatScreen(
         store: store,
         notebookId: nb,
-        createChat: () => chatWith(answer),
+        chat: chat,
         db: bible,
         translation: () => 'BSB',
         commentary: CommentaryLibrary(),
+        privacyNotice: privacy,
       ),
     );
 
@@ -290,8 +294,10 @@ void main() {
       });
       await tester.pumpWidget(
         screen(
-          'The guide names three habits [S$guide p.2]. John 3:16 shows the love of God. '
-          'Page 9 says more [S$guide p.9].',
+          chatWith(
+            'The guide names three habits [S$guide p.2]. John 3:16 shows the love of God. '
+            'Page 9 says more [S$guide p.9].',
+          ),
         ),
       );
       expect(find.text('Ask about your sources'), findsOneWidget);
@@ -324,7 +330,7 @@ void main() {
 
       // The conversation and its chips come back when the notebook's chat is opened again.
       await tester.pumpWidget(const SizedBox());
-      await tester.pumpWidget(screen('unused'));
+      await tester.pumpWidget(screen(chatWith('unused')));
       await tester.pumpAndSettle();
       expect(find.text('What habits does the guide name?'), findsOneWidget);
       expect(find.textContaining('S$guide p.2 · Guide.pdf'), findsOneWidget);
@@ -336,6 +342,56 @@ void main() {
       expect(find.text('That source has been removed from the notebook.'), findsOneWidget);
     });
 
+    testWidgets('a chip whose source id now names another source does not open it', (tester) async {
+      late int notes;
+      await tester.runAsync(() async {
+        nb = store.createNotebook('Restored');
+        notes = (await store.addSource(
+          nb,
+          const SourceRequest(SourceKind.text, 'Notes', text: 'Test it.'),
+        ))!;
+      });
+      await tester.pumpWidget(screen(chatWith('Test everything [S$notes §1].')));
+      await ask(tester, 'What do my notes say?');
+      study.db.execute("UPDATE notebook_sources SET title = 'Someone else' WHERE id = ?", [notes]);
+      await tester.tap(find.textContaining('S$notes §1 · Notes'));
+      await tester.pump();
+      expect(find.text('That source is no longer in this notebook.'), findsOneWidget);
+    });
+
+    testWidgets('an answer that finishes after the screen closed is there when it opens again', (
+      tester,
+    ) async {
+      nb = store.createNotebook('Late');
+      final gate = Completer<void>();
+      final harness = Harness(db: bible, engine: _Scripted('Late answer.'), systemPrompt: 'SYS');
+      final chat = NotebookChat(
+        store: store,
+        notebookId: nb,
+        ready: () => true,
+        answer: (q, history, onToken) async {
+          await gate.future;
+          return harness.ask(q);
+        },
+      );
+      await tester.pumpWidget(
+        screen(chat, privacy: () => 'Questions here go to the Ollama server at example.org.'),
+      );
+      expect(find.textContaining('Ollama server at example.org'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'Slow question');
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() async {
+        gate.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      expect(store.messages(nb).map((m) => m.text), ['Slow question', 'Late answer.']);
+      await tester.pumpWidget(screen(chat));
+      await tester.pumpAndSettle();
+      expect(find.text('Late answer.'), findsOneWidget);
+    });
+
     testWidgets('a busy engine leaves the question unanswered and says why', (tester) async {
       nb = store.createNotebook('Busy');
       await tester.pumpWidget(
@@ -343,7 +399,7 @@ void main() {
           home: NotebookChatScreen(
             store: store,
             notebookId: nb,
-            createChat: () => NotebookChat(
+            chat: NotebookChat(
               store: store,
               notebookId: nb,
               ready: () => true,
