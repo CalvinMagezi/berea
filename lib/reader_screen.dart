@@ -2,6 +2,7 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'commentary_sheet.dart';
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
 import 'plans_screen.dart';
@@ -253,6 +254,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 s.askAbout(_selection);
                 setState(_selected.clear);
               },
+              onCommentary: () => showCommentary(context, s, _selection),
               onNote: () async {
                 final ref = _selection;
                 final existing = s.study
@@ -375,6 +377,7 @@ class _ChapterNav extends StatelessWidget {
 class _SelectionBar extends StatelessWidget {
   final String label;
   final VoidCallback onAsk;
+  final VoidCallback onCommentary;
   final VoidCallback onNote;
   final VoidCallback onStudyPage;
   final VoidCallback onHighlight;
@@ -383,6 +386,7 @@ class _SelectionBar extends StatelessWidget {
     required this.onStudyPage,
     required this.label,
     required this.onAsk,
+    required this.onCommentary,
     required this.onNote,
     required this.onHighlight,
     required this.onClear,
@@ -408,6 +412,11 @@ class _SelectionBar extends StatelessWidget {
                 tooltip: 'Ask Berea',
                 icon: const Icon(Icons.auto_stories_outlined),
                 onPressed: onAsk,
+              ),
+              IconButton(
+                tooltip: 'Commentary',
+                icon: const Icon(Icons.library_books_outlined),
+                onPressed: onCommentary,
               ),
               IconButton(
                 tooltip: 'Note',

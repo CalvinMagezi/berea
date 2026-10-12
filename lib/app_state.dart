@@ -1,11 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:berea_harness/berea_harness.dart';
-import 'package:cryptography/cryptography.dart';
-import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -14,8 +11,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'device.dart';
 import 'backup.dart';
+import 'commentary_packs.dart';
 import 'edge_engine.dart';
 import 'models.dart';
+import 'pinned_download.dart';
 import 'plans.dart';
 import 'study_store.dart';
 
@@ -108,6 +107,9 @@ class AppState extends ChangeNotifier {
   late Settings settings;
   late final StudyStore study;
   late final Directory supportDir;
+
+  /// Optional public domain commentaries the user has downloaded.
+  late final CommentaryShelf commentary;
   Harness? harness;
   final turns = <ChatTurn>[];
   bool busy = false;
@@ -156,6 +158,7 @@ class AppState extends ChangeNotifier {
     s._restoreImports();
     s._keepTranslationValid();
     s.db.attachFullLexicon(s.lexiconPackPath);
+    s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
     await s._rebuildHarness();
     if (kDebugMode) unawaited(s._autorun());
     return s;
@@ -346,20 +349,22 @@ class AppState extends ChangeNotifier {
   /// Downloads the pack only when the user asks, or installs one they picked from a file.
   /// The file is checked by attaching it before it replaces anything.
   Future<void> installLexiconPack({Uint8List? bytes}) async {
-    final data = bytes ?? await _downloadLexiconPack();
-    if (bytes == null) {
-      final digest = await Sha256().hash(data);
-      final hex = digest.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-      if (hex != lexiconPackSha256) {
-        throw const FormatException('The downloaded lexicon does not match the published pack.');
-      }
-    }
-    if (data.length > maxLexiconPackBytes) {
+    if (bytes != null && bytes.length > maxLexiconPackBytes) {
       throw const FormatException('That file is too large to be a Berea lexicon pack.');
     }
     final tmp = File('$lexiconPackPath.part');
     try {
-      tmp.writeAsBytesSync(data);
+      if (bytes == null) {
+        await downloadPinned(
+          Uri.parse(lexiconPackUrl),
+          tmp,
+          sha256: lexiconPackSha256,
+          maxBytes: maxLexiconPackBytes,
+          timeout: lexiconDownloadTimeout,
+        );
+      } else {
+        tmp.writeAsBytesSync(bytes);
+      }
       final probe = BibleDb(sqlite3.openInMemory());
       final ok = probe.attachFullLexicon(tmp.path);
       probe.close();
@@ -371,33 +376,6 @@ class AppState extends ChangeNotifier {
       if (tmp.existsSync()) tmp.deleteSync();
       db.attachFullLexicon(lexiconPackPath);
       notifyListeners();
-    }
-  }
-
-  /// Streams the pack and stops past [maxLexiconPackBytes], so a wrong or hostile response can
-  /// never fill memory.
-  static Future<Uint8List> _downloadLexiconPack() async {
-    final client = http.Client();
-    try {
-      final r = await client
-          .send(http.Request('GET', Uri.parse(lexiconPackUrl)))
-          .timeout(lexiconDownloadTimeout);
-      if (r.statusCode != 200) {
-        throw HttpException('The lexicon download failed (HTTP ${r.statusCode}).');
-      }
-      if ((r.contentLength ?? 0) > maxLexiconPackBytes) {
-        throw const FormatException('The lexicon download is too large.');
-      }
-      final out = BytesBuilder();
-      await for (final chunk in r.stream.timeout(lexiconDownloadTimeout)) {
-        out.add(chunk);
-        if (out.length > maxLexiconPackBytes) {
-          throw const FormatException('The lexicon download is too large.');
-        }
-      }
-      return out.takeBytes();
-    } finally {
-      client.close();
     }
   }
 

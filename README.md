@@ -41,6 +41,11 @@ questions, in the voice of the "Bible Study Guide" prompt in `prompts/system.md`
 reference is verified against the local Bible and shown as a chip that opens the passage.
 Unverified references or quotes are called out in red. Every study is saved and can be reopened.
 
+**Commentary.** Select verses and tap Commentary for what Matthew Henry, Jamieson, Fausset and
+Brown, the Treasury of Scripture Knowledge, Aquinas's Catena Aurea and, if you add them, Calvin,
+Clarke, Keil and Delitzsch, Barnes, Wesley and Spurgeon say on them, each with its author and
+licence. The packs are optional public domain downloads.
+
 **Bible.** An offline reader with the Berean Standard Bible, the King James Version and the World
 English Bible built in. Search the whole Bible or type a reference to jump to it. Show a second
 translation beside or below the text. Select verses to ask Berea about them, write a note, make a
@@ -137,10 +142,51 @@ questions put a well-known passage on the topic in front of the model.
 
 | STEPBible TFLSJ | CC BY 4.0 | Optional full Greek lexicon pack (about 9 MB), downloaded only on request from the [`lexicon-1` release](https://github.com/CalvinMagezi/berea/releases/tag/lexicon-1) and checked by SHA-256 |
 
+Optional commentary packs, each downloaded only on request from the
+[`commentary-1` release](https://github.com/CalvinMagezi/berea/releases/tag/commentary-1),
+checked by SHA-256 and kept on the device. All come from CrossWire SWORD modules whose
+`DistributionLicense` is `Public Domain`; the converter refuses any other licence.
+
+| Pack (download) | Commentary | Licence note |
+|-----------------|------------|--------------|
+| Core (19 MB) | Matthew Henry's Concise Commentary (MHCC 2.0) | Public domain (Henry, 1706-1721) |
+| | Jamieson, Fausset and Brown (JFB 3.0) | Public domain (1871) |
+| | The Treasury of Scripture Knowledge (TSK 1.4) | Public domain (Torrey, 1880s) |
+| | Catena Aurea on the Gospels (Catena 1.0.1) | Public domain (Aquinas, tr. Newman 1842); OSIS by Tom Lemmens, [lemtom/catena](https://github.com/lemtom/catena), CC0 |
+| Matthew Henry, complete (24 MB) | MHC 2.2 | Public domain |
+| Adam Clarke (14 MB) | Clarke 2.0 | Public domain (1810-1826) |
+| John Calvin (25 MB) | CalvinCommentaries 1.1 | Public domain (Calvin Translation Society, 1844-1856) |
+| Keil and Delitzsch, OT (17 MB) | KD 2.0 | Public domain (English translation 1866-1891) |
+| Albert Barnes, NT (10 MB) | Barnes 1.1 | Public domain (1832-1851) |
+| John Wesley (4 MB) | Wesley 1.1 | Public domain (1755-1765) |
+| Spurgeon, The Treasury of David (8 MB) | TDavid 2.1 | Public domain (1869-1885) |
+
+Not included: Robertson's Word Pictures and KingComments (non-commercial licences), anything
+from Bible Hub or StudyLight, and John Gill (the HelloAO copy is marked Public Domain but its
+provenance is undocumented, and it was not reachable when the packs were built). Patristic
+excerpts from HistoricalChristianFaith/Commentaries-Database are mixed-licence and not yet
+included; see `TECHDEBT.md`. The app lists every source and licence under Settings,
+Commentaries, Licences and sources.
+
 `packages/harness/bin/build_db.dart` downloads these and writes `assets/berea.sqlite` (about 67 MB:
 93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k cross references,
 366 daily verses) and a small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
 the optional lexicon pack, which is published with each release. None of these are committed.
+
+`bin/build_commentary.dart` builds the commentary packs into `build/commentary/` with a
+`manifest.json` of sizes, entry counts and SHA-256 pins. It reads the SWORD zCom files with a
+small pure Dart reader (`lib/src/sword.dart`); libsword and pysword (both GPL) are not used at
+build time or linked into the app. It needs `assets/berea.sqlite` for KJV versification, which
+is what every SWORD module here is keyed to. Each pack is SQLite with
+`entries(module, book, chapter, verse_start, verse_end, html_or_text)` holding plain display
+text, an FTS5 index (porter unicode61), the module's attribution and a format stamp; the same
+sources always give the same bytes. Book and chapter introductions are stored with chapter 0 or
+verse 0; Matthew Henry's section-start keys are expanded to ranges, and Calvin's title pages and
+prefaces (kept at Genesis 1:1, Psalm 1:1 and the first verse of other books) and the book
+prefaces and chapter outlines that Keil and Delitzsch, Clarke and Barnes keep before their
+first verse heading become introductions instead of verse comments. Spurgeon's Treasury of
+David, which holds a whole psalm at its first verse, is split at its "Verse N" paragraphs. After a build, publish the `.gz` files to the
+`commentary-1` release and copy the pins from `manifest.json` into `lib/commentary_packs.dart`.
 
 Copyrighted translations such as the NIV and NLT are not bundled. Import one you own through the
 engine settings from CSV (`Book,Chapter,Verse,Text`), USFM, OSIS, Zefania XML or a zip of those.
@@ -195,6 +241,10 @@ lib/
   reader_screen.dart   offline reader, parallel text, selection bar, chapter picker
   search_screen.dart   full-text Bible search
   interlinear_sheet.dart  Hebrew and Greek words with lexicon entries
+  commentary_sheet.dart   commentary on the selected verses, with attribution
+  commentary_packs.dart   optional commentary packs: pins, download, install, delete
+  commentary_settings.dart, attributions_screen.dart  pack settings, licences and sources
+  pinned_download.dart    streamed download checked against a published SHA-256
   study_page_screen.dart  observation, interpretation, application
   plans.dart, plans_screen.dart  reading plans
   notes_screen.dart    saved studies, study pages and notes
@@ -210,6 +260,7 @@ packages/harness/
   lib/src/             RefParser, BibleDb, Retriever, PromptBuilder, CitationGuard, importers, engines
   bin/build_db.dart    builds assets/berea.sqlite from the datasets above
   bin/build_lexicon_pack.dart  builds the optional LSJ pack
+  bin/build_commentary.dart  builds the optional commentary packs from SWORD modules
   bin/berea.dart       CLI chat against Ollama
   bin/eval.dart        golden eval
   bin/retrieval_check.dart  topical retrieval check, no model needed
@@ -244,7 +295,7 @@ docs/screenshots/
 ## Privacy
 
 Berea makes no network request on its own. The model download goes to huggingface.co, and the
-optional lexicon pack to github.com, only when you tap Download. The Ollama engine talks to the URL
+optional lexicon and commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
 you configure, `localhost` by default. There is no telemetry, no account, and no cloud copy of
 anything you write. Backups are files you choose where to keep. Deleting the app deletes the
 data.

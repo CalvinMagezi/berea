@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+Commentary
+- Optional public domain commentary packs: Matthew Henry (concise and complete), Jamieson,
+  Fausset and Brown, the Treasury of Scripture Knowledge, Aquinas's Catena Aurea, Calvin, Adam
+  Clarke, Keil and Delitzsch, Barnes, Wesley and Spurgeon's Treasury of David. Select verses
+  and tap Commentary to read each one with its author and licence. Packs download only when
+  you ask, are checked against a published SHA-256, can be added from a file and deleted.
+- A Licences and sources screen lists every dataset Berea carries or offers.
+
 Site
 - The public site is rebuilt on the scroll-craft engine (vendored, MIT): a scrubbed lamplight
   film, one real answer walked through as you scroll, and a live copy of the reference check
