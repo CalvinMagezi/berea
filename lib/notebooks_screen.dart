@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'notebook_store.dart';
 import 'study_store.dart';
@@ -539,15 +540,17 @@ class NotebookScreen extends StatelessWidget {
       debugPrint('Notebook source failed: $e');
       messenger.showSnackBar(SnackBar(content: Text('${r.title} could not be read.')));
     } finally {
-      if (r.path != null) unawaited(_clearPickedFiles());
+      if (r.path case final path?) unawaited(_deletePickedCopy(path));
     }
   }
 
-  /// Phones copy a picked file into the app cache; clear the copies once none is waiting.
-  Future<void> _clearPickedFiles() async {
-    if (store.pending.any((p) => p.kind == SourceKind.pdf || p.kind == SourceKind.epub)) return;
+  /// Phones copy a picked file into the app's temporary folder; delete that copy once read.
+  /// Only a file inside that folder is touched, never the user's original.
+  static Future<void> _deletePickedCopy(String path) async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
-    await FilePicker.clearTemporaryFiles();
+    final temp = (await getTemporaryDirectory()).absolute.path;
+    final file = File(path).absolute;
+    if (file.path.startsWith('$temp/') && file.existsSync()) file.deleteSync();
   }
 }
 
