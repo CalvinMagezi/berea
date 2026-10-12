@@ -507,51 +507,86 @@ class AppState extends ChangeNotifier {
   Future<T> withVoice<T>(Future<T> Function(KokoroVoice voice) use) async {
     if (busy || speaking) throw StateError('Berea is busy. Try again in a moment.');
     speaking = true;
-    final hadModel = _edge != null;
-    if (hadModel) {
-      harness = null;
-      deviceState = DeviceModelState.loading;
-      await _edge!.close();
-      _edge = null;
-    }
-    notifyListeners();
+    var hadModel = false;
     KokoroVoice? loaded;
     try {
+      // A model load already under way would otherwise finish beside the voice.
+      while (_rebuilding != null) {
+        await _rebuilding;
+      }
+      hadModel = _edge != null;
+      if (hadModel) {
+        harness = null;
+        deviceState = DeviceModelState.loading;
+        final edge = _edge!;
+        _edge = null;
+        await edge.close();
+      }
+      notifyListeners();
       loaded = await KokoroVoice.load(voice);
       return await use(loaded);
     } finally {
-      await loaded?.close();
-      speaking = false;
-      final rebuild = hadModel || _rebuildAfterVoice;
-      _rebuildAfterVoice = false;
-      if (rebuild) {
-        await _rebuildHarness();
-      } else {
-        notifyListeners();
+      try {
+        await loaded?.close();
+      } finally {
+        _voiceClosed(hadModel);
       }
     }
   }
 
-  Future<void> _rebuildHarness() async {
+  void _voiceClosed(bool hadModel) {
+    speaking = false;
+    final rebuild = hadModel || _rebuildAfterVoice;
+    _rebuildAfterVoice = false;
+    // Not awaited: the caller can play its audio while the language model reloads.
+    if (rebuild) {
+      unawaited(_rebuildHarness());
+    } else {
+      notifyListeners();
+    }
+  }
+
+  /// The harness rebuild in flight, if any; withVoice waits for it.
+  Future<void>? _rebuilding;
+
+  Future<void> _rebuildHarness() {
     if (speaking) {
       // The language model would load beside the voice; withVoice rebuilds when it is done.
       _rebuildAfterVoice = true;
-      return;
+      return Future.value();
     }
+    final run = _loadHarness();
+    _rebuilding = run;
+    return run.whenComplete(() {
+      if (identical(_rebuilding, run)) _rebuilding = null;
+    });
+  }
+
+  Future<void> _loadHarness() async {
     await _edge?.close();
     _edge = null;
     harness = null;
     final engine = settings.engine == EngineKind.ollama ? _ollama() : await _device();
-    if (engine != null) {
-      harness = Harness(
-        db: db,
-        engine: engine,
-        systemPrompt: systemPrompt,
-        tier: settings.tier,
-        translation: settings.translation,
-      );
-    }
+    if (engine != null) harness = _newHarness(engine);
     notifyListeners();
+  }
+
+  /// A harness for [engine] that carries on the open conversation, so reloading a model or
+  /// changing a setting does not make Berea forget what was just said.
+  Harness _newHarness(LlmEngine engine) {
+    final h = Harness(
+      db: db,
+      engine: engine,
+      systemPrompt: systemPrompt,
+      tier: settings.tier,
+      translation: settings.translation,
+    );
+    for (final t in turns.where((t) => t.done && t.error == null)) {
+      h.history
+        ..add(ChatMessage.user(t.question))
+        ..add(ChatMessage.assistant(t.answer));
+    }
+    return h;
   }
 
   LlmEngine _ollama() => OllamaEngine(
@@ -611,13 +646,7 @@ class AppState extends ChangeNotifier {
     settings = next;
     await next.save(prefs);
     if (sameModel && settings.engine == EngineKind.device && harness != null) {
-      harness = Harness(
-        db: db,
-        engine: harness!.engine,
-        systemPrompt: systemPrompt,
-        tier: settings.tier,
-        translation: settings.translation,
-      );
+      harness = _newHarness(harness!.engine);
       notifyListeners();
       return;
     }

@@ -303,8 +303,14 @@ class Phonemizer {
     return arpa == null ? null : arpabetToKokoro(arpa);
   }
 
-  String _numberPhonemes(String digits) =>
-      numberToWords(int.parse(digits.replaceAll(',', ''))).split(' ').map(word).join(' ');
+  /// Whole numbers are read as numbers; a run of digits longer than that is read digit by digit.
+  String _numberPhonemes(String raw) {
+    final digits = raw.replaceAll(',', '');
+    final words = digits.length > _maxNumberDigits
+        ? digits.split('').map((d) => numberToWords(int.parse(d))).join(' ')
+        : numberToWords(int.parse(digits));
+    return words.split(' ').map(word).join(' ');
+  }
 
   /// Joins [pieces] into one utterance: a space between words, punctuation against the word
   /// it follows, opening quotes against the word after them.
@@ -313,8 +319,12 @@ class Phonemizer {
     final words = <SpeechPiece>[];
     final spans = <(int, int)>[];
     var glue = false;
+    var inQuote = false;
     for (final p in pieces) {
-      final opening = !p.isWord && _openingMarks.contains(p.text);
+      // A straight quote opens and closes in turn; curly ones say which they are.
+      final straight = p.text == '"';
+      final opening = !p.isWord && _openingMarks.contains(p.text) && !(straight && inQuote);
+      if (straight) inQuote = !inQuote;
       final attaches = !p.isWord && !opening;
       if (out.isNotEmpty && !attaches && !glue) out.write(' ');
       final start = out.length;
@@ -337,10 +347,14 @@ class Phonemizer {
     for (final p in all) {
       current.add(p);
       if (assemble(current).phonemes.length <= maxTokens || current.length == 1) continue;
+      // Break after punctuation only if what follows still fits; the chunk without the new
+      // piece always does.
       final lastBreak = current.lastIndexWhere((q) => !q.isWord && _breakMarks.contains(q.text));
-      final cut = lastBreak >= 0 && lastBreak < current.length - 1
-          ? lastBreak + 1
-          : current.length - 1;
+      final tailFits =
+          lastBreak >= 0 &&
+          lastBreak < current.length - 1 &&
+          assemble(current.sublist(lastBreak + 1)).phonemes.length <= maxTokens;
+      final cut = tailFits ? lastBreak + 1 : current.length - 1;
       chunks.add(current.sublist(0, cut));
       current = current.sublist(cut);
     }
@@ -408,6 +422,9 @@ const _hundred = 100;
 const _ten = 10;
 const _teens = 20;
 
+/// Up to hundreds of billions; longer runs are serial numbers, not quantities.
+const _maxNumberDigits = 12;
+
 /// English words for a whole number: 144000 is "one hundred forty four thousand".
 String numberToWords(int n) {
   if (n < 0) return 'minus ${numberToWords(-n)}';
@@ -471,6 +488,7 @@ const _letterRules = [
   ('m', 'M'),
   ('n', 'N'),
   ('p', 'P'),
+  ('q', 'K'),
   ('r', 'R'),
   ('s', 'S'),
   ('t', 'T'),
@@ -581,6 +599,7 @@ const _bitsPerSample = 16;
 const _bytesPerSample = 2;
 const _fmtChunkBytes = 16;
 const _pcmFormat = 1;
+const _monoChannels = 1;
 
 /// Mono 16-bit PCM WAV bytes for [samples] in -1..1.
 Uint8List wavBytes(Float32List samples, {int sampleRate = kokoroSampleRate}) {
@@ -598,7 +617,7 @@ Uint8List wavBytes(Float32List samples, {int sampleRate = kokoroSampleRate}) {
   tag(12, 'fmt ');
   b.setUint32(16, _fmtChunkBytes, Endian.little);
   b.setUint16(20, _pcmFormat, Endian.little);
-  b.setUint16(22, 1, Endian.little);
+  b.setUint16(22, _monoChannels, Endian.little);
   b.setUint32(24, sampleRate, Endian.little);
   b.setUint32(28, sampleRate * _bytesPerSample, Endian.little);
   b.setUint16(32, _bytesPerSample, Endian.little);
@@ -606,7 +625,8 @@ Uint8List wavBytes(Float32List samples, {int sampleRate = kokoroSampleRate}) {
   tag(36, 'data');
   b.setUint32(40, dataBytes, Endian.little);
   for (var i = 0; i < samples.length; i++) {
-    final v = (samples[i].clamp(-1.0, 1.0) * _pcmMax).round();
+    final x = samples[i];
+    final v = x.isNaN ? 0 : (x.clamp(-1.0, 1.0) * _pcmMax).round();
     b.setInt16(_wavHeaderBytes + i * _bytesPerSample, v, Endian.little);
   }
   return b.buffer.asUint8List();

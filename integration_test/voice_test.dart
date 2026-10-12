@@ -7,6 +7,7 @@
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
+import 'package:berea/commentary_packs.dart' show bytesPerMb;
 import 'package:berea/edge_engine.dart';
 import 'package:berea/models.dart';
 import 'package:berea/voice_settings.dart';
@@ -17,7 +18,6 @@ import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
 
 const _poll = Duration(milliseconds: 40);
-const _bytesPerMb = 1024 * 1024;
 const _leakToleranceMb = 300;
 const _synthesisLimit = Duration(minutes: 2);
 
@@ -61,7 +61,7 @@ void main() {
     final closed = <int>[];
     for (var i = 0; i < 3; i++) {
       await state.withVoice((v) => v.speak(verse, kokoroSpeakers.first));
-      closed.add(ProcessInfo.currentRss ~/ _bytesPerMb);
+      closed.add(ProcessInfo.currentRss ~/ bytesPerMb);
     }
     debugPrint('RSS after each close: $closed MB');
     expect(closed.last - closed.first, lessThan(_leakToleranceMb));

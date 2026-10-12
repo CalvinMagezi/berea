@@ -41,9 +41,10 @@ void main() {
     expect(added, ['b.bin']);
     expect(shelf.missing.map((f) => f.name), ['a.bin']);
     expect(File('${tmp.path}/shelf/b.bin').readAsBytesSync(), b);
-    expect(Directory('${tmp.path}/shelf').listSync().map((e) => e.uri.pathSegments.last), [
+    expect(Directory('${tmp.path}/shelf').listSync().map((e) => e.uri.pathSegments.last).toSet(), {
       'b.bin',
-    ]);
+      'b.bin.sha256',
+    });
 
     await shelf.installFromFiles([write('a-copy.bin', a).path]);
     expect(shelf.installed, isTrue);
@@ -53,12 +54,23 @@ void main() {
 
   test('clears half-finished files and files from an older pack', () async {
     final keep = utf8.encode('current voice');
+    final pin = await _pin('a.bin', keep);
     final dir = Directory('${tmp.path}/shelf')..createSync();
     File('${dir.path}/model.onnx.part').writeAsStringSync('partial');
     File('${dir.path}/old-model.onnx').writeAsStringSync('older pack');
     File('${dir.path}/a.bin').writeAsBytesSync(keep);
-    final shelf = VoiceShelf(dir, () {}, files: [await _pin('a.bin', keep)]);
-    expect(dir.listSync().map((e) => e.uri.pathSegments.last), ['a.bin']);
+    File('${dir.path}/a.bin.sha256').writeAsStringSync(pin.sha256);
+    final shelf = VoiceShelf(dir, () {}, files: [pin]);
+    expect(dir.listSync().map((e) => e.uri.pathSegments.last).toSet(), {'a.bin', 'a.bin.sha256'});
     expect(shelf.installed, isTrue);
+  });
+
+  test('a file checked against an older pin is fetched again', () async {
+    final bytes = utf8.encode('voice v1');
+    final dir = Directory('${tmp.path}/shelf')..createSync();
+    File('${dir.path}/a.bin').writeAsBytesSync(bytes);
+    File('${dir.path}/a.bin.sha256').writeAsStringSync('0' * 64);
+    final shelf = VoiceShelf(dir, () {}, files: [await _pin('a.bin', utf8.encode('voice v2'))]);
+    expect(shelf.installed, isFalse);
   });
 }

@@ -196,10 +196,15 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
     try {
       await job();
     } catch (e) {
-      setState(() => _status = '$e');
+      _show('$e');
     } finally {
       if (mounted) setState(() => _working = false);
     }
+  }
+
+  /// The screen may have closed while the voice was working.
+  void _show(String status) {
+    if (mounted) setState(() => _status = status);
   }
 
   Future<void> _speak(KokoroSpeaker speaker) => _guard(() async {
@@ -207,11 +212,16 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
     _finish();
     setState(() => _status = 'Loading the voice…');
     final speech = await widget.state.withVoice((v) => v.speak(_verse, speaker));
+    if (!mounted) return;
     // The platform's temporary folder is not guaranteed to exist yet (a sandboxed Mac app).
     final dir = (await getTemporaryDirectory())..createSync(recursive: true);
     final file = File('${dir.path}/berea-voice-${DateTime.now().microsecondsSinceEpoch}.wav');
     await file.writeAsBytes(wavBytes(speech.samples));
     await _debugDump(speaker, file, speech);
+    if (!mounted) {
+      file.deleteSync();
+      return;
+    }
     _playing = file;
     setState(() {
       _words = speech.words;
@@ -268,10 +278,11 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
           '${rssSpoken ~/ bytesPerMb} MB after speaking, ${rssAfter ~/ bytesPerMb} MB closed.',
     ].join('\n');
     debugPrint('voice benchmark\n$report');
-    setState(() => _status = report);
+    _show(report);
   });
 
-  static String _seconds(Duration d) => '${(d.inMilliseconds / 1000).toStringAsFixed(2)} s';
+  static String _seconds(Duration d) =>
+      '${(d.inMilliseconds / Duration.millisecondsPerSecond).toStringAsFixed(2)} s';
 
   @override
   Widget build(BuildContext context) {

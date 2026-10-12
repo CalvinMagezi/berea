@@ -180,7 +180,6 @@ questions put a well-known passage on the topic in front of the model.
 | STEPBible TAHOT and TAGNT | CC BY 4.0 | Every Hebrew and Greek word with transliteration, gloss, Strong's number and morphology |
 | STEPBible TBESH and TBESG | CC BY 4.0 | Hebrew and Greek lexicon keyed by Strong's |
 | OpenBible.info cross references | CC BY | Cross references ranked by votes |
-
 | Kokoro-82M, voices Heart and Michael | Apache-2.0 | Optional voice pack, downloaded only on request from the `voice-1` release and checked by SHA-256 |
 | CMU Pronouncing Dictionary | BSD-style, Copyright (C) 1993-2015 Carnegie Mellon University | Pronunciations for the voice, shipped unchanged in the voice pack with its licence |
 | STEPBible TFLSJ | CC BY 4.0 | Optional full Greek lexicon pack (about 9 MB), downloaded only on request from the [`lexicon-1` release](https://github.com/CalvinMagezi/berea/releases/tag/lexicon-1) and checked by SHA-256 |
@@ -359,6 +358,11 @@ optional lexicon, commentary and voice packs to github.com, only when you tap Do
 you configure, `localhost` by default. There is no telemetry, no account, and no cloud copy of
 anything you write. Backups are files you choose where to keep. Deleting the app deletes the
 data.
+
+One known exception, on Windows only: the voice's ONNX Runtime plugin loads Microsoft's official
+Windows library at startup, and that library's telemetry is on by default. Windows builds are not
+released; this must be fixed before they are (see `TECHDEBT.md`). ONNX Runtime documents its
+telemetry as Windows only, so Android, iOS and macOS are not affected.
 
 Android cloud backup and device transfer are turned off, and the iOS data folder is excluded
 from iCloud backup. That is deliberate, and it has a cost: a lost or reset phone loses your

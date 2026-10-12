@@ -19,10 +19,6 @@ Future<void> main(List<String> args) async {
   Directory(cache).createSync(recursive: true);
   for (final f in voicePackFiles) {
     final bytes = await _fetch(f, '$cache/${f.name}');
-    checkPin(bytes, f.sha256, source: f.upstream);
-    if (bytes.length != f.bytes) {
-      throw StateError('${f.name} is ${bytes.length} bytes, pinned ${f.bytes}.');
-    }
     File('$out/${f.name}').writeAsBytesSync(bytes);
     stdout.writeln('${f.sha256}  ${f.bytes}  ${f.name}');
   }
@@ -32,12 +28,31 @@ Future<void> main(List<String> args) async {
 
 Future<List<int>> _fetch(VoicePackFile f, String cached) async {
   final file = File(cached);
-  if (file.existsSync() && file.lengthSync() == f.bytes) return file.readAsBytesSync();
+  if (file.existsSync()) {
+    final bytes = file.readAsBytesSync();
+    if (_matches(bytes, f)) return bytes;
+    file.deleteSync();
+  }
   stdout.writeln('fetching ${f.upstream}');
   final r = await http.get(Uri.parse(f.upstream));
   if (r.statusCode != HttpStatus.ok) {
     throw StateError('HTTP ${r.statusCode} for ${f.upstream}');
   }
+  // Checked before caching, so a bad download never sticks in the cache.
+  checkPin(r.bodyBytes, f.sha256, source: f.upstream);
+  if (r.bodyBytes.length != f.bytes) {
+    throw StateError('${f.name} is ${r.bodyBytes.length} bytes, pinned ${f.bytes}.');
+  }
   file.writeAsBytesSync(r.bodyBytes);
   return r.bodyBytes;
+}
+
+bool _matches(List<int> bytes, VoicePackFile f) {
+  if (bytes.length != f.bytes) return false;
+  try {
+    checkPin(bytes, f.sha256, source: f.name);
+    return true;
+  } on StateError {
+    return false;
+  }
 }

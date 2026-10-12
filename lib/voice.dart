@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:berea_harness/berea_harness.dart';
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 
 import 'pinned_download.dart';
@@ -13,7 +14,8 @@ const voiceDownloadTimeout = Duration(minutes: 10);
 
 /// Progress is reported in whole percents, so a download redraws the app at most this often.
 const _progressSteps = 100;
-const _bytesPerFloat = 4;
+const _bytesPerFloat = Float32List.bytesPerElement;
+const _markerSuffix = '.sha256';
 
 /// The optional voice pack on the device: the pinned files in one folder. Downloads happen
 /// only when the user asks.
@@ -31,18 +33,27 @@ class VoiceShelf {
     : files = List.unmodifiable(files ?? voicePackDeviceFiles) {
     dir.createSync(recursive: true);
     // Anything else here is a download cut short or a file from an older pack.
-    final names = {for (final f in this.files) f.name};
+    final keep = {
+      for (final f in this.files) ...[f.name, _markerName(f.name)],
+    };
     for (final f in dir.listSync().whereType<File>()) {
-      if (!names.contains(f.uri.pathSegments.last)) f.deleteSync();
+      if (!keep.contains(f.uri.pathSegments.last)) f.deleteSync();
     }
   }
 
   String path(String name) => '${dir.path}/$name';
 
-  /// Present at its pinned size. The hash was checked when the file arrived.
+  static String _markerName(String name) => name + _markerSuffix;
+
+  /// Present at its pinned size, with a note of the SHA-256 it was checked against when it
+  /// arrived, so a later pack that changes a file under the same name fetches it again.
   bool has(VoicePackFile f) {
     final file = File(path(f.name));
-    return file.existsSync() && file.lengthSync() == f.bytes;
+    final marker = File(path(_markerName(f.name)));
+    return file.existsSync() &&
+        file.lengthSync() == f.bytes &&
+        marker.existsSync() &&
+        marker.readAsStringSync() == f.sha256;
   }
 
   bool get installed => files.every(has);
@@ -52,6 +63,12 @@ class VoiceShelf {
       if (!has(f)) f,
   ];
 
+  /// Moves a checked file into place and records what it was checked against.
+  void _keep(File checked, VoicePackFile f) {
+    checked.renameSync(path(f.name));
+    File(path(_markerName(f.name))).writeAsStringSync(f.sha256);
+  }
+
   Future<void> download() async {
     if (progress != null) return;
     final todo = missing;
@@ -60,33 +77,39 @@ class VoiceShelf {
     var shownStep = 0;
     progress = 0;
     onChange();
+    void report(double fraction) {
+      progress = fraction;
+      final step = (fraction * _progressSteps).floor();
+      if (step == shownStep) return;
+      shownStep = step;
+      onChange();
+    }
+
     try {
       for (final f in todo) {
-        final part = File('${path(f.name)}.part');
-        try {
-          await downloadPinned(
-            Uri.parse('$voicePackReleaseUrl/${f.name}'),
-            part,
-            sha256: f.sha256,
-            maxBytes: f.bytes,
-            timeout: voiceDownloadTimeout,
-            onProgress: (x) {
-              progress = (done + x * f.bytes) / total;
-              final step = (progress! * _progressSteps).floor();
-              if (step == shownStep) return;
-              shownStep = step;
-              onChange();
-            },
-          );
-          part.renameSync(path(f.name));
-        } finally {
-          if (part.existsSync()) part.deleteSync();
-        }
+        await _downloadOne(f, (x) => report((done + x * f.bytes) / total));
         done += f.bytes;
       }
     } finally {
       progress = null;
       onChange();
+    }
+  }
+
+  Future<void> _downloadOne(VoicePackFile f, void Function(double) onProgress) async {
+    final part = File('${path(f.name)}.part');
+    try {
+      await downloadPinned(
+        Uri.parse('$voicePackReleaseUrl/${f.name}'),
+        part,
+        sha256: f.sha256,
+        maxBytes: f.bytes,
+        timeout: voiceDownloadTimeout,
+        onProgress: onProgress,
+      );
+      _keep(part, f);
+    } finally {
+      if (part.existsSync()) part.deleteSync();
     }
   }
 
@@ -97,25 +120,30 @@ class VoiceShelf {
     final installed = <String>[];
     try {
       for (final p in paths) {
-        final size = File(p).lengthSync();
-        if (!files.any((f) => f.bytes == size)) continue;
-        final part = File(path('incoming-${installed.length}.part'));
-        try {
-          // Hash the copy, not the original, so what is checked is exactly what is kept.
-          await File(p).copy(part.path);
-          final hash = await _hashOffIsolate(part.path);
-          final match = files.where((f) => f.sha256 == hash).firstOrNull;
-          if (match == null || match.bytes != size) continue;
-          part.renameSync(path(match.name));
-          installed.add(match.name);
-        } finally {
-          if (part.existsSync()) part.deleteSync();
-        }
+        final name = await _installOne(p, path('incoming-${installed.length}.part'));
+        if (name != null) installed.add(name);
       }
     } finally {
       onChange();
     }
     return installed;
+  }
+
+  Future<String?> _installOne(String source, String scratch) async {
+    final size = File(source).lengthSync();
+    if (!files.any((f) => f.bytes == size)) return null;
+    final part = File(scratch);
+    try {
+      // Hash the copy, not the original, so what is checked is exactly what is kept.
+      await File(source).copy(part.path);
+      final hash = await _hashOffIsolate(part.path);
+      final match = files.where((f) => f.sha256 == hash && f.bytes == size).firstOrNull;
+      if (match == null) return null;
+      _keep(part, match);
+      return match.name;
+    } finally {
+      if (part.existsSync()) part.deleteSync();
+    }
   }
 
   void delete() {
@@ -209,31 +237,52 @@ class KokoroVoice {
 
   Future<(Float32List, List<double>)> _run(Utterance u, Float32List voice) async {
     final ids = u.inputIds;
-    final inputs = {
-      'input_ids': await OrtValue.fromList(ids, [1, ids.length]),
-      'style': await OrtValue.fromList(Float32List.fromList(styleFor(voice, u.phonemes.length)), [
-        1,
-        kokoroStyleDim,
-      ]),
-      'speed': await OrtValue.fromList(Float32List.fromList([1]), [1]),
-    };
-    Map<String, OrtValue> outputs = const {};
+    final made = <OrtValue>[];
+    // Every value is tracked as soon as it exists, so a failure part way frees the rest.
+    Future<OrtValue> tensor(Object data, List<int> shape) async {
+      final v = await OrtValue.fromList(data, shape);
+      made.add(v);
+      return v;
+    }
+
     try {
-      outputs = await _session.run(inputs);
-      final wave = await outputs[_waveform]!.asFlattenedList();
-      final durations = await outputs[_durations]!.asFlattenedList();
+      final outputs = await _session.run({
+        'input_ids': await tensor(ids, [1, ids.length]),
+        'style': await tensor(Float32List.fromList(styleFor(voice, u.phonemes.length)), [
+          1,
+          kokoroStyleDim,
+        ]),
+        'speed': await tensor(Float32List.fromList([1]), [1]),
+      });
+      made.addAll(outputs.values);
+      final waveOut = outputs[_waveform];
+      final durationsOut = outputs[_durations];
+      if (waveOut == null || durationsOut == null) {
+        throw const FormatException('The voice model returned no audio.');
+      }
+      final wave = await waveOut.asFlattenedList();
+      final durations = await durationsOut.asFlattenedList();
       return (
         wave is Float32List ? wave : Float32List.fromList(wave.cast<double>()),
         durations.cast<double>().toList(),
       );
     } finally {
-      for (final v in [...inputs.values, ...outputs.values]) {
-        await v.dispose();
+      for (final v in made) {
+        await _disposeQuietly(v);
       }
     }
   }
 
   Future<void> close() => _session.close();
+}
+
+/// One value that fails to free must not keep the others alive.
+Future<void> _disposeQuietly(OrtValue v) async {
+  try {
+    await v.dispose();
+  } on Object catch (e) {
+    debugPrint('Could not free a voice tensor: $e');
+  }
 }
 
 const _waveform = 'waveform';

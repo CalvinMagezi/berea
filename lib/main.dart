@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'attributions_screen.dart';
 import 'home_shell.dart';
 import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  registerBundledLicences();
   runApp(const BereaApp());
 }
 

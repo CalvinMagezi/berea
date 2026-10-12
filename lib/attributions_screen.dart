@@ -1,5 +1,7 @@
 import 'package:berea_harness/berea_harness.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'theme.dart';
 
@@ -47,6 +49,23 @@ const voiceLibraries = [
   DataSource('audioplayers', 'MIT', 'Blue Fire'),
 ];
 
+/// Full notices for what the voice pack carries and what the app links for it, shown on the
+/// licence page beside every Dart package's own.
+const _bundledNotices = [
+  ('CMU Pronouncing Dictionary', 'assets/licenses/cmudict-LICENSE.txt'),
+  ('Kokoro-82M voice model and voices', 'assets/licenses/apache-2.0.txt'),
+  ('ONNX Runtime', 'assets/licenses/onnxruntime-LICENSE.txt'),
+  ('ONNX Runtime third party notices', 'assets/licenses/onnxruntime-ThirdPartyNotices.txt'),
+];
+
+void registerBundledLicences() {
+  LicenseRegistry.addLicense(() async* {
+    for (final (name, asset) in _bundledNotices) {
+      yield LicenseEntryWithLineBreaks([name], await rootBundle.loadString(asset));
+    }
+  });
+}
+
 /// Every dataset in the app or offered for download, with its licence and who to credit.
 class AttributionsScreen extends StatelessWidget {
   const AttributionsScreen({super.key});
@@ -71,6 +90,12 @@ class AttributionsScreen extends StatelessWidget {
               for (final s in voiceLibraries) _SourceTile(s.name, s.credit, s.licence),
               const _Heading('Berea'),
               const _SourceTile('Berea app and harness', 'github.com/CalvinMagezi/berea', 'MIT'),
+              ListTile(
+                title: const Text('All software licences'),
+                subtitle: const Text('The full text of every licence and notice'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => showLicensePage(context: context, applicationName: 'Berea'),
+              ),
             ],
           ),
         ),

@@ -160,6 +160,29 @@ void main() {
       expect(ids.length, u.phonemes.length + 2);
     });
 
+    test('a long run without punctuation never cuts a word to fit', () {
+      final text = 'For God, ${List.filled(60, 'so').join(' ')} Nebuchadnezzar three.';
+      const max = 40;
+      for (final c in p.utterances(text, maxTokens: max)) {
+        expect(c.phonemes.length, lessThanOrEqualTo(max));
+        for (var i = 0; i < c.words.length; i++) {
+          final (a, b) = c.tokenSpans[i];
+          expect(c.phonemes.substring(a, b), p.word(c.words[i].text), reason: c.words[i].text);
+        }
+      }
+    });
+
+    test('straight quotes open and close in turn', () {
+      final u = p.assemble(p.pieces('God said, "So." Three'));
+      expect(u.phonemes, endsWith('${p.word('So')}." ${p.word('three')}'));
+    });
+
+    test('a lone q and very long numbers do not stop speech', () {
+      expect(p.word('Qoph'), isNotEmpty);
+      final digits = p.pieces('123456789012345678901234').single;
+      expect(digits.phonemes.split(' ').length, 24);
+    });
+
     test('long text splits after punctuation and every chunk fits', () {
       final text = List.filled(12, 'For God so loved, the world.').join(' ');
       const max = 40;
