@@ -107,6 +107,72 @@ void main() {
     expect(r.text, contains('Song of Solomon 2:1'));
   });
 
+  group('near misses', () {
+    Verse shown(String label) {
+      final r = RefParser.parse(label).single;
+      return Verse(r.book, r.chapter, r.verseStart!, '');
+    }
+
+    List<String> near(String cited, List<String> shownLabels) => [
+      for (final m in findNearMisses(RefParser.parse(cited), shownLabels.map(shown))) m.label,
+    ];
+
+    test('flags a drifted verse in the same chapter', () {
+      expect(near('John 3:18', ['John 3:16']), ['John 3:18 (shown John 3:16)']);
+      expect(near('John 3:14', ['John 3:16']), ['John 3:14 (shown John 3:16)']);
+    });
+
+    test('flags transposed digits in the verse or the chapter', () {
+      expect(near('Psalm 119:41', ['Psalm 119:14']), ['Psalms 119:41 (shown Psalms 119:14)']);
+      expect(near('Isaiah 35:5', ['Isaiah 53:5']), ['Isaiah 35:5 (shown Isaiah 53:5)']);
+    });
+
+    test('never flags a citation that matches or falls inside what was shown', () {
+      expect(near('John 3:16', ['John 3:16', 'John 3:18']), isEmpty);
+      expect(near('John 3:15-17', ['John 3:16']), isEmpty);
+      expect(near('John 3:16 and John 3:17', ['John 3:16', 'John 3:17']), isEmpty);
+      expect(near('John 3', ['John 3:16']), isEmpty);
+    });
+
+    test('leaves distant, other-chapter and other-book citations alone', () {
+      expect(near('John 3:19', ['John 3:16']), isEmpty);
+      expect(near('John 4:16', ['John 3:16']), isEmpty);
+      expect(near('1 John 3:16', ['John 3:16']), isEmpty);
+      expect(near('Romans 3:28', ['Romans 8:28']), isEmpty);
+      expect(near('Psalm 23:1', ['Psalm 32:2']), isEmpty);
+    });
+
+    test('a range is a near miss only by distance, never by transposition', () {
+      expect(near('John 3:18-20', ['John 3:16']), ['John 3:18-20 (shown John 3:16)']);
+      expect(near('Psalm 119:41-42', ['Psalm 119:14']), isEmpty);
+    });
+
+    test('reports the closest shown verse, a transposition before any drift', () {
+      expect(near('John 3:18', ['John 3:16', 'John 3:17']), ['John 3:18 (shown John 3:17)']);
+      expect(near('Psalm 119:41', ['Psalm 119:40', 'Psalm 119:14']), [
+        'Psalms 119:41 (shown Psalms 119:14)',
+      ]);
+    });
+
+    test('an exact match beside a near miss reports only the near miss', () {
+      expect(near('John 3:16 and John 3:18', ['John 3:16']), ['John 3:18 (shown John 3:16)']);
+    });
+
+    test('apply keeps the near miss verified and the text unchanged', () {
+      final dbNear = memoryDb()
+        ..db.execute(
+          "INSERT INTO verses(translation, book, chapter, verse, text) VALUES "
+          "('BSB', 43, 3, 18, 'Whoever believes in Him is not condemned.')",
+        );
+      const output = 'As John 3:16 and John 3:18 say, God loves the world.';
+      final r = CitationGuard(dbNear).apply(output, ctx);
+      expect(r.text, output);
+      expect(r.verified.map((e) => e.label), ['John 3:16', 'John 3:18']);
+      expect(r.unverified, isEmpty);
+      expect(r.nearMisses.map((m) => m.label), ['John 3:18 (shown John 3:16)']);
+    });
+  });
+
   test('a range split into single verses still overlaps', () {
     final range = RefParser.parse('Philippians 4:6-7').first;
     expect(range.overlaps(RefParser.parse('Philippians 4:7').first), isTrue);

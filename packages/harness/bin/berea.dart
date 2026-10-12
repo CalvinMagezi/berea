@@ -45,7 +45,8 @@ Future<void> main(List<String> args) async {
       '\n\n[${sw.elapsed.inSeconds}s] loaded: ${r.context.refs.map((e) => e.label).join(', ')}'
       ' | verified: ${g.verified.length}'
       ' | unverified refs: ${g.unverified.map((e) => e.label).join(', ')}'
-      ' | unverified quotes: ${g.unverifiedQuotes.length}',
+      ' | unverified quotes: ${g.unverifiedQuotes.length}'
+      ' | near misses: ${g.nearMisses.join(', ')}',
     );
   }
   h.db.close();

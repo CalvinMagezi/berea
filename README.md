@@ -227,7 +227,8 @@ docs/screenshots/
 
 ## Platform notes
 
-- **Android**: `minSdk 30`, arm64 only (LiteRT-LM). The emulator runs models on CPU.
+- **Android**: `minSdk 30`, arm64 only (LiteRT-LM). Answers run on the CPU on every platform:
+  GPU decode corrupts digits on some phones (LiteRT-LM #2202), and verse numbers are digits.
 - **iOS**: deployment target 15.0, CocoaPods only, extended-virtual-addressing and
   increased-memory-limit entitlements so a 2.6 GB model fits on a real iPhone. Swift Package
   Manager is turned off in `pubspec.yaml`: SPM debug builds embed an absolute host rpath, and when
@@ -235,8 +236,8 @@ docs/screenshots/
   on it before `main` runs.
 - **macOS**: the Podfile `post_install` stages the LiteRT-LM companion dylibs into the app so the
   on-device engine can load; Ollama is the default engine.
-- **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time; GPU on
-  Linux needs a vendor Vulkan driver.
+- **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time. Answers
+  run on the CPU here too, so no GPU driver is needed.
 - A small method channel reports device memory so the settings can recommend a model.
 - Debug builds read `BEREA_AUTORUN` or `autorun.txt` in the app's documents folder and run that
   question on launch, so a headless simulator or emulator can exercise the on-device path.
@@ -258,7 +259,8 @@ keep it somewhere you trust.
 
 Everything below keeps the core: zero data, fully offline, fully private.
 
-- Real-device performance numbers for GPU backends on Android and iPhone.
+- GPU answers again once a real Mali phone shows LiteRT-LM #2202 fixed (see `TECHDEBT.md`), with
+  real-device performance numbers for Android and iPhone.
 - Keep one on-device conversation open across turns, if a real GPU phone shows a net win (the
   emulator did not; see `TECHDEBT.md`).
 - On-device embeddings for semantic search, if the retrieval check falls short.
