@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0
+
 Grounding
 - On-device answers run on the CPU. Gemma 4 E2B on some phone GPUs corrupts digits (LiteRT-LM
   #2202, still open), and a wrong verse number that still exists would pass the reference check.
@@ -26,7 +28,7 @@ Commentary
 Site
 - The public site is rebuilt on the scroll-craft engine (vendored, MIT): a scrubbed lamplight
   film, one real answer walked through as you scroll, and a live copy of the reference check
-  you can try to fool. The copy is tested against the app's own check on 29 cases in CI.
+  you can try to fool. The copy is tested against the app's own check on 32 cases in CI.
 
 ## 0.2.0
 

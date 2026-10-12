@@ -236,10 +236,13 @@ cd packages/harness && dart test && cd ../.. && flutter test
 Release (builds the data, runs every check and the eval, builds Android and macOS, tags):
 
 ```bash
-tool/release.sh 0.2.0
+tool/release.sh 0.3.0
 ```
 
 Android release signing reads `android/key.properties`; see `android/key.properties.example`.
+Each app release also carries the APK as `berea-android-arm64.apk`, which the site links through
+`releases/latest/download/`, so publish app releases with `--latest` and data releases (such as
+`lexicon-1` and `commentary-1`) with `--latest=false`.
 
 ## Project layout
 
