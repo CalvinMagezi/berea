@@ -7,11 +7,13 @@
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
+import 'package:berea/attributions_screen.dart';
 import 'package:berea/commentary_packs.dart' show bytesPerMb;
 import 'package:berea/edge_engine.dart';
 import 'package:berea/models.dart';
 import 'package:berea/voice_settings.dart';
 import 'package:berea_harness/berea_harness.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -27,6 +29,15 @@ const _driftToleranceMs = 150;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('the licence page carries the voice notices in full', (tester) async {
+    registerBundledLicences();
+    final names = {
+      await for (final l in LicenseRegistry.licenses)
+        if (l.paragraphs.isNotEmpty) ...l.packages,
+    };
+    expect(names, containsAll(['CMU Pronouncing Dictionary', 'ONNX Runtime third party notices']));
+  });
 
   // ONNX Runtime needs statically linked pods; the on-device LLM plugin must still start.
   testWidgets('the on-device language model plugin still initialises', (tester) async {
