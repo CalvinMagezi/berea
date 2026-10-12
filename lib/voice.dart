@@ -30,9 +30,10 @@ class VoiceShelf {
   VoiceShelf(this.dir, this.onChange, {Iterable<VoicePackFile>? files})
     : files = List.unmodifiable(files ?? voicePackDeviceFiles) {
     dir.createSync(recursive: true);
-    // A download or install cut short by the app closing leaves only temporary files behind.
+    // Anything else here is a download cut short or a file from an older pack.
+    final names = {for (final f in this.files) f.name};
     for (final f in dir.listSync().whereType<File>()) {
-      if (f.path.endsWith('.part')) f.deleteSync();
+      if (!names.contains(f.uri.pathSegments.last)) f.deleteSync();
     }
   }
 

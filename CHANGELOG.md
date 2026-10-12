@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+Voice (experimental)
+- An optional on-device voice reads Scripture aloud and highlights each word as it is spoken.
+  It runs Kokoro (82M parameters, Apache-2.0) through ONNX Runtime with two voices, Heart and
+  Michael. It is downloaded only if you ask (about 160 MB) or added from files, and every file is
+  checked against its published SHA-256. Settings, Voice, Test voice reads John 3:16 in either
+  voice and has a speed benchmark.
+- Pronunciation comes from the CMU Pronouncing Dictionary and a lexicon of biblical names
+  (Melchizedek, Nebuchadnezzar, Habakkuk and others), with numbers spelled out and no espeak-ng.
+  Word timings come from the durations the model predicts for each sound.
+- The voice and the on-device language model are never loaded at the same time, so the two fit
+  a 6 to 8 GB phone; the language model reloads when the voice is done.
+
+Platforms
+- iOS 16 and macOS 14 are now the minimum versions, as ONNX Runtime requires.
+
 ## 0.3.0
 
 Grounding

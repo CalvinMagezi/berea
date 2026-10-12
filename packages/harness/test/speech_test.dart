@@ -4,8 +4,8 @@ import 'dart:typed_data';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:test/test.dart';
 
-/// Durations the timestamped Kokoro export returned for "How could I know?" (af_heart, speed
-/// 1); its waveform was 40200 samples, which is 67 rounded frames of 600.
+/// Durations the timestamped Kokoro export (8-bit file) returned for "How could I know?"
+/// (af_heart, speed 1); its waveform was 40200 samples, which is 67 rounded frames of 600.
 const _howCouldIKnow = [
   15.736977,
   2.0910888,

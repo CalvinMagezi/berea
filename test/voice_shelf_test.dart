@@ -51,10 +51,14 @@ void main() {
     expect(shelf.installed, isFalse);
   });
 
-  test('clears half-finished files left by an earlier run', () {
+  test('clears half-finished files and files from an older pack', () async {
+    final keep = utf8.encode('current voice');
     final dir = Directory('${tmp.path}/shelf')..createSync();
     File('${dir.path}/model.onnx.part').writeAsStringSync('partial');
-    VoiceShelf(dir, () {}, files: const []);
-    expect(dir.listSync(), isEmpty);
+    File('${dir.path}/old-model.onnx').writeAsStringSync('older pack');
+    File('${dir.path}/a.bin').writeAsBytesSync(keep);
+    final shelf = VoiceShelf(dir, () {}, files: [await _pin('a.bin', keep)]);
+    expect(dir.listSync().map((e) => e.uri.pathSegments.last), ['a.bin']);
+    expect(shelf.installed, isTrue);
   });
 }

@@ -82,20 +82,20 @@ const _kokoroRepo =
     'dd4401a9add81ac692d20e240d22ec9dda82cc29';
 const _cmudictRepo =
     'https://raw.githubusercontent.com/cmusphinx/cmudict/74790861f652b15e4ac49015a90074ad62a27690';
-const kokoroModelFile = 'kokoro-v1.0-timestamped-q8.onnx';
+const kokoroModelFile = 'kokoro-v1.0-timestamped-fp16.onnx';
 const cmudictFile = 'cmudict.dict';
 const _apache = 'Apache-2.0';
 const _cmudictLicence = 'BSD-2-Clause style (Carnegie Mellon University)';
 
-/// Every file of `voice-1`. The model is the 8-bit export whose graph also outputs per-token
+/// Every file of `voice-1`. The model is the half-precision export whose graph also outputs per-token
 /// durations, which is what word timings come from.
 const voicePackFiles = [
   VoicePackFile(
     name: kokoroModelFile,
     role: VoiceFileRole.model,
-    sha256: 'c0c02b3299fd97c34ea92a98e6d41eaa1a739c8f77bf685aac34bd7b34c1132c',
-    bytes: 92361055,
-    upstream: '$_kokoroRepo/onnx/model_quantized.onnx',
+    sha256: '220724d5c5e0cc01be30f38faa6cf0c895a7cde6e7773e91db2973c8c7e5123c',
+    bytes: 163232776,
+    upstream: '$_kokoroRepo/onnx/model_fp16.onnx',
     licence: _apache,
   ),
   VoicePackFile(

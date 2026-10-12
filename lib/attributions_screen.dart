@@ -32,7 +32,7 @@ const downloadableSources = [
   DataSource(
     'Kokoro-82M voice model and the Heart and Michael voices (voice pack)',
     'Apache-2.0',
-    'hexgrad/Kokoro-82M; 8-bit ONNX export with durations by onnx-community',
+    'hexgrad/Kokoro-82M; half-precision ONNX export with durations by onnx-community',
   ),
   DataSource(
     'CMU Pronouncing Dictionary (voice pack)',

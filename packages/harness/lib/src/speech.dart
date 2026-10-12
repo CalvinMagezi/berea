@@ -9,6 +9,10 @@ const kokoroSamplesPerFrame = 600;
 
 /// The model's context is 512 tokens including the pad at each end.
 const kokoroMaxTokens = 510;
+
+/// Chunks aim well under the context: peak memory grows with chunk length, and a phone has
+/// less to spare than the model allows. About 15 seconds of speech.
+const kokoroChunkTokens = 200;
 const kokoroStyleDim = 256;
 const kokoroPadId = 0;
 const _msPerSecond = 1000;
@@ -326,7 +330,7 @@ class Phonemizer {
 
   /// Splits [text] into utterances that each fit the model's context, breaking after
   /// punctuation where it can and between words where it must.
-  List<Utterance> utterances(String text, {int maxTokens = kokoroMaxTokens}) {
+  List<Utterance> utterances(String text, {int maxTokens = kokoroChunkTokens}) {
     final all = pieces(text);
     final chunks = <List<SpeechPiece>>[];
     var current = <SpeechPiece>[];

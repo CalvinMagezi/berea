@@ -207,7 +207,8 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
     _finish();
     setState(() => _status = 'Loading the voice…');
     final speech = await widget.state.withVoice((v) => v.speak(_verse, speaker));
-    final dir = await getTemporaryDirectory();
+    // The platform's temporary folder is not guaranteed to exist yet (a sandboxed Mac app).
+    final dir = (await getTemporaryDirectory())..createSync(recursive: true);
     final file = File('${dir.path}/berea-voice-${DateTime.now().microsecondsSinceEpoch}.wav');
     await file.writeAsBytes(wavBytes(speech.samples));
     await _debugDump(speaker, file, speech);
@@ -245,6 +246,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
     final clock = Stopwatch()..start();
     late final Duration load;
     var rssLoaded = 0;
+    var rssSpoken = 0;
     final lines = <String>[];
     await widget.state.withVoice((v) async {
       load = clock.elapsed;
@@ -256,13 +258,14 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
           'RTF ${r.realTimeFactor.toStringAsFixed(3)}',
         );
       }
+      rssSpoken = ProcessInfo.currentRss;
     });
     final rssAfter = ProcessInfo.currentRss;
     final report = [
       'Psalm 23, ${text.split(' ').length} words. Load ${load.inMilliseconds} ms.',
       ...lines,
       'Memory: ${rssBefore ~/ bytesPerMb} MB before, ${rssLoaded ~/ bytesPerMb} MB loaded, '
-          '${rssAfter ~/ bytesPerMb} MB after closing.',
+          '${rssSpoken ~/ bytesPerMb} MB after speaking, ${rssAfter ~/ bytesPerMb} MB closed.',
     ].join('\n');
     debugPrint('voice benchmark\n$report');
     setState(() => _status = report);
