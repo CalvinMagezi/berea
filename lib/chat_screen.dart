@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:berea_harness/berea_harness.dart';
@@ -9,6 +10,8 @@ import 'markdown_lite.dart';
 import 'plans.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
+import 'voice.dart';
+import 'voice_composer.dart';
 
 class ChatScreen extends StatefulWidget {
   final AppState state;
@@ -25,18 +28,23 @@ class _ChatScreenState extends State<ChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _focus = FocusNode();
+  late final VoiceInput _voice = widget.state.voice;
+  var _voicePhase = VoicePhase.idle;
 
   @override
   void initState() {
     super.initState();
     widget.state.addListener(_onChange);
     widget.state.pendingQuestion.addListener(_onPending);
+    _voice.addListener(_onVoice);
   }
 
   @override
   void dispose() {
     widget.state.removeListener(_onChange);
     widget.state.pendingQuestion.removeListener(_onPending);
+    _voice.removeListener(_onVoice);
+    unawaited(_voice.release(this));
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
@@ -50,9 +58,26 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// A fresh transcript joins what was typed for the user to check; it is never sent by itself.
+  void _onVoice() {
+    // The timer ticks ten times a second; only a phase change concerns the whole screen.
+    if (_voice.phase == _voicePhase) return;
+    final entered = _voice.phase == VoicePhase.confirm;
+    _voicePhase = _voice.phase;
+    if (entered && _voice.ownedBy(this)) {
+      final typed = _input.text.trim();
+      _input.text = typed.isEmpty ? _voice.transcript : '$typed ${_voice.transcript}';
+      _input.selection = TextSelection.collapsed(offset: _input.text.length);
+      _focus.requestFocus();
+    }
+    if (!_voice.inUse) _onPending();
+    setState(() {});
+  }
+
+  /// A question from the reader waits while a voice question is being recorded or transcribed.
   void _onPending() {
     final q = widget.state.pendingQuestion.value;
-    if (q == null) return;
+    if (q == null || _voice.inUse) return;
     widget.state.pendingQuestion.value = null;
     _input.text = q;
     widget.state.ready ? _send() : _focus.requestFocus();
@@ -61,6 +86,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _send() {
     final q = _input.text.trim();
     if (q.isEmpty || !widget.state.ready) return;
+    if (_voice.ownedBy(this)) _voice.accept();
     _input.clear();
     widget.state.send(q);
     _focus.requestFocus();
@@ -140,7 +166,25 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
               ),
               if (s.harness == null) _EngineNotice(state: s),
-              _InputBar(controller: _input, focus: _focus, busy: s.busy, onSend: _send),
+              VoiceStatusLine(_voice, owner: this),
+              _InputBar(
+                controller: _input,
+                focus: _focus,
+                busy: s.busy,
+                canSend: !_voice.inUse,
+                onSend: _send,
+                mic: VoiceMicButton(
+                  voice: _voice,
+                  owner: this,
+                  support: voiceSupport(
+                    s.settings,
+                    s.deviceState,
+                    hearsAudio: s.deviceHearsAudio,
+                  ),
+                  modelFree: s.ready,
+                  onOpenSettings: () => showSettingsSheet(context, s),
+                ),
+              ),
             ],
           ),
         ),
@@ -397,12 +441,16 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focus;
   final bool busy;
+  final bool canSend;
   final VoidCallback onSend;
+  final Widget mic;
   const _InputBar({
     required this.controller,
     required this.focus,
     required this.busy,
+    required this.canSend,
     required this.onSend,
+    required this.mic,
   });
 
   @override
@@ -423,9 +471,12 @@ class _InputBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 4),
+          mic,
+          const SizedBox(width: 6),
           IconButton.filled(
-            onPressed: busy ? null : onSend,
+            tooltip: 'Send',
+            onPressed: busy || !canSend ? null : onSend,
             icon: busy
                 ? const SizedBox(
                     width: 18,

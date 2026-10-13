@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:berea_harness/berea_harness.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
@@ -12,6 +13,18 @@ const initTimeout = Duration(seconds: 30);
 /// CPU, not GPU: Gemma 4 E2B on some phone GPUs corrupts digits (LiteRT-LM #2202, still open in
 /// v0.18.0), and a corrupted verse number that still exists would pass the citation check.
 const answerBackend = PreferredBackend.cpu;
+
+/// A spoken question is short; this leaves room for about 30 seconds of speech.
+const transcriptMaxTokens = 256;
+
+/// Near greedy, so the transcript keeps the words that were said.
+const transcriptTemperature = 0.1;
+const transcriptTopK = 1;
+
+const transcribeInstruction =
+    'Transcribe the speech in this audio word for word. Keep every word, including question '
+    'words such as what, who and how, and punctuate it as it was spoken. Do not answer it or '
+    'rephrase it. If there is no speech, reply with nothing. Reply with the transcript only.';
 
 Future<void>? _init;
 
@@ -30,7 +43,10 @@ Future<void> ensureEdgeAiInitialized() =>
 class EdgeAiEngine implements LlmEngine {
   final InferenceModel model;
   final EdgeModel spec;
-  const EdgeAiEngine(this.model, this.spec);
+
+  /// The model loaded with its audio encoder, so it can transcribe voice questions.
+  final bool hearsAudio;
+  const EdgeAiEngine(this.model, this.spec, {this.hearsAudio = false});
 
   static Future<bool> isInstalled(EdgeModel m) async {
     await ensureEdgeAiInitialized();
@@ -49,10 +65,24 @@ class EdgeAiEngine implements LlmEngine {
     ).fromHuggingFace(m.repo, file: m.file, token: token).withProgress(onProgress).install();
   }
 
-  /// Loads the active model sized for [tier]. Download it first with [download].
+  /// Loads the model for [tier]; if its audio encoder fails, text still loads and voice is off.
   static Future<EdgeAiEngine> load(EdgeModel m, Tier tier) async {
+    final maxTokens = tier.promptTokens + tier.maxOutput + contextPadding;
+    if (m.hearsAudio) {
+      try {
+        // The audio encoder stays on its default backend, the CPU.
+        final model = await FlutterEdgeAi.getActiveModel(
+          maxTokens: maxTokens,
+          preferredBackend: answerBackend,
+          supportAudio: true,
+        );
+        return EdgeAiEngine(model, m, hearsAudio: true);
+      } catch (e) {
+        debugPrint('${m.label} did not load with audio, so voice is off: ${e.runtimeType}');
+      }
+    }
     final model = await FlutterEdgeAi.getActiveModel(
-      maxTokens: tier.promptTokens + tier.maxOutput + contextPadding,
+      maxTokens: maxTokens,
       preferredBackend: answerBackend,
     );
     return EdgeAiEngine(model, m);
@@ -83,6 +113,42 @@ class EdgeAiEngine implements LlmEngine {
     } finally {
       await chat.close();
     }
+  }
+
+  /// Words spoken in [wav]; outside the harness, so nothing enters the chat until confirmed.
+  Future<String> transcribe(Uint8List wav) async {
+    if (!hearsAudio) throw StateError('${spec.label} was loaded without audio.');
+    final chat = await model.createChat(
+      temperature: transcriptTemperature,
+      topK: transcriptTopK,
+      enableThinking: false,
+      modelType: spec.type,
+      supportAudio: true,
+      maxOutputTokens: transcriptMaxTokens,
+    );
+    try {
+      // Without supportAudio on both the model and the chat the plugin drops the audio silently.
+      await chat.addQueryChunk(
+        Message.withAudio(text: transcribeInstruction, audioBytes: wav, isUser: true),
+      );
+      final out = StringBuffer();
+      await for (final r in chat.generateChatResponseAsync()) {
+        if (r is TextResponse) out.write(r.token);
+      }
+      return out.toString().trim();
+    } finally {
+      await _forget(chat);
+    }
+  }
+
+  /// The plugin keeps a chat's history, audio included, until cleared; clear it, then close.
+  Future<void> _forget(InferenceChat chat) async {
+    try {
+      await chat.clearHistory();
+    } catch (e) {
+      debugPrint('Could not clear the transcription chat: ${e.runtimeType}');
+    }
+    await chat.close();
   }
 
   Future<void> close() => model.close();
