@@ -19,7 +19,7 @@ const _markerSuffix = '.sha256';
 
 /// The optional voice pack on the device: the pinned files in one folder. Downloads happen
 /// only when the user asks.
-class VoiceShelf {
+class ReadAloudShelf {
   final Directory dir;
   final void Function() onChange;
 
@@ -29,7 +29,13 @@ class VoiceShelf {
   /// Download progress from 0 to 1 while the pack is being fetched.
   double? progress;
 
-  VoiceShelf(this.dir, this.onChange, {Iterable<VoicePackFile>? files})
+  /// True while picked files are being checked and copied in.
+  bool installing = false;
+
+  /// Numbers each scratch copy, so no two copies ever share a file.
+  var _scratchFiles = 0;
+
+  ReadAloudShelf(this.dir, this.onChange, {Iterable<VoicePackFile>? files})
     : files = List.unmodifiable(files ?? voicePackDeviceFiles) {
     dir.createSync(recursive: true);
     // Anything else here is a download cut short or a file from an older pack.
@@ -117,13 +123,17 @@ class VoiceShelf {
   /// file's size and SHA-256, so a file from anywhere is as trusted as a download. Returns the
   /// names installed; files that are not part of the pack are ignored.
   Future<List<String>> installFromFiles(List<String> paths) async {
+    if (installing) throw StateError('Berea is already adding voice files.');
+    installing = true;
+    onChange();
     final installed = <String>[];
     try {
       for (final p in paths) {
-        final name = await _installOne(p, path('incoming-${installed.length}.part'));
+        final name = await _installOne(p, path('incoming-${_scratchFiles++}.part'));
         if (name != null) installed.add(name);
       }
     } finally {
+      installing = false;
       onChange();
     }
     return installed;
@@ -189,7 +199,7 @@ class KokoroVoice {
   final Map<String, Float32List> _styles;
   KokoroVoice._(this._session, this._phonemizer, this._styles);
 
-  static Future<KokoroVoice> load(VoiceShelf shelf) async {
+  static Future<KokoroVoice> load(ReadAloudShelf shelf) async {
     if (!shelf.installed) throw StateError('The voice pack is not installed.');
     final lexiconPath = shelf.path(cmudictFile);
     // Parsing 135,000 dictionary lines stays off the UI isolate.
@@ -221,7 +231,13 @@ class KokoroVoice {
     final audio = BytesBuilder(copy: false);
     final words = <WordTiming>[];
     var offset = 0;
-    for (final u in _phonemizer.utterances(text)) {
+    final utterances = _phonemizer.utterances(text);
+    if (utterances.isEmpty) {
+      throw const FormatException(
+        'There is nothing here to read aloud: the voice reads English words and numbers.',
+      );
+    }
+    for (final u in utterances) {
       final (wave, durations) = await _run(u, style);
       words.addAll(wordTimings(u, durations, offsetSamples: offset, totalSamples: wave.length));
       audio.add(wave.buffer.asUint8List(wave.offsetInBytes, wave.lengthInBytes));

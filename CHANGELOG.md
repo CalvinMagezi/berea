@@ -30,11 +30,11 @@ Notebooks
 - Backups are now version 2 and include notebooks. Version 1 backups still restore, and leave the
   notebooks on the device as they are.
 
-Voice (experimental)
+Read aloud (experimental)
 - An optional on-device voice reads Scripture aloud and highlights each word as it is spoken.
   It runs Kokoro (82M parameters, Apache-2.0) through ONNX Runtime with two voices, Heart and
   Michael. It is downloaded only if you ask (about 160 MB) or added from files, and every file is
-  checked against its published SHA-256. Settings, Voice, Test voice reads John 3:16 in either
+  checked against its published SHA-256. Settings, Read aloud, Test voice reads John 3:16 in either
   voice and has a speed benchmark.
 - Pronunciation comes from the CMU Pronouncing Dictionary and a lexicon of biblical names
   (Melchizedek, Nebuchadnezzar, Habakkuk and others), with numbers spelled out and no espeak-ng.

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:berea/voice.dart';
+import 'package:berea/read_aloud.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:berea/pinned_download.dart';
 import 'package:cryptography/cryptography.dart';
@@ -26,7 +26,7 @@ void main() {
   test('installs picked files only when size and SHA-256 match a pin', () async {
     final a = utf8.encode('first voice');
     final b = utf8.encode('other voice');
-    final shelf = VoiceShelf(
+    final shelf = ReadAloudShelf(
       Directory('${tmp.path}/shelf'),
       () {},
       files: [await _pin('a.bin', a), await _pin('b.bin', b)],
@@ -60,7 +60,7 @@ void main() {
     File('${dir.path}/old-model.onnx').writeAsStringSync('older pack');
     File('${dir.path}/a.bin').writeAsBytesSync(keep);
     File('${dir.path}/a.bin.sha256').writeAsStringSync(pin.sha256);
-    final shelf = VoiceShelf(dir, () {}, files: [pin]);
+    final shelf = ReadAloudShelf(dir, () {}, files: [pin]);
     expect(dir.listSync().map((e) => e.uri.pathSegments.last).toSet(), {'a.bin', 'a.bin.sha256'});
     expect(shelf.installed, isTrue);
   });
@@ -70,7 +70,7 @@ void main() {
     final dir = Directory('${tmp.path}/shelf')..createSync();
     File('${dir.path}/a.bin').writeAsBytesSync(bytes);
     File('${dir.path}/a.bin.sha256').writeAsStringSync('0' * 64);
-    final shelf = VoiceShelf(dir, () {}, files: [await _pin('a.bin', utf8.encode('voice v2'))]);
+    final shelf = ReadAloudShelf(dir, () {}, files: [await _pin('a.bin', utf8.encode('voice v2'))]);
     expect(shelf.installed, isFalse);
   });
 }

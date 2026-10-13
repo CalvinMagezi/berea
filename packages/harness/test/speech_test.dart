@@ -61,7 +61,7 @@ void main() {
     test('uses the misaki US set with stress before the vowel', () {
       expect(arpabetToKokoro('HH AH0 L OW1'), 'həlˈO');
       expect(arpabetToKokoro('B ER1 D'), 'bˈɜɹd');
-      expect(arpabetToKokoro('B AH1 T ER0'), 'bˈʌtəɹ');
+      expect(arpabetToKokoro('B AH1 T ER0'), 'bˈʌt\u025a');
       expect(arpabetToKokoro('JH AH1 JH'), 'ʤˈʌʤ');
       expect(arpabetToKokoro('G AA1 D'), 'ɡˈɑd');
       expect(arpabetToKokoro('S IH2 K S T IY1 N'), 'sˌɪkstˈin');
@@ -120,7 +120,7 @@ void main() {
         _lexicon,
         overrides: {...biblicalPronunciations, 'zoar': 'Z OW1 ER0'},
       );
-      expect(extended.word('Zoar'), 'zˈOəɹ');
+      expect(extended.word('Zoar'), 'zˈO\u025a');
     });
 
     test('unknown words fall back to letter rules with one primary stress', () {
@@ -175,6 +175,23 @@ void main() {
     test('straight quotes open and close in turn', () {
       final u = p.assemble(p.pieces('God said, "So." Three'));
       expect(u.phonemes, endsWith('${p.word('So')}." ${p.word('three')}'));
+    });
+
+    test('accented Latin words are read whole, other scripts are skipped', () {
+      expect(p.word('G\u00f3d'), p.word('god'));
+      final pieces = p.pieces('Th\u00e9 \u1f00\u03b3\u03ac\u03c0\u03b7 God');
+      expect(pieces.map((x) => x.text), ['Th\u00e9', 'God']);
+      expect(
+        p.utterances('\u05d1\u05e8\u05d0\u05e9\u05d9\u05ea \u03bb\u03cc\u03b3\u03bf\u03c2'),
+        isEmpty,
+      );
+    });
+
+    test('chunks never exceed the model context, whatever is asked', () {
+      final text = List.filled(300, 'God').join(' ');
+      for (final c in p.utterances(text, maxTokens: 100000)) {
+        expect(c.phonemes.length, lessThanOrEqualTo(kokoroMaxTokens));
+      }
     });
 
     test('a lone q and very long numbers do not stop speech', () {

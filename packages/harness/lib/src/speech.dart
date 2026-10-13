@@ -197,7 +197,7 @@ String arpabetToKokoro(String arpabet) {
     final stressed = m[2] == '1' || m[2] == '2';
     final vowel = switch (base) {
       'AH' => stressed ? 'ʌ' : 'ə',
-      'ER' => stressed ? 'ɜɹ' : 'əɹ',
+      'ER' => stressed ? 'ɜɹ' : '\u025a',
       _ => _arpaVowels[base],
     };
     if (vowel == null) throw FormatException('Not an ARPAbet phone: "$phone"');
@@ -260,9 +260,43 @@ class Utterance {
 const _openingMarks = {'“', '(', '"'};
 const _breakMarks = {'.', '!', '?', ';', ':', '\u2014', '…', ','};
 final _tokenPattern = RegExp(
-  r"(\d{1,3}(?:,\d{3})+|\d+)|([A-Za-z]+(?:['’][A-Za-z]+)*)|([;:,.!?\u2014\u2013…"
+  r"(\d{1,3}(?:,\d{3})+|\d+)|(\p{L}+(?:['’]\p{L}+)*)|([;:,.!?\u2014\u2013…"
   '"()“”])',
+  unicode: true,
 );
+
+/// Accented Latin letters and the plain letters they are read as.
+const _plainLetters = {
+  'a': 'àáâãäåāăą',
+  'c': 'çćĉċč',
+  'd': 'ďđ',
+  'e': 'èéêëēĕėęě',
+  'g': 'ĝğġģ',
+  'h': 'ĥħ',
+  'i': 'ìíîïĩīĭįı',
+  'j': 'ĵ',
+  'k': 'ķ',
+  'l': 'ĺļľŀł',
+  'n': 'ñńņňŉ',
+  'o': 'òóôõöøōŏő',
+  'r': 'ŕŗř',
+  's': 'śŝşšș',
+  't': 'ţťŧț',
+  'u': 'ùúûüũūŭůűų',
+  'w': 'ŵ',
+  'y': 'ýÿŷ',
+  'z': 'źżž',
+  'ae': 'æ',
+  'oe': 'œ',
+  'ss': 'ß',
+};
+final _plainOf = {
+  for (final MapEntry(key: plain, value: marked) in _plainLetters.entries)
+    for (final c in marked.split('')) c: plain,
+};
+
+/// [word] in lower case with accents dropped ("Naïve" reads as "naive"); other scripts stay.
+String plainLatin(String word) => word.toLowerCase().split('').map((c) => _plainOf[c] ?? c).join();
 
 /// Text to Kokoro phonemes without espeak-ng. Words go through the biblical name lexicon, then
 /// CMUdict, then simple letter rules; numbers are spelled out first.
@@ -273,27 +307,37 @@ class Phonemizer {
 
   /// The pieces of [text] in reading order; anything that is not a word, number or
   /// Kokoro punctuation is dropped.
-  List<SpeechPiece> pieces(String text) => [
-    for (final m in _tokenPattern.allMatches(text))
-      if (m[1] != null)
-        SpeechPiece(m[0]!, m.start, m.end, _numberPhonemes(m[1]!))
-      else if (m[2] != null)
-        SpeechPiece(m[0]!, m.start, m.end, word(m[2]!))
-      else
-        SpeechPiece(m[0]!, m.start, m.end, m[0] == '\u2013' ? '\u2014' : m[0]!, isWord: false),
-  ];
+  List<SpeechPiece> pieces(String text) {
+    final out = <SpeechPiece>[];
+    for (final m in _tokenPattern.allMatches(text)) {
+      final said = switch (m) {
+        _ when m[1] != null => _numberPhonemes(m[1]!),
+        _ when m[2] != null => word(m[2]!),
+        _ => null,
+      };
+      if (said == null) {
+        out.add(
+          SpeechPiece(m[0]!, m.start, m.end, m[0] == '\u2013' ? '\u2014' : m[0]!, isWord: false),
+        );
+      } else if (said.isNotEmpty) {
+        // A word in another script has nothing to say in English, so it is skipped.
+        out.add(SpeechPiece(m[0]!, m.start, m.end, said));
+      }
+    }
+    return out;
+  }
 
   /// Phonemes for one word, keeping only characters Kokoro knows.
   String word(String raw) {
     final w = raw.replaceAll('’', "'");
-    final found = _lookup(w);
+    final found = _lookup(w) ?? _lookup(plainLatin(w));
     if (found != null) return found;
     final possessive = RegExp(r"^(.+)'s$", caseSensitive: false).firstMatch(w);
     if (possessive != null) {
       final base = _lookup(possessive[1]!) ?? letterRulePhonemes(possessive[1]!);
       return base + _sSuffix(base);
     }
-    return letterRulePhonemes(w);
+    return letterRulePhonemes(plainLatin(w));
   }
 
   /// A capitalised override ("Job") applies only to that spelling, so the noun "job" keeps
@@ -341,19 +385,19 @@ class Phonemizer {
   /// Splits [text] into utterances that each fit the model's context, breaking after
   /// punctuation where it can and between words where it must.
   List<Utterance> utterances(String text, {int maxTokens = kokoroChunkTokens}) {
+    final limit = min(maxTokens, kokoroMaxTokens);
     final all = pieces(text);
     final chunks = <List<SpeechPiece>>[];
     var current = <SpeechPiece>[];
     for (final p in all) {
       current.add(p);
-      if (assemble(current).phonemes.length <= maxTokens || current.length == 1) continue;
-      // Break after punctuation only if what follows still fits; the chunk without the new
-      // piece always does.
+      if (assemble(current).phonemes.length <= limit || current.length == 1) continue;
+      // Break after punctuation only if the rest fits; without the new piece it always did.
       final lastBreak = current.lastIndexWhere((q) => !q.isWord && _breakMarks.contains(q.text));
       final tailFits =
           lastBreak >= 0 &&
           lastBreak < current.length - 1 &&
-          assemble(current.sublist(lastBreak + 1)).phonemes.length <= maxTokens;
+          assemble(current.sublist(lastBreak + 1)).phonemes.length <= limit;
       final cut = tailFits ? lastBreak + 1 : current.length - 1;
       chunks.add(current.sublist(0, cut));
       current = current.sublist(cut);
@@ -361,7 +405,7 @@ class Phonemizer {
     if (current.isNotEmpty) chunks.add(current);
     return [
       for (final c in chunks)
-        if (c.any((p) => p.isWord)) _truncated(assemble(c), maxTokens),
+        if (c.any((p) => p.isWord)) _truncated(assemble(c), limit),
     ];
   }
 

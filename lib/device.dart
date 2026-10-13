@@ -18,9 +18,9 @@ Future<int?> totalMemoryBytes() async {
 }
 
 int? _linuxMemory() {
-  final line = File('/proc/meminfo')
-      .readAsLinesSync()
-      .firstWhere((l) => l.startsWith('MemTotal:'), orElse: () => '');
+  final line = File(
+    '/proc/meminfo',
+  ).readAsLinesSync().firstWhere((l) => l.startsWith('MemTotal:'), orElse: () => '');
   final kb = int.tryParse(RegExp(r'\d+').firstMatch(line)?[0] ?? '');
   return kb == null ? null : kb * 1024;
 }

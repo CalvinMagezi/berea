@@ -18,7 +18,7 @@ import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
 import 'study_store.dart';
-import 'voice.dart';
+import 'read_aloud.dart';
 
 enum EngineKind { ollama, device }
 
@@ -118,7 +118,7 @@ class AppState extends ChangeNotifier {
   late final CommentaryShelf commentary;
 
   /// The optional on-device voice pack.
-  late final VoiceShelf voice;
+  late final ReadAloudShelf readAloud;
 
   /// True while the voice model is loaded; chat waits until it is closed again.
   bool speaking = false;
@@ -174,7 +174,7 @@ class AppState extends ChangeNotifier {
     s._keepTranslationValid();
     s.db.attachFullLexicon(s.lexiconPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
-    s.voice = VoiceShelf(Directory('${s.supportDir.path}/voice'), s.touch);
+    s.readAloud = ReadAloudShelf(Directory('${s.supportDir.path}/voice-pack'), s.touch);
     await s._rebuildHarness();
     if (kDebugMode && supportDir == null) unawaited(s._autorun());
     return s;
@@ -512,7 +512,7 @@ class AppState extends ChangeNotifier {
   /// Runs [use] with the voice model loaded. Kokoro and the on-device language model are never
   /// resident together, since the pair is too much for a 6 to 8 GB phone: the language model is
   /// closed first and loaded again once the voice is closed.
-  Future<T> withVoice<T>(Future<T> Function(KokoroVoice voice) use) async {
+  Future<T> withReadAloud<T>(Future<T> Function(KokoroVoice voice) use) async {
     if (busy || speaking) throw StateError('Berea is busy. Try again in a moment.');
     speaking = true;
     notifyListeners();
@@ -533,7 +533,7 @@ class AppState extends ChangeNotifier {
         await edge.close();
       }
       notifyListeners();
-      loaded = await KokoroVoice.load(voice);
+      loaded = await KokoroVoice.load(readAloud);
       return await use(loaded);
     } finally {
       try {
@@ -562,12 +562,12 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// The harness rebuild in flight, if any; withVoice waits for it.
+  /// The harness rebuild in flight, if any; withReadAloud waits for it.
   Future<void>? _rebuilding;
 
   Future<void> _rebuildHarness() {
     if (speaking) {
-      // The language model would load beside the voice; withVoice rebuilds when it is done.
+      // The language model would load beside the voice; withReadAloud rebuilds when it is done.
       _rebuildAfterVoice = true;
       return Future.value();
     }

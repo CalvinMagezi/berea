@@ -2,14 +2,14 @@
 // settings, never the user's own data: fetches the pack from its pinned upstream sources,
 // installs it from those files, speaks John 3:16 in each voice on the Test voice screen while
 // checking the highlight against the audio clock, and runs the benchmark. Downloads about 168 MB.
-// Run: flutter test integration_test/voice_test.dart -d macos
+// Run: flutter test integration_test/read_aloud_test.dart -d macos
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
 import 'package:berea/licences.dart';
 import 'package:berea/commentary_packs.dart' show bytesPerMb;
 import 'package:berea/pinned_download.dart';
-import 'package:berea/voice_settings.dart';
+import 'package:berea/read_aloud_settings.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -41,7 +41,7 @@ void main() {
   testWidgets('installs the voice from files, speaks with live highlighting, benchmarks', (
     tester,
   ) async {
-    final tmp = await Directory.systemTemp.createTemp('berea-voice-test');
+    final tmp = await Directory.systemTemp.createTemp('berea-speech-test');
     addTearDown(() => tmp.deleteSync(recursive: true));
     SharedPreferences.setMockInitialValues({});
     final state = await AppState.bootstrap(
@@ -58,23 +58,23 @@ void main() {
         timeout: _downloadLimit,
       );
     }
-    final added = await state.voice.installFromFiles([
+    final added = await state.readAloud.installFromFiles([
       for (final f in src.listSync().whereType<File>()) f.path,
     ]);
     debugPrint('installed from files: $added');
-    expect(state.voice.installed, isTrue);
+    expect(state.readAloud.installed, isTrue);
 
     // From the settings entry, as a user reaches it.
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: VoiceSettings(state: state, onMessage: debugPrint),
+          body: ReadAloudSettings(state: state, onMessage: debugPrint),
         ),
       ),
     );
     await tester.tap(find.text('Test voice'));
     await tester.pumpAndSettle();
-    expect(find.byType(VoiceTestScreen), findsOneWidget);
+    expect(find.byType(ReadAloudTestScreen), findsOneWidget);
     final verse = state.db
         .passage(Ref(bookFor('John')!, 3, 16), translation: state.settings.translation)
         .map((v) => v.text)
@@ -88,14 +88,14 @@ void main() {
     // Loading and closing again must not keep adding memory.
     final closed = <int>[];
     for (var i = 0; i < 3; i++) {
-      await state.withVoice((v) => v.speak(verse, kokoroSpeakers.first));
+      await state.withReadAloud((v) => v.speak(verse, kokoroSpeakers.first));
       closed.add(ProcessInfo.currentRss ~/ bytesPerMb);
     }
     debugPrint('RSS after each close: $closed MB');
     expect(closed.last - closed.first, lessThan(_leakToleranceMb));
 
     for (final speaker in kokoroSpeakers) {
-      final expected = await state.withVoice((v) => v.speak(verse, speaker));
+      final expected = await state.withReadAloud((v) => v.speak(verse, speaker));
       debugPrint(
         'direct ${speaker.id}: ${expected.words.length} words, ${expected.duration} audio, '
         'RTF ${expected.realTimeFactor.toStringAsFixed(3)}',

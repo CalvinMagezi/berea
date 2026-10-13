@@ -73,8 +73,8 @@ like. Restore checks the file before it replaces anything.
 
 **Quick chat.** A chat button on every tab opens the same study.
 
-**Voice (experimental).** An optional on-device voice that reads Scripture aloud and highlights
-each word as it is spoken. Settings, Voice, Test voice reads John 3:16 in either of two voices
+**Read aloud (experimental).** An optional on-device voice that reads Scripture aloud and highlights
+each word as it is spoken. Settings, Read aloud, Test voice reads John 3:16 in either of two voices
 and benchmarks the speed.
 
 ## How it works
@@ -124,7 +124,7 @@ The tier follows the chosen model. Models download on first use from the Hugging
 `litert-community` organisation; the catalog is in `lib/models.dart`. Gemma 4 E2B and E4B are not
 gated. Gemma 3 1B needs a Hugging Face token after accepting its licence.
 
-### Voice
+### Read aloud
 
 The voice is [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0), run through
 ONNX Runtime with [flutter_onnxruntime](https://pub.dev/packages/flutter_onnxruntime) (MIT). It
@@ -150,7 +150,7 @@ three times slower on an M-series Mac, real-time factor 0.36 against 0.13 for th
   recogniser run over the app's own John 3:16 audio heard every word in both voices, and its word
   starts were a median 39 ms (Heart) and 33 ms (Michael) from the computed ones.
 - **Memory.** The voice loads for a job and closes after. Loading it first closes the on-device
-  language model, which reloads when the voice is done (`AppState.withVoice`), so the two are
+  language model, which reloads when the voice is done (`AppState.withReadAloud`), so the two are
   never loaded together. On a Mac the voice adds about 560 MB resident when loaded and 100 to
   200 MB more while speaking; phone figures are not measured yet.
 - **Voice pack.** `bin/build_voice_pack.dart` fetches the model, the `af_heart` and `am_michael`
@@ -326,7 +326,7 @@ lib/
   commentary_settings.dart, attributions_screen.dart  pack settings, licences and sources
   pinned_download.dart    streamed download checked against a published SHA-256
   voice.dart           optional voice pack, Kokoro through ONNX Runtime, synthesis
-  voice_settings.dart  voice settings, Test voice with word highlighting, benchmark
+  read_aloud_settings.dart  voice settings, Test voice with word highlighting, benchmark
   study_page_screen.dart  observation, interpretation, application
   plans.dart, plans_screen.dart  reading plans
   notes_screen.dart    saved studies, study pages and notes

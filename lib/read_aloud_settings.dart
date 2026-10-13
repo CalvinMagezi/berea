@@ -12,19 +12,28 @@ import 'package:path_provider/path_provider.dart';
 import 'app_state.dart';
 import 'commentary_packs.dart' show bytesPerMb;
 import 'theme.dart';
-import 'voice.dart';
+import 'read_aloud.dart';
 
 final _testVerse = Ref(bookFor('John')!, 3, 16);
 final _benchmarkPassage = Ref(bookFor('Psalms')!, 23);
 const _highlightAlpha = 0.28;
+const _percent = 100;
+
+/// The message inside an error, without Dart's type prefix such as "Bad state:".
+String friendlyError(Object e) => switch (e) {
+  StateError(:final message) => message,
+  FormatException(:final message) => message,
+  FileSystemException(:final message) => message,
+  _ => '$e',
+};
 
 /// The Voice part of the settings: install the optional voice pack and try it.
-class VoiceSettings extends StatelessWidget {
+class ReadAloudSettings extends StatelessWidget {
   final AppState state;
   final ValueChanged<String> onMessage;
-  const VoiceSettings({super.key, required this.state, required this.onMessage});
+  const ReadAloudSettings({super.key, required this.state, required this.onMessage});
 
-  VoiceShelf get shelf => state.voice;
+  ReadAloudShelf get shelf => state.readAloud;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +42,7 @@ class VoiceSettings extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Voice (experimental)', style: Theme.of(context).textTheme.titleSmall),
+        Text('Read aloud (experimental)', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 4),
         Text(
           shelf.installed
@@ -44,9 +53,13 @@ class VoiceSettings extends StatelessWidget {
                     'against its published fingerprint.',
           style: muted,
         ),
-        if (progress != null) ...[
+        if (progress != null || shelf.installing) ...[
           const SizedBox(height: 8),
-          LinearProgressIndicator(value: progress),
+          LinearProgressIndicator(
+            value: progress,
+            semanticsLabel: progress == null ? 'Checking voice files' : 'Downloading the voice',
+            semanticsValue: progress == null ? null : '${(progress * _percent).round()} percent',
+          ),
         ] else
           Wrap(
             spacing: 8,
@@ -57,7 +70,7 @@ class VoiceSettings extends StatelessWidget {
                   label: const Text('Test voice'),
                   onPressed: () => Navigator.push(
                     context,
-                    MaterialPageRoute<void>(builder: (_) => VoiceTestScreen(state: state)),
+                    MaterialPageRoute<void>(builder: (_) => ReadAloudTestScreen(state: state)),
                   ),
                 ),
                 TextButton.icon(
@@ -88,7 +101,7 @@ class VoiceSettings extends StatelessWidget {
       await shelf.download();
       onMessage('Voice installed.');
     } catch (e) {
-      onMessage('The voice could not be downloaded: $e');
+      onMessage('The voice could not be downloaded: ${friendlyError(e)}');
     }
   }
 
@@ -107,7 +120,10 @@ class VoiceSettings extends StatelessWidget {
             : 'Added ${added.length} of the voice files. Still needed: ${missing.join(', ')}.',
       );
     } catch (e) {
-      onMessage('Voice install failed: $e');
+      onMessage('Voice install failed: ${friendlyError(e)}');
+    } finally {
+      // The picker's copies of a 160 MB pack would otherwise linger in the app's cache.
+      if (Platform.isAndroid || Platform.isIOS) await FilePicker.clearTemporaryFiles();
     }
   }
 
@@ -130,15 +146,15 @@ class VoiceSettings extends StatelessWidget {
 }
 
 /// Speaks a verse with live word highlighting, and measures how fast the voice runs.
-class VoiceTestScreen extends StatefulWidget {
+class ReadAloudTestScreen extends StatefulWidget {
   final AppState state;
-  const VoiceTestScreen({super.key, required this.state});
+  const ReadAloudTestScreen({super.key, required this.state});
 
   @override
-  State<VoiceTestScreen> createState() => _VoiceTestScreenState();
+  State<ReadAloudTestScreen> createState() => _ReadAloudTestScreenState();
 }
 
-class _VoiceTestScreenState extends State<VoiceTestScreen> {
+class _ReadAloudTestScreenState extends State<ReadAloudTestScreen> {
   final _player = AudioPlayer();
   final _subscriptions = <StreamSubscription<Object?>>[];
   late final String _verse = _passageText(_testVerse);
@@ -196,7 +212,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
     try {
       await job();
     } catch (e) {
-      _show('$e');
+      _show(friendlyError(e));
     } finally {
       if (mounted) setState(() => _working = false);
     }
@@ -211,11 +227,11 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
     await _player.stop();
     _finish();
     _show('Loading the voice…');
-    final speech = await widget.state.withVoice((v) => v.speak(_verse, speaker));
+    final speech = await widget.state.withReadAloud((v) => v.speak(_verse, speaker));
     if (!mounted) return;
     // The platform's temporary folder is not guaranteed to exist yet (a sandboxed Mac app).
     final dir = (await getTemporaryDirectory())..createSync(recursive: true);
-    final file = File('${dir.path}/berea-voice-${DateTime.now().microsecondsSinceEpoch}.wav');
+    final file = File('${dir.path}/berea-speech-${DateTime.now().microsecondsSinceEpoch}.wav');
     try {
       await file.writeAsBytes(wavBytes(speech.samples));
       await _debugDump(speaker, file, speech);
@@ -262,7 +278,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
     var rssLoaded = 0;
     var rssSpoken = 0;
     final lines = <String>[];
-    await widget.state.withVoice((v) async {
+    await widget.state.withReadAloud((v) async {
       load = clock.elapsed;
       rssLoaded = ProcessInfo.currentRss;
       for (final s in kokoroSpeakers) {
@@ -326,9 +342,15 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> {
                 ],
               ),
               if (_working)
-                const Padding(padding: EdgeInsets.only(top: 16), child: LinearProgressIndicator()),
+                const Padding(
+                  padding: EdgeInsets.only(top: 16),
+                  child: LinearProgressIndicator(semanticsLabel: 'Working on the voice'),
+                ),
               if (_status != null)
-                Padding(padding: const EdgeInsets.only(top: 16), child: SelectableText(_status!)),
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Semantics(liveRegion: true, child: SelectableText(_status!)),
+                ),
             ],
           ),
         ),

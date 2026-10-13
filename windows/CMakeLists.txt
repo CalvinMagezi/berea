@@ -52,6 +52,26 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
+# Only Debug Windows builds until ONNX Runtime's default telemetry is dealt with (TECHDEBT.md).
+if(DEFINED ENV{BEREA_ALLOW_ORT_TELEMETRY})
+  set(ORT_TELEMETRY_DEFAULT "$ENV{BEREA_ALLOW_ORT_TELEMETRY}")
+else()
+  set(ORT_TELEMETRY_DEFAULT OFF)
+endif()
+option(BEREA_ALLOW_ORT_TELEMETRY "Allow Profile and Release builds that ship ONNX Runtime telemetry"
+  ${ORT_TELEMETRY_DEFAULT})
+set(ORT_TELEMETRY_GUARD "${CMAKE_CURRENT_SOURCE_DIR}/ort_telemetry_guard.cmake")
+if(NOT BEREA_ALLOW_ORT_TELEMETRY)
+  if(IS_MULTICONFIG)
+    add_custom_target(ort_telemetry_guard
+      COMMAND ${CMAKE_COMMAND} -DCONFIG=$<CONFIG> -P ${ORT_TELEMETRY_GUARD})
+    add_dependencies(${BINARY_NAME} ort_telemetry_guard)
+  else()
+    set(CONFIG "${CMAKE_BUILD_TYPE}")
+    include(${ORT_TELEMETRY_GUARD})
+  endif()
+endif()
+
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
