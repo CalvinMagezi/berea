@@ -29,6 +29,29 @@ Notebooks
   pdfium_flutter package). Its licence texts are on a new Software licences page.
 - Backups are now version 2 and include notebooks. Version 1 backups still restore, and leave the
   notebooks on the device as they are.
+- Chat inside a notebook. Answers draw on the notebook's sources and on Scripture, and cite
+  sources by tag: [S3 p.14] for a PDF page, [S3 §2] for a section of anything else, [C4821] for
+  commentary from an installed pack on the passages in view. Tap the chip to open the source at
+  the cited section. Pin a source to offer it to every answer. Each notebook keeps one
+  conversation, saved with the notebook and included in backups.
+- A source tag naming a source, page or section the model was not shown is marked
+  "unverified source", as invented verse references are. A quote cited to a source must be in
+  that source; a quote cited to a verse must be in the verse. A quote a source supports that
+  reads as a verse reworded is marked "differs from Scripture", so a source that misquotes
+  Scripture cannot vouch for the misquote. Bracketed text that means a source but is not a tag
+  ([Source 9], [S3 and S9]) is marked too.
+- Study pages wait their turn for the model, as the Study and notebook chats do.
+
+Grounding
+- Quotes in Greek, Hebrew or any other script are now checked. Before, a quote with no English
+  letters was taken as shown. The site's live check does the same (two new parity cases).
+- Only what fit the prompt counts as shown. A verse or source the budget cut no longer supports
+  a quote or a near-miss check.
+- Prompt budgets now estimate tokens high: one token for every digit, punctuation mark and
+  Hebrew or Greek character. The old estimate let word-study and long-passage prompts overrun
+  the model's context on the mid and high tiers (measured up to 14,417 tokens against a 9,912
+  window); every measured prompt now fits with its full answer. Answers to long questions carry
+  a little less context as a result.
 
 Study
 - Ask by voice. Hold the microphone beside the question box, or tap it to start and tap again to

@@ -7,7 +7,6 @@ import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
 import 'models.dart';
 
-const contextPadding = 512;
 const initTimeout = Duration(seconds: 30);
 
 /// CPU, not GPU: Gemma 4 E2B on some phone GPUs corrupts digits (LiteRT-LM #2202, still open in
@@ -67,7 +66,7 @@ class EdgeAiEngine implements LlmEngine {
 
   /// Loads the model for [tier]; if its audio encoder fails, text still loads and voice is off.
   static Future<EdgeAiEngine> load(EdgeModel m, Tier tier) async {
-    final maxTokens = tier.promptTokens + tier.maxOutput + contextPadding;
+    final maxTokens = tier.contextWindow;
     if (m.hearsAudio) {
       try {
         // The audio encoder stays on its default backend, the CPU.

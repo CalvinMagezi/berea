@@ -11,4 +11,5 @@ export 'src/ollama_engine.dart';
 export 'src/prompt_builder.dart';
 export 'src/ref_parser.dart';
 export 'src/retriever.dart';
+export 'src/sources.dart';
 export 'src/tier.dart';

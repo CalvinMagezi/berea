@@ -4,11 +4,14 @@ import 'citation_guard.dart';
 import 'engine.dart';
 import 'prompt_builder.dart';
 import 'retriever.dart';
+import 'sources.dart';
 import 'tier.dart';
 
 class TurnResult {
   final String raw;
   final GuardResult guard;
+
+  /// What the model was shown, after the budget.
   final StudyContext context;
   const TurnResult(this.raw, this.guard, this.context);
   String get text => guard.text;
@@ -55,42 +58,52 @@ class Harness {
   final CitationGuard guard;
   final history = <ChatMessage>[];
 
+  /// Answers inside a notebook: the prompt carries SOURCES and the guard checks source tags.
+  final bool notebook;
+
   Harness({
     required this.db,
     required this.engine,
     required String systemPrompt,
     this.tier = Tier.mid,
     String translation = defaultTranslation,
+    this.notebook = false,
   }) : retriever = Retriever(db, translation: translation),
        builder = PromptBuilder(systemPrompt, translation: translation),
        guard = CitationGuard(db, translation: translation);
 
-  Future<TurnResult> ask(String userText, {void Function(String token)? onToken}) async {
-    final ctx = retriever.retrieve(userText, tier);
-    final messages = builder.build(ctx, history, userText, tier);
+  /// [sources] are the notebook chunks to draw on, best first (see [notebookSources]); only a
+  /// notebook harness shows them.
+  Future<TurnResult> ask(
+    String userText, {
+    List<SourceChunk> sources = const [],
+    void Function(String token)? onToken,
+  }) async {
+    final ctx = retriever.retrieve(userText, tier, sources: sources);
+    final prompt = builder.build(ctx, history, userText, tier, notebook: notebook);
     final buf = StringBuffer();
-    await for (final token in engine.generate(messages, maxTokens: tier.maxOutput)) {
+    await for (final token in engine.generate(prompt.messages, maxTokens: tier.maxOutput)) {
       buf.write(token);
       onToken?.call(token);
     }
     final raw = buf.toString();
-    final result = guard.apply(raw, ctx);
+    final result = guard.apply(raw, prompt.shown, checkSources: notebook);
     history
       ..add(ChatMessage.user(userText))
       ..add(ChatMessage.assistant(result.text));
-    return TurnResult(raw, result, ctx);
+    return TurnResult(raw, result, prompt.shown);
   }
 
   /// A one-off study page for [ref]. It does not touch the chat history.
   Future<StudyPage> studyPage(Ref ref, {void Function(String token)? onToken}) async {
     final ctx = retriever.retrieve(ref.label, tier);
-    final messages = builder.build(ctx, const [], studyPageInstruction(ref), tier);
+    final prompt = builder.build(ctx, const [], studyPageInstruction(ref), tier);
     final buf = StringBuffer();
-    await for (final token in engine.generate(messages, maxTokens: tier.maxOutput)) {
+    await for (final token in engine.generate(prompt.messages, maxTokens: tier.maxOutput)) {
       buf.write(token);
       onToken?.call(token);
     }
-    final guarded = guard.apply(buf.toString(), ctx);
+    final guarded = guard.apply(buf.toString(), prompt.shown);
     final parts = StudyPage.sections(guarded.text);
     return StudyPage(
       parts['observation'] ?? guarded.text,

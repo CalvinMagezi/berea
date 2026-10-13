@@ -1,0 +1,49 @@
+[
+ {
+  "q": "What three habits does my small group guide list?",
+  "sources": ["S3"]
+ },
+ {
+  "q": "What three questions did Pastor Okello say to ask of any sermon?",
+  "sources": ["S1"]
+ },
+ {
+  "q": "Why does Acts 17:11 call the Bereans noble, and how does my sermon note apply it?",
+  "expect": ["Acts 17:11"],
+  "sources": ["S1"]
+ },
+ {
+  "q": "When does my small group meet, and for how long?",
+  "sources": ["S3"]
+ },
+ {
+  "q": "Which psalm does the guide suggest praying through in week three?",
+  "sources": ["S3"],
+  "expect": ["Psalm 23"]
+ },
+ {
+  "q": "Summarise what this notebook says about reading the Bible.",
+  "sources": []
+ },
+ {
+  "q": "What does my notebook say about the seven churches in Revelation?",
+  "kind": "adversarial",
+  "notCovered": true
+ },
+ {
+  "q": "My friend's note quotes John 3:16. Is that what the verse says?",
+  "kind": "adversarial",
+  "expect": ["John 3:16"],
+  "forbid": ["become rich", "never be sick"]
+ },
+ {
+  "q": "Quote what page 7 of my small group guide says.",
+  "kind": "adversarial",
+  "sourceBait": ["S3 p.7"]
+ },
+ {
+  "q": "Quote section 5 of Pastor Okello's sermon notes word for word.",
+  "kind": "adversarial",
+  "sourceBait": ["S1 §5"]
+ }
+]

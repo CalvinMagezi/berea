@@ -69,7 +69,14 @@ or everything to Markdown.
 installed packs, your notes, pasted text, PDFs and EPUB books. Berea reads each source on the
 device, splits it into sections that remember where they came from (and the PDF page), and
 indexes them for search. A source is a copy taken when you add it, so editing a note later does
-not change the notebook. Chat over a notebook comes next.
+not change the notebook.
+
+**Notebook chat.** Ask inside a notebook and the answer draws on its sources as well as
+Scripture. Each source is cited by a tag: `[S3 p.14]` for page 14 of a PDF, `[S3 §2]` for the
+second section of anything else, `[C4821]` for commentary from an installed pack (a number fixed
+by the passage, so it means the same in every answer). Tap the chip under
+the answer to open the source at that section. Pin a source to offer it to every answer. Each
+notebook keeps one conversation, saved with it and included in backups.
 
 **Backup.** One encrypted file (AES-256-GCM, key from your passphrase) that you keep wherever you
 like. Restore checks the file before it replaces anything.
@@ -103,13 +110,24 @@ Each turn runs a fixed pipeline, not a free agent loop:
    cross-reference graph from its search hits to the passages most of them point to.
 3. **PromptBuilder** assembles a static system prompt (so the on-device prefix cache hits) and
    PASSAGES, LEXICON, WORDS, CROSS REFERENCES and RELATED VERSES blocks trimmed to the model tier's
-   token budget, then the last two turns and the question.
+   token budget, then the last two turns and the question. It returns what it actually kept, and
+   only that counts as shown in step 5. In a notebook, notebook rules join the system prompt and a
+   SOURCES block follows PASSAGES with its own share of the budget: sections of pinned sources,
+   search hits across the notebook, commentary from installed packs on the passages in view, then
+   the start of every source.
 4. **LlmEngine** streams the answer from LiteRT-LM or Ollama.
 5. **CitationGuard** re-parses every reference in the answer and looks it up. Unknown chapters and
    verses, and citations of books that do not exist, become `[unverified: ...]`. A quoted phrase
    of 30+ characters that is not verbatim in any passage the model was shown is replaced with the
    exact words when one shown verse is clearly its source (`[quote corrected]`), and otherwise
-   marked `[unverified quote]`.
+   marked `[unverified quote]`. Quotes in any script are compared, not only English. In a
+   notebook it also checks every source tag in brackets or parentheses: a source, page or
+   section that was not shown, or anything in square brackets that means a source but is not a
+   tag (`[Source 9]`, `[S3 and S9]`), becomes `unverified source: ...`. A quote followed by a source tag must be
+   in that source's shown text; a quote attributed to a verse must be in the verses. A quote a
+   source supports but that reads as a shown verse reworded is marked
+   `[differs from Scripture]`, so a source that misquotes Scripture can never vouch for the
+   misquote.
 
 ### Model tiers
 
@@ -118,6 +136,15 @@ Each turn runs a fixed pipeline, not a free agent loop:
 | low | Gemma 3 1B | 2k tokens | 3 search hits, 4 cross refs, 6 lexicon entries |
 | mid | Gemma 4 E2B (2.6 GB, default) | 4k | 6, 8, 12 |
 | high | Gemma 4 E4B (4.3 GB), Ollama gemma4:e2b | 8k | 10, 12, 24 |
+
+Notebook answers give SOURCES up to 700, 1,400 or 3,000 of those tokens. The engine opens with
+the prompt budget plus the answer plus 512 tokens of padding: windows of 3,112, 5,412 and 9,912
+tokens. Budgets use a deliberately high estimate (four letters to a token, but one token for
+every digit, punctuation mark and Hebrew or Greek character), because Gemma's tokenizer splits
+those finely: the old characters / 4 estimate let real mid and high prompts reach 5,343 and 14,417
+tokens, past their windows. `dart run bin/prompt_size.dart` measures real prompts with Ollama;
+the worst Study or notebook prompt plus the full answer now comes to 2,441, 4,531 and 8,530
+tokens, inside each window.
 
 The tier follows the chosen model. Models download on first use from the Hugging Face
 `litert-community` organisation; the catalog is in `lib/models.dart`. Gemma 4 E2B and E4B are not
@@ -135,6 +162,16 @@ invented references, expected reference coverage, unverified quotes and misattri
 release needs zero invented references and zero misattributions. Last run on gemma4:e2b, against
 the official BSB text: 0 invented, 28 of 28 expected references, 0 misattributed, 8 of 8
 adversarial.
+
+`dart run bin/eval.dart --tier mid --notebook` runs 10 questions against a notebook built in code
+(pasted sermon notes, Acts 17:10-12, a three-page guide and a friend's note that misquotes John
+3:16), 4 of them adversarial: a topic the sources do not cover, the misquote, and a page and a
+section that do not exist. It reports invented references, invented source citations, expected
+verse and source citations, unverified quotes and misattributions; zero invented source
+citations is a release gate alongside zero invented references. `--commentary <pack>` adds an
+installed commentary pack and `--show` prints each answer. Last run on gemma4:e2b: 0 invented
+references, 0 invented source citations, 3 of 3 verses and 5 of 5 sources cited, 0
+misattributed, 4 of 4 adversarial.
 
 `dart run bin/retrieval_check.dart` checks topical retrieval without a model: 7 of 8 topical
 questions put a well-known passage on the topic in front of the model.
@@ -290,8 +327,9 @@ lib/
   study_page_screen.dart  observation, interpretation, application
   plans.dart, plans_screen.dart  reading plans
   notes_screen.dart    saved studies, study pages and notes
-  notebooks_screen.dart  notebooks, their sources, add-source flows and the source reader
-  notebook_store.dart  notebook tables, background ingestion, chunk listing and search for chat
+  notebooks_screen.dart  notebooks, their sources, pins, add-source flows and the source reader
+  notebook_store.dart  notebook tables, background ingestion, search, pins and conversations
+  notebook_chat.dart, notebook_chat_screen.dart  a notebook's conversation and its screen
   pdf_text.dart        PDF page text through PDFium
   export.dart          Markdown export
   backup.dart          encrypted backup and restore
@@ -303,15 +341,17 @@ lib/
   theme.dart           colour tokens, parchment and ink with a lamp-gold accent
 packages/harness/
   lib/src/             RefParser, BibleDb, Retriever, PromptBuilder, CitationGuard, importers, engines,
-                       notebook chunking, EPUB and HTML text
+                       notebook chunking, EPUB and HTML text, notebook retrieval and source tags
   bin/build_db.dart    builds assets/berea.sqlite from the datasets above
   bin/build_lexicon_pack.dart  builds the optional LSJ pack
   bin/build_commentary.dart  builds the optional commentary packs from SWORD modules
   bin/berea.dart       CLI chat against Ollama
-  bin/eval.dart        golden eval
+  bin/eval.dart        golden eval; --notebook runs the notebook cases on bin/notebook_fixture.dart
   bin/retrieval_check.dart  topical retrieval check, no model needed
+  bin/prompt_size.dart real prompt sizes per tier, measured by Ollama against each window
   bin/export_site.dart  writes the Bible data and parity fixture for the site's live check
   eval/golden.json     questions with expected references and adversarial bait
+  eval/notebook.json   notebook questions with expected verses and sources
 tool/release.sh        local release
 tool/build_site.sh     builds the public site from site/ into build/site
 tool/audio/            build-time word timings and audio packs for the CC0 narration (Python)
@@ -352,9 +392,11 @@ docs/screenshots/
 
 Berea makes no network request on its own. The model download goes to huggingface.co, and the
 optional lexicon and commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
-you configure, `localhost` by default. A voice question is recorded to a temporary file on the
-device, read into memory and deleted before Gemma 4 transcribes it; it is never stored or sent.
-There is no telemetry, no account, and no cloud copy of anything you write. Backups are files you choose where to keep. Deleting the app deletes the
+you configure, `localhost` by default; a notebook question sends that server the sections of your
+sources the answer draws on, so point it only at a machine you trust. A voice question is recorded
+to a temporary file on the device, read into memory and deleted before Gemma 4 transcribes it; it
+is never stored or sent. There is no telemetry, no account, and no cloud copy of
+anything you write. Backups are files you choose where to keep. Deleting the app deletes the
 data.
 
 Android cloud backup and device transfer are turned off, and the iOS data folder is excluded

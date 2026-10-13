@@ -359,5 +359,31 @@
    "In the beginning God created the heavens and the earth."
   ],
   "corrected": []
+ },
+ {
+  "input": "“ἐν ἀρχῇ ἦν ὁ λόγος, καὶ ὁ λόγος” (John 1:1)",
+  "text": "“ἐν ἀρχῇ ἦν ὁ λόγος, καὶ ὁ λόγος” [unverified quote] (John 1:1)",
+  "verified": [
+   "John 1:1"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [
+   "ἐν ἀρχῇ ἦν ὁ λόγος, καὶ ὁ λόγος"
+  ],
+  "corrected": []
+ },
+ {
+  "input": "“!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!” (John 1:1)",
+  "text": "“!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!” [unverified quote] (John 1:1)",
+  "verified": [
+   "John 1:1"
+  ],
+  "unverified": [],
+  "unknownBooks": [],
+  "badQuotes": [
+   "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  ],
+  "corrected": []
  }
 ]

@@ -4,6 +4,7 @@ import 'bible_db.dart';
 import 'books.dart';
 import 'ref_parser.dart';
 import 'retriever.dart';
+import 'sources.dart';
 
 class GuardResult {
   final String text;
@@ -20,15 +21,28 @@ class GuardResult {
   /// Real references that sit one slip away from a verse the model was shown. They stay verified
   /// and are surfaced for review, since a GPU decoder that corrupts digits produces exactly these.
   final List<NearMiss> nearMisses;
+
+  /// Notebook answers only: the shown chunks the answer cites, each once.
+  final List<ShownSource> sources;
+
+  /// Notebook answers only: source tags naming a source, page or section that was not shown.
+  final List<String> unverifiedSources;
+
+  /// Notebook answers only: quotes a source supports that read as Scripture but are not its
+  /// words, marked [differs from Scripture].
+  final List<String> rewordedQuotes;
   const GuardResult(
     this.text,
     this.verified,
     this.unverified,
-    this.unverifiedQuotes, [
+    this.unverifiedQuotes, {
     this.unknownBooks = const [],
     this.correctedQuotes = const [],
     this.nearMisses = const [],
-  ]);
+    this.sources = const [],
+    this.unverifiedSources = const [],
+    this.rewordedQuotes = const [],
+  });
 
   int get inventedCount => unverified.length + unknownBooks.length;
 }
@@ -239,6 +253,22 @@ String? correctQuote(String quote, Iterable<Verse> shown, {Ref? citedAs}) {
   return bestSpan?.replaceAll(RegExp(r'^[^\w\u2018\u201c]+|[,;:]+$'), '');
 }
 
+/// Share of a quote's content words that one shown verse must hold for the quote to read as
+/// Scripture. Lower than [minQuoteOverlap]: this only stops a source vouching for the quote.
+const minResemblance = 0.4;
+
+/// True when [quote] shares enough content words with one shown verse to read as that verse,
+/// reworded. A source that misquotes Scripture is caught here.
+bool resemblesVerse(String quote, Iterable<Verse> shown) {
+  final words = _contentWords(quote);
+  if (words.length < minQuoteContentWords) return false;
+  for (final v in shown) {
+    final shared = words.intersection(_contentWords(v.text)).length;
+    if (shared >= minQuoteContentWords && shared / words.length >= minResemblance) return true;
+  }
+  return false;
+}
+
 class CitationGuard {
   final BibleDb db;
   final String translation;
@@ -393,12 +423,22 @@ class CitationGuard {
     return spans;
   }
 
-  static final _nonWord = RegExp(r'[^a-z0-9 ]');
+  static final _marks = RegExp(r'\p{M}', unicode: true);
+  static final _nonWord = RegExp(r'[^\p{L}\p{N} ]', unicode: true);
 
-  static String normalize(String s) =>
-      s.toLowerCase().replaceAll(_nonWord, ' ').replaceAll(_spaces, ' ').trim();
+  /// Lower case words of any script, combining marks dropped, so a Greek or Hebrew quote is
+  /// compared like an English one. The site's copy (site/check/check.js) does the same.
+  static String normalize(String s) => s
+      .toLowerCase()
+      .replaceAll(_marks, '')
+      .replaceAll(_nonWord, ' ')
+      .replaceAll(_spaces, ' ')
+      .trim();
 
-  GuardResult apply(String output, StudyContext ctx) {
+  /// Checks [output] against [shown], the context PromptBuilder says the model was shown. With
+  /// [checkSources] (notebook answers), source tags are checked too, and a quote may come from a
+  /// shown source chunk: from the cited source when it names one, never when it names a verse.
+  GuardResult apply(String output, StudyContext shown, {bool checkSources = false}) {
     final verified = <Ref>{};
     final unverified = <Ref>{};
     final buf = StringBuffer();
@@ -424,47 +464,139 @@ class CitationGuard {
       return '[unverified: ${bad.trim()}]';
     });
 
-    final shown = normalize(ctx.allVerses.map((v) => v.text).join(' '));
-    final badQuotes = <String>[];
+    final tagged = checkSources ? tagSources(shown.sources) : const <ShownSource>[];
+    final sourceCheck = checkSources ? checkSourceCitations(withBooks, tagged) : null;
+    final quotes = _checkQuotes(
+      sourceCheck?.text ?? withBooks,
+      shown,
+      checkSources ? tagged : null,
+    );
+
+    return GuardResult(
+      quotes.text,
+      verified.toList(),
+      unverified.toList(),
+      quotes.bad,
+      unknownBooks: unknown,
+      correctedQuotes: quotes.corrected,
+      nearMisses: findNearMisses(verified, shown.allVerses),
+      sources: sourceCheck?.cited ?? const [],
+      unverifiedSources: sourceCheck?.unverified ?? const [],
+      rewordedQuotes: quotes.reworded,
+    );
+  }
+
+  /// Flags quotes found in no shown text and replaces clear misquotes of one verse. [sources] is
+  /// null outside notebook answers, which keeps the Study check identical to the site's copy.
+  /// In a notebook a source supports a quote attributed to it or to nothing, but never one that
+  /// reads as Scripture reworded: that is marked [differs from Scripture], so a source that
+  /// misquotes a verse cannot vouch for the misquote.
+  ({String text, List<String> bad, List<String> corrected, List<String> reworded}) _checkQuotes(
+    String text,
+    StudyContext shown,
+    List<ShownSource>? sources,
+  ) {
+    final verses = normalize(shown.allVerses.map((v) => v.text).join(' '));
+    final bad = <String>[];
     final corrected = <String>[];
-    final withRefs = withBooks;
+    final reworded = <String>[];
     final out = StringBuffer();
-    cursor = 0;
-    for (final (start, end) in quoteSpans(withRefs)) {
-      final quoted = withRefs.substring(start, end);
-      if (quoted.length < minQuoteChars || shown.contains(normalize(quoted))) continue;
-      // The attribution is the nearest reference after the quote, else the nearest before it.
-      final after = withRefs.substring(end, min(withRefs.length, end + quoteCitationWindow));
-      final beforeStart = max(0, start - 1 - quoteCitationWindow);
-      final before = withRefs.substring(beforeStart, max(beforeStart, start - 1));
-      final citedAs =
-          RefParser.matches(after).firstOrNull?.ref ?? RefParser.matches(before).lastOrNull?.ref;
-      final fix = correctQuote(quoted, ctx.allVerses, citedAs: citedAs);
+    var cursor = 0;
+    void mark(int end, String note) {
+      out.write(text.substring(cursor, end + 1));
+      out.write(' $note');
+      cursor = end + 1;
+    }
+
+    for (final (start, end) in quoteSpans(text)) {
+      final quoted = text.substring(start, end);
+      final q = normalize(quoted);
+      if (quoted.length < minQuoteChars || (q.isNotEmpty && verses.contains(q))) continue;
+      final (citedAs, citedSources) = _attribution(text, start, end, sources);
+      // A quote attributed to a source is never corrected toward a verse.
+      final fix = q.isEmpty || citedSources != null
+          ? null
+          : correctQuote(quoted, shown.allVerses, citedAs: citedAs);
       if (fix != null) {
         corrected.add(quoted);
-        out.write(withRefs.substring(cursor, start));
+        out.write(text.substring(cursor, start));
         out.write(fix);
-        out.write(withRefs[end]);
+        out.write(text[end]);
         out.write(' [quote corrected]');
         cursor = end + 1;
         continue;
       }
-      badQuotes.add(quoted);
-      out.write(withRefs.substring(cursor, end + 1));
-      out.write(' [unverified quote]');
-      cursor = end + 1;
+      final pool = citedSources ?? (citedAs == null ? sources : null);
+      if (q.isNotEmpty && pool != null && _inShown(q, pool)) {
+        if (!resemblesVerse(quoted, shown.allVerses)) continue;
+        reworded.add(quoted);
+        mark(end, '[differs from Scripture]');
+        continue;
+      }
+      bad.add(quoted);
+      mark(end, '[unverified quote]');
     }
-    out.write(withRefs.substring(cursor));
-    final text = out.toString();
+    out.write(text.substring(cursor));
+    return (text: out.toString(), bad: bad, corrected: corrected, reworded: reworded);
+  }
 
-    return GuardResult(
-      text,
-      verified.toList(),
-      unverified.toList(),
-      badQuotes,
-      unknown,
-      corrected,
-      findNearMisses(verified, ctx.allVerses),
-    );
+  /// In one shown chunk, or across two that follow each other in the same source, but never
+  /// across the join of unrelated chunks.
+  static bool _inShown(String normalizedQuote, List<ShownSource> pool) {
+    for (final a in pool) {
+      if (normalize(a.chunk.text).contains(normalizedQuote)) return true;
+      for (final b in pool) {
+        if (!b.chunk.sameSource(a.chunk) || b.chunk.ordinal != a.chunk.ordinal + 1) continue;
+        if (normalize('${a.chunk.text} ${b.chunk.text}').contains(normalizedQuote)) return true;
+      }
+    }
+    return false;
+  }
+
+  /// What a quote is attributed to: the nearest reference or source tag after it, else the
+  /// nearest before it. Source tags count only when [sources] is given; a tag naming nothing
+  /// shown (the source check has already marked it) attributes the quote to no source. Tag
+  /// groups that follow one another ("[S3 p.2] [S5]") cite together.
+  static (Ref?, List<ShownSource>?) _attribution(
+    String text,
+    int start,
+    int end,
+    List<ShownSource>? sources,
+  ) {
+    final after = text.substring(end, min(text.length, end + quoteCitationWindow));
+    final beforeStart = max(0, start - 1 - quoteCitationWindow);
+    final before = text.substring(beforeStart, max(beforeStart, start - 1));
+    final refAfter = RefParser.matches(after).firstOrNull;
+    final refBefore = RefParser.matches(before).lastOrNull;
+    if (sources == null) return (refAfter?.ref ?? refBefore?.ref, null);
+    final groupsAfter = [
+      for (final g in sourceCitationGroup.allMatches(after))
+        if (refAfter == null || g.start < refAfter.start) g,
+    ];
+    final tagBefore = sourceCitationGroup.allMatches(before).lastOrNull;
+    if (groupsAfter.isNotEmpty) {
+      return (null, _citedTogether(groupsAfter, after, sources));
+    }
+    if (refAfter != null) return (refAfter.ref, null);
+    if (tagBefore != null && (refBefore == null || tagBefore.end > refBefore.end)) {
+      return (null, citedChunks(tagBefore, sources));
+    }
+    return (refBefore?.ref, null);
+  }
+
+  static final _betweenGroups = RegExp(r'^[\s;,]*$');
+
+  /// The chunks cited by the first group and by each group that directly follows it.
+  static List<ShownSource>? _citedTogether(
+    List<Match> groups,
+    String text,
+    List<ShownSource> sources,
+  ) {
+    final out = <ShownSource>[...?citedChunks(groups.first, sources)];
+    for (var i = 1; i < groups.length; i++) {
+      if (!_betweenGroups.hasMatch(text.substring(groups[i - 1].end, groups[i].start))) break;
+      out.addAll(citedChunks(groups[i], sources) ?? const []);
+    }
+    return out.isEmpty ? null : out;
   }
 }

@@ -162,12 +162,16 @@ class _ChatScreenState extends State<ChatScreen> {
                         controller: _scroll,
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                         itemCount: s.turns.length,
-                        itemBuilder: (_, i) => _TurnView(s.turns[i], s.db, s.settings.translation),
+                        itemBuilder: (_, i) => TurnView(
+                          turn: s.turns[i],
+                          db: s.db,
+                          translation: s.settings.translation,
+                        ),
                       ),
               ),
-              if (s.harness == null) _EngineNotice(state: s),
+              if (s.harness == null) EngineNotice(state: s),
               VoiceStatusLine(_voice, owner: this),
-              _InputBar(
+              ChatInputBar(
                 controller: _input,
                 focus: _focus,
                 busy: s.busy,
@@ -176,11 +180,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 mic: VoiceMicButton(
                   voice: _voice,
                   owner: this,
-                  support: voiceSupport(
-                    s.settings,
-                    s.deviceState,
-                    hearsAudio: s.deviceHearsAudio,
-                  ),
+                  support: voiceSupport(s.settings, s.deviceState, hearsAudio: s.deviceHearsAudio),
                   modelFree: s.ready,
                   onOpenSettings: () => showSettingsSheet(context, s),
                 ),
@@ -271,11 +271,21 @@ class _Empty extends StatelessWidget {
   }
 }
 
-class _TurnView extends StatelessWidget {
+/// A question and its answer, with chips for what the answer cites.
+class TurnView extends StatelessWidget {
   final ChatTurn turn;
   final BibleDb db;
   final String translation;
-  const _TurnView(this.turn, this.db, this.translation);
+
+  /// Opens a cited notebook source or commentary passage; notebook chats set it.
+  final void Function(ShownSource source)? onSource;
+  const TurnView({
+    super.key,
+    required this.turn,
+    required this.db,
+    required this.translation,
+    this.onSource,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -310,18 +320,22 @@ class _TurnView extends StatelessWidget {
             )
           else
             MarkdownLite(turn.answer),
-          if (turn.done) _Citations(turn, db, translation),
+          if (turn.done) _Citations(turn, db, translation, onSource),
         ],
       ),
     );
   }
 }
 
+/// Source chip labels stop here so one long file name cannot fill the row.
+const _sourceChipMaxWidth = 280.0;
+
 class _Citations extends StatelessWidget {
   final ChatTurn g;
   final BibleDb db;
   final String translation;
-  const _Citations(this.g, this.db, this.translation);
+  final void Function(ShownSource source)? onSource;
+  const _Citations(this.g, this.db, this.translation, this.onSource);
 
   @override
   Widget build(BuildContext context) {
@@ -330,7 +344,9 @@ class _Citations extends StatelessWidget {
     if (g.verified.isEmpty &&
         notInScripture.isEmpty &&
         g.unverifiedQuotes == 0 &&
-        g.correctedQuotes == 0) {
+        g.correctedQuotes == 0 &&
+        g.sources.isEmpty &&
+        g.unverifiedSources.isEmpty) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -348,19 +364,26 @@ class _Citations extends StatelessWidget {
                   label: Text(r.label),
                   onPressed: () => _showPassage(context, r),
                 ),
+              for (final s in g.sources) _sourceChip(s, scheme),
             ],
           ),
           if (notInScripture.isNotEmpty ||
               g.unverifiedQuotes > 0 ||
               g.correctedQuotes > 0 ||
-              g.nearMisses.isNotEmpty)
+              g.rewordedQuotes > 0 ||
+              g.nearMisses.isNotEmpty ||
+              g.unverifiedSources.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 [
                   if (notInScripture.isNotEmpty) 'Not in Scripture: ${notInScripture.join(', ')}',
+                  if (g.unverifiedSources.isNotEmpty)
+                    'Not among the sources shown: ${g.unverifiedSources.join(', ')}',
                   if (g.correctedQuotes > 0)
                     '${g.correctedQuotes} misquote(s) replaced with the exact words',
+                  if (g.rewordedQuotes > 0)
+                    '${g.rewordedQuotes} quote(s) from a source differ from the verse shown',
                   if (g.unverifiedQuotes > 0)
                     '${g.unverifiedQuotes} quoted phrase(s) not found verbatim',
                   if (g.nearMisses.isNotEmpty) nearMissNotice(g.nearMisses)!,
@@ -372,6 +395,20 @@ class _Citations extends StatelessWidget {
       ),
     );
   }
+
+  Widget _sourceChip(ShownSource s, ColorScheme scheme) => ActionChip(
+    avatar: Icon(
+      s.chunk.fromPack ? Icons.history_edu_outlined : Icons.description_outlined,
+      size: 16,
+      color: scheme.primary,
+    ),
+    tooltip: s.chunk.title,
+    label: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: _sourceChipMaxWidth),
+      child: Text('${s.tag} · ${s.chunk.title}', maxLines: 1, overflow: TextOverflow.ellipsis),
+    ),
+    onPressed: onSource == null ? null : () => onSource!(s),
+  );
 
   void _showPassage(BuildContext context, Ref ref) {
     final verses = db.passage(ref, translation: translation);
@@ -404,9 +441,10 @@ class _Citations extends StatelessWidget {
   }
 }
 
-class _EngineNotice extends StatelessWidget {
+/// Why there is no engine yet, with the way to fix it.
+class EngineNotice extends StatelessWidget {
   final AppState state;
-  const _EngineNotice({required this.state});
+  const EngineNotice({super.key, required this.state});
 
   @override
   Widget build(BuildContext context) {
@@ -437,20 +475,23 @@ class _EngineNotice extends StatelessWidget {
   }
 }
 
-class _InputBar extends StatelessWidget {
+class ChatInputBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focus;
   final bool busy;
   final bool canSend;
   final VoidCallback onSend;
-  final Widget mic;
-  const _InputBar({
+  final String hint;
+  final Widget? mic;
+  const ChatInputBar({
+    super.key,
     required this.controller,
     required this.focus,
     required this.busy,
-    required this.canSend,
+    this.canSend = true,
     required this.onSend,
-    required this.mic,
+    this.hint = 'Ask about a passage, a word, or a question of life',
+    this.mic,
   });
 
   @override
@@ -466,13 +507,10 @@ class _InputBar extends StatelessWidget {
               autofocus: !(Platform.isAndroid || Platform.isIOS),
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => onSend(),
-              decoration: const InputDecoration(
-                hintText: 'Ask about a passage, a word, or a question of life',
-              ),
+              decoration: InputDecoration(hintText: hint),
             ),
           ),
-          const SizedBox(width: 4),
-          mic,
+          if (mic case final m?) ...[const SizedBox(width: 4), m],
           const SizedBox(width: 6),
           IconButton.filled(
             tooltip: 'Send',

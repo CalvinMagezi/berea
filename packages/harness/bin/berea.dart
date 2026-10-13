@@ -21,13 +21,11 @@ Harness harnessFromArgs(List<String> args) {
   final tier = Tier.values.byName(opt('tier', 'mid'));
   return Harness(
     db: BibleDb.open(opt('db', defaultDb)),
-    engine: OllamaEngine(
-      model: opt('model', 'gemma4:e2b'),
-      numCtx: tier.promptTokens + tier.maxOutput + 512,
-    ),
+    engine: OllamaEngine(model: opt('model', 'gemma4:e2b'), numCtx: tier.contextWindow),
     systemPrompt: systemPromptFrom(opt('prompt', defaultPrompt)),
     tier: tier,
     translation: opt('translation', defaultTranslation),
+    notebook: args.contains('--notebook'),
   );
 }
 

@@ -14,6 +14,7 @@ import 'backup.dart';
 import 'commentary_packs.dart';
 import 'edge_engine.dart';
 import 'models.dart';
+import 'notebook_chat.dart';
 import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
@@ -96,9 +97,29 @@ class ChatTurn {
   int unverifiedQuotes = 0;
   int correctedQuotes = 0;
   List<NearMiss> nearMisses = const [];
+
+  /// Notebook answers only: the chunks cited, and tags naming nothing that was shown.
+  List<ShownSource> sources = const [];
+  List<String> unverifiedSources = const [];
+  int rewordedQuotes = 0;
   bool done = false;
   String? error;
   ChatTurn(this.question);
+
+  /// Takes the checked answer and what the check found.
+  void take(GuardResult g) {
+    answer = g.text;
+    verified = g.verified;
+    unverified = g.unverified;
+    unknownBooks = g.unknownBooks;
+    unverifiedQuotes = g.unverifiedQuotes.length;
+    correctedQuotes = g.correctedQuotes.length;
+    nearMisses = g.nearMisses;
+    sources = g.sources;
+    unverifiedSources = g.unverifiedSources;
+    rewordedQuotes = g.rewordedQuotes.length;
+    done = true;
+  }
 }
 
 enum DeviceModelState { notInstalled, downloading, loading, ready, failed }
@@ -553,7 +574,7 @@ class AppState extends ChangeNotifier {
   LlmEngine _ollama() => OllamaEngine(
     model: settings.model,
     baseUrl: settings.ollamaUrl,
-    numCtx: settings.tier.promptTokens + settings.tier.maxOutput + contextPadding,
+    numCtx: settings.tier.contextWindow,
   );
 
   Future<LlmEngine?> _device() async {
@@ -629,9 +650,16 @@ class AppState extends ChangeNotifier {
     return useModel(() => edge.transcribe(wav));
   }
 
+  /// Runs [answer] through [useModel] unless the model is busy or recording; null when nothing ran.
+  Future<T?> runExclusive<T>(Future<T> Function(Harness h) answer) async {
+    final h = harness;
+    if (h == null || !ready) return null;
+    return useModel(() => answer(h));
+  }
+
   Future<void> send(String question) async {
     final h = harness;
-    if (h == null || busy) return;
+    if (h == null || !ready) return;
     final turn = ChatTurn(question);
     turns.add(turn);
     await useModel(() => _answer(h, turn));
@@ -646,15 +674,7 @@ class AppState extends ChangeNotifier {
           notifyListeners();
         },
       );
-      turn
-        ..answer = result.text
-        ..verified = result.guard.verified
-        ..unverified = result.guard.unverified
-        ..unknownBooks = result.guard.unknownBooks
-        ..unverifiedQuotes = result.guard.unverifiedQuotes.length
-        ..correctedQuotes = result.guard.correctedQuotes.length
-        ..nearMisses = result.guard.nearMisses
-        ..done = true;
+      turn.take(result.guard);
       conversationId ??= study.createConversation(turn.question);
       study.addMessage(conversationId!, 'user', turn.question, const []);
       study.addMessage(conversationId!, 'assistant', turn.answer, turn.verified);
@@ -662,6 +682,61 @@ class AppState extends ChangeNotifier {
       turn.error = e.toString();
     }
   }
+
+  final _notebookChats = <int, NotebookChat>{};
+
+  /// The conversation of notebook [id], kept while the app runs so an answer that finishes after
+  /// its screen closed is still shown; read again after a restore replaced the notebooks.
+  NotebookChat notebookChat(int id) {
+    final kept = _notebookChats[id];
+    if (kept != null && kept.epoch == notebooks.epoch) return kept;
+    return _notebookChats[id] = NotebookChat(
+      store: notebooks,
+      notebookId: id,
+      answer: (q, history, onToken) => answerInNotebook(id, q, history, onToken),
+      ready: () => harness != null,
+    );
+  }
+
+  /// The Ollama host notebook answers go to when it is not this device, else null.
+  String? get offDeviceHost {
+    if (settings.engine != EngineKind.ollama) return null;
+    final host = Uri.tryParse(settings.ollamaUrl)?.host.toLowerCase() ?? '';
+    final local =
+        host == 'localhost' ||
+        host.endsWith('.localhost') ||
+        host == '::1' ||
+        host == '[::1]' ||
+        host.startsWith('127.');
+    return local ? null : (host.isEmpty ? settings.ollamaUrl : host);
+  }
+
+  /// Answers [question] inside notebook [notebookId] from its sources, pinned ones first, and
+  /// installed commentary on the passages in view, after [history]. Null when the engine is
+  /// missing or busy with another answer.
+  Future<TurnResult?> answerInNotebook(
+    int notebookId,
+    String question,
+    List<ChatMessage> history,
+    void Function(String token) onToken,
+  ) => runExclusive((base) {
+    final h = Harness(
+      db: db,
+      engine: base.engine,
+      systemPrompt: systemPrompt,
+      tier: settings.tier,
+      translation: settings.translation,
+      notebook: true,
+    )..history.addAll(history);
+    final sources = notebookSources(
+      index: NotebookIndex(notebooks.db, notebookId),
+      question: question,
+      tier: settings.tier,
+      pinned: notebooks.pinnedSources(notebookId),
+      commentary: commentary.library,
+    );
+    return h.ask(question, sources: sources, onToken: onToken);
+  });
 
   void clear() {
     turns.clear();

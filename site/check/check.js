@@ -35,7 +35,9 @@
     .toLowerCase()
     .replace(/[\s.]/g, '');
 
-  const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  // Words of any script, combining marks dropped, as CitationGuard.normalize does.
+  const normalize = (s) => s.toLowerCase().replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N} ]/gu, ' ')
+    .replace(/\s+/g, ' ').trim();
 
   const contentWords = (s) => new Set(normalize(s).split(' ').filter((w) => w && !FUNCTION_WORDS.has(w)));
 
@@ -243,7 +245,9 @@
       cursor = 0;
       for (const [start, end] of quoteSpans(withRefs)) {
         const quoted = withRefs.substring(start, end);
-        if (quoted.length < MIN_QUOTE_CHARS || shownText.includes(normalize(quoted))) continue;
+        const q = normalize(quoted);
+        // A quote with no letters or digits left is never taken as shown.
+        if (quoted.length < MIN_QUOTE_CHARS || (q && shownText.includes(q))) continue;
         const after = withRefs.substring(end, Math.min(withRefs.length, end + QUOTE_CITATION_WINDOW));
         const beforeStart = Math.max(0, start - 1 - QUOTE_CITATION_WINDOW);
         const before = withRefs.substring(beforeStart, Math.max(beforeStart, start - 1));

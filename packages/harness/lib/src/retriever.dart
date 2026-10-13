@@ -1,5 +1,6 @@
 import 'bible_db.dart';
 import 'ref_parser.dart';
+import 'sources.dart';
 import 'tier.dart';
 
 class StudyContext {
@@ -9,6 +10,9 @@ class StudyContext {
   final Map<String, LexEntry> lexicon;
   final List<Verse> xrefVerses;
   final List<Verse> searchHits;
+
+  /// Notebook and commentary passages for a notebook answer, best first.
+  final List<SourceChunk> sources;
   const StudyContext({
     required this.refs,
     required this.passages,
@@ -16,9 +20,11 @@ class StudyContext {
     required this.lexicon,
     required this.xrefVerses,
     required this.searchHits,
+    this.sources = const [],
   });
 
-  /// Every verse the model was shown. The citation guard checks quotes against this.
+  /// Every verse in this context. For what the model was shown, use the context PromptBuilder
+  /// returns: the budget may cut some of what was retrieved.
   Iterable<Verse> get allVerses => [...passages, ...xrefVerses, ...searchHits];
 }
 
@@ -27,7 +33,7 @@ class Retriever {
   final String translation;
   Retriever(this.db, {this.translation = defaultTranslation});
 
-  StudyContext retrieve(String userText, Tier tier) {
+  StudyContext retrieve(String userText, Tier tier, {List<SourceChunk> sources = const []}) {
     final refs = RefParser.parse(userText);
     final passages = [for (final r in refs) ...db.passage(r, translation: translation)];
     final seen = {for (final v in passages) v.label};
@@ -79,6 +85,7 @@ class Retriever {
       lexicon: lexicon,
       xrefVerses: xrefVerses,
       searchHits: searchHits,
+      sources: sources,
     );
   }
 }
