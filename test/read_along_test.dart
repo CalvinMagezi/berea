@@ -101,6 +101,16 @@ void main() {
       expect(leftovers.where((p) => p.endsWith('.part')), isEmpty);
     });
 
+    test('only temporary files are swept at start, judged by their own names', () {
+      final parent = Directory('${dir.path}/x.part')..createSync();
+      final shelfDir = Directory('${parent.path}/narration')..createSync();
+      final kept = File('${shelfDir.path}/souer-43.sqlite')..writeAsStringSync('pack');
+      final stale = File('${shelfDir.path}/incoming-0.sqlite.part-wal')..writeAsStringSync('x');
+      NarrationShelf(shelfDir, () {}, chapterCount: (_) => 2);
+      expect(kept.existsSync(), isTrue, reason: 'a folder name with .part in it is not a reason');
+      expect(stale.existsSync(), isFalse);
+    });
+
     test('a file over the size cap is refused before it is copied', () async {
       final small = NarrationShelf(
         Directory('${dir.path}/narration'),

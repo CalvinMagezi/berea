@@ -6,22 +6,19 @@ import 'package:berea_harness/berea_harness.dart';
 
 import 'pinned_download.dart';
 
-/// Narration packs are published uncompressed on a data-only release, pinned by tag and by
-/// hash, so what arrives is exactly what `tool/audio/pack.py` produced.
+/// Packs are published uncompressed on a data-only release, pinned by tag and by hash.
 const narrationReleaseUrl = 'https://github.com/CalvinMagezi/berea/releases/download/audio-1';
 
 /// The narrator every published pack uses.
 const narrationNarrator = 'souer';
 const narrationCredit = 'Bob Souer';
 
-/// Size and SHA-256 of each published pack by book, from build/audio-packs/manifest.json.
-/// Adding a book is adding its pin.
+/// Size and SHA-256 of each published pack by book; adding a book is adding its pin.
 const narrationPins = <int, PackPin>{
   43: PackPin('c30bbe16566e09eab0517208079d0533ac0ec1599f891cf5b7822ca76b749391', 27140096),
 };
 
-/// Size cap for a pack picked from a file. Psalms, the longest book, is about six hours of
-/// narration, roughly 90 MB at 32 kbps.
+/// Size cap for a picked file; Psalms, the longest book, is about 90 MB at 32 kbps.
 const maxNarrationPackBytes = 256 * bytesPerMb;
 const narrationDownloadTimeout = Duration(minutes: 10);
 
@@ -36,8 +33,7 @@ class NarrationTrack {
   const NarrationTrack(this.file, this.durationMs, this.primingMs, this.timings);
 }
 
-/// The installed narration packs, one SQLite file per book under the app's support folder.
-/// Downloads happen only when the user asks.
+/// The installed narration packs, one SQLite file per book, downloaded only on request.
 class NarrationShelf {
   final Directory dir;
   final void Function() onChange;
@@ -58,6 +54,9 @@ class NarrationShelf {
   /// Downloads in flight by book; asking again joins the one already running.
   final _downloads = <int, Future<void>>{};
 
+  /// Books whose download should stop at its next chunk.
+  final _cancelled = <int>{};
+
   NarrationShelf(
     this.dir,
     this.onChange, {
@@ -65,10 +64,9 @@ class NarrationShelf {
     this.maxPackBytes = maxNarrationPackBytes,
   }) {
     dir.createSync(recursive: true);
-    // A download or install cut short by the app closing leaves only temporary files behind,
-    // with any journal SQLite made beside them.
+    // Downloads or installs cut short leave only temporary files, with any SQLite journal.
     for (final f in dir.listSync().whereType<File>()) {
-      if (f.path.contains('.part')) f.deleteSync();
+      if (f.uri.pathSegments.last.contains('.part')) f.deleteSync();
     }
     if (_playDir.existsSync()) _playDir.deleteSync(recursive: true);
   }
@@ -87,8 +85,17 @@ class NarrationShelf {
       if (isInstalled(b.id)) b.id,
   }.toList()..sort();
 
-  Future<void> download(int book) =>
-      _downloads[book] ??= _download(book).whenComplete(() => _downloads.remove(book));
+  Future<void> download(int book) => _downloads[book] ??= _download(book).whenComplete(() {
+    _downloads.remove(book);
+    _cancelled.remove(book);
+  });
+
+  bool isDownloading(int book) => _downloads.containsKey(book);
+
+  /// Stops [book]'s download, if one is running; its callers see a [DownloadCancelled].
+  void cancelDownload(int book) {
+    if (isDownloading(book)) _cancelled.add(book);
+  }
 
   Future<void> _download(int book) async {
     final pin = narrationPins[book];
@@ -103,6 +110,7 @@ class NarrationShelf {
         sha256: pin.sha256,
         maxBytes: pin.bytes,
         timeout: narrationDownloadTimeout,
+        cancelled: () => _cancelled.contains(book),
         onProgress: wholePercents((f) {
           progress[book] = f;
           onChange();
@@ -116,8 +124,7 @@ class NarrationShelf {
     }
   }
 
-  /// Installs a pack the user picked and returns its book's name. The file is checked before it
-  /// replaces anything; a pack names its own book, so it lands in its place.
+  /// Installs a picked pack after checking it, in the place of the book it names.
   Future<String> installFromFile(String path) async {
     final source = File(path);
     if (!source.existsSync()) throw const FormatException('That file is not on this device.');
@@ -160,8 +167,7 @@ class NarrationShelf {
     }
   }
 
-  /// Extracts [chapter] of [book] for the player under a new name; [prunePlayed] removes the
-  /// old ones.
+  /// Extracts [chapter] of [book] under a new name; [prunePlayed] removes old ones.
   Future<NarrationTrack> track(int book, int chapter) async {
     // Locals only, as in _install.
     final (path, play) = (_path(book), _playDir.path);

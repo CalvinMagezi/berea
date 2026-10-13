@@ -176,8 +176,8 @@ checked by SHA-256 and kept on the device. All come from CrossWire SWORD modules
 
 Optional narration packs, one per book, each downloaded only on request from the
 [`audio-1` release](https://github.com/CalvinMagezi/berea/releases/tag/audio-1), checked by
-SHA-256 and kept on the device. `tool/audio/README.md` (on the narration build branch) describes
-how they are made.
+SHA-256 and kept on the device. [`tool/audio/README.md`](tool/audio/README.md) describes how they
+are made.
 
 | Pack (download) | Contents | Licence |
 |-----------------|----------|---------|

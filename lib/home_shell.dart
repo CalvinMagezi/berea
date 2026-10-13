@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
@@ -5,6 +7,7 @@ import 'chat_screen.dart';
 import 'notebook_store.dart';
 import 'notebooks_screen.dart';
 import 'notes_screen.dart';
+import 'read_along.dart';
 import 'reader_screen.dart';
 
 const wideLayoutBreakpoint = 760.0;
@@ -42,7 +45,14 @@ class _HomeShellState extends State<HomeShell> {
     if (widget.state.pendingQuestion.value != null) _select(HomeTab.study);
   }
 
-  void _select(HomeTab t) => setState(() => _tab = t);
+  void _select(HomeTab t) {
+    // The device voice has no lock-screen controls, so it ends with the Bible tab.
+    final reading = widget.state.readAlong.state.value;
+    if (t != HomeTab.bible && reading?.voice == ReadAlongVoice.device) {
+      unawaited(widget.state.readAlong.stop());
+    }
+    setState(() => _tab = t);
+  }
 
   /// The same study, same history, from any tab.
   void _quickChat() {

@@ -584,6 +584,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> updateSettings(Settings next) async {
+    // The device voice reads the translation it started with; another one ends it.
+    final reading = readAlong.state.value;
+    if (reading?.voice == ReadAlongVoice.device && reading?.translation != next.translation) {
+      unawaited(readAlong.stop());
+    }
     final sameModel =
         next.engine == settings.engine &&
         next.deviceModelId == settings.deviceModelId &&

@@ -43,7 +43,9 @@ Read along
 - On Android and iPhone the narration has lock-screen and notification controls and keeps
   playing with the screen locked.
 - Without a download, the device reads the chapter in any translation with its own offline voice,
-  labelled as the device voice.
+  labelled as the device voice. It never uses a voice that needs the network or a download, and
+  it stops when you leave the Bible tab or change translation.
+- Closing the player while the narration downloads stops the download.
 
 ## 0.3.0
 

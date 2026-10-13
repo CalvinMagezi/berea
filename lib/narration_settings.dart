@@ -87,6 +87,7 @@ class NarrationSettings extends StatelessWidget {
       await shelf.download(book.id);
       onMessage('The narration of ${book.name} is installed.');
     } catch (e) {
+      debugPrint('Narration download failed: $e');
       onMessage('The narration of ${book.name} could not be installed. ${describeFailure(e)}');
     }
   }
@@ -102,6 +103,7 @@ class NarrationSettings extends StatelessWidget {
     try {
       onMessage('The narration of ${await shelf.installFromFile(path)} is installed.');
     } catch (e) {
+      debugPrint('Narration install failed: $e');
       onMessage('Narration install failed. ${describeFailure(e)}');
     }
   }

@@ -49,13 +49,19 @@ void main() {
     dir.deleteSync(recursive: true);
   });
 
-  Future<void> fetch(String path, {String? sha, List<double>? progress}) => downloadPinned(
+  Future<void> fetch(
+    String path, {
+    String? sha,
+    List<double>? progress,
+    bool Function()? cancelled,
+  }) => downloadPinned(
     Uri.parse('http://${server.address.host}:${server.port}$path'),
     File('${dir.path}/out.part'),
     sha256: sha ?? pin,
     maxBytes: _maxBytes,
     timeout: _timeout,
     onProgress: progress?.add,
+    cancelled: cancelled,
   );
 
   test('writes the file when the hash matches, reporting progress up to 1', () async {
@@ -75,6 +81,10 @@ void main() {
 
   test('stops a file that grows past the cap with no declared length', () async {
     await expectLater(fetch('/streams-too-big'), throwsFormatException);
+  });
+
+  test('stops when the user cancels', () async {
+    await expectLater(fetch('/ok', cancelled: () => true), throwsA(isA<DownloadCancelled>()));
   });
 
   test('reports an HTTP error as such', () async {

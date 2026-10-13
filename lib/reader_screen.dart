@@ -108,8 +108,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return false;
   }
 
-  /// Keeps the verse being read on screen, scrolling only when it is out of view and the user
-  /// has not just scrolled by hand.
+  /// Keeps the verse being read on screen, unless it is in view or the user just scrolled.
   void _follow() {
     final at = readAlong.position.value;
     if (at == null || !readAlong.isOn(book.id, chapter) || !_scroll.hasClients) return;
@@ -120,8 +119,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (ctx == null || box == null) return _scrollToVerse(at.verse);
     final viewport = RenderAbstractViewport.maybeOf(box);
     if (viewport == null) return;
-    // Between top-aligned and bottom-aligned the verse is fully shown, or, when it is taller
-    // than the screen, fills it; either way there is nothing to do.
+    // Between top- and bottom-aligned the verse is fully shown or, if taller, fills the screen.
     final top = viewport.getOffsetToReveal(box, 0).offset;
     final bottom = viewport.getOffsetToReveal(box, 1).offset;
     final pixels = _scroll.position.pixels;
@@ -160,8 +158,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   String _verseNumberText(Verse v) => '${v.verse} ';
 
-  /// Reads the chapter aloud: the narration when its book is installed, otherwise the user
-  /// chooses between downloading it and the device's own voice.
+  /// Reads the chapter aloud with the installed narration, or asks how to listen.
   Future<void> _listen() async {
     var voice = s.narration.isInstalled(book.id) ? ReadAlongVoice.narration : null;
     voice ??= await showDialog<ReadAlongVoice>(
@@ -180,6 +177,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       chapter: chapter,
       voice: voice,
       verses: s.db.passage(Ref(book, chapter), translation: s.settings.translation),
+      translation: s.settings.translation,
     );
   }
 
@@ -498,9 +496,8 @@ class _ParallelRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final secondary = Text(
       text,
-      style: scriptureStyle(
-        context,
-      ).copyWith(fontSize: 16, height: 1.5, color: scheme.onSurfaceVariant),
+      style: scriptureStyle(context)
+          .copyWith(fontSize: 16, height: 1.5, color: scheme.onSurfaceVariant),
       semanticsLabel: '$otherLabel: $text',
     );
     return LayoutBuilder(
@@ -701,8 +698,7 @@ class _ChapterPickerState extends State<_ChapterPicker> {
   }
 }
 
-/// Asks how to listen when the book's narration is not installed: download it, or use the
-/// device's own offline voice now.
+/// Asks how to listen without the narration: download it, or use the device voice now.
 class _ListenChoice extends StatelessWidget {
   final Book book;
   final int chapter;

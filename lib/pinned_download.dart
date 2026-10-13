@@ -14,6 +14,7 @@ Future<void> downloadPinned(
   required int maxBytes,
   required Duration timeout,
   void Function(double fraction)? onProgress,
+  bool Function()? cancelled,
 }) async {
   final client = http.Client();
   final sink = dest.openWrite();
@@ -26,6 +27,7 @@ Future<void> downloadPinned(
     if ((total ?? 0) > maxBytes) throw const FormatException('The download is too large.');
     var received = 0;
     await for (final chunk in r.stream.timeout(timeout)) {
+      if (cancelled?.call() ?? false) throw const DownloadCancelled();
       received += chunk.length;
       if (received > maxBytes) throw const FormatException('The download is too large.');
       hash.add(chunk);
@@ -50,6 +52,11 @@ Future<void> downloadPinned(
   }
 }
 
+/// Thrown when the user stops a download.
+class DownloadCancelled implements Exception {
+  const DownloadCancelled();
+}
+
 /// A download or install failure as a sentence for the user, without a type name or a path.
 String describeFailure(Object e) => switch (e) {
   FormatException(:final message) => message,
@@ -57,7 +64,8 @@ String describeFailure(Object e) => switch (e) {
   TimeoutException() => 'The download timed out. Try again.',
   SocketException() => 'There is no connection. Try again when online.',
   FileSystemException() => 'A file could not be read or written on this device.',
-  _ => '$e',
+  DownloadCancelled() => 'The download was stopped.',
+  _ => 'Something went wrong. Try again.',
 };
 
 String hexOf(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();

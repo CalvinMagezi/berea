@@ -5,12 +5,16 @@ import 'read_along.dart';
 
 const _spinnerSize = 24.0;
 const _spinnerStroke = 3.0;
+const _subtitleSize = 12.0;
+const _subtitleLines = 2;
+const _barPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 4);
+const _speedPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 12);
+const _labelGap = 4.0;
 
 String speedLabel(double speed) =>
     speed == speed.roundToDouble() ? '${speed.toInt()}x' : '${speed}x';
 
-/// The read-along controls above the chapter bar: previous and next verse, play and pause,
-/// speed, and stop, with what is reading and by whom.
+/// The read-along controls above the chapter bar, with what is reading and by whom.
 class ReadAlongBar extends StatelessWidget {
   final ReadAlongState state;
   final String bookName;
@@ -39,6 +43,10 @@ class ReadAlongBar extends StatelessWidget {
     required this.onClose,
   });
 
+  bool get _failed => state.status == ReadAlongStatus.failed;
+
+  bool get _ready => !_failed && state.status != ReadAlongStatus.loading;
+
   String get _where => '$bookName ${state.chapter}${verse == null ? '' : ':$verse'}';
 
   String get _who => state.voice == ReadAlongVoice.narration
@@ -53,75 +61,71 @@ class ReadAlongBar extends StatelessWidget {
   };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    child: Padding(
+      padding: _barPadding,
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Previous verse',
+            icon: const Icon(Icons.skip_previous),
+            onPressed: _ready ? onPrevious : null,
+          ),
+          _playButton(),
+          IconButton(
+            tooltip: 'Next verse',
+            icon: const Icon(Icons.skip_next),
+            onPressed: _ready ? onNext : null,
+          ),
+          const SizedBox(width: _labelGap),
+          Expanded(child: _label(context)),
+          _speedMenu(),
+          IconButton(
+            tooltip: 'Stop reading aloud',
+            icon: const Icon(Icons.close),
+            onPressed: onClose,
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _label(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final failed = state.status == ReadAlongStatus.failed;
-    final ready = !failed && state.status != ReadAlongStatus.loading;
-    return Material(
-      color: scheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          children: [
-            IconButton(
-              tooltip: 'Previous verse',
-              icon: const Icon(Icons.skip_previous),
-              onPressed: ready ? onPrevious : null,
+    return Semantics(
+      liveRegion: _failed,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _where,
+            style: TextStyle(fontWeight: FontWeight.w600, color: scheme.onSurface),
+          ),
+          Text(
+            _subtitle,
+            maxLines: _subtitleLines,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: _subtitleSize,
+              color: _failed ? scheme.error : scheme.onSurfaceVariant,
             ),
-            _playButton(),
-            IconButton(
-              tooltip: 'Next verse',
-              icon: const Icon(Icons.skip_next),
-              onPressed: ready ? onNext : null,
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Semantics(
-                liveRegion: failed,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _where,
-                      style: TextStyle(fontWeight: FontWeight.w600, color: scheme.onSurface),
-                    ),
-                    Text(
-                      _subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: failed ? scheme.error : scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            PopupMenuButton<double>(
-              tooltip: 'Speed ${speedLabel(state.speed)}',
-              initialValue: state.speed,
-              onSelected: onSpeed,
-              itemBuilder: (_) => [
-                for (final s in readAlongSpeeds)
-                  PopupMenuItem(value: s, child: Text(speedLabel(s))),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                child: Text(speedLabel(state.speed)),
-              ),
-            ),
-            IconButton(
-              tooltip: 'Stop reading aloud',
-              icon: const Icon(Icons.close),
-              onPressed: onClose,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _speedMenu() => PopupMenuButton<double>(
+    tooltip: 'Speed ${speedLabel(state.speed)}',
+    initialValue: state.speed,
+    onSelected: onSpeed,
+    itemBuilder: (_) => [
+      for (final s in readAlongSpeeds) PopupMenuItem(value: s, child: Text(speedLabel(s))),
+    ],
+    child: Padding(padding: _speedPadding, child: Text(speedLabel(state.speed))),
+  );
 
   Widget _playButton() {
     if (state.status == ReadAlongStatus.loading) {
@@ -144,7 +148,7 @@ class ReadAlongBar extends StatelessWidget {
     return IconButton(
       tooltip: playing ? 'Pause' : 'Play',
       icon: Icon(playing ? Icons.pause : Icons.play_arrow),
-      onPressed: state.status == ReadAlongStatus.failed ? null : onPlayPause,
+      onPressed: _failed ? null : onPlayPause,
     );
   }
 }

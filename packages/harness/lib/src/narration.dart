@@ -31,14 +31,12 @@ class WordTiming {
 
 final _wordPattern = RegExp(r'\S+');
 
-/// The words of [verseText] as the timings count them, with their offsets in the untrimmed text.
-/// Same pieces as splitting the trimmed text on whitespace and dropping empty ones.
+/// The words of [verseText] as the timings count them, with offsets in the untrimmed text.
 List<({int start, int end})> wordRanges(String verseText) => [
   for (final m in _wordPattern.allMatches(verseText)) (start: m.start, end: m.end),
 ];
 
-/// The word of [ranges] at or before [offset], or null before the first word. A tap or a speech
-/// callback between two words belongs to the earlier one.
+/// The word of [ranges] at or before [offset]; a point between two words is the earlier one.
 int? wordAtOffset(List<({int start, int end})> ranges, int offset) =>
     _lastAtOrBefore(ranges.length, (i) => ranges[i].start, offset);
 
@@ -71,8 +69,7 @@ class ChapterTimings {
   ChapterTimings._(this.book, this.chapter, this.words)
     : wordsPerVerse = {for (final w in words) w.verse: w.word + 1};
 
-  /// Parses the `timings` column for [book] [chapter]; throws [FormatException] on anything
-  /// else, so a bad pack fails at install, not halfway through a chapter.
+  /// Parses the `timings` column for [book] [chapter], throwing [FormatException] on anything else.
   factory ChapterTimings.parse(
     String json, {
     required int book,
@@ -97,8 +94,7 @@ class ChapterTimings {
     return ChapterTimings._(book, chapter, words);
   }
 
-  /// Checks one `[verse, word, start, end]` entry against the one before it: verses ascend, a
-  /// verse's words count up from 0, and times move forward and stay inside the audio.
+  /// Checks an entry against the previous: verses ascend, words count from 0, times inside audio.
   static WordTiming _timingOf(Object? entry, int chapter, int durationMs, WordTiming? previous) {
     final bad = FormatException('Chapter $chapter has a malformed word timing.');
     if (entry is! List || entry.length != 4 || entry.any((e) => e is! int)) throw bad;
@@ -114,8 +110,7 @@ class ChapterTimings {
     return t;
   }
 
-  /// The word being spoken at [ms]: the last one started, held until the next starts. Null
-  /// before the first word, while the chapter is announced.
+  /// The word being spoken at [ms], held until the next starts; null during the announcement.
   int? indexAt(int ms) => _lastAtOrBefore(words.length, (i) => words[i].startMs, ms);
 
   /// Index of [word] of [verse], or of the verse's first word when [word] is out of range.
@@ -139,8 +134,7 @@ class NarrationPackInfo {
   const NarrationPackInfo(this.id, this.book, this.narrator, this.chapters, this.primingMs);
 }
 
-/// Opens [path] read-only with nothing from its schema allowed to run, since a picked file is
-/// untrusted. Any SQLite failure becomes a [FormatException].
+/// Opens an untrusted pack read-only with its schema disarmed; SQLite errors are FormatException.
 T _withPack<T>(String path, T Function(Database db) read) {
   if (!File(path).existsSync()) throw const FormatException('The narration pack is missing.');
   Database? db;
@@ -155,9 +149,7 @@ T _withPack<T>(String path, T Function(Database db) read) {
   }
 }
 
-/// Checks every part of the pack at [path] before it may replace anything: the format, the id,
-/// the book (which must be [expectedBook] when given), and each chapter's audio and timings.
-/// Whether every chapter of the book is present is the caller's check, against its Bible.
+/// Checks a pack before it may replace anything; full chapter coverage is the caller's check.
 NarrationPackInfo readNarrationPack(String path, {int? expectedBook}) => _withPack(path, (db) {
   const notAPack = FormatException('That file is not a Berea narration pack.');
   final tables = {

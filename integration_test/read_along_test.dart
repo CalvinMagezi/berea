@@ -19,8 +19,7 @@ const packPath = String.fromEnvironment('NARRATION_PACK');
 const sampleEvery = Duration(milliseconds: 20);
 const john = 43;
 
-/// Runs the real app state against a temporary support folder and mocked preferences, so the
-/// app's own data is never touched, then plays John 3 muted and measures the highlight.
+/// Plays John 3 muted on a temporary support folder with mocked preferences, never real data.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -30,7 +29,6 @@ void main() {
   setUpAll(() async {
     SharedPreferences.setMockInitialValues({});
     support = Directory.systemTemp.createTempSync('berea_read_along_it');
-    if (!bool.fromEnvironment('NO_BACKGROUND')) await initReadAlongAudio();
     s = await AppState.bootstrap(supportDir: support);
   });
 
@@ -135,10 +133,7 @@ Future<void> _waitFor(WidgetTester tester, bool Function() done, {int limit = 10
   }
 }
 
-/// Samples the player's clock against the word the reader marks. Lag is how far past a word's
-/// start the player is when the reader is first seen marking it; an off sample is one where the
-/// mark is not the word the player's position falls in, and its staleness is how long that word
-/// has been playing unmarked.
+/// Lag: how far past a word start it is first marked; staleness: how long a word went unmarked.
 Future<String> _measure(WidgetTester tester, ReadAlong r, Duration span) async {
   final player = r.debugPlayer!;
   final t = r.timings!;
