@@ -26,6 +26,9 @@ class EdgeModel {
 
   /// flutter_edge_ai keys installed models by the downloaded filename.
   String get installedName => file;
+
+  /// Gemma 4 takes spoken audio directly, so voice questions need no separate speech model.
+  bool get hearsAudio => type == ModelType.gemma4;
 }
 
 const edgeModels = <EdgeModel>[

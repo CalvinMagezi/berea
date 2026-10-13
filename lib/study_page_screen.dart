@@ -46,7 +46,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
   }
 
   Future<void> _generate() async {
-    if (s.harness == null || s.busy) return;
+    if (s.harness == null || !s.ready) return;
     setState(() {
       _generating = true;
       _draft = '';

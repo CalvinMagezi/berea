@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Berea hears a spoken question on this device to type it for you. The recording is deleted right away and never leaves the device.</string>
 </dict>
 </plist>

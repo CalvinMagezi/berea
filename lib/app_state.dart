@@ -19,6 +19,7 @@ import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
 import 'study_store.dart';
+import 'voice.dart';
 
 enum EngineKind { ollama, device }
 
@@ -162,6 +163,18 @@ class AppState extends ChangeNotifier {
   int downloadProgress = 0;
   String? deviceError;
   EdgeAiEngine? _edge;
+
+  /// The single voice session, shared by every composer so only one recorder runs.
+  late VoiceInput voice = VoiceInput(transcribe: transcribeVoice);
+
+  /// Whatever is using the model now; a rebuild waits for it before closing the model.
+  Future<void>? _modelUse;
+
+  @visibleForTesting
+  set debugEdge(EdgeAiEngine? engine) => _edge = engine;
+
+  /// The loaded Gemma 4 model came up with its audio encoder.
+  bool get deviceHearsAudio => _edge?.hearsAudio ?? false;
 
   /// Overrides let a test run the real app without opening the user's data.
   static Future<AppState> bootstrap({Directory? supportDir, SharedPreferences? prefs}) async {
@@ -519,12 +532,32 @@ class AppState extends ChangeNotifier {
 
   String get engineLabel => harness?.engine.name ?? 'no engine';
 
-  bool get ready => harness != null && !busy;
+  bool get ready => harness != null && !busy && !voice.inUse;
+
+  /// Runs [work] as the only user of the model, holding [busy] until it settles.
+  Future<T> useModel<T>(Future<T> Function() work) async {
+    if (busy) throw StateError('The model is busy.');
+    busy = true;
+    notifyListeners();
+    final running = work();
+    _modelUse = running.then((_) {}, onError: (_) {});
+    try {
+      return await running;
+    } finally {
+      busy = false;
+      _modelUse = null;
+      notifyListeners();
+    }
+  }
 
   Future<void> _rebuildHarness() async {
-    await _edge?.close();
+    final old = _edge;
     _edge = null;
     harness = null;
+    await voice.cancel();
+    // Never close the model under an answer or a transcription.
+    await _modelUse;
+    await old?.close();
     final engine = settings.engine == EngineKind.ollama ? _ollama() : await _device();
     if (engine != null) {
       harness = Harness(
@@ -608,47 +641,45 @@ class AppState extends ChangeNotifier {
     await _rebuildHarness();
   }
 
-  /// Runs [answer] on the engine unless one is already being written: the Study chat and the
-  /// notebook chats share one engine, which runs one generation at a time. Null when nothing ran.
+  /// Transcribes a spoken question with the loaded Gemma 4 model; the audio goes in memory.
+  Future<String> transcribeVoice(Uint8List wav) async {
+    final edge = _edge;
+    if (edge == null || !edge.hearsAudio) {
+      throw StateError('The on-device model cannot hear audio.');
+    }
+    return useModel(() => edge.transcribe(wav));
+  }
+
+  /// Runs [answer] through [useModel] unless the model is busy or recording; null when nothing ran.
   Future<T?> runExclusive<T>(Future<T> Function(Harness h) answer) async {
     final h = harness;
-    if (h == null || busy) return null;
-    busy = true;
-    notifyListeners();
-    try {
-      return await answer(h);
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
+    if (h == null || !ready) return null;
+    return useModel(() => answer(h));
   }
 
   Future<void> send(String question) async {
-    if (!ready) return;
+    final h = harness;
+    if (h == null || !ready) return;
     final turn = ChatTurn(question);
     turns.add(turn);
+    await useModel(() => _answer(h, turn));
+  }
+
+  Future<void> _answer(Harness h, ChatTurn turn) async {
     try {
-      final result = await runExclusive(
-        (h) => h.ask(
-          question,
-          onToken: (t) {
-            turn.answer += t;
-            notifyListeners();
-          },
-        ),
+      final result = await h.ask(
+        turn.question,
+        onToken: (t) {
+          turn.answer += t;
+          notifyListeners();
+        },
       );
-      if (result == null) {
-        turns.remove(turn);
-        return;
-      }
       turn.take(result.guard);
-      conversationId ??= study.createConversation(question);
-      study.addMessage(conversationId!, 'user', question, const []);
+      conversationId ??= study.createConversation(turn.question);
+      study.addMessage(conversationId!, 'user', turn.question, const []);
       study.addMessage(conversationId!, 'assistant', turn.answer, turn.verified);
     } catch (e) {
       turn.error = e.toString();
-    } finally {
-      notifyListeners();
     }
   }
 
