@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+App icon
+- The Berea mark (a B drawn as two stacked half-rounds, parchment on lamp gold) replaces the default
+  Flutter logo on iOS, Android (adaptive, with a monochrome layer for themed icons), macOS and
+  Windows. `flutter test tool/make_icons.dart` regenerates every size from the mark's path.
+
 Corrections
 - 0.3.0 said the new BSB text matches the narrated BSB audio. It does not quite: the Souer
   narration (2022-2023) follows the earlier wording in the few verses that changed, for example
