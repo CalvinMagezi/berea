@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'theme.dart';
 import 'voice.dart';
 
 /// Sliding this far off the microphone while holding throws the recording away.
@@ -187,7 +188,7 @@ class _VoiceMicButtonState extends State<VoiceMicButton> {
               height: micTapTarget,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: _focused ? Border.all(color: scheme.primary, width: 2) : null,
+                border: _focused ? Border.all(color: scheme.primary, width: focusRingWidth) : null,
               ),
               child: Icon(_recording ? Icons.stop_circle_outlined : Icons.mic_none, color: color),
             ),

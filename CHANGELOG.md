@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+Accessibility
+- The light theme's gold is darker (#9E7628 to #75571C) so verse numbers, glosses and gold text
+  buttons reach 4.5:1 on parchment, parchment tiles and highlighted verses, and parchment labels
+  on gold fills reach 5.9:1. The dark theme is unchanged.
+- Text fields show a 2 px ring in the accent colour (the error colour when the field has an
+  error) while focused. The search field in the app bar stays unringed.
+
 Corrections
 - 0.3.0 said the new BSB text matches the narrated BSB audio. It does not quite: the Souer
   narration (2022-2023) follows the earlier wording in the few verses that changed, for example
