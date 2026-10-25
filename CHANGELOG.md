@@ -7,6 +7,15 @@ App icon
   Flutter logo on iOS, Android (adaptive, with a monochrome layer for themed icons), macOS and
   Windows. `flutter test tool/make_icons.dart` regenerates every size from the mark's path.
 
+Performance
+- A streaming answer no longer redraws the whole app for every token. Only the answer being
+  written redraws, at most 15 times a second, so the Bible and Notes tabs stop rereading the
+  database while the model works. Measured on a Mac with Ollama: one answer rebuilt the Study,
+  Bible and Notes screens 30 times each before, twice now. Study page drafts stream the same way.
+- The chat stays at the newest text while an answer streams, and no longer pulls you back down
+  if you scroll up to read. A notebook chat opened mid-answer follows it.
+- A model download redraws the app once per percent instead of once per chunk.
+
 Corrections
 - 0.3.0 said the new BSB text matches the narrated BSB audio. It does not quite: the Souer
   narration (2022-2023) follows the earlier wording in the few verses that changed, for example

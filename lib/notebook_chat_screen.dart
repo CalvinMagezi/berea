@@ -52,17 +52,21 @@ class _NotebookChatScreenState extends State<NotebookChatScreen> {
   late final Listenable _changes = Listenable.merge([_chat, ?widget.engine]);
   final _input = TextEditingController();
   final _scroll = ScrollController();
+  late final _follower = AnswerFollower(_scroll);
   final _focus = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _changes.addListener(_onChange);
+    // Opens at the newest turn, and follows an answer still streaming from before it closed.
+    _follower.follow(_chat.turns.lastOrNull);
   }
 
   @override
   void dispose() {
     _changes.removeListener(_onChange);
+    _follower.dispose();
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
@@ -71,9 +75,7 @@ class _NotebookChatScreenState extends State<NotebookChatScreen> {
 
   void _onChange() {
     setState(() {});
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
-    });
+    _follower.follow(_chat.turns.lastOrNull);
   }
 
   void _send() {

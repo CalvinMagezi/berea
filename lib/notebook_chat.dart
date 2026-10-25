@@ -73,10 +73,7 @@ class NotebookChat extends ChangeNotifier {
     answering = true;
     notifyListeners();
     try {
-      final result = await answer(question, history, (t) {
-        turn.answer += t;
-        notifyListeners();
-      });
+      final result = await answer(question, history, turn.append);
       if (result == null) {
         turn
           ..error = engineBusyMessage
