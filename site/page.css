@@ -223,6 +223,7 @@ a:hover { color: var(--gold-soft); }
 .close-stage { display: grid; place-items: center; text-align: center; padding: var(--bar-h) var(--sc-gutter) 7rem; }
 .close-inner { display: grid; justify-items: center; gap: 1.6rem; max-width: 48rem; }
 .close h2 { margin: 0; text-wrap: balance; }
+.ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.8rem; }
 .cta { display: inline-flex; align-items: center; min-height: 3.4rem; padding: 0 2rem; border-radius: 999px; background: var(--sc-accent); color: var(--sc-accent-ink); font: 600 1.05rem/1 var(--ui); text-decoration: none; box-shadow: var(--sc-e2); }
 .cta:hover { background: var(--gold-soft); color: var(--sc-accent-ink); }
 .small { font: 0.9rem/1.55 var(--ui); color: var(--sc-ink-soft); margin: 0; max-width: 34rem; }
