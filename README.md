@@ -7,7 +7,10 @@ before you see it. Nothing is sent anywhere.
 Named for Acts 17:11: the Bereans "received the message with great eagerness and examined the
 Scriptures every day to see if these teachings were true."
 
-Try it on Android: [download the latest APK](https://github.com/CalvinMagezi/berea/releases/latest).
+Try it: [Android APK](https://github.com/CalvinMagezi/berea/releases/latest/download/berea-android-arm64.apk)
+or [Mac app](https://github.com/CalvinMagezi/berea/releases/latest/download/berea-macos.zip)
+(not notarized yet: the first time, open it from System Settings, Privacy & Security, Open Anyway).
+On a Mac, Berea answers with [Ollama](https://ollama.com) (`ollama pull gemma4:e2b`) or a model it downloads.
 How it works, in plain language: [calvinmagezi.github.io/berea](https://calvinmagezi.github.io/berea/).
 
 <p align="center">
