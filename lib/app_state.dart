@@ -88,9 +88,15 @@ class Settings {
   }
 }
 
-class ChatTurn {
+/// Streamed text reaches the screen at most this often. Notifying the whole app per token
+/// rebuilt every tab, with their database reads, while the model held the CPU.
+const streamRefresh = Duration(milliseconds: 66);
+
+/// A question and its answer. Listeners hear the answer grow while it streams.
+class ChatTurn extends ChangeNotifier {
   final String question;
   String answer = '';
+  Timer? _refresh;
   List<Ref> verified = const [];
   List<Ref> unverified = const [];
   List<String> unknownBooks = const [];
@@ -106,8 +112,19 @@ class ChatTurn {
   String? error;
   ChatTurn(this.question);
 
+  /// Adds a streamed [token]; listeners hear of it within [streamRefresh].
+  void append(String token) {
+    answer += token;
+    _refresh ??= Timer(streamRefresh, () {
+      _refresh = null;
+      notifyListeners();
+    });
+  }
+
   /// Takes the checked answer and what the check found.
   void take(GuardResult g) {
+    _refresh?.cancel();
+    _refresh = null;
     answer = g.text;
     verified = g.verified;
     unverified = g.unverified;
@@ -119,6 +136,7 @@ class ChatTurn {
     unverifiedSources = g.unverifiedSources;
     rewordedQuotes = g.rewordedQuotes.length;
     done = true;
+    notifyListeners();
   }
 }
 
@@ -608,6 +626,8 @@ class AppState extends ChangeNotifier {
         m,
         token: settings.hfToken.isEmpty ? null : settings.hfToken,
         onProgress: (p) {
+          // The plugin repeats a percent for every chunk; redraw the app only when it moves.
+          if (p == downloadProgress) return;
           downloadProgress = p;
           notifyListeners();
         },
@@ -667,13 +687,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> _answer(Harness h, ChatTurn turn) async {
     try {
-      final result = await h.ask(
-        turn.question,
-        onToken: (t) {
-          turn.answer += t;
-          notifyListeners();
-        },
-      );
+      final result = await h.ask(turn.question, onToken: turn.append);
       turn.take(result.guard);
       conversationId ??= study.createConversation(turn.question);
       study.addMessage(conversationId!, 'user', turn.question, const []);

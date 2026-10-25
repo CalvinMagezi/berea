@@ -29,6 +29,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _scroll = ScrollController();
   final _focus = FocusNode();
   late final VoiceInput _voice = widget.state.voice;
+  late final _follower = AnswerFollower(_scroll);
   var _voicePhase = VoicePhase.idle;
 
   @override
@@ -37,6 +38,8 @@ class _ChatScreenState extends State<ChatScreen> {
     widget.state.addListener(_onChange);
     widget.state.pendingQuestion.addListener(_onPending);
     _voice.addListener(_onVoice);
+    // Opens at the newest turn, and follows an answer already streaming (the quick-chat sheet).
+    _follower.follow(widget.state.turns.lastOrNull);
   }
 
   @override
@@ -45,6 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
     widget.state.pendingQuestion.removeListener(_onPending);
     _voice.removeListener(_onVoice);
     unawaited(_voice.release(this));
+    _follower.dispose();
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
@@ -53,9 +57,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _onChange() {
     setState(() {});
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
-    });
+    _follower.follow(widget.state.turns.lastOrNull);
   }
 
   /// A fresh transcript joins what was typed for the user to check; it is never sent by itself.
@@ -288,7 +290,10 @@ class TurnView extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      ListenableBuilder(listenable: turn, builder: (context, _) => _build(context));
+
+  Widget _build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 28),
@@ -324,6 +329,47 @@ class TurnView extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// A reader this close to the end is still reading the newest text, so the view keeps up.
+const followSlack = 48.0;
+
+/// Keeps a chat at its end while the newest answer streams in, unless the reader scrolled up.
+class AnswerFollower {
+  final ScrollController scroll;
+  ChatTurn? _turn;
+
+  /// Where the last jump put the view. A jump to the end of a lazy list can land short while its
+  /// extent is still an estimate, and a view left there is still following.
+  double? _jumpedTo;
+  AnswerFollower(this.scroll);
+
+  /// Call with the newest turn whenever the chat changes. A new turn scrolls to the end; any other
+  /// change, or [last] growing, keeps the view at the end only if the reader is still there.
+  void follow(ChatTurn? last) {
+    if (identical(last, _turn)) return _keepUp();
+    _detach();
+    _turn = last?..addListener(_keepUp);
+    _toEnd();
+  }
+
+  // Runs before the change is laid out, so the position says where the reader was.
+  void _keepUp() {
+    if (!scroll.hasClients) return;
+    final p = scroll.position;
+    if (p.pixels == _jumpedTo || p.maxScrollExtent - p.pixels <= followSlack) _toEnd();
+  }
+
+  void _toEnd() => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (scroll.hasClients) scroll.jumpTo(_jumpedTo = scroll.position.maxScrollExtent);
+  });
+
+  void _detach() => _turn?.removeListener(_keepUp);
+
+  void dispose() {
+    _detach();
+    _turn = null;
   }
 }
 

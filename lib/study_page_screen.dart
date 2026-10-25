@@ -19,7 +19,9 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
   final _observation = TextEditingController();
   final _interpretation = TextEditingController();
   final _application = TextEditingController();
-  var _draft = '';
+
+  /// The draft as it streams, on its own so a token redraws one line, not the page.
+  final _draft = ValueNotifier('');
   var _generating = false;
   String? _error;
   String? _nearMissNote;
@@ -42,6 +44,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
     _observation.dispose();
     _interpretation.dispose();
     _application.dispose();
+    _draft.dispose();
     super.dispose();
   }
 
@@ -49,15 +52,22 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
     if (s.harness == null || !s.ready) return;
     setState(() {
       _generating = true;
-      _draft = '';
+      _draft.value = '';
       _error = null;
       _nearMissNote = null;
     });
     try {
       // The engine writes one answer at a time, shared with the Study and notebook chats.
       final page = await s.runExclusive(
-        (h) => h.studyPage(widget.ref, onToken: (t) => setState(() => _draft += t)),
+        (h) => h.studyPage(
+          widget.ref,
+          onToken: (t) {
+            if (mounted) _draft.value += t;
+          },
+        ),
       );
+      // Closed while drafting: its text fields are gone, and nothing was saved.
+      if (!mounted) return;
       if (page == null) {
         _error = 'Berea is answering another question. Try again when it has finished.';
         return;
@@ -69,7 +79,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
     } catch (e) {
       _error = e.toString();
     } finally {
-      setState(() => _generating = false);
+      if (mounted) setState(() => _generating = false);
     }
   }
 
@@ -121,9 +131,12 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
               if (_generating)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
-                  child: Text(
-                    _draft.isEmpty ? 'Examining the Scriptures…' : _draft,
-                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  child: ValueListenableBuilder(
+                    valueListenable: _draft,
+                    builder: (context, draft, _) => Text(
+                      draft.isEmpty ? 'Examining the Scriptures…' : draft,
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
                   ),
                 ),
               if (_error != null)
