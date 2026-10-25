@@ -11,6 +11,12 @@ Performance
   if you scroll up to read. A notebook chat opened mid-answer follows it.
 - A model download redraws the app once per percent instead of once per chunk.
 
+Desktop
+- When Ollama is not running, a question now says "Berea could not reach Ollama at ... Install
+  Ollama and start it, or choose On device in Settings." It used to show a raw socket error.
+  Ollama errors also lose their "Bad state:" prefix.
+- Each release carries the Mac app under a fixed name, `berea-macos.zip`, as it does the APK.
+
 Corrections
 - 0.3.0 said the new BSB text matches the narrated BSB audio. It does not quite: the Souer
   narration (2022-2023) follows the earlier wording in the few verses that changed, for example

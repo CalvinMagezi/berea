@@ -4,6 +4,15 @@ import 'package:http/http.dart' as http;
 
 import 'engine.dart';
 
+/// Why an Ollama answer failed, worded for the person reading it under their question.
+class OllamaException implements Exception {
+  final String message;
+  const OllamaException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class OllamaEngine implements LlmEngine {
   final String model;
   final String baseUrl;
@@ -35,17 +44,23 @@ class OllamaEngine implements LlmEngine {
       final resp = await client.send(req);
       if (resp.statusCode != 200) {
         final body = await resp.stream.bytesToString();
-        throw StateError('Ollama HTTP ${resp.statusCode}: $body');
+        throw OllamaException('Ollama HTTP ${resp.statusCode}: $body');
       }
       final lines = resp.stream.transform(utf8.decoder).transform(const LineSplitter());
       await for (final line in lines) {
         if (line.isEmpty) continue;
         final j = jsonDecode(line) as Map<String, dynamic>;
-        if (j['error'] != null) throw StateError('Ollama: ${j['error']}');
+        if (j['error'] != null) throw OllamaException('Ollama: ${j['error']}');
         final content = (j['message'] as Map<String, dynamic>?)?['content'];
         if (content is String && content.isNotEmpty) yield content;
         if (j['done'] == true) break;
       }
+    } on http.ClientException {
+      // Ollama is the default on a computer, so this is often someone who never installed it.
+      throw OllamaException(
+        'Berea could not reach Ollama at $baseUrl. Install Ollama and start it, '
+        'or choose On device in Settings.',
+      );
     } finally {
       client.close();
     }

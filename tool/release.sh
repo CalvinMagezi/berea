@@ -44,11 +44,13 @@ cp build/app/outputs/flutter-apk/app-release.apk "build/berea-$version-android-a
 cp build/app/outputs/flutter-apk/app-release.apk build/berea-android-arm64.apk
 flutter build macos --release --build-name "$version"
 ditto -c -k --keepParent build/macos/Build/Products/Release/berea.app "build/berea-$version-macos.zip"
+cp "build/berea-$version-macos.zip" build/berea-macos.zip
 
 git tag -a "v$version" -m "Berea $version"
 echo
 echo "Tagged v$version. Publish with:"
 echo "  git push origin v$version"
 echo "  gh release create v$version --latest --title 'Berea $version' --notes-file <(sed -n '/^## $version/,/^## /p' CHANGELOG.md | sed '\$d') \\"
-echo "    build/berea-$version-android-arm64.apk build/berea-android-arm64.apk build/berea-$version-macos.zip \\"
+echo "    build/berea-$version-android-arm64.apk build/berea-android-arm64.apk \\"
+echo "    build/berea-$version-macos.zip build/berea-macos.zip \\"
 echo "    build/lexicon-lsj.sqlite build/eval-$version.txt"
