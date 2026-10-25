@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 Performance
 - A streaming answer no longer redraws the whole app for every token. Only the answer being
