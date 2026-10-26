@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -13,7 +14,7 @@ class OllamaException implements Exception {
   String toString() => message;
 }
 
-class OllamaEngine implements LlmEngine {
+class OllamaEngine implements LlmEngine, StoppableEngine {
   final String model;
   final String baseUrl;
   final int numCtx;
@@ -25,12 +26,24 @@ class OllamaEngine implements LlmEngine {
     this.temperature = 0.3,
   });
 
+  http.Client? _client;
+  Completer<void> _stopSignal = Completer<void>();
+
   @override
   String get name => 'ollama:$model';
 
+  /// Ends the answer after the piece being read, and closes the connection so Ollama stops
+  /// generating.
+  @override
+  Future<void> stop() async {
+    if (!_stopSignal.isCompleted) _stopSignal.complete();
+    _client?.close();
+  }
+
   @override
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) async* {
-    final client = http.Client();
+    final client = _client = http.Client();
+    final stopped = _stopSignal = Completer<void>();
     try {
       final req = http.Request('POST', Uri.parse('$baseUrl/api/chat'))
         ..headers['content-type'] = 'application/json'
@@ -46,16 +59,25 @@ class OllamaEngine implements LlmEngine {
         final body = await resp.stream.bytesToString();
         throw OllamaException('Ollama HTTP ${resp.statusCode}: $body');
       }
-      final lines = resp.stream.transform(utf8.decoder).transform(const LineSplitter());
-      await for (final line in lines) {
-        if (line.isEmpty) continue;
-        final j = jsonDecode(line) as Map<String, dynamic>;
-        if (j['error'] != null) throw OllamaException('Ollama: ${j['error']}');
-        final content = (j['message'] as Map<String, dynamic>?)?['content'];
-        if (content is String && content.isNotEmpty) yield content;
-        if (j['done'] == true) break;
+      final lines = StreamIterator(
+        resp.stream.transform(utf8.decoder).transform(const LineSplitter()),
+      );
+      try {
+        while (await Future.any([lines.moveNext(), stopped.future.then((_) => false)])) {
+          final line = lines.current;
+          if (line.isEmpty) continue;
+          final j = jsonDecode(line) as Map<String, dynamic>;
+          if (j['error'] != null) throw OllamaException('Ollama: ${j['error']}');
+          final content = (j['message'] as Map<String, dynamic>?)?['content'];
+          if (content is String && content.isNotEmpty) yield content;
+          if (j['done'] == true) break;
+        }
+      } finally {
+        // Not awaited: with the connection closed under it, cancelling can wait on the socket.
+        unawaited(lines.cancel());
       }
     } on http.ClientException {
+      if (stopped.isCompleted) return;
       // Ollama is the default on a computer, so this is often someone who never installed it.
       throw OllamaException(
         'Berea could not reach Ollama at $baseUrl. Install Ollama and start it, '
@@ -63,6 +85,7 @@ class OllamaEngine implements LlmEngine {
       );
     } finally {
       client.close();
+      if (_client == client) _client = null;
     }
   }
 }

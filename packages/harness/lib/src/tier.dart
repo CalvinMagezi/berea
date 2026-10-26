@@ -60,6 +60,9 @@ enum Tier {
   int get contextWindow => promptTokens + maxOutput + contextPadding;
 }
 
+/// A brief answer stops well short of this; the cap only catches a model that ignores the rule.
+const briefMaxOutput = 250;
+
 /// Room left in the context for the chat template and for error in [estimateTokens].
 const contextPadding = 512;
 

@@ -59,19 +59,23 @@ List<Map<String, dynamic>> _cases(String path) =>
 
 Future<void> main(List<String> args) async {
   final h = harnessFromArgs(args);
-  final ok = h.notebook ? await _notebook(h, args) : await _golden(h);
+  final ok = h.notebook ? await _notebook(h, args) : await _golden(h, args.contains('--brief'));
   h.db.close();
   exit(ok ? 0 : 1);
 }
 
-Future<bool> _golden(Harness h) async {
+Future<bool> _golden(Harness h, bool brief) async {
   final cases = _cases('eval/golden.json');
   var invented = 0, badQuotes = 0, expected = 0, covered = 0, misattributed = 0, adversarialOk = 0;
-  var adversarial = 0, nearMisses = 0;
+  var adversarial = 0, nearMisses = 0, words = 0;
   final sw = Stopwatch()..start();
   for (final c in cases) {
     h.history.clear();
-    final r = await h.ask(c['q'] as String);
+    final r = await h.ask(
+      c['q'] as String,
+      style: brief ? AnswerStyle.brief : AnswerStyle.full,
+    );
+    words += r.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
     final want = [for (final s in _strings(c, 'expect')) ...RefParser.parse(s)];
     final bait = _strings(c, 'bait');
     final forbid = _strings(c, 'forbid');
@@ -102,7 +106,8 @@ Future<bool> _golden(Harness h) async {
     );
   }
   stdout.writeln(
-    '\n${cases.length} cases in ${sw.elapsed.inSeconds}s on ${h.engine.name} tier ${h.tier.name}',
+    '\n${cases.length} cases in ${sw.elapsed.inSeconds}s on ${h.engine.name} tier ${h.tier.name}'
+    '${brief ? ' (brief answers)' : ''}; average answer ${words ~/ cases.length} words',
   );
   stdout.writeln(
     'invented refs: $invented | coverage: $covered/$expected | unverified quotes: $badQuotes'

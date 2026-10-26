@@ -13,3 +13,9 @@ abstract class LlmEngine {
   String get name;
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens});
 }
+
+/// An engine that can end a generation early. The stream then finishes with what was written so
+/// far, so the answer keeps its partial text and the citation check still runs on it.
+abstract interface class StoppableEngine {
+  Future<void> stop();
+}

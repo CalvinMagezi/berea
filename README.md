@@ -149,9 +149,12 @@ tokens, past their windows. `dart run bin/prompt_size.dart` measures real prompt
 the worst Study or notebook prompt plus the full answer now comes to 2,441, 4,531 and 8,530
 tokens, inside each window.
 
-The tier follows the chosen model. Models download on first use from the Hugging Face
-`litert-community` organisation; the catalog is in `lib/models.dart`. Gemma 4 E2B and E4B are not
-gated. Gemma 3 1B needs a Hugging Face token after accepting its licence.
+The tier follows the chosen model, except that a first run on a phone under 7 GB starts Gemma 4
+E2B at the low tier. Models download on first use; the catalog is in `lib/models.dart`. Gemma 4 E2B and E4B come
+from the Hugging Face `litert-community` organisation and are not gated. Gemma 3 1B is gated
+there, so Berea hosts the unmodified file on its own GitHub release (`model-gemma3-1b-1`), checks
+it against a pinned SHA-256 and needs no account or token. It stays under the Gemma Terms of Use
+and Prohibited Use Policy, shown before the download and under Licences and sources.
 
 ### Eval
 
@@ -165,6 +168,12 @@ invented references, expected reference coverage, unverified quotes and misattri
 release needs zero invented references and zero misattributions. Last run on gemma4:e2b, against
 the official BSB text: 0 invented, 28 of 28 expected references, 0 misattributed, 8 of 8
 adversarial.
+
+`--brief` runs the same questions with the brief answer rule that Study uses at the low tier. On
+gemma4:e2b through Ollama at that tier, two full runs and one brief run (0.3 temperature, so each
+varies a little): full answers averaged 253 words in 119 to 147 s, with 2 unverified quotes and 1
+misattributed saying both times; brief answers averaged 45 words in 51 s, with 0 invented, 28 of
+28 expected references, 0 unverified quotes, 0 misattributed and 8 of 8 adversarial.
 
 `dart run bin/eval.dart --tier mid --notebook` runs 10 questions against a notebook built in code
 (pasted sermon notes, Acts 17:10-12, a three-page guide and a friend's note that misquotes John
@@ -394,8 +403,8 @@ docs/screenshots/
 
 ## Privacy
 
-Berea makes no network request on its own. The model download goes to huggingface.co, and the
-optional lexicon and commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
+Berea makes no network request on its own. The Gemma 4 model download goes to huggingface.co, and the
+Gemma 3 1B model, the optional lexicon and the commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
 you configure, `localhost` by default; a notebook question sends that server the sections of your
 sources the answer draws on, so point it only at a machine you trust. A voice question is recorded
 to a temporary file on the device, read into memory and deleted before Gemma 4 transcribes it; it

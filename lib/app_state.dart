@@ -31,18 +31,25 @@ class Settings {
   final String ollamaUrl;
   final String model;
   final String deviceModelId;
-  final String hfToken;
   final Tier tier;
   final String translation;
+
+  /// The reader's choice about brief answers; null until they make one.
+  final bool? _briefChoice;
+
+  /// Answer in a few sentences first, with a button for the full study. Unless the reader chose,
+  /// on at the low tier, whose phones decode a few tokens a second.
+  bool get briefFirst => _briefChoice ?? tier == Tier.low;
   Settings({
     EngineKind? engine,
     this.ollamaUrl = 'http://localhost:11434',
     this.model = 'gemma4:e2b',
     this.deviceModelId = 'gemma-4-e2b',
-    this.hfToken = '',
     this.tier = Tier.mid,
     this.translation = defaultTranslation,
-  }) : engine = engine ?? defaultEngine;
+    bool? briefFirst,
+  }) : engine = engine ?? defaultEngine,
+       _briefChoice = briefFirst;
 
   EdgeModel get deviceModel => edgeModelById(deviceModelId);
 
@@ -51,17 +58,17 @@ class Settings {
     String? ollamaUrl,
     String? model,
     String? deviceModelId,
-    String? hfToken,
     Tier? tier,
     String? translation,
+    bool? briefFirst,
   }) => Settings(
     engine: engine ?? this.engine,
     ollamaUrl: ollamaUrl ?? this.ollamaUrl,
     model: model ?? this.model,
     deviceModelId: deviceModelId ?? this.deviceModelId,
-    hfToken: hfToken ?? this.hfToken,
     tier: tier ?? this.tier,
     translation: translation ?? this.translation,
+    briefFirst: briefFirst ?? _briefChoice,
   );
 
   static Settings load(SharedPreferences p) {
@@ -71,20 +78,23 @@ class Settings {
       ollamaUrl: p.getString('ollamaUrl') ?? 'http://localhost:11434',
       model: p.getString('model') ?? 'gemma4:e2b',
       deviceModelId: p.getString('deviceModelId') ?? 'gemma-4-e2b',
-      hfToken: p.getString('hfToken') ?? '',
       tier: Tier.values.byName(p.getString('tier') ?? Tier.mid.name),
       translation: p.getString('translation') ?? defaultTranslation,
+      briefFirst: p.getBool('briefFirst'),
     );
   }
+
+  /// Older builds kept a Hugging Face token here; nothing needs one now, so it is not kept.
+  static Future<void> dropLegacyToken(SharedPreferences p) => p.remove('hfToken');
 
   Future<void> save(SharedPreferences p) async {
     await p.setString('engine', engine.name);
     await p.setString('ollamaUrl', ollamaUrl);
     await p.setString('model', model);
     await p.setString('deviceModelId', deviceModelId);
-    await p.setString('hfToken', hfToken);
     await p.setString('tier', tier.name);
     await p.setString('translation', translation);
+    if (_briefChoice case final choice?) await p.setBool('briefFirst', choice);
   }
 }
 
@@ -92,9 +102,56 @@ class Settings {
 /// rebuilt every tab, with their database reads, while the model held the CPU.
 const streamRefresh = Duration(milliseconds: 66);
 
+/// Verses shown while the model has not yet written a word.
+const readingVerseLimit = 3;
+
+/// The button that asks for the full study, and the question bubble it adds.
+const goDeeperLabel = 'Go deeper';
+
 /// A question and its answer. Listeners hear the answer grow while it streams.
 class ChatTurn extends ChangeNotifier {
   final String question;
+
+  /// How much the model was asked to write. A brief answer offers to go deeper.
+  final AnswerStyle style;
+
+  /// The full study that follows a brief answer, shown under the question "Go deeper".
+  final bool deeper;
+  ChatTurn(this.question, {this.style = AnswerStyle.full, this.deeper = false});
+
+  /// What the reader sees in the question bubble and what is saved as their message.
+  String get shownQuestion => deeper ? goDeeperLabel : question;
+
+  /// The reader ended the answer early; what was written so far is kept.
+  bool stopped = false;
+  bool deeperAsked = false;
+
+  void markStopped() {
+    stopped = true;
+    notifyListeners();
+  }
+
+  void markDeeperAsked() {
+    deeperAsked = true;
+    notifyListeners();
+  }
+
+  /// The full study failed, so the button comes back.
+  void markDeeperFailed() {
+    deeperAsked = false;
+    notifyListeners();
+  }
+
+  /// A finished brief answer can be followed by the full study, once.
+  bool get canGoDeeper =>
+      done &&
+      error == null &&
+      answer.trim().isNotEmpty &&
+      style == AnswerStyle.brief &&
+      !deeperAsked;
+
+  /// A full study that failed or wrote nothing, so the brief answer may ask for it again.
+  bool get failedDeeper => deeper && (error != null || (done && answer.trim().isEmpty));
   String answer = '';
   Timer? _refresh;
   List<Ref> verified = const [];
@@ -110,7 +167,16 @@ class ChatTurn extends ChangeNotifier {
   int rewordedQuotes = 0;
   bool done = false;
   String? error;
-  ChatTurn(this.question);
+
+  /// Verses the model is about to read, shown while it works through them.
+  List<Verse> reading = const [];
+
+  /// Puts the passages the model was shown on screen; on a slow phone the model needs minutes.
+  void read(StudyContext shown) {
+    final verses = shown.passages.isNotEmpty ? shown.passages : shown.searchHits;
+    reading = verses.take(readingVerseLimit).toList();
+    notifyListeners();
+  }
 
   /// Adds a streamed [token]; listeners hear of it within [streamRefresh].
   void append(String token) {
@@ -206,10 +272,14 @@ class AppState extends ChangeNotifier {
     s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
     s.deviceGb = bytes == null ? null : bytes / bytesPerGb;
+    await Settings.dropLegacyToken(s.prefs);
     s.settings = Settings.load(s.prefs);
     if (!s.prefs.containsKey('deviceModelId')) {
       final m = recommendedModel(s.deviceGb);
-      s.settings = s.settings.copyWith(deviceModelId: m.id, tier: m.tier);
+      s.settings = s.settings.copyWith(
+        deviceModelId: m.id,
+        tier: recommendedTier(m, s.deviceGb),
+      );
     }
     s.readerBook = s.prefs.getInt('readerBook') ?? 1;
     s.readerChapter = s.prefs.getInt('readerChapter') ?? 1;
@@ -522,6 +592,8 @@ class AppState extends ChangeNotifier {
   void touch() => notifyListeners();
 
   void openConversation(int id) {
+    // Switching studies under an answer being written would put it in the wrong one.
+    if (busy) return;
     turns.clear();
     harness?.resetConversation();
     conversationId = id;
@@ -543,6 +615,7 @@ class AppState extends ChangeNotifier {
   }
 
   void deleteConversation(int id) {
+    if (busy && conversationId == id) return;
     study.deleteConversation(id);
     if (conversationId == id) clear();
     notifyListeners();
@@ -599,7 +672,7 @@ class AppState extends ChangeNotifier {
     final m = settings.deviceModel;
     deviceError = null;
     try {
-      if (!await EdgeAiEngine.isInstalled(m)) {
+      if (!await EdgeAiEngine.isInstalled(m, modelsDir)) {
         deviceState = DeviceModelState.notInstalled;
         return null;
       }
@@ -615,8 +688,35 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Model files Berea hosts stay here, since the plugin registers their path and does not copy.
+  Directory get modelsDir => Directory('${supportDir.path}/models');
+
+  /// Whether the user agreed to the current terms, which a Gemma download needs.
+  bool get termsAccepted => prefs.getInt('termsAccepted') == termsVersion;
+
+  Future<void> acceptTerms() => prefs.setInt('termsAccepted', termsVersion);
+
+  bool _downloadStarting = false;
+
+  /// Applies [draft] and downloads its model. A second request while one is under way, such as a
+  /// double tap, does nothing.
+  Future<void> downloadModelFor(Settings draft) async {
+    if (_downloadStarting || deviceState == DeviceModelState.downloading) return;
+    _downloadStarting = true;
+    try {
+      await updateSettings(draft);
+      await downloadDeviceModel();
+    } finally {
+      _downloadStarting = false;
+    }
+  }
+
   Future<void> downloadDeviceModel() async {
     final m = settings.deviceModel;
+    if (m.notice != null && !termsAccepted) return;
+    if (deviceState == DeviceModelState.downloading) return;
+    // A model that failed to load may have a damaged file, so its hash is checked again.
+    final repair = deviceState == DeviceModelState.failed;
     deviceState = DeviceModelState.downloading;
     downloadProgress = 0;
     deviceError = null;
@@ -624,7 +724,8 @@ class AppState extends ChangeNotifier {
     try {
       await EdgeAiEngine.download(
         m,
-        token: settings.hfToken.isEmpty ? null : settings.hfToken,
+        modelsDir: modelsDir,
+        recheck: repair,
         onProgress: (p) {
           // The plugin repeats a percent for every chunk; redraw the app only when it moves.
           if (p == downloadProgress) return;
@@ -680,20 +781,76 @@ class AppState extends ChangeNotifier {
   Future<void> send(String question) async {
     final h = harness;
     if (h == null || !ready) return;
-    final turn = ChatTurn(question);
+    final style = settings.briefFirst ? AnswerStyle.brief : AnswerStyle.full;
+    final turn = ChatTurn(question, style: style);
     turns.add(turn);
     await useModel(() => _answer(h, turn));
   }
 
+  /// Whether [turn] is the newest answer, so the full study can follow it. A full study that
+  /// failed does not count; it is removed when the reader tries again.
+  bool canGoDeeperFrom(ChatTurn turn) {
+    final at = turns.indexOf(turn);
+    return at >= 0 &&
+        turn.canGoDeeper &&
+        turns.skip(at + 1).every((later) => later.failedDeeper);
+  }
+
+  /// Writes the full study for [brief], which stays above it. The brief answer leaves the
+  /// harness history, so a follow-up question sees one answer to this one.
+  Future<void> goDeeper(ChatTurn brief) async {
+    final h = harness;
+    if (h == null || !ready || !canGoDeeperFrom(brief)) return;
+    turns.removeRange(turns.indexOf(brief) + 1, turns.length);
+    brief.markDeeperAsked();
+    final turn = ChatTurn(brief.question, deeper: true);
+    turns.add(turn);
+    await useModel(() => _answer(h, turn));
+    if (turn.failedDeeper) brief.markDeeperFailed();
+  }
+
+  Harness? _answering;
+
+  /// True while a question is being answered, which the Stop button can end.
+  bool get answering =>
+      busy && turns.isNotEmpty && !turns.last.done && turns.last.error == null;
+
+  /// Whether the answer being written can be stopped, and has not been asked to stop yet.
+  bool get canStopAnswer {
+    final Object? engine = _answering?.engine;
+    return answering && engine is StoppableEngine && !turns.last.stopped;
+  }
+
+  /// Ends the answer being written early. It is the harness that began the answer that stops,
+  /// even if a settings change has since replaced the current one.
+  Future<void> stopAnswer() async {
+    final h = _answering;
+    if (h == null || !canStopAnswer) return;
+    turns.last.markStopped();
+    notifyListeners();
+    await h.stop();
+  }
+
   Future<void> _answer(Harness h, ChatTurn turn) async {
+    _answering = h;
     try {
-      final result = await h.ask(turn.question, onToken: turn.append);
+      final result = await h.ask(
+        turn.question,
+        onToken: turn.append,
+        onContext: turn.read,
+        style: turn.style,
+        replacePrevious: turn.deeper,
+      );
       turn.take(result.guard);
+      // An answer stopped before it wrote anything leaves no empty message in the saved study.
+      if (turn.answer.trim().isEmpty) return;
       conversationId ??= study.createConversation(turn.question);
-      study.addMessage(conversationId!, 'user', turn.question, const []);
+      study.addMessage(conversationId!, 'user', turn.shownQuestion, const []);
       study.addMessage(conversationId!, 'assistant', turn.answer, turn.verified);
     } catch (e) {
       turn.error = e.toString();
+    } finally {
+      _answering = null;
     }
   }
 

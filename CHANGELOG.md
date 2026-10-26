@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.5.0
+
+Performance
+- A first run on a phone with 5 to 7 GB of memory now starts Gemma 4 E2B on the low prompt budget
+  (a phone under 5 GB gets Gemma 3 1B, also low). On a 5.5 GB Galaxy A32 the same question took
+  148 s instead of 225 s, the first words came after 49 s instead of 125 s, and the app held
+  2.7 GB instead of 3.8 GB with 1.2 GB less swapped out. Anyone who has already saved settings
+  keeps them; change the tier in Settings. The low tier retrieves fewer passages, uses no
+  commentary in notebook answers and caps study pages at 600 tokens.
+- While the model works, the chat shows the verses it was given, so the wait is spent reading.
+- Brief answers first (Settings: Brief answers first), on by default at the low tier unless you
+  choose otherwise. The model writes at most four short sentences, and Go deeper under the newest
+  answer asks for the full study. Both stay on screen and in the saved study; the model remembers
+  only the full one. On the Galaxy A32 the answer was complete after 61 s instead of about 160 s.
+  On the 40 golden questions through Ollama (a stand-in for the on-device file) it kept all 28
+  expected references, with no invented references, unverified quotes or misattributed sayings,
+  in 51 s against 119 to 147 s.
+- A Stop button replaces the send button while an answer is written. It takes effect in about
+  2.5 s while the answer is being written, and about 22 s while the model is still reading the
+  prompt, with "Stopping…" shown meanwhile. A stopped answer, or one that hit its length cap, is
+  cut back to its last finished sentence, so the citation check never sees half a quotation or a
+  reference cut short.
+
+Models
+- Gemma 3 1B no longer needs a Hugging Face account or token. Berea hosts the unmodified file on
+  its own release, downloads it with a pinned SHA-256 check and keeps it, with the Gemma NOTICE,
+  in its own folder. The token field is gone from Settings and a token saved by an older build is
+  deleted on launch.
+- A short Terms of use screen (under Licences and sources, and from Settings) states the Gemma
+  Prohibited Use Policy as a term of using a Gemma model. Downloading Gemma 3 1B asks you to
+  agree first, once, and the full Gemma terms and policy are bundled for reading offline.
+- Switching between models no longer leaves the app with "No active inference model set" after a
+  restart: the chosen model is made active again each time the app starts, with no download.
+- A double tap on Download no longer starts two downloads. Download after Gemma 3 1B failed to
+  load checks the file's hash again and replaces it if it is damaged.
+
 ## 0.4.0
 
 Performance

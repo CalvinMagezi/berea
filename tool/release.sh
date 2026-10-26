@@ -13,6 +13,12 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 grep -q "^## $version" CHANGELOG.md || { echo "Add a '## $version' section to CHANGELOG.md first." >&2; exit 1; }
 
+echo "Checking that the model release the app downloads from exists"
+model_tag="$(grep -o 'releases/download/model-[a-z0-9.-]*' lib/models.dart | head -1 | cut -d/ -f3 || true)"
+[[ -n "$model_tag" ]] || { echo "lib/models.dart names no model release." >&2; exit 1; }
+gh release view "$model_tag" --json assets --jq '.assets[].name' | grep -q '\.litertlm$' \
+  || { echo "Release $model_tag has no .litertlm file; the app would fail to download its model." >&2; exit 1; }
+
 echo "Building the Bible database and the lexicon pack"
 (cd packages/harness && dart pub get >/dev/null && dart run bin/build_db.dart && dart run bin/build_lexicon_pack.dart)
 

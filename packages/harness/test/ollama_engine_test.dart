@@ -75,4 +75,29 @@ void main() {
       'For God so loved.',
     );
   });
+
+  test('stopping ends the answer quietly with what was written so far', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((req) async {
+      await req.drain<void>();
+      // Unbuffered, so the first line reaches the reader while the answer is still open.
+      req.response.bufferOutput = false;
+      req.response.write('${jsonEncode({
+        'message': {'content': 'For God '},
+        'done': false,
+      })}\n');
+      await req.response.flush();
+      // Never finishes: the reader has to stop it.
+      await Future<void>.delayed(const Duration(seconds: 30));
+    });
+    final engine = OllamaEngine(baseUrl: 'http://127.0.0.1:${server.port}');
+    final pieces = <String>[];
+    final done = engine.generate([ChatMessage.user('Q')], maxTokens: 8).forEach((piece) {
+      pieces.add(piece);
+      engine.stop();
+    });
+    await done.timeout(const Duration(seconds: 5));
+    expect(pieces, ['For God ']);
+  });
 }

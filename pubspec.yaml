@@ -1,7 +1,7 @@
 name: berea
 description: "Offline Bible study agent with strict scriptural grounding."
 publish_to: 'none'
-version: 0.4.0+4
+version: 0.5.0+5
 
 environment:
   sdk: ^3.13.0
@@ -44,3 +44,4 @@ flutter:
     - assets/berea.sqlite.version
     - prompts/system.md
     - licenses/pdfium/
+    - licenses/gemma/

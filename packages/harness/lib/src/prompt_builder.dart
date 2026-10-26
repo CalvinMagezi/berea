@@ -23,6 +23,17 @@ const notebookRules = '''## Notebook sources
     VERSES. If a source quotes or describes a verse differently, say so and give the verse as
     those blocks have it.''';
 
+/// How much the model is asked to write. A phone that decodes a few tokens a second shows the
+/// brief answer first and writes the full one only when the reader asks for it.
+enum AnswerStyle { full, brief }
+
+/// Added to the system prompt for a brief answer. Measured on a Galaxy A32: this took a Study
+/// answer from 538 to 94 tokens and the wait from 161 to 66 seconds, still citing both verses.
+const briefRule = '''## Answer length
+
+Answer in at most four short sentences, then stop. Cite the verse or verses you rely on. No
+headings, no application section and no reflection questions.''';
+
 const noSourcesShown = "None of the notebook's sources matched this question.";
 
 /// Said when sources matched but none fit, so the model does not claim the notebook is silent.
@@ -80,8 +91,13 @@ class PromptBuilder {
     String userText,
     Tier tier, {
     bool notebook = false,
+    AnswerStyle style = AnswerStyle.full,
   }) {
-    final system = notebook ? '$systemPrompt\n\n$notebookRules' : systemPrompt;
+    final system = [
+      systemPrompt,
+      if (notebook) notebookRules,
+      if (style == AnswerStyle.brief) briefRule,
+    ].join('\n\n');
     final question = _capQuestion(userText, tier);
     final frame = 'CONTEXT (translation: $translation)\n\n\nQUESTION\n';
     var budget =

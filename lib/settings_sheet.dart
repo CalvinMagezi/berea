@@ -8,6 +8,7 @@ import 'app_state.dart';
 import 'backup.dart';
 import 'commentary_settings.dart';
 import 'models.dart';
+import 'terms.dart';
 
 const minPassphraseLength = 8;
 
@@ -27,7 +28,6 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   late Settings draft = widget.state.settings;
   late final _url = TextEditingController(text: draft.ollamaUrl);
   late final _model = TextEditingController(text: draft.model);
-  late final _token = TextEditingController(text: draft.hfToken);
 
   @override
   void initState() {
@@ -40,7 +40,6 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     widget.state.removeListener(_refresh);
     _url.dispose();
     _model.dispose();
-    _token.dispose();
     super.dispose();
   }
 
@@ -248,11 +247,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     }
   }
 
-  Settings get _merged => draft.copyWith(
-    ollamaUrl: _url.text.trim(),
-    model: _model.text.trim(),
-    hfToken: _token.text.trim(),
-  );
+  Settings get _merged => draft.copyWith(ollamaUrl: _url.text.trim(), model: _model.text.trim());
 
   @override
   Widget build(BuildContext context) {
@@ -295,7 +290,10 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                       DropdownMenuItem(value: m.id, child: Text('${m.label} · ${m.sizeGb} GB')),
                   ],
                   onChanged: (id) => setState(
-                    () => draft = draft.copyWith(deviceModelId: id, tier: edgeModelById(id!).tier),
+                    () => draft = draft.copyWith(
+                      deviceModelId: id,
+                      tier: recommendedTier(edgeModelById(id!), widget.state.deviceGb),
+                    ),
                   ),
                 ),
                 if (widget.state.deviceGb != null)
@@ -303,25 +301,47 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       'This device has ${widget.state.deviceGb!.toStringAsFixed(1)} GB of memory. '
-                      'Recommended: ${recommendedModel(widget.state.deviceGb).label}.',
+                      'Recommended: ${_recommendation(widget.state.deviceGb)}.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
-                if (draft.deviceModel.gated) ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _token,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Hugging Face token'),
+                if (draft.deviceModel.notice != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${draft.deviceModel.notice}. Use of this model is also subject to the '
+                          'Gemma Prohibited Use Policy at $gemmaProhibitedUse.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(
+                            context,
+                          ).push(MaterialPageRoute<void>(builder: (_) => const TermsScreen())),
+                          child: const Text('Read the terms'),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
                 const SizedBox(height: 12),
                 _DeviceModelStatus(state: widget.state, draft: _merged),
               ],
               const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Brief answers first'),
+                subtitle: const Text('A few sentences sooner; tap Go deeper for the full study.'),
+                value: draft.briefFirst,
+                onChanged: (v) => setState(() => draft = draft.copyWith(briefFirst: v)),
+              ),
               DropdownButtonFormField<Tier>(
                 initialValue: draft.tier,
                 decoration: const InputDecoration(labelText: 'Tier (prompt budget)'),
@@ -439,6 +459,11 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   }
 }
 
+String _recommendation(double? gb) {
+  final m = recommendedModel(gb);
+  return '${m.label}, ${recommendedTier(m, gb).name} tier';
+}
+
 class _DeviceModelStatus extends StatelessWidget {
   final AppState state;
   final Settings draft;
@@ -482,8 +507,8 @@ class _DeviceModelStatus extends StatelessWidget {
                 icon: const Icon(Icons.download_outlined),
                 label: Text('Download (${draft.deviceModel.sizeGb} GB)'),
                 onPressed: () async {
-                  await state.updateSettings(draft);
-                  await state.downloadDeviceModel();
+                  if (!await confirmModelTerms(context, state, draft.deviceModel)) return;
+                  await state.downloadModelFor(draft);
                 },
               ),
             ),

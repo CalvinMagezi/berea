@@ -37,10 +37,90 @@ void main() {
     await h.ask('And what follows?');
     expect(engine.calls[1].map((m) => m.role), ['system', 'user', 'assistant', 'user']);
   });
+
+  test('a brief answer adds the length rule and caps what the model may write', () async {
+    final engine = _Stateless();
+    final h = Harness(db: _db(), engine: engine, systemPrompt: 'SYS');
+    await h.ask('What does John 3:16 teach?');
+    await h.ask('What does John 3:16 teach?', style: AnswerStyle.brief);
+    expect(engine.calls[0].first.content, isNot(contains(briefRule)));
+    expect(engine.calls[1].first.content, contains(briefRule));
+    expect(engine.limits, [h.tier.maxOutput, briefMaxOutput]);
+  });
+
+  test('a replacing answer takes the place of the last one in the history', () async {
+    final engine = _Stateless();
+    final h = Harness(db: _db(), engine: engine, systemPrompt: 'SYS');
+    await h.ask('What does John 3:16 teach?', style: AnswerStyle.brief);
+    await h.ask('What does John 3:16 teach?', replacePrevious: true);
+    expect(h.history.map((m) => m.role), ['user', 'assistant']);
+    expect(engine.calls[1].map((m) => m.role), ['system', 'user']);
+  });
+
+  group('an answer that is cut off', () {
+    Harness harness(LlmEngine engine) => Harness(db: _db(), engine: engine, systemPrompt: 'SYS');
+
+    test('a stopped answer keeps its finished sentences and no unclosed quotation', () async {
+      // The model writes a little more before the stop takes effect.
+      final engine = _Pieces(['For God so loved the world. ', 'He said "For God so', ' loved'], lag: 2);
+      final h = harness(engine);
+      var asked = false;
+      final result = await h.ask(
+        'What does John 3:16 teach?',
+        onToken: (_) {
+          if (!asked) h.stop();
+          asked = true;
+        },
+      );
+      expect(engine.stops, 1);
+      expect(result.text, 'For God so loved the world.');
+      expect(h.history.last.content, 'For God so loved the world.');
+    });
+
+    test('an answer that hit the length cap is cut back to a finished sentence', () async {
+      final h = harness(_Pieces(['Done. ', ...List.filled(248, 'x '), 'y']));
+      final result = await h.ask('What does John 3:16 teach?', style: AnswerStyle.brief);
+      expect(result.text, 'Done.');
+    });
+
+    test('an answer that ends of its own accord is left as it is', () async {
+      final h = harness(_Pieces(['Done. ', 'And more']));
+      final result = await h.ask('What does John 3:16 teach?');
+      expect(result.text, 'Done. And more');
+    });
+
+    test('an answer with nothing written adds nothing to the history', () async {
+      final h = harness(_Pieces(const []));
+      await h.ask('What does John 3:16 teach?', onToken: (_) {});
+      expect(h.history, isEmpty);
+    });
+
+    test('a failed replacing answer puts the earlier one back', () async {
+      final engine = _Pieces(['Brief answer.']);
+      final h = harness(engine);
+      await h.ask('What does John 3:16 teach?', style: AnswerStyle.brief);
+      engine.failWith = StateError('model gone');
+      await expectLater(
+        h.ask('What does John 3:16 teach?', replacePrevious: true),
+        throwsStateError,
+      );
+      expect(h.history.map((m) => m.content), ['What does John 3:16 teach?', 'Brief answer.']);
+    });
+
+    test('a replacing answer that is stopped at once keeps the earlier one', () async {
+      final engine = _Pieces(['Brief answer.']);
+      final h = harness(engine);
+      await h.ask('What does John 3:16 teach?', style: AnswerStyle.brief);
+      engine.pieces = const [];
+      await h.ask('What does John 3:16 teach?', replacePrevious: true);
+      expect(h.history.map((m) => m.content), ['What does John 3:16 teach?', 'Brief answer.']);
+    });
+  });
 }
 
 class _Stateless implements LlmEngine {
   final calls = <List<ChatMessage>>[];
+  final limits = <int>[];
 
   @override
   String get name => 'stateless';
@@ -48,6 +128,7 @@ class _Stateless implements LlmEngine {
   @override
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) async* {
     calls.add(messages);
+    limits.add(maxTokens);
     yield 'An answer.';
   }
 }
@@ -62,5 +143,40 @@ class _Scripted implements LlmEngine {
   @override
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) async* {
     yield text;
+  }
+}
+
+/// Writes [pieces] one at a time, and can be told to stop or to fail.
+class _Pieces implements LlmEngine, StoppableEngine {
+  List<String> pieces;
+  Object? failWith;
+  var stops = 0;
+  var _stopped = false;
+
+  /// How many more pieces arrive after a stop before the engine notices it.
+  final int lag;
+  var _lagLeft = 0;
+  _Pieces(this.pieces, {this.lag = 0});
+
+  @override
+  String get name => 'pieces';
+
+  @override
+  Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) async* {
+    _stopped = false;
+    _lagLeft = lag;
+    final failure = failWith;
+    if (failure != null) throw failure;
+    for (final piece in pieces) {
+      if (_stopped && _lagLeft-- <= 0) return;
+      yield piece;
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
+  @override
+  Future<void> stop() async {
+    stops++;
+    _stopped = true;
   }
 }
