@@ -65,7 +65,7 @@ class EdgeAiEngine implements LlmEngine {
       return true;
     }
     final file = File('${modelsDir.path}/${m.file}');
-    if (!file.existsSync() || file.lengthSync() != source.bytes) return false;
+    if (!hostedModelCurrent(file, sha256: source.sha256, bytes: source.bytes)) return false;
     await _installModel(m).fromFile(file.path).install();
     return true;
   }

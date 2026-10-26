@@ -53,8 +53,18 @@ Future<void> downloadPinned(
 /// hash and not on the cap.
 const modelSizeMargin = 1024 * 1024;
 
+/// Whether [file] is the model pinned by [sha256]: the right size, and stamped with that hash
+/// by [downloadModelFile] once it matched. A size alone cannot tell two builds of a model apart.
+bool hostedModelCurrent(File file, {required String sha256, required int bytes}) {
+  final stamp = File('${file.path}.sha256');
+  return file.existsSync() &&
+      file.lengthSync() == bytes &&
+      stamp.existsSync() &&
+      stamp.readAsStringSync().trim() == sha256;
+}
+
 /// Puts the pinned model file [name] into [dir] and returns it. The file appears there only once
-/// its hash matches, so a file of the right size is one that was already checked.
+/// its hash matches, and is stamped with that hash so a changed pin fetches it again.
 Future<File> downloadModelFile(
   Uri url,
   Directory dir,
@@ -66,7 +76,7 @@ Future<File> downloadModelFile(
 }) async {
   dir.createSync(recursive: true);
   final dest = File('${dir.path}/$name');
-  if (dest.existsSync() && dest.lengthSync() == bytes) return dest;
+  if (hostedModelCurrent(dest, sha256: sha256, bytes: bytes)) return dest;
   final part = File('${dest.path}.part');
   try {
     await downloadPinned(
@@ -78,6 +88,7 @@ Future<File> downloadModelFile(
       onProgress: onProgress,
     );
     await part.rename(dest.path);
+    File('${dest.path}.sha256').writeAsStringSync(sha256);
   } finally {
     if (part.existsSync()) part.deleteSync();
   }

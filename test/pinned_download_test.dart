@@ -105,11 +105,28 @@ void main() {
       expect(Directory('${dir.path}/models').listSync(), isEmpty);
     });
 
-    test('a file already there at the right size is not fetched again', () async {
+    test('a file already there with the pinned hash is not fetched again', () async {
       await fetchModel('/ok');
       final unreachable = Uri.parse('http://127.0.0.1:1/never');
       final again = await fetchModel('/ok', from: unreachable);
       expect(again.readAsBytesSync(), body);
+    });
+
+    test('a file of the same size under another pin is fetched again', () async {
+      final file = await fetchModel('/ok');
+      file.writeAsBytesSync(List.filled(body.length, 7));
+      File('${file.path}.sha256').writeAsStringSync('f' * 64);
+      expect(hostedModelCurrent(file, sha256: pin, bytes: body.length), isFalse);
+      final again = await fetchModel('/ok');
+      expect(again.readAsBytesSync(), body);
+      expect(hostedModelCurrent(again, sha256: pin, bytes: body.length), isTrue);
+    });
+
+    test('a file with no stamp is not trusted, whatever its size', () async {
+      final file = File('${dir.path}/models/m.litertlm')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List.filled(body.length, 7));
+      expect(hostedModelCurrent(file, sha256: pin, bytes: body.length), isFalse);
     });
   });
 }
