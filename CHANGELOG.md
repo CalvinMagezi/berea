@@ -13,8 +13,11 @@ Models
 - Gemma 3 1B no longer needs a Hugging Face account or token. Berea hosts the unmodified file on
   its own release, downloads it with a pinned SHA-256 check and keeps it in its own folder. The
   token field is gone from Settings and a token saved by an older build is deleted on launch.
-- The Gemma notice and Prohibited Use Policy show before the download and under Licences and
-  sources.
+- A short Terms of use screen (under Licences and sources, and from Settings) states the Gemma
+  Prohibited Use Policy as a term of using a Gemma model in Berea. Downloading Gemma 3 1B asks you
+  to agree first, once, and the full Gemma terms and policy are bundled for reading offline.
+- Switching between models no longer leaves the app with "No active inference model set" after a
+  restart: the chosen model is made active again each time the app starts, with no download.
 
 ## 0.4.0
 

@@ -632,8 +632,14 @@ class AppState extends ChangeNotifier {
   /// Model files Berea hosts stay here, since the plugin registers their path and does not copy.
   Directory get modelsDir => Directory('${supportDir.path}/models');
 
+  /// Whether the user agreed to the current terms, which a Gemma download needs.
+  bool get termsAccepted => prefs.getInt('termsAccepted') == termsVersion;
+
+  Future<void> acceptTerms() => prefs.setInt('termsAccepted', termsVersion);
+
   Future<void> downloadDeviceModel() async {
     final m = settings.deviceModel;
+    if (m.notice != null && !termsAccepted) return;
     deviceState = DeviceModelState.downloading;
     downloadProgress = 0;
     deviceError = null;

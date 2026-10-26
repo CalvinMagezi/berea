@@ -8,6 +8,7 @@ import 'app_state.dart';
 import 'backup.dart';
 import 'commentary_settings.dart';
 import 'models.dart';
+import 'terms.dart';
 
 const minPassphraseLength = 8;
 
@@ -310,13 +311,24 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 if (draft.deviceModel.notice != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
-                    child: Text(
-                      '${draft.deviceModel.notice}. Use of this model is also subject to the '
-                      'Gemma Prohibited Use Policy at $gemmaProhibitedUse.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${draft.deviceModel.notice}. Use of this model is also subject to the '
+                          'Gemma Prohibited Use Policy at $gemmaProhibitedUse.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(
+                            context,
+                          ).push(MaterialPageRoute<void>(builder: (_) => const TermsScreen())),
+                          child: const Text('Read the terms'),
+                        ),
+                      ],
                     ),
                   ),
                 const SizedBox(height: 12),
@@ -488,6 +500,7 @@ class _DeviceModelStatus extends StatelessWidget {
                 icon: const Icon(Icons.download_outlined),
                 label: Text('Download (${draft.deviceModel.sizeGb} GB)'),
                 onPressed: () async {
+                  if (!await confirmModelTerms(context, state, draft.deviceModel)) return;
                   await state.updateSettings(draft);
                   await state.downloadDeviceModel();
                 },

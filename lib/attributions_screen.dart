@@ -2,6 +2,7 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'models.dart';
+import 'terms.dart';
 import 'theme.dart';
 
 /// A dataset Berea ships or can download, with the licence it is used under.
@@ -25,6 +26,11 @@ const builtInSources = [
 ];
 
 const downloadableSources = [
+  DataSource(
+    'Gemma 4 E2B and E4B (on-device language models)',
+    'Apache License 2.0',
+    'Google; downloaded from the litert-community organisation on Hugging Face',
+  ),
   DataSource(
     'Gemma 3 1B (on-device language model)',
     'Gemma Terms of Use',
@@ -72,6 +78,14 @@ class AttributionsScreen extends StatelessWidget {
               for (final m in commentaryModules)
                 _SourceTile(m.title, '${m.author}. ${m.source} ${m.id}', m.licence),
               const _Heading('Berea'),
+              ListTile(
+                title: const Text('Terms of use'),
+                subtitle: const Text('What Berea asks of you, including the Gemma terms'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute<void>(builder: (_) => const TermsScreen())),
+              ),
               const _SourceTile('Berea app and harness', 'github.com/CalvinMagezi/berea', 'MIT'),
               for (final s in bundledSoftware) _SourceTile(s.name, s.credit, s.licence),
               ListTile(

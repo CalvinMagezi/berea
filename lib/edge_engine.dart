@@ -52,23 +52,26 @@ class EdgeAiEngine implements LlmEngine {
   final bool hearsAudio;
   const EdgeAiEngine(this.model, this.spec, {this.hearsAudio = false});
 
-  /// Whether [m] is ready to load. flutter_edge_ai 2.1.3 does not restore a model registered from
-  /// a file after a restart, so for a hosted model the file in [modelsDir] decides, and it is
-  /// registered again every time; that is instant and makes it the active model.
+  /// Whether [m] is ready to load, and makes it the plugin's active model. The plugin remembers
+  /// only the model it installed last, and 2.1.3 cannot restore one registered from a file, so
+  /// after a restart the active model can be missing or another model's. Installing again skips
+  /// the download of a file already there and sets the active model, so it is done on every check.
   static Future<bool> isInstalled(EdgeModel m, Directory modelsDir) async {
     await ensureEdgeAiInitialized();
     final source = m.source;
-    if (source == null) return FlutterEdgeAi.isModelInstalled(m.installedName);
+    if (source == null) {
+      if (!await FlutterEdgeAi.isModelInstalled(m.installedName)) return false;
+      await _installModel(m).fromHuggingFace(m.repo, file: m.file).install();
+      return true;
+    }
     final file = File('${modelsDir.path}/${m.file}');
     if (!file.existsSync() || file.lengthSync() != source.bytes) return false;
-    await _installFromFile(m, file);
+    await _installModel(m).fromFile(file.path).install();
     return true;
   }
 
-  static Future<void> _installFromFile(EdgeModel m, File file) => FlutterEdgeAi.installModel(
-    modelType: m.type,
-    fileType: ModelFileType.litertlm,
-  ).fromFile(file.path).install();
+  static InferenceInstallationBuilder _installModel(EdgeModel m) =>
+      FlutterEdgeAi.installModel(modelType: m.type, fileType: ModelFileType.litertlm);
 
   /// Fetches [m] into [modelsDir] when Berea hosts it, else from Hugging Face, and installs it.
   /// A hosted file stays where it was put: the plugin registers its path instead of copying it.
@@ -80,10 +83,7 @@ class EdgeAiEngine implements LlmEngine {
     await ensureEdgeAiInitialized();
     final source = m.source;
     if (source == null) {
-      await FlutterEdgeAi.installModel(
-        modelType: m.type,
-        fileType: ModelFileType.litertlm,
-      ).fromHuggingFace(m.repo, file: m.file).withProgress(onProgress).install();
+      await _installModel(m).fromHuggingFace(m.repo, file: m.file).withProgress(onProgress).install();
       return;
     }
     final file = await downloadModelFile(
@@ -95,7 +95,7 @@ class EdgeAiEngine implements LlmEngine {
       timeout: modelDownloadTimeout,
       onProgress: (fraction) => onProgress((fraction * 100).round()),
     );
-    await _installFromFile(m, file);
+    await _installModel(m).fromFile(file.path).install();
   }
 
   /// Loads the model for [tier]; if its audio encoder fails, text still loads and voice is off.
