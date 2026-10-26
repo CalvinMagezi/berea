@@ -59,7 +59,7 @@ class NotebookChat extends ChangeNotifier {
   /// Earlier questions and answers, for the model to follow the conversation.
   List<ChatMessage> get _history => [
     for (final t in turns)
-      if (t.done && t.error == null) ...[
+      if (t.done && t.error == null && t.answer.trim().isNotEmpty) ...[
         ChatMessage.user(t.question),
         ChatMessage.assistant(t.answer),
       ],
@@ -83,6 +83,8 @@ class NotebookChat extends ChangeNotifier {
       turn.take(result.guard);
       // A restore during the answer may have given this notebook's id to another notebook.
       if (store.epoch != epoch) return;
+      // An empty answer is not kept, so it is not replayed to the model as one.
+      if (turn.answer.trim().isEmpty) return;
       store.addExchange(notebookId, question, turn.answer, turn.verified, turn.sources);
     } catch (e) {
       turn

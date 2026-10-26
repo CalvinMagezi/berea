@@ -61,9 +61,17 @@ void main() {
     Harness harness(LlmEngine engine) => Harness(db: _db(), engine: engine, systemPrompt: 'SYS');
 
     test('a stopped answer keeps its finished sentences and no unclosed quotation', () async {
-      final engine = _Pieces(['For God so loved the world. ', 'He said "For God so', ' loved']);
+      // The model writes a little more before the stop takes effect.
+      final engine = _Pieces(['For God so loved the world. ', 'He said "For God so', ' loved'], lag: 2);
       final h = harness(engine);
-      final result = await h.ask('What does John 3:16 teach?', onToken: (_) => h.stop());
+      var asked = false;
+      final result = await h.ask(
+        'What does John 3:16 teach?',
+        onToken: (_) {
+          if (!asked) h.stop();
+          asked = true;
+        },
+      );
       expect(engine.stops, 1);
       expect(result.text, 'For God so loved the world.');
       expect(h.history.last.content, 'For God so loved the world.');
@@ -81,7 +89,7 @@ void main() {
       expect(result.text, 'Done. And more');
     });
 
-    test('stopping before anything is written adds nothing to the history', () async {
+    test('an answer with nothing written adds nothing to the history', () async {
       final h = harness(_Pieces(const []));
       await h.ask('What does John 3:16 teach?', onToken: (_) {});
       expect(h.history, isEmpty);
@@ -144,7 +152,11 @@ class _Pieces implements LlmEngine, StoppableEngine {
   Object? failWith;
   var stops = 0;
   var _stopped = false;
-  _Pieces(this.pieces);
+
+  /// How many more pieces arrive after a stop before the engine notices it.
+  final int lag;
+  var _lagLeft = 0;
+  _Pieces(this.pieces, {this.lag = 0});
 
   @override
   String get name => 'pieces';
@@ -152,10 +164,11 @@ class _Pieces implements LlmEngine, StoppableEngine {
   @override
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) async* {
     _stopped = false;
+    _lagLeft = lag;
     final failure = failWith;
     if (failure != null) throw failure;
     for (final piece in pieces) {
-      if (_stopped) return;
+      if (_stopped && _lagLeft-- <= 0) return;
       yield piece;
       await Future<void>.delayed(Duration.zero);
     }

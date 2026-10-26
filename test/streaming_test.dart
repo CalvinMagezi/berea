@@ -45,6 +45,9 @@ class _Recording implements LlmEngine, StoppableEngine {
 
   /// Writes nothing, as when a stop comes before the first word.
   bool silent = false;
+
+  /// A stop that takes a while to act, as one during prompt processing does.
+  bool slowStop = false;
   _Recording({this.hold = false});
 
   @override
@@ -68,8 +71,11 @@ class _Recording implements LlmEngine, StoppableEngine {
   @override
   Future<void> stop() async {
     stops++;
-    await _open?.close();
+    if (!slowStop) await _open?.close();
   }
+
+  /// Lets a slow stop finish.
+  Future<void> release() async => _open?.close();
 }
 
 /// The chat screen needs a voice session; these tests never record.
@@ -284,7 +290,7 @@ void main() {
     });
 
     test('stopping tells the app at once, and a second tap has nothing to stop', () async {
-      final engine = _Recording(hold: true);
+      final engine = _Recording(hold: true)..slowStop = true;
       final s = app(engine);
       final sent = s.send(question);
       await pumpEventQueue();
@@ -293,11 +299,16 @@ void main() {
       s.addListener(() => heard++);
 
       await s.stopAnswer();
-      expect(heard, greaterThan(0));
+      // The engine has not finished yet: only the stop itself can have told the app.
+      expect(s.answering, isTrue);
+      expect(heard, 1);
       expect(s.canStopAnswer, isFalse);
       await s.stopAnswer();
-      await sent;
       expect(engine.stops, 1);
+
+      await engine.release();
+      await sent;
+      expect(s.turns.single.done, isTrue);
     });
 
     test('the answer that began a question is the one that stops, after a settings change', () async {
@@ -327,12 +338,75 @@ void main() {
       expect(s.harness!.history, isEmpty);
     });
 
-    test('a second download request while one is under way does nothing', () async {
+    test('a download request while the model is downloading does nothing', () async {
       final s = app(_Recording());
       final before = s.settings;
       s.deviceState = DeviceModelState.downloading;
       await s.downloadModelFor(Settings(engine: EngineKind.device, tier: Tier.high));
       expect(identical(s.settings, before), isTrue);
+    });
+
+    test('an empty brief answer offers no Go deeper and the earlier answer stays remembered', () async {
+      final engine = _Recording();
+      final s = app(engine)..settings = Settings(engine: EngineKind.device, briefFirst: true);
+      await s.send(question);
+      engine.silent = true;
+      await s.send('And Romans 8:1?');
+
+      final empty = s.turns.last;
+      expect(empty.done, isTrue);
+      expect(empty.answer, isEmpty);
+      expect(s.canGoDeeperFrom(empty), isFalse);
+      expect(s.harness!.history.map((m) => m.content), [question, s.turns.first.answer]);
+    });
+
+    test('a full study that writes nothing can be asked for again', () async {
+      final engine = _Recording();
+      final s = app(engine)..settings = Settings(engine: EngineKind.device, briefFirst: true);
+      await s.send(question);
+      final brief = s.turns.single;
+      engine.silent = true;
+
+      await s.goDeeper(brief);
+      expect(s.turns.last.failedDeeper, isTrue);
+      expect(s.canGoDeeperFrom(brief), isTrue);
+      expect(s.harness!.history.map((m) => m.content), [question, brief.answer]);
+    });
+
+    test('a saved study cannot be opened while an answer is being written', () async {
+      final engine = _Recording(hold: true);
+      final s = app(engine);
+      final id = study.createConversation('Earlier study');
+      study
+        ..addMessage(id, 'user', 'Earlier study', const [])
+        ..addMessage(id, 'assistant', 'An answer.', const []);
+      final sent = s.send(question);
+      await pumpEventQueue();
+
+      s.openConversation(id);
+      expect(s.turns.single.question, question);
+      expect(s.conversationId, isNull);
+      await s.stopAnswer();
+      await sent;
+    });
+
+    test('a notebook answer that is empty is not saved or replayed', () async {
+      final store = NotebookStore(study.db);
+      final harness = Harness(
+        db: bible,
+        engine: _Tokens(const Stream.empty()),
+        systemPrompt: 'SYS',
+        notebook: true,
+      );
+      final id = store.createNotebook('Grace');
+      final chat = NotebookChat(
+        store: store,
+        notebookId: id,
+        ready: () => true,
+        answer: (q, history, onToken) => harness.ask(q, onToken: onToken),
+      );
+      await chat.send('What is grace?');
+      expect(store.messages(id), isEmpty);
     });
 
     test('brief answers are on by default at the low tier and keep a saved choice', () async {

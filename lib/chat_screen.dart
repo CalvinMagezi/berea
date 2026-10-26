@@ -123,7 +123,7 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             tooltip: 'New study',
             icon: const Icon(Icons.edit_note_outlined),
-            onPressed: s.turns.isEmpty ? null : s.clear,
+            onPressed: s.turns.isEmpty || s.busy ? null : s.clear,
           ),
           if (s.conversationId != null)
             IconButton(
@@ -323,7 +323,7 @@ class TurnView extends StatelessWidget {
           const SizedBox(height: 16),
           if (turn.error != null)
             Text(turn.error!, style: TextStyle(color: scheme.error))
-          else if (turn.answer.isEmpty)
+          else if (turn.answer.trim().isEmpty)
             _Waiting(
               turn.reading,
               status: turn.done
@@ -333,7 +333,7 @@ class TurnView extends StatelessWidget {
           else
             MarkdownLite(turn.answer),
           if (turn.done) _Citations(turn, db, translation, onSource),
-          if (turn.stopped && (turn.done || turn.answer.isNotEmpty))
+          if (turn.stopped && (turn.done || turn.answer.trim().isNotEmpty))
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(

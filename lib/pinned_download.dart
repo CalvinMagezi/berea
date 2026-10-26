@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:http/http.dart' as http;
@@ -101,14 +102,15 @@ Future<File> downloadModelFile(
   return dest;
 }
 
-Future<bool> _hashMatches(File file, String sha256) async {
+/// Hashes the file away from the UI isolate: a model is hundreds of megabytes.
+Future<bool> _hashMatches(File file, String sha256) => Isolate.run(() async {
   final hash = Sha256().newHashSink();
   await for (final chunk in file.openRead()) {
     hash.add(chunk);
   }
   hash.close();
   return hexOf((await hash.hash()).bytes) == sha256;
-}
+});
 
 /// Puts [notice] in a NOTICE file beside the models, as the Gemma terms ask of every copy.
 void writeModelNotice(Directory dir, String notice) {

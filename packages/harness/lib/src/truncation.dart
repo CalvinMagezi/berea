@@ -1,5 +1,9 @@
-/// Closing marks that may follow the full stop that ends a sentence.
-final _sentenceEnd = RegExp('[.!?]["”\')\\]*_]*(?=\\s|\$)');
+/// What may follow the mark that ends a sentence: closing quotes and brackets, and markdown. A
+/// number and a point at the start of a line is a list marker, not a sentence end.
+final _sentenceEnd = RegExp(
+  '(?<!^[ \\t]*\\d{1,3})[.!?…]["”’»\')\\]*_]*(?=\\s|\$)',
+  multiLine: true,
+);
 
 /// [raw] cut back to its last finished sentence, with no quotation left open. An answer that was
 /// stopped or hit its length cap ends mid-sentence, and the citation check only sees a quotation
@@ -18,12 +22,16 @@ String withoutUnfinishedSentence(String raw) {
   return '';
 }
 
-/// Where the earliest quotation that never closes begins, or null when every one closes.
+/// Where the earliest quotation that never closes begins, or null when every one closes. A
+/// quotation does not run past the end of a line, which is how the citation check reads it too.
 int? _firstOpenQuote(String text) {
   final curly = <int>[];
   int? straight;
   for (var i = 0; i < text.length; i++) {
     switch (text[i]) {
+      case '\n':
+        curly.clear();
+        straight = null;
       case '“':
         curly.add(i);
       case '”':

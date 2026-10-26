@@ -64,3 +64,5 @@
 | A reloaded study differs from the live one | Go deeper is saved as a "Go deeper" message, so a reloaded study rebuilds the history with the brief answer, that message and the full study, and offers no Go deeper button on an old brief answer | 2026-10-26 | lib/app_state.dart:openConversation |
 | An answer cut off at the length cap is detected by counting streamed pieces | The harness treats as many pieces as the token cap as a cut-off answer and trims it to the last finished sentence; an engine that sends several tokens per piece would not be detected | 2026-10-26 | packages/harness/lib/src/harness.dart:ask |
 | A download killed with the app leaves its .part file until the next download | The file is up to 0.6 GB and is replaced on the next attempt; it is not cleaned up at start | 2026-10-26 | lib/pinned_download.dart:downloadModelFile |
+| Two stop paths have no automated test | EdgeAiEngine's stop during createChat needs the real plugin, and the download guard flag (_downloadStarting) needs a model download to be in flight; both were read and reasoned through in review, not run | 2026-10-26 | lib/edge_engine.dart:stop |
+

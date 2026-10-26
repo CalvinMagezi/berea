@@ -143,7 +143,15 @@ class ChatTurn extends ChangeNotifier {
   }
 
   /// A finished brief answer can be followed by the full study, once.
-  bool get canGoDeeper => done && error == null && style == AnswerStyle.brief && !deeperAsked;
+  bool get canGoDeeper =>
+      done &&
+      error == null &&
+      answer.trim().isNotEmpty &&
+      style == AnswerStyle.brief &&
+      !deeperAsked;
+
+  /// A full study that failed or wrote nothing, so the brief answer may ask for it again.
+  bool get failedDeeper => deeper && (error != null || (done && answer.trim().isEmpty));
   String answer = '';
   Timer? _refresh;
   List<Ref> verified = const [];
@@ -584,6 +592,8 @@ class AppState extends ChangeNotifier {
   void touch() => notifyListeners();
 
   void openConversation(int id) {
+    // Switching studies under an answer being written would put it in the wrong one.
+    if (busy) return;
     turns.clear();
     harness?.resetConversation();
     conversationId = id;
@@ -605,6 +615,7 @@ class AppState extends ChangeNotifier {
   }
 
   void deleteConversation(int id) {
+    if (busy && conversationId == id) return;
     study.deleteConversation(id);
     if (conversationId == id) clear();
     notifyListeners();
@@ -782,7 +793,7 @@ class AppState extends ChangeNotifier {
     final at = turns.indexOf(turn);
     return at >= 0 &&
         turn.canGoDeeper &&
-        turns.skip(at + 1).every((later) => later.deeper && later.error != null);
+        turns.skip(at + 1).every((later) => later.failedDeeper);
   }
 
   /// Writes the full study for [brief], which stays above it. The brief answer leaves the
@@ -795,7 +806,7 @@ class AppState extends ChangeNotifier {
     final turn = ChatTurn(brief.question, deeper: true);
     turns.add(turn);
     await useModel(() => _answer(h, turn));
-    if (turn.error != null) brief.markDeeperFailed();
+    if (turn.failedDeeper) brief.markDeeperFailed();
   }
 
   Harness? _answering;

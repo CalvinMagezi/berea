@@ -33,6 +33,27 @@ void main() {
       expect(withoutUnfinishedSentence('Read 3.16 aloud'), '');
     });
 
+    test('a quotation does not run past the end of its line', () {
+      expect(
+        withoutUnfinishedSentence(
+          'He said "Peace be with you.\n\nGrace is a gift (John 3:16).\n\nAnd more',
+        ),
+        'He said "Peace be with you.\n\nGrace is a gift (John 3:16).',
+      );
+    });
+
+    test('a list number is not the end of a sentence', () {
+      expect(
+        withoutUnfinishedSentence('Three things.\n1. Faith.\n2. Hope.\n3. Lov'),
+        'Three things.\n1. Faith.\n2. Hope.',
+      );
+    });
+
+    test('typographic closers and the ellipsis end a sentence too', () {
+      expect(withoutUnfinishedSentence('He said ‘Peace.’ And then'), 'He said ‘Peace.’');
+      expect(withoutUnfinishedSentence('It trails off… and then'), 'It trails off…');
+    });
+
     test('nothing finished leaves nothing', () {
       expect(withoutUnfinishedSentence(''), '');
       expect(withoutUnfinishedSentence('For God so'), '');

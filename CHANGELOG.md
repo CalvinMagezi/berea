@@ -33,8 +33,8 @@ Models
   agree first, once, and the full Gemma terms and policy are bundled for reading offline.
 - Switching between models no longer leaves the app with "No active inference model set" after a
   restart: the chosen model is made active again each time the app starts, with no download.
-- A double tap on Download no longer starts two downloads. Download after a model failed to load
-  checks the file's hash again and replaces it if it is damaged.
+- A double tap on Download no longer starts two downloads. Download after Gemma 3 1B failed to
+  load checks the file's hash again and replaces it if it is damaged.
 
 ## 0.4.0
 

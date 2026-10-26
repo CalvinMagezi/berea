@@ -144,11 +144,15 @@ class Harness {
     final ctx = retriever.retrieve(ref.label, tier);
     final prompt = builder.build(ctx, const [], studyPageInstruction(ref), tier);
     final buf = StringBuffer();
+    var pieces = 0;
     await for (final token in engine.generate(prompt.messages, maxTokens: tier.maxOutput)) {
+      pieces++;
       buf.write(token);
       onToken?.call(token);
     }
-    final guarded = guard.apply(buf.toString(), prompt.shown);
+    // A draft that hit its length cap ends mid-sentence, which the citation check cannot judge.
+    final raw = pieces >= tier.maxOutput ? withoutUnfinishedSentence(buf.toString()) : buf.toString();
+    final guarded = guard.apply(raw, prompt.shown);
     final parts = StudyPage.sections(guarded.text);
     return StudyPage(
       parts['observation'] ?? guarded.text,
