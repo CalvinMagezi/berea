@@ -316,13 +316,7 @@ class TurnView extends StatelessWidget {
           if (turn.error != null)
             Text(turn.error!, style: TextStyle(color: scheme.error))
           else if (turn.answer.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Text(
-                'Examining the Scriptures…',
-                style: TextStyle(color: scheme.onSurfaceVariant),
-              ),
-            )
+            _Waiting(turn.reading)
           else
             MarkdownLite(turn.answer),
           if (turn.done) _Citations(turn, db, translation, onSource),
@@ -370,6 +364,42 @@ class AnswerFollower {
   void dispose() {
     _detach();
     _turn = null;
+  }
+}
+
+/// What the reader sees before the model's first word: the verses it is working from.
+class _Waiting extends StatelessWidget {
+  final List<Verse> reading;
+  const _Waiting(this.reading);
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final v in reading)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${v.label} ',
+                      style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600),
+                    ),
+                    TextSpan(text: v.text),
+                  ],
+                ),
+                style: TextStyle(color: scheme.onSurface),
+              ),
+            ),
+          Text('Examining the Scriptures…', style: TextStyle(color: scheme.onSurfaceVariant)),
+        ],
+      ),
+    );
   }
 }
 

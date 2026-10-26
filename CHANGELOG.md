@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+Performance
+- A phone with under 7 GB of memory now starts on the low prompt budget with Gemma 4 E2B. On a
+  5.5 GB Galaxy A32 the same question took 148 s instead of 225 s, the first words came after
+  49 s instead of 125 s, and the app held 2.7 GB instead of 3.8 GB with 1.2 GB less swapped out.
+  Phones that already chose a tier keep it; change it in Settings.
+- While the model works, the chat shows the verses it was given, so the wait is spent reading.
+
 ## 0.4.0
 
 Performance

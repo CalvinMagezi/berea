@@ -295,7 +295,10 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                       DropdownMenuItem(value: m.id, child: Text('${m.label} · ${m.sizeGb} GB')),
                   ],
                   onChanged: (id) => setState(
-                    () => draft = draft.copyWith(deviceModelId: id, tier: edgeModelById(id!).tier),
+                    () => draft = draft.copyWith(
+                      deviceModelId: id,
+                      tier: recommendedTier(edgeModelById(id!), widget.state.deviceGb),
+                    ),
                   ),
                 ),
                 if (widget.state.deviceGb != null)
@@ -303,7 +306,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       'This device has ${widget.state.deviceGb!.toStringAsFixed(1)} GB of memory. '
-                      'Recommended: ${recommendedModel(widget.state.deviceGb).label}.',
+                      'Recommended: ${_recommendation(widget.state.deviceGb)}.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -437,6 +440,11 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       ],
     );
   }
+}
+
+String _recommendation(double? gb) {
+  final m = recommendedModel(gb);
+  return '${m.label}, ${recommendedTier(m, gb).name} tier';
 }
 
 class _DeviceModelStatus extends StatelessWidget {

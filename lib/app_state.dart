@@ -92,6 +92,9 @@ class Settings {
 /// rebuilt every tab, with their database reads, while the model held the CPU.
 const streamRefresh = Duration(milliseconds: 66);
 
+/// Verses shown while the model has not yet written a word.
+const readingVerseLimit = 3;
+
 /// A question and its answer. Listeners hear the answer grow while it streams.
 class ChatTurn extends ChangeNotifier {
   final String question;
@@ -111,6 +114,16 @@ class ChatTurn extends ChangeNotifier {
   bool done = false;
   String? error;
   ChatTurn(this.question);
+
+  /// Verses the model is about to read, shown while it works through them.
+  List<Verse> reading = const [];
+
+  /// Puts the passages the model was shown on screen; on a slow phone the model needs minutes.
+  void read(StudyContext shown) {
+    final verses = shown.passages.isNotEmpty ? shown.passages : shown.searchHits;
+    reading = verses.take(readingVerseLimit).toList();
+    notifyListeners();
+  }
 
   /// Adds a streamed [token]; listeners hear of it within [streamRefresh].
   void append(String token) {
@@ -209,7 +222,10 @@ class AppState extends ChangeNotifier {
     s.settings = Settings.load(s.prefs);
     if (!s.prefs.containsKey('deviceModelId')) {
       final m = recommendedModel(s.deviceGb);
-      s.settings = s.settings.copyWith(deviceModelId: m.id, tier: m.tier);
+      s.settings = s.settings.copyWith(
+        deviceModelId: m.id,
+        tier: recommendedTier(m, s.deviceGb),
+      );
     }
     s.readerBook = s.prefs.getInt('readerBook') ?? 1;
     s.readerChapter = s.prefs.getInt('readerChapter') ?? 1;
@@ -687,7 +703,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> _answer(Harness h, ChatTurn turn) async {
     try {
-      final result = await h.ask(turn.question, onToken: turn.append);
+      final result = await h.ask(turn.question, onToken: turn.append, onContext: turn.read);
       turn.take(result.guard);
       conversationId ??= study.createConversation(turn.question);
       study.addMessage(conversationId!, 'user', turn.question, const []);

@@ -136,6 +136,19 @@ void main() {
     expect(study.messages(s.conversationId!).last.text, _manyTokens.join());
   });
 
+  test('a Study turn shows the verses it was given before the model writes a word', () async {
+    final tokens = StreamController<String>();
+    final s = app(_Tokens(tokens.stream));
+    final sent = s.send('What does John 3:16 mean?');
+    await pumpEventQueue();
+    final turn = s.turns.single;
+    expect(turn.answer, isEmpty);
+    expect(turn.reading.map((v) => v.label), contains('John 3:16'));
+    expect(turn.reading.length, lessThanOrEqualTo(readingVerseLimit));
+    await tokens.close();
+    await sent;
+  });
+
   test('a notebook answer tells its chat twice however many tokens it has', () async {
     final store = NotebookStore(study.db);
     final harness = Harness(

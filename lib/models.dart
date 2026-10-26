@@ -77,3 +77,12 @@ EdgeModel recommendedModel(double? gb) {
   if (gb >= minGbForE4b) return edgeModelById('gemma-4-e4b');
   return edgeModelById('gemma-3-1b');
 }
+
+/// Below this, Gemma 4 E2B at the mid tier's 5.4k context holds about 3.8 GB with 1.2 GB swapped
+/// on a 5.5 GB Galaxy A32, and answers take 225 s against 148 s at the low tier. Measured on that
+/// one phone; the band between 5.5 and 7 GB is untested.
+const minGbForMidTier = 7.0;
+
+/// The prompt budget [m] runs at on a device with [gb] of RAM; unknown RAM keeps the model's own.
+Tier recommendedTier(EdgeModel m, double? gb) =>
+    m.tier == Tier.mid && gb != null && gb < minGbForMidTier ? Tier.low : m.tier;

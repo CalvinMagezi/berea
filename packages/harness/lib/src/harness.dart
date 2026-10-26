@@ -78,9 +78,11 @@ class Harness {
     String userText, {
     List<SourceChunk> sources = const [],
     void Function(String token)? onToken,
+    void Function(StudyContext shown)? onContext,
   }) async {
     final ctx = retriever.retrieve(userText, tier, sources: sources);
     final prompt = builder.build(ctx, history, userText, tier, notebook: notebook);
+    onContext?.call(prompt.shown);
     final buf = StringBuffer();
     await for (final token in engine.generate(prompt.messages, maxTokens: tier.maxOutput)) {
       buf.write(token);
