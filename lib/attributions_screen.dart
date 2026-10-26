@@ -1,6 +1,7 @@
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
+import 'models.dart';
 import 'theme.dart';
 
 /// A dataset Berea ships or can download, with the licence it is used under.
@@ -24,6 +25,12 @@ const builtInSources = [
 ];
 
 const downloadableSources = [
+  DataSource(
+    'Gemma 3 1B (on-device language model)',
+    'Gemma Terms of Use',
+    '$gemmaNotice. Use is subject to the Gemma Prohibited Use Policy, $gemmaProhibitedUse. '
+        'The file is as Google published it, hosted by Berea so no account is needed.',
+  ),
   DataSource(
     'STEPBible TFLSJ (full Greek lexicon pack)',
     'CC BY 4.0',

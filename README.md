@@ -149,9 +149,12 @@ tokens, past their windows. `dart run bin/prompt_size.dart` measures real prompt
 the worst Study or notebook prompt plus the full answer now comes to 2,441, 4,531 and 8,530
 tokens, inside each window.
 
-The tier follows the chosen model. Models download on first use from the Hugging Face
-`litert-community` organisation; the catalog is in `lib/models.dart`. Gemma 4 E2B and E4B are not
-gated. Gemma 3 1B needs a Hugging Face token after accepting its licence.
+The tier follows the chosen model, except that a phone under 7 GB starts Gemma 4 E2B at the low
+tier. Models download on first use; the catalog is in `lib/models.dart`. Gemma 4 E2B and E4B come
+from the Hugging Face `litert-community` organisation and are not gated. Gemma 3 1B is gated
+there, so Berea hosts the unmodified file on its own GitHub release (`model-gemma3-1b-1`), checks
+it against a pinned SHA-256 and needs no account or token. It stays under the Gemma Terms of Use
+and Prohibited Use Policy, shown before the download and under Licences and sources.
 
 ### Eval
 
@@ -394,8 +397,8 @@ docs/screenshots/
 
 ## Privacy
 
-Berea makes no network request on its own. The model download goes to huggingface.co, and the
-optional lexicon and commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
+Berea makes no network request on its own. The Gemma 4 model download goes to huggingface.co, and the
+Gemma 3 1B model, the optional lexicon and the commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
 you configure, `localhost` by default; a notebook question sends that server the sections of your
 sources the answer draws on, so point it only at a machine you trust. A voice question is recorded
 to a temporary file on the device, read into memory and deleted before Gemma 4 transcribes it; it

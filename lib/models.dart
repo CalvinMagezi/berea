@@ -1,6 +1,21 @@
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
+/// A model file Berea hosts itself, pinned by tag and checked by hash, so getting it needs no
+/// account anywhere.
+class PinnedSource {
+  final String url;
+  final String sha256;
+  final int bytes;
+  const PinnedSource({required this.url, required this.sha256, required this.bytes});
+}
+
+/// Gemma Terms of Use §3.1 asks for exactly this notice with every copy of a Gemma model.
+const gemmaNotice =
+    'Gemma is provided under and subject to the Gemma Terms of Use found at '
+    'ai.google.dev/gemma/terms';
+const gemmaProhibitedUse = 'ai.google.dev/gemma/prohibited_use_policy';
+
 /// On-device models Berea knows how to download. Same `.litertlm` files AI Edge Gallery uses.
 class EdgeModel {
   final String id;
@@ -11,8 +26,11 @@ class EdgeModel {
   final ModelType type;
   final Tier tier;
 
-  /// Gated repos need a Hugging Face token after accepting the model license.
-  final bool gated;
+  /// Set when Berea hosts the file; otherwise it comes from [repo] on Hugging Face.
+  final PinnedSource? source;
+
+  /// A licence notice to show before the download, for models that ask for one.
+  final String? notice;
   const EdgeModel({
     required this.id,
     required this.label,
@@ -21,7 +39,8 @@ class EdgeModel {
     required this.sizeGb,
     required this.type,
     required this.tier,
-    this.gated = false,
+    this.source,
+    this.notice,
   });
 
   /// flutter_edge_ai keys installed models by the downloaded filename.
@@ -52,13 +71,20 @@ const edgeModels = <EdgeModel>[
   ),
   EdgeModel(
     id: 'gemma-3-1b',
-    label: 'Gemma 3 1B (needs Hugging Face token)',
+    label: 'Gemma 3 1B',
     repo: 'litert-community/Gemma3-1B-IT',
     file: 'Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm',
-    sizeGb: 0.5,
+    sizeGb: 0.6,
     type: ModelType.gemmaIt,
     tier: Tier.low,
-    gated: true,
+    source: PinnedSource(
+      url:
+          'https://github.com/CalvinMagezi/berea/releases/download/model-gemma3-1b-1/'
+          'Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm',
+      sha256: '1325ae366d31950f137c9c357b9fa89448b176d76998180c08ceaca78bba98be',
+      bytes: 584417280,
+    ),
+    notice: gemmaNotice,
   ),
 ];
 

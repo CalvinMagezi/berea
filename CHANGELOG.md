@@ -9,6 +9,13 @@ Performance
   Phones that already chose a tier keep it; change it in Settings.
 - While the model works, the chat shows the verses it was given, so the wait is spent reading.
 
+Models
+- Gemma 3 1B no longer needs a Hugging Face account or token. Berea hosts the unmodified file on
+  its own release, downloads it with a pinned SHA-256 check and keeps it in its own folder. The
+  token field is gone from Settings and a token saved by an older build is deleted on launch.
+- The Gemma notice and Prohibited Use Policy show before the download and under Licences and
+  sources.
+
 ## 0.4.0
 
 Performance

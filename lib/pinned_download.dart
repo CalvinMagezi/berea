@@ -49,4 +49,39 @@ Future<void> downloadPinned(
   }
 }
 
+/// Room above a model's published size, so a response a little longer than expected fails on the
+/// hash and not on the cap.
+const modelSizeMargin = 1024 * 1024;
+
+/// Puts the pinned model file [name] into [dir] and returns it. The file appears there only once
+/// its hash matches, so a file of the right size is one that was already checked.
+Future<File> downloadModelFile(
+  Uri url,
+  Directory dir,
+  String name, {
+  required String sha256,
+  required int bytes,
+  required Duration timeout,
+  void Function(double fraction)? onProgress,
+}) async {
+  dir.createSync(recursive: true);
+  final dest = File('${dir.path}/$name');
+  if (dest.existsSync() && dest.lengthSync() == bytes) return dest;
+  final part = File('${dest.path}.part');
+  try {
+    await downloadPinned(
+      url,
+      part,
+      sha256: sha256,
+      maxBytes: bytes + modelSizeMargin,
+      timeout: timeout,
+      onProgress: onProgress,
+    );
+    await part.rename(dest.path);
+  } finally {
+    if (part.existsSync()) part.deleteSync();
+  }
+  return dest;
+}
+
 String hexOf(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();

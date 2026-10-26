@@ -27,7 +27,6 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   late Settings draft = widget.state.settings;
   late final _url = TextEditingController(text: draft.ollamaUrl);
   late final _model = TextEditingController(text: draft.model);
-  late final _token = TextEditingController(text: draft.hfToken);
 
   @override
   void initState() {
@@ -40,7 +39,6 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     widget.state.removeListener(_refresh);
     _url.dispose();
     _model.dispose();
-    _token.dispose();
     super.dispose();
   }
 
@@ -248,11 +246,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     }
   }
 
-  Settings get _merged => draft.copyWith(
-    ollamaUrl: _url.text.trim(),
-    model: _model.text.trim(),
-    hfToken: _token.text.trim(),
-  );
+  Settings get _merged => draft.copyWith(ollamaUrl: _url.text.trim(), model: _model.text.trim());
 
   @override
   Widget build(BuildContext context) {
@@ -313,14 +307,18 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                       ),
                     ),
                   ),
-                if (draft.deviceModel.gated) ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _token,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Hugging Face token'),
+                if (draft.deviceModel.notice != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      '${draft.deviceModel.notice}. Use of this model is also subject to the '
+                      'Gemma Prohibited Use Policy at $gemmaProhibitedUse.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ),
-                ],
                 const SizedBox(height: 12),
                 _DeviceModelStatus(state: widget.state, draft: _merged),
               ],

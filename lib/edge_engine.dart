@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/foundation.dart';
@@ -6,8 +7,12 @@ import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
 import 'models.dart';
+import 'pinned_download.dart';
 
 const initTimeout = Duration(seconds: 30);
+
+/// How long a model download may stall, waiting for the response or for the next chunk.
+const modelDownloadTimeout = Duration(minutes: 2);
 
 /// CPU, not GPU: Gemma 4 E2B on some phone GPUs corrupts digits (LiteRT-LM #2202, still open in
 /// v0.18.0), and a corrupted verse number that still exists would pass the citation check.
@@ -47,21 +52,50 @@ class EdgeAiEngine implements LlmEngine {
   final bool hearsAudio;
   const EdgeAiEngine(this.model, this.spec, {this.hearsAudio = false});
 
-  static Future<bool> isInstalled(EdgeModel m) async {
+  /// Whether [m] is ready to load. flutter_edge_ai 2.1.3 does not restore a model registered from
+  /// a file after a restart, so for a hosted model the file in [modelsDir] decides, and it is
+  /// registered again every time; that is instant and makes it the active model.
+  static Future<bool> isInstalled(EdgeModel m, Directory modelsDir) async {
     await ensureEdgeAiInitialized();
-    return FlutterEdgeAi.isModelInstalled(m.installedName);
+    final source = m.source;
+    if (source == null) return FlutterEdgeAi.isModelInstalled(m.installedName);
+    final file = File('${modelsDir.path}/${m.file}');
+    if (!file.existsSync() || file.lengthSync() != source.bytes) return false;
+    await _installFromFile(m, file);
+    return true;
   }
 
+  static Future<void> _installFromFile(EdgeModel m, File file) => FlutterEdgeAi.installModel(
+    modelType: m.type,
+    fileType: ModelFileType.litertlm,
+  ).fromFile(file.path).install();
+
+  /// Fetches [m] into [modelsDir] when Berea hosts it, else from Hugging Face, and installs it.
+  /// A hosted file stays where it was put: the plugin registers its path instead of copying it.
   static Future<void> download(
     EdgeModel m, {
-    String? token,
+    required Directory modelsDir,
     required void Function(int) onProgress,
   }) async {
     await ensureEdgeAiInitialized();
-    await FlutterEdgeAi.installModel(
-      modelType: m.type,
-      fileType: ModelFileType.litertlm,
-    ).fromHuggingFace(m.repo, file: m.file, token: token).withProgress(onProgress).install();
+    final source = m.source;
+    if (source == null) {
+      await FlutterEdgeAi.installModel(
+        modelType: m.type,
+        fileType: ModelFileType.litertlm,
+      ).fromHuggingFace(m.repo, file: m.file).withProgress(onProgress).install();
+      return;
+    }
+    final file = await downloadModelFile(
+      Uri.parse(source.url),
+      modelsDir,
+      m.file,
+      sha256: source.sha256,
+      bytes: source.bytes,
+      timeout: modelDownloadTimeout,
+      onProgress: (fraction) => onProgress((fraction * 100).round()),
+    );
+    await _installFromFile(m, file);
   }
 
   /// Loads the model for [tier]; if its audio encoder fails, text still loads and voice is off.

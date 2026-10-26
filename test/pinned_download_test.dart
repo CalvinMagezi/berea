@@ -80,4 +80,36 @@ void main() {
   test('reports an HTTP error as such', () async {
     await expectLater(fetch('/missing'), throwsA(isA<HttpException>()));
   });
+
+  group('a pinned model file', () {
+    Uri url(String path) => Uri.parse('http://${server.address.host}:${server.port}$path');
+
+    Future<File> fetchModel(String path, {String? sha, Uri? from}) => downloadModelFile(
+      from ?? url(path),
+      Directory('${dir.path}/models'),
+      'm.litertlm',
+      sha256: sha ?? pin,
+      bytes: body.length,
+      timeout: _timeout,
+    );
+
+    test('lands under its own name with no partial file left', () async {
+      final file = await fetchModel('/ok');
+      expect(file.readAsBytesSync(), body);
+      expect(file.path, '${dir.path}/models/m.litertlm');
+      expect(File('${file.path}.part').existsSync(), isFalse);
+    });
+
+    test('a failed check leaves neither the file nor the partial one', () async {
+      await expectLater(fetchModel('/ok', sha: '0' * 64), throwsFormatException);
+      expect(Directory('${dir.path}/models').listSync(), isEmpty);
+    });
+
+    test('a file already there at the right size is not fetched again', () async {
+      await fetchModel('/ok');
+      final unreachable = Uri.parse('http://127.0.0.1:1/never');
+      final again = await fetchModel('/ok', from: unreachable);
+      expect(again.readAsBytesSync(), body);
+    });
+  });
 }

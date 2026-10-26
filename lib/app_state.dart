@@ -31,7 +31,6 @@ class Settings {
   final String ollamaUrl;
   final String model;
   final String deviceModelId;
-  final String hfToken;
   final Tier tier;
   final String translation;
   Settings({
@@ -39,7 +38,6 @@ class Settings {
     this.ollamaUrl = 'http://localhost:11434',
     this.model = 'gemma4:e2b',
     this.deviceModelId = 'gemma-4-e2b',
-    this.hfToken = '',
     this.tier = Tier.mid,
     this.translation = defaultTranslation,
   }) : engine = engine ?? defaultEngine;
@@ -51,7 +49,6 @@ class Settings {
     String? ollamaUrl,
     String? model,
     String? deviceModelId,
-    String? hfToken,
     Tier? tier,
     String? translation,
   }) => Settings(
@@ -59,7 +56,6 @@ class Settings {
     ollamaUrl: ollamaUrl ?? this.ollamaUrl,
     model: model ?? this.model,
     deviceModelId: deviceModelId ?? this.deviceModelId,
-    hfToken: hfToken ?? this.hfToken,
     tier: tier ?? this.tier,
     translation: translation ?? this.translation,
   );
@@ -71,18 +67,19 @@ class Settings {
       ollamaUrl: p.getString('ollamaUrl') ?? 'http://localhost:11434',
       model: p.getString('model') ?? 'gemma4:e2b',
       deviceModelId: p.getString('deviceModelId') ?? 'gemma-4-e2b',
-      hfToken: p.getString('hfToken') ?? '',
       tier: Tier.values.byName(p.getString('tier') ?? Tier.mid.name),
       translation: p.getString('translation') ?? defaultTranslation,
     );
   }
+
+  /// Older builds kept a Hugging Face token here; nothing needs one now, so it is not kept.
+  static Future<void> dropLegacyToken(SharedPreferences p) => p.remove('hfToken');
 
   Future<void> save(SharedPreferences p) async {
     await p.setString('engine', engine.name);
     await p.setString('ollamaUrl', ollamaUrl);
     await p.setString('model', model);
     await p.setString('deviceModelId', deviceModelId);
-    await p.setString('hfToken', hfToken);
     await p.setString('tier', tier.name);
     await p.setString('translation', translation);
   }
@@ -219,6 +216,7 @@ class AppState extends ChangeNotifier {
     s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
     s.deviceGb = bytes == null ? null : bytes / bytesPerGb;
+    await Settings.dropLegacyToken(s.prefs);
     s.settings = Settings.load(s.prefs);
     if (!s.prefs.containsKey('deviceModelId')) {
       final m = recommendedModel(s.deviceGb);
@@ -615,7 +613,7 @@ class AppState extends ChangeNotifier {
     final m = settings.deviceModel;
     deviceError = null;
     try {
-      if (!await EdgeAiEngine.isInstalled(m)) {
+      if (!await EdgeAiEngine.isInstalled(m, modelsDir)) {
         deviceState = DeviceModelState.notInstalled;
         return null;
       }
@@ -631,6 +629,9 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Model files Berea hosts stay here, since the plugin registers their path and does not copy.
+  Directory get modelsDir => Directory('${supportDir.path}/models');
+
   Future<void> downloadDeviceModel() async {
     final m = settings.deviceModel;
     deviceState = DeviceModelState.downloading;
@@ -640,7 +641,7 @@ class AppState extends ChangeNotifier {
     try {
       await EdgeAiEngine.download(
         m,
-        token: settings.hfToken.isEmpty ? null : settings.hfToken,
+        modelsDir: modelsDir,
         onProgress: (p) {
           // The plugin repeats a percent for every chunk; redraw the app only when it moves.
           if (p == downloadProgress) return;
