@@ -508,8 +508,7 @@ class _DeviceModelStatus extends StatelessWidget {
                 label: Text('Download (${draft.deviceModel.sizeGb} GB)'),
                 onPressed: () async {
                   if (!await confirmModelTerms(context, state, draft.deviceModel)) return;
-                  await state.updateSettings(draft);
-                  await state.downloadDeviceModel();
+                  await state.downloadModelFor(draft);
                 },
               ),
             ),

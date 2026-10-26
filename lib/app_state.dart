@@ -34,9 +34,12 @@ class Settings {
   final Tier tier;
   final String translation;
 
-  /// Answer in a few sentences first, with a button for the full study. On by default at the low
-  /// tier, whose phones decode a few tokens a second.
-  final bool briefFirst;
+  /// The reader's choice about brief answers; null until they make one.
+  final bool? _briefChoice;
+
+  /// Answer in a few sentences first, with a button for the full study. Unless the reader chose,
+  /// on at the low tier, whose phones decode a few tokens a second.
+  bool get briefFirst => _briefChoice ?? tier == Tier.low;
   Settings({
     EngineKind? engine,
     this.ollamaUrl = 'http://localhost:11434',
@@ -46,7 +49,7 @@ class Settings {
     this.translation = defaultTranslation,
     bool? briefFirst,
   }) : engine = engine ?? defaultEngine,
-       briefFirst = briefFirst ?? tier == Tier.low;
+       _briefChoice = briefFirst;
 
   EdgeModel get deviceModel => edgeModelById(deviceModelId);
 
@@ -65,7 +68,7 @@ class Settings {
     deviceModelId: deviceModelId ?? this.deviceModelId,
     tier: tier ?? this.tier,
     translation: translation ?? this.translation,
-    briefFirst: briefFirst ?? this.briefFirst,
+    briefFirst: briefFirst ?? _briefChoice,
   );
 
   static Settings load(SharedPreferences p) {
@@ -91,7 +94,7 @@ class Settings {
     await p.setString('deviceModelId', deviceModelId);
     await p.setString('tier', tier.name);
     await p.setString('translation', translation);
-    await p.setBool('briefFirst', briefFirst);
+    if (_briefChoice case final choice?) await p.setBool('briefFirst', choice);
   }
 }
 
@@ -130,6 +133,12 @@ class ChatTurn extends ChangeNotifier {
 
   void markDeeperAsked() {
     deeperAsked = true;
+    notifyListeners();
+  }
+
+  /// The full study failed, so the button comes back.
+  void markDeeperFailed() {
+    deeperAsked = false;
     notifyListeners();
   }
 
@@ -676,9 +685,27 @@ class AppState extends ChangeNotifier {
 
   Future<void> acceptTerms() => prefs.setInt('termsAccepted', termsVersion);
 
+  bool _downloadStarting = false;
+
+  /// Applies [draft] and downloads its model. A second request while one is under way, such as a
+  /// double tap, does nothing.
+  Future<void> downloadModelFor(Settings draft) async {
+    if (_downloadStarting || deviceState == DeviceModelState.downloading) return;
+    _downloadStarting = true;
+    try {
+      await updateSettings(draft);
+      await downloadDeviceModel();
+    } finally {
+      _downloadStarting = false;
+    }
+  }
+
   Future<void> downloadDeviceModel() async {
     final m = settings.deviceModel;
     if (m.notice != null && !termsAccepted) return;
+    if (deviceState == DeviceModelState.downloading) return;
+    // A model that failed to load may have a damaged file, so its hash is checked again.
+    final repair = deviceState == DeviceModelState.failed;
     deviceState = DeviceModelState.downloading;
     downloadProgress = 0;
     deviceError = null;
@@ -687,6 +714,7 @@ class AppState extends ChangeNotifier {
       await EdgeAiEngine.download(
         m,
         modelsDir: modelsDir,
+        recheck: repair,
         onProgress: (p) {
           // The plugin repeats a percent for every chunk; redraw the app only when it moves.
           if (p == downloadProgress) return;
@@ -748,31 +776,52 @@ class AppState extends ChangeNotifier {
     await useModel(() => _answer(h, turn));
   }
 
+  /// Whether [turn] is the newest answer, so the full study can follow it. A full study that
+  /// failed does not count; it is removed when the reader tries again.
+  bool canGoDeeperFrom(ChatTurn turn) {
+    final at = turns.indexOf(turn);
+    return at >= 0 &&
+        turn.canGoDeeper &&
+        turns.skip(at + 1).every((later) => later.deeper && later.error != null);
+  }
+
   /// Writes the full study for [brief], which stays above it. The brief answer leaves the
   /// harness history, so a follow-up question sees one answer to this one.
   Future<void> goDeeper(ChatTurn brief) async {
     final h = harness;
-    if (h == null || !ready || !brief.canGoDeeper) return;
+    if (h == null || !ready || !canGoDeeperFrom(brief)) return;
+    turns.removeRange(turns.indexOf(brief) + 1, turns.length);
     brief.markDeeperAsked();
     final turn = ChatTurn(brief.question, deeper: true);
     turns.add(turn);
     await useModel(() => _answer(h, turn));
+    if (turn.error != null) brief.markDeeperFailed();
   }
+
+  Harness? _answering;
 
   /// True while a question is being answered, which the Stop button can end.
   bool get answering =>
       busy && turns.isNotEmpty && !turns.last.done && turns.last.error == null;
 
-  /// Ends the answer being written early; the text so far stays and is checked as usual.
+  /// Whether the answer being written can be stopped, and has not been asked to stop yet.
+  bool get canStopAnswer {
+    final Object? engine = _answering?.engine;
+    return answering && engine is StoppableEngine && !turns.last.stopped;
+  }
+
+  /// Ends the answer being written early. It is the harness that began the answer that stops,
+  /// even if a settings change has since replaced the current one.
   Future<void> stopAnswer() async {
-    if (!answering) return;
-    final engine = harness?.engine;
-    if (engine is! StoppableEngine) return;
+    final h = _answering;
+    if (h == null || !canStopAnswer) return;
     turns.last.markStopped();
-    await (engine as StoppableEngine).stop();
+    notifyListeners();
+    await h.stop();
   }
 
   Future<void> _answer(Harness h, ChatTurn turn) async {
+    _answering = h;
     try {
       final result = await h.ask(
         turn.question,
@@ -782,11 +831,15 @@ class AppState extends ChangeNotifier {
         replacePrevious: turn.deeper,
       );
       turn.take(result.guard);
+      // An answer stopped before it wrote anything leaves no empty message in the saved study.
+      if (turn.answer.trim().isEmpty) return;
       conversationId ??= study.createConversation(turn.question);
       study.addMessage(conversationId!, 'user', turn.shownQuestion, const []);
       study.addMessage(conversationId!, 'assistant', turn.answer, turn.verified);
     } catch (e) {
       turn.error = e.toString();
+    } finally {
+      _answering = null;
     }
   }
 

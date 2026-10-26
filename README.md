@@ -149,8 +149,8 @@ tokens, past their windows. `dart run bin/prompt_size.dart` measures real prompt
 the worst Study or notebook prompt plus the full answer now comes to 2,441, 4,531 and 8,530
 tokens, inside each window.
 
-The tier follows the chosen model, except that a phone under 7 GB starts Gemma 4 E2B at the low
-tier. Models download on first use; the catalog is in `lib/models.dart`. Gemma 4 E2B and E4B come
+The tier follows the chosen model, except that a first run on a phone under 7 GB starts Gemma 4
+E2B at the low tier. Models download on first use; the catalog is in `lib/models.dart`. Gemma 4 E2B and E4B come
 from the Hugging Face `litert-community` organisation and are not gated. Gemma 3 1B is gated
 there, so Berea hosts the unmodified file on its own GitHub release (`model-gemma3-1b-1`), checks
 it against a pinned SHA-256 and needs no account or token. It stays under the Gemma Terms of Use

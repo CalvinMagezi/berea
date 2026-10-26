@@ -168,7 +168,9 @@ class _ChatScreenState extends State<ChatScreen> {
                           turn: s.turns[i],
                           db: s.db,
                           translation: s.settings.translation,
-                          onDeeper: s.ready ? () => s.goDeeper(s.turns[i]) : null,
+                          onDeeper: s.ready && s.canGoDeeperFrom(s.turns[i])
+                              ? () => s.goDeeper(s.turns[i])
+                              : null,
                         ),
                       ),
               ),
@@ -180,7 +182,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 busy: s.busy,
                 canSend: !_voice.inUse,
                 onSend: _send,
-                onStop: s.answering && !s.turns.last.stopped ? s.stopAnswer : null,
+                onStop: s.canStopAnswer ? s.stopAnswer : null,
                 mic: VoiceMicButton(
                   voice: _voice,
                   owner: this,
@@ -325,7 +327,7 @@ class TurnView extends StatelessWidget {
             _Waiting(
               turn.reading,
               status: turn.done
-                  ? null
+                  ? (turn.stopped ? null : 'The model wrote no answer. Try again.')
                   : (turn.stopped ? 'Stopping…' : 'Examining the Scriptures…'),
             )
           else
@@ -339,7 +341,7 @@ class TurnView extends StatelessWidget {
                     ? 'Stopping…'
                     : turn.answer.isEmpty
                     ? 'Stopped before an answer was written.'
-                    : 'Stopped. What was written so far is kept.',
+                    : 'Stopped. Finished sentences are kept.',
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
               ),
             ),

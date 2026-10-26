@@ -16,7 +16,7 @@ const gemmaNotice =
     'ai.google.dev/gemma/terms';
 const gemmaProhibitedUse = 'ai.google.dev/gemma/prohibited_use_policy';
 
-/// Raise this when the wording in lib/terms.dart changes, so everyone is asked to agree again.
+/// Raise this when the wording in lib/terms.dart changes, so the next download asks again.
 const termsVersion = 1;
 
 /// On-device models Berea knows how to download. Same `.litertlm` files AI Edge Gallery uses.

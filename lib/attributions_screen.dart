@@ -29,7 +29,9 @@ const downloadableSources = [
   DataSource(
     'Gemma 4 E2B and E4B (on-device language models)',
     'Apache License 2.0',
-    'Google; downloaded from the litert-community organisation on Hugging Face',
+    'Google; downloaded from the litert-community organisation on Hugging Face, whose model '
+        'pages state the licence (huggingface.co/litert-community/gemma-4-E2B-it-litert-lm and '
+        'gemma-4-E4B-it-litert-lm)',
   ),
   DataSource(
     'Gemma 3 1B (on-device language model)',

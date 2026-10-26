@@ -46,6 +46,7 @@ void main() {
     final results = await ask(tester, _gemma3);
     expect(find.text('Gemma terms'), findsOneWidget);
     expect(find.textContaining(gemmaUseRestriction), findsOneWidget);
+    expect(find.textContaining('you accept the Gemma Terms of Use'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(results, [false]);
@@ -81,6 +82,8 @@ void main() {
   testWidgets('the terms screen states the restriction and opens the full policy', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: TermsScreen()));
     expect(find.text(gemmaUseRestriction), findsOneWidget);
+    await tester.ensureVisible(find.text('Gemma Prohibited Use Policy'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Gemma Prohibited Use Policy'));
     await tester.pumpAndSettle();
     expect(find.textContaining('You may not use nor allow others to use Gemma'), findsOneWidget);

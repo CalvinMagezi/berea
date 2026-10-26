@@ -8,6 +8,7 @@ import 'prompt_builder.dart';
 import 'retriever.dart';
 import 'sources.dart';
 import 'tier.dart';
+import 'truncation.dart';
 
 class TurnResult {
   final String raw;
@@ -87,26 +88,55 @@ class Harness {
     /// place of the one before it, such as the full study after a brief one.
     bool replacePrevious = false,
   }) async {
-    if (replacePrevious && history.length >= 2) {
-      history.removeRange(history.length - 2, history.length);
+    _stopRequested = false;
+    final replaced = replacePrevious && history.length >= 2
+        ? history.sublist(history.length - 2)
+        : null;
+    if (replaced != null) history.removeRange(history.length - 2, history.length);
+    try {
+      final ctx = retriever.retrieve(userText, tier, sources: sources);
+      final prompt = builder.build(ctx, history, userText, tier, notebook: notebook, style: style);
+      onContext?.call(prompt.shown);
+      final maxTokens = style == AnswerStyle.brief
+          ? min(tier.maxOutput, briefMaxOutput)
+          : tier.maxOutput;
+      final buf = StringBuffer();
+      var pieces = 0;
+      // A stop that came before the model was asked skips asking it.
+      if (!_stopRequested) {
+        await for (final token in engine.generate(prompt.messages, maxTokens: maxTokens)) {
+          pieces++;
+          buf.write(token);
+          onToken?.call(token);
+        }
+      }
+      var raw = buf.toString();
+      // A pieces count at the cap means the model was cut off, not that it finished.
+      if (_stopRequested || pieces >= maxTokens) raw = withoutUnfinishedSentence(raw);
+      final result = guard.apply(raw, prompt.shown, checkSources: notebook);
+      if (result.text.trim().isEmpty) {
+        // Nothing was written, as when it was stopped at once: nothing to remember.
+        if (replaced != null) history.addAll(replaced);
+      } else {
+        history
+          ..add(ChatMessage.user(userText))
+          ..add(ChatMessage.assistant(result.text));
+      }
+      return TurnResult(raw, result, prompt.shown);
+    } catch (_) {
+      if (replaced != null) history.addAll(replaced);
+      rethrow;
     }
-    final ctx = retriever.retrieve(userText, tier, sources: sources);
-    final prompt = builder.build(ctx, history, userText, tier, notebook: notebook, style: style);
-    onContext?.call(prompt.shown);
-    final maxTokens = style == AnswerStyle.brief
-        ? min(tier.maxOutput, briefMaxOutput)
-        : tier.maxOutput;
-    final buf = StringBuffer();
-    await for (final token in engine.generate(prompt.messages, maxTokens: maxTokens)) {
-      buf.write(token);
-      onToken?.call(token);
-    }
-    final raw = buf.toString();
-    final result = guard.apply(raw, prompt.shown, checkSources: notebook);
-    history
-      ..add(ChatMessage.user(userText))
-      ..add(ChatMessage.assistant(result.text));
-    return TurnResult(raw, result, prompt.shown);
+  }
+
+  bool _stopRequested = false;
+
+  /// Ends the answer being written, when the engine can. What was written is kept up to its last
+  /// finished sentence.
+  Future<void> stop() async {
+    _stopRequested = true;
+    final Object e = engine;
+    if (e is StoppableEngine) await e.stop();
   }
 
   /// A one-off study page for [ref]. It does not touch the chat history.

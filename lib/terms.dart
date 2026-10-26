@@ -8,10 +8,12 @@ import 'theme.dart';
 const gemmaTermsAsset = 'licenses/gemma/terms.txt';
 const gemmaPolicyAsset = 'licenses/gemma/prohibited_use_policy.txt';
 
-/// The restriction Gemma Terms 3.1 asks to be an enforceable provision of the terms that govern use.
+/// The restriction Gemma Terms 3.1 asks to be an enforceable provision of the terms that govern
+/// use, worded as 3.2 words it.
 const gemmaUseRestriction =
-    'You must not use a Gemma model in Berea for any use listed in the Gemma Prohibited Use Policy, '
-    'which is part of these terms, or in breach of a law that applies to you.';
+    'You must not use any Gemma model, in Berea or anywhere else, for a use listed in the Gemma '
+    'Prohibited Use Policy, which is part of these terms, or in breach of applicable laws and '
+    'regulations.';
 
 /// What Berea promises and asks of anyone who uses it.
 class TermsScreen extends StatelessWidget {
@@ -121,7 +123,12 @@ Future<bool> confirmModelTerms(BuildContext context, AppState state, EdgeModel m
     context: context,
     builder: (dialog) => AlertDialog(
       title: const Text('Gemma terms'),
-      content: SingleChildScrollView(child: Text('${model.notice}.\n\n$gemmaUseRestriction')),
+      content: SingleChildScrollView(
+        child: Text(
+          '${model.notice}.\n\nBy agreeing you accept the Gemma Terms of Use.\n\n'
+          '$gemmaUseRestriction',
+        ),
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(

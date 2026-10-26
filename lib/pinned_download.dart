@@ -64,7 +64,8 @@ bool hostedModelCurrent(File file, {required String sha256, required int bytes})
 }
 
 /// Puts the pinned model file [name] into [dir] and returns it. The file appears there only once
-/// its hash matches, and is stamped with that hash so a changed pin fetches it again.
+/// its hash matches, and is stamped with that hash so a changed pin fetches it again. With
+/// [recheck] a stamped file is hashed again first, and replaced if it no longer matches.
 Future<File> downloadModelFile(
   Uri url,
   Directory dir,
@@ -73,10 +74,15 @@ Future<File> downloadModelFile(
   required int bytes,
   required Duration timeout,
   void Function(double fraction)? onProgress,
+  bool recheck = false,
 }) async {
   dir.createSync(recursive: true);
   final dest = File('${dir.path}/$name');
-  if (hostedModelCurrent(dest, sha256: sha256, bytes: bytes)) return dest;
+  final stamp = File('${dest.path}.sha256');
+  if (hostedModelCurrent(dest, sha256: sha256, bytes: bytes)) {
+    if (!recheck || await _hashMatches(dest, sha256)) return dest;
+    stamp.deleteSync();
+  }
   final part = File('${dest.path}.part');
   try {
     await downloadPinned(
@@ -88,11 +94,29 @@ Future<File> downloadModelFile(
       onProgress: onProgress,
     );
     await part.rename(dest.path);
-    File('${dest.path}.sha256').writeAsStringSync(sha256);
+    stamp.writeAsStringSync(sha256);
   } finally {
     if (part.existsSync()) part.deleteSync();
   }
   return dest;
+}
+
+Future<bool> _hashMatches(File file, String sha256) async {
+  final hash = Sha256().newHashSink();
+  await for (final chunk in file.openRead()) {
+    hash.add(chunk);
+  }
+  hash.close();
+  return hexOf((await hash.hash()).bytes) == sha256;
+}
+
+/// Puts [notice] in a NOTICE file beside the models, as the Gemma terms ask of every copy.
+void writeModelNotice(Directory dir, String notice) {
+  dir.createSync(recursive: true);
+  final file = File('${dir.path}/NOTICE');
+  if (!file.existsSync() || file.readAsStringSync().trim() != notice) {
+    file.writeAsStringSync('$notice\n');
+  }
 }
 
 String hexOf(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();

@@ -55,8 +55,15 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
   /// The conversation writing an answer now, so Stop can end it.
   InferenceChat? _answering;
 
+  /// A stop that arrives before the conversation exists or before writing starts is still
+  /// honoured: the answer checks this at each step.
+  var _stopRequested = false;
+
   @override
-  Future<void> stop() async => _answering?.stopGeneration();
+  Future<void> stop() async {
+    _stopRequested = true;
+    await _answering?.stopGeneration();
+  }
 
   /// Whether [m] is ready to load, and makes it the plugin's active model. The plugin remembers
   /// only the model it installed last, and 2.1.3 cannot restore one registered from a file, so
@@ -71,9 +78,22 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
       return true;
     }
     final file = File('${modelsDir.path}/${m.file}');
-    if (!hostedModelCurrent(file, sha256: source.sha256, bytes: source.bytes)) return false;
-    await _installModel(m).fromFile(file.path).install();
-    return true;
+    if (hostedModelCurrent(file, sha256: source.sha256, bytes: source.bytes)) {
+      await _installModel(m).fromFile(file.path).install();
+      _writeNotice(m, modelsDir);
+      return true;
+    }
+    // Berea 0.4.0 downloaded Gemma 3 1B from Hugging Face into the plugin's own folder. With no
+    // hosted file at all, that copy is still good and does not need fetching again.
+    if (!file.existsSync() && await FlutterEdgeAi.isModelInstalled(m.installedName)) {
+      await _installModel(m).fromHuggingFace(m.repo, file: m.file).install();
+      return true;
+    }
+    return false;
+  }
+
+  static void _writeNotice(EdgeModel m, Directory modelsDir) {
+    if (m.notice case final notice?) writeModelNotice(modelsDir, notice);
   }
 
   static InferenceInstallationBuilder _installModel(EdgeModel m) =>
@@ -85,6 +105,7 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
     EdgeModel m, {
     required Directory modelsDir,
     required void Function(int) onProgress,
+    bool recheck = false,
   }) async {
     await ensureEdgeAiInitialized();
     final source = m.source;
@@ -100,8 +121,10 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
       bytes: source.bytes,
       timeout: modelDownloadTimeout,
       onProgress: (fraction) => onProgress((fraction * 100).round()),
+      recheck: recheck,
     );
     await _installModel(m).fromFile(file.path).install();
+    _writeNotice(m, modelsDir);
   }
 
   /// Loads the model for [tier]; if its audio encoder fails, text still loads and voice is off.
@@ -133,6 +156,7 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
   @override
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) async* {
     final system = messages.where((m) => m.role == 'system').map((m) => m.content).join('\n');
+    _stopRequested = false;
     final chat = await model.createChat(
       systemInstruction: system.isEmpty ? null : system,
       temperature: 0.3,
@@ -144,9 +168,11 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
     );
     _answering = chat;
     try {
+      if (_stopRequested) return;
       for (final m in messages.where((m) => m.role != 'system')) {
         await chat.addQueryChunk(Message.text(text: m.content, isUser: m.role == 'user'));
       }
+      if (_stopRequested) return;
       await for (final r in chat.generateChatResponseAsync()) {
         if (r is TextResponse) yield r.token;
       }

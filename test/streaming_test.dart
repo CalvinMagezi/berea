@@ -39,6 +39,12 @@ class _Recording implements LlmEngine, StoppableEngine {
   final bool hold;
   var stops = 0;
   StreamController<String>? _open;
+
+  /// Makes the next answer fail, as a model that stopped responding would.
+  Object? failNext;
+
+  /// Writes nothing, as when a stop comes before the first word.
+  bool silent = false;
   _Recording({this.hold = false});
 
   @override
@@ -48,7 +54,13 @@ class _Recording implements LlmEngine, StoppableEngine {
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) {
     calls.add(messages);
     limits.add(maxTokens);
-    final answer = _open = StreamController<String>()..add('Grace is a gift (John 3:16, BSB).');
+    final failure = failNext;
+    if (failure != null) {
+      failNext = null;
+      return Stream.error(failure);
+    }
+    final answer = _open = StreamController<String>();
+    if (!silent) answer.add('Grace is a gift (John 3:16, BSB).');
     if (!hold) answer.close();
     return answer.stream;
   }
@@ -237,10 +249,100 @@ void main() {
       expect(engine.stops, 0);
     });
 
+    test('Go deeper is offered only under the newest answer', () async {
+      final engine = _Recording();
+      final s = app(engine)..settings = Settings(engine: EngineKind.device, briefFirst: true);
+      await s.send(question);
+      await s.send('And what about Romans 8:1?');
+      final older = s.turns.first;
+      expect(s.canGoDeeperFrom(older), isFalse);
+      expect(s.canGoDeeperFrom(s.turns.last), isTrue);
+
+      await s.goDeeper(older);
+      expect(s.turns, hasLength(2));
+      expect(engine.calls, hasLength(2));
+      expect(s.harness!.history.map((m) => m.role), ['user', 'assistant', 'user', 'assistant']);
+    });
+
+    test('a full study that fails can be tried again and costs the brief answer nothing', () async {
+      final engine = _Recording();
+      final s = app(engine)..settings = Settings(engine: EngineKind.device, briefFirst: true);
+      await s.send(question);
+      final brief = s.turns.single;
+      engine.failNext = StateError('model gone');
+
+      await s.goDeeper(brief);
+      expect(s.turns.last.error, isNotNull);
+      expect(brief.canGoDeeper, isTrue);
+      expect(s.canGoDeeperFrom(brief), isTrue);
+      expect(s.harness!.history.map((m) => m.content), [question, brief.answer]);
+
+      await s.goDeeper(brief);
+      expect(s.turns, hasLength(2));
+      expect(s.turns.last.error, isNull);
+      expect(s.turns.last.deeper, isTrue);
+    });
+
+    test('stopping tells the app at once, and a second tap has nothing to stop', () async {
+      final engine = _Recording(hold: true);
+      final s = app(engine);
+      final sent = s.send(question);
+      await pumpEventQueue();
+      expect(s.canStopAnswer, isTrue);
+      var heard = 0;
+      s.addListener(() => heard++);
+
+      await s.stopAnswer();
+      expect(heard, greaterThan(0));
+      expect(s.canStopAnswer, isFalse);
+      await s.stopAnswer();
+      await sent;
+      expect(engine.stops, 1);
+    });
+
+    test('the answer that began a question is the one that stops, after a settings change', () async {
+      final engine = _Recording(hold: true);
+      final s = app(engine);
+      final sent = s.send(question);
+      await pumpEventQueue();
+      s.harness = null;
+
+      await s.stopAnswer();
+      await sent;
+      expect(engine.stops, 1);
+      expect(s.turns.single.stopped, isTrue);
+    });
+
+    test('an answer stopped before a word leaves no empty message in the saved study', () async {
+      final engine = _Recording(hold: true)..silent = true;
+      final s = app(engine);
+      final sent = s.send(question);
+      await pumpEventQueue();
+      await s.stopAnswer();
+      await sent;
+
+      expect(s.turns.single.done, isTrue);
+      expect(s.turns.single.answer, isEmpty);
+      expect(s.conversationId, isNull);
+      expect(s.harness!.history, isEmpty);
+    });
+
+    test('a second download request while one is under way does nothing', () async {
+      final s = app(_Recording());
+      final before = s.settings;
+      s.deviceState = DeviceModelState.downloading;
+      await s.downloadModelFor(Settings(engine: EngineKind.device, tier: Tier.high));
+      expect(identical(s.settings, before), isTrue);
+    });
+
     test('brief answers are on by default at the low tier and keep a saved choice', () async {
       expect(Settings(tier: Tier.low).briefFirst, isTrue);
       expect(Settings(tier: Tier.mid).briefFirst, isFalse);
       expect(Settings(tier: Tier.low, briefFirst: false).briefFirst, isFalse);
+
+      // A first run loads the default tier, then moves to the low tier its memory suggests.
+      expect(Settings().copyWith(tier: Tier.low).briefFirst, isTrue);
+      expect(Settings().copyWith(briefFirst: true).copyWith(tier: Tier.mid).briefFirst, isTrue);
 
       SharedPreferences.setMockInitialValues({'tier': 'low'});
       final prefs = await SharedPreferences.getInstance();
@@ -298,7 +400,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Stop'));
     await tester.pumpAndSettle();
-    expect(find.text('Stopped. What was written so far is kept.'), findsOneWidget);
+    expect(find.text('Stopped. Finished sentences are kept.'), findsOneWidget);
     expect(find.byTooltip('Send'), findsOneWidget);
     final deeper = find.widgetWithText(OutlinedButton, goDeeperLabel);
     expect(deeper, findsOneWidget);
