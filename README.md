@@ -169,6 +169,12 @@ release needs zero invented references and zero misattributions. Last run on gem
 the official BSB text: 0 invented, 28 of 28 expected references, 0 misattributed, 8 of 8
 adversarial.
 
+`--brief` runs the same questions with the brief answer rule that Study uses at the low tier. On
+gemma4:e2b through Ollama at that tier, two full runs and one brief run (0.3 temperature, so each
+varies a little): full answers averaged 253 words in 119 to 147 s, with 2 unverified quotes and 1
+misattributed saying both times; brief answers averaged 45 words in 51 s, with 0 invented, 28 of
+28 expected references, 0 unverified quotes, 0 misattributed and 8 of 8 adversarial.
+
 `dart run bin/eval.dart --tier mid --notebook` runs 10 questions against a notebook built in code
 (pasted sermon notes, Acts 17:10-12, a three-page guide and a friend's note that misquotes John
 3:16), 4 of them adversarial: a topic the sources do not cover, the misquote, and a page and a

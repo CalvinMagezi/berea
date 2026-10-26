@@ -37,10 +37,30 @@ void main() {
     await h.ask('And what follows?');
     expect(engine.calls[1].map((m) => m.role), ['system', 'user', 'assistant', 'user']);
   });
+
+  test('a brief answer adds the length rule and caps what the model may write', () async {
+    final engine = _Stateless();
+    final h = Harness(db: _db(), engine: engine, systemPrompt: 'SYS');
+    await h.ask('What does John 3:16 teach?');
+    await h.ask('What does John 3:16 teach?', style: AnswerStyle.brief);
+    expect(engine.calls[0].first.content, isNot(contains(briefRule)));
+    expect(engine.calls[1].first.content, contains(briefRule));
+    expect(engine.limits, [h.tier.maxOutput, briefMaxOutput]);
+  });
+
+  test('a replacing answer takes the place of the last one in the history', () async {
+    final engine = _Stateless();
+    final h = Harness(db: _db(), engine: engine, systemPrompt: 'SYS');
+    await h.ask('What does John 3:16 teach?', style: AnswerStyle.brief);
+    await h.ask('What does John 3:16 teach?', replacePrevious: true);
+    expect(h.history.map((m) => m.role), ['user', 'assistant']);
+    expect(engine.calls[1].map((m) => m.role), ['system', 'user']);
+  });
 }
 
 class _Stateless implements LlmEngine {
   final calls = <List<ChatMessage>>[];
+  final limits = <int>[];
 
   @override
   String get name => 'stateless';
@@ -48,6 +68,7 @@ class _Stateless implements LlmEngine {
   @override
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) async* {
     calls.add(messages);
+    limits.add(maxTokens);
     yield 'An answer.';
   }
 }

@@ -168,6 +168,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           turn: s.turns[i],
                           db: s.db,
                           translation: s.settings.translation,
+                          onDeeper: s.ready ? () => s.goDeeper(s.turns[i]) : null,
                         ),
                       ),
               ),
@@ -179,6 +180,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 busy: s.busy,
                 canSend: !_voice.inUse,
                 onSend: _send,
+                onStop: s.answering && !s.turns.last.stopped ? s.stopAnswer : null,
                 mic: VoiceMicButton(
                   voice: _voice,
                   owner: this,
@@ -281,12 +283,16 @@ class TurnView extends StatelessWidget {
 
   /// Opens a cited notebook source or commentary passage; notebook chats set it.
   final void Function(ShownSource source)? onSource;
+
+  /// Asks for the full study after a brief answer; only the Study chat sets it.
+  final VoidCallback? onDeeper;
   const TurnView({
     super.key,
     required this.turn,
     required this.db,
     required this.translation,
     this.onSource,
+    this.onDeeper,
   });
 
   @override
@@ -309,17 +315,46 @@ class TurnView extends StatelessWidget {
                 color: scheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: SelectableText(turn.question),
+              child: SelectableText(turn.shownQuestion),
             ),
           ),
           const SizedBox(height: 16),
           if (turn.error != null)
             Text(turn.error!, style: TextStyle(color: scheme.error))
           else if (turn.answer.isEmpty)
-            _Waiting(turn.reading)
+            _Waiting(
+              turn.reading,
+              status: turn.done
+                  ? null
+                  : (turn.stopped ? 'Stopping…' : 'Examining the Scriptures…'),
+            )
           else
             MarkdownLite(turn.answer),
           if (turn.done) _Citations(turn, db, translation, onSource),
+          if (turn.stopped && (turn.done || turn.answer.isNotEmpty))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                !turn.done
+                    ? 'Stopping…'
+                    : turn.answer.isEmpty
+                    ? 'Stopped before an answer was written.'
+                    : 'Stopped. What was written so far is kept.',
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+              ),
+            ),
+          if (turn.canGoDeeper && onDeeper != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: onDeeper,
+                  icon: const Icon(Icons.unfold_more),
+                  label: const Text(goDeeperLabel),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -370,7 +405,10 @@ class AnswerFollower {
 /// What the reader sees before the model's first word: the verses it is working from.
 class _Waiting extends StatelessWidget {
   final List<Verse> reading;
-  const _Waiting(this.reading);
+
+  /// What the model is doing, or null once the answer ended with nothing written.
+  final String? status;
+  const _Waiting(this.reading, {required this.status});
 
   @override
   Widget build(BuildContext context) {
@@ -396,7 +434,8 @@ class _Waiting extends StatelessWidget {
                 style: TextStyle(color: scheme.onSurface),
               ),
             ),
-          Text('Examining the Scriptures…', style: TextStyle(color: scheme.onSurfaceVariant)),
+          if (status case final text?)
+            Text(text, style: TextStyle(color: scheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -557,6 +596,9 @@ class ChatInputBar extends StatelessWidget {
   final bool busy;
   final bool canSend;
   final VoidCallback onSend;
+
+  /// Ends the answer being written; set only while there is one to end.
+  final VoidCallback? onStop;
   final String hint;
   final Widget? mic;
   const ChatInputBar({
@@ -566,6 +608,7 @@ class ChatInputBar extends StatelessWidget {
     required this.busy,
     this.canSend = true,
     required this.onSend,
+    this.onStop,
     this.hint = 'Ask about a passage, a word, or a question of life',
     this.mic,
   });
@@ -589,9 +632,11 @@ class ChatInputBar extends StatelessWidget {
           if (mic case final m?) ...[const SizedBox(width: 4), m],
           const SizedBox(width: 6),
           IconButton.filled(
-            tooltip: 'Send',
-            onPressed: busy || !canSend ? null : onSend,
-            icon: busy
+            tooltip: busy && onStop != null ? 'Stop' : 'Send',
+            onPressed: busy && onStop != null ? onStop : (busy || !canSend ? null : onSend),
+            icon: busy && onStop != null
+                ? const Icon(Icons.stop_rounded)
+                : busy
                 ? const SizedBox(
                     width: 18,
                     height: 18,

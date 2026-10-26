@@ -8,6 +8,15 @@ Performance
   49 s instead of 125 s, and the app held 2.7 GB instead of 3.8 GB with 1.2 GB less swapped out.
   Phones that already chose a tier keep it; change it in Settings.
 - While the model works, the chat shows the verses it was given, so the wait is spent reading.
+- Brief answers first, on by default at the low tier (Settings: Brief answers first). The model
+  writes at most four short sentences, and a Go deeper button asks for the full study, which
+  replaces the brief answer in the conversation. On the Galaxy A32 the answer was complete after
+  61 s instead of about 150 s. On the 40 golden questions it kept all 28 expected references, with
+  no invented references, unverified quotes or misattributed sayings.
+- A Stop button replaces the send button while an answer is written. What was written so far is
+  kept and checked like any other answer. It takes effect in about 2.5 s while the answer is being
+  written, and up to about 20 s during the first wait for the model to read the prompt, with
+  "Stopping…" shown meanwhile.
 
 Models
 - Gemma 3 1B no longer needs a Hugging Face account or token. Berea hosts the unmodified file on

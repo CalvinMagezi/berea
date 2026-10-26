@@ -335,6 +335,13 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 _DeviceModelStatus(state: widget.state, draft: _merged),
               ],
               const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Brief answers first'),
+                subtitle: const Text('A few sentences sooner; tap Go deeper for the full study.'),
+                value: draft.briefFirst,
+                onChanged: (v) => setState(() => draft = draft.copyWith(briefFirst: v)),
+              ),
               DropdownButtonFormField<Tier>(
                 initialValue: draft.tier,
                 decoration: const InputDecoration(labelText: 'Tier (prompt budget)'),

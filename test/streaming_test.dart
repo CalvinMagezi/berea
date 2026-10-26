@@ -14,6 +14,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:record/record.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'support/bible.dart';
@@ -28,6 +29,35 @@ class _Tokens implements LlmEngine {
 
   @override
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) => tokens;
+}
+
+/// Answers every question with one sentence and records what it was asked. With [hold] the
+/// answer stays open until [stop], like a model still writing.
+class _Recording implements LlmEngine, StoppableEngine {
+  final calls = <List<ChatMessage>>[];
+  final limits = <int>[];
+  final bool hold;
+  var stops = 0;
+  StreamController<String>? _open;
+  _Recording({this.hold = false});
+
+  @override
+  String get name => 'recording';
+
+  @override
+  Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) {
+    calls.add(messages);
+    limits.add(maxTokens);
+    final answer = _open = StreamController<String>()..add('Grace is a gift (John 3:16, BSB).');
+    if (!hold) answer.close();
+    return answer.stream;
+  }
+
+  @override
+  Future<void> stop() async {
+    stops++;
+    await _open?.close();
+  }
 }
 
 /// The chat screen needs a voice session; these tests never record.
@@ -147,6 +177,140 @@ void main() {
     expect(turn.reading.length, lessThanOrEqualTo(readingVerseLimit));
     await tokens.close();
     await sent;
+  });
+
+  group('brief answers and stopping', () {
+    const question = 'What does John 3:16 mean?';
+
+    test('a brief answer offers Go deeper, and the full study replaces it in the history', () async {
+      final engine = _Recording();
+      final s = app(engine)..settings = Settings(engine: EngineKind.device, briefFirst: true);
+      await s.send(question);
+      final brief = s.turns.single;
+      expect(brief.canGoDeeper, isTrue);
+
+      await s.goDeeper(brief);
+      final deeper = s.turns.last;
+      expect(s.turns, hasLength(2));
+      expect(deeper.deeper, isTrue);
+      expect(deeper.shownQuestion, goDeeperLabel);
+      expect(brief.canGoDeeper, isFalse);
+      expect(engine.calls[0].first.content, contains(briefRule));
+      expect(engine.calls[1].first.content, isNot(contains(briefRule)));
+      expect(engine.limits, [briefMaxOutput, s.harness!.tier.maxOutput]);
+      expect(s.harness!.history.map((m) => m.role), ['user', 'assistant']);
+      expect(study.messages(s.conversationId!).map((m) => m.text), [
+        question,
+        brief.answer,
+        goDeeperLabel,
+        deeper.answer,
+      ]);
+    });
+
+    test('a full answer offers nothing deeper', () async {
+      final s = app(_Recording())..settings = Settings(engine: EngineKind.device, briefFirst: false);
+      await s.send(question);
+      expect(s.turns.single.canGoDeeper, isFalse);
+    });
+
+    test('stopping ends an answer early and keeps what was written', () async {
+      final engine = _Recording(hold: true);
+      final s = app(engine);
+      final sent = s.send(question);
+      await pumpEventQueue();
+      expect(s.answering, isTrue);
+
+      await s.stopAnswer();
+      await sent;
+      final turn = s.turns.single;
+      expect(engine.stops, 1);
+      expect(turn.stopped, isTrue);
+      expect(turn.done, isTrue);
+      expect(turn.answer, contains('Grace is a gift'));
+      expect(s.answering, isFalse);
+    });
+
+    test('stopping with nothing being answered does nothing', () async {
+      final engine = _Recording();
+      final s = app(engine);
+      await s.stopAnswer();
+      expect(engine.stops, 0);
+    });
+
+    test('brief answers are on by default at the low tier and keep a saved choice', () async {
+      expect(Settings(tier: Tier.low).briefFirst, isTrue);
+      expect(Settings(tier: Tier.mid).briefFirst, isFalse);
+      expect(Settings(tier: Tier.low, briefFirst: false).briefFirst, isFalse);
+
+      SharedPreferences.setMockInitialValues({'tier': 'low'});
+      final prefs = await SharedPreferences.getInstance();
+      expect(Settings.load(prefs).briefFirst, isTrue);
+      await Settings.load(prefs).copyWith(briefFirst: false).save(prefs);
+      expect(Settings.load(prefs).briefFirst, isFalse);
+    });
+  });
+
+  testWidgets('an answer stopped before any text says so and stops saying it is working', (
+    tester,
+  ) async {
+    final turn = ChatTurn('What does John 3:16 mean?', style: AnswerStyle.brief)
+      ..stopped = true
+      ..done = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: TurnView(turn: turn, db: bible, translation: 'BSB')),
+      ),
+    );
+    expect(find.text('Stopped before an answer was written.'), findsOneWidget);
+    expect(find.text('Examining the Scriptures…'), findsNothing);
+  });
+
+  testWidgets('a stop that has not taken effect yet says Stopping', (tester) async {
+    final turn = ChatTurn('What does John 3:16 mean?')..stopped = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: TurnView(turn: turn, db: bible, translation: 'BSB')),
+      ),
+    );
+    expect(find.text('Stopping…'), findsOneWidget);
+    expect(find.text('Examining the Scriptures…'), findsNothing);
+
+    turn.answer = 'Grace is a gift.';
+    turn.markStopped();
+    await tester.pump();
+    expect(find.text('Stopping…'), findsOneWidget);
+  });
+
+  testWidgets('Stop shows while an answer is written and Go deeper after a brief one', (
+    tester,
+  ) async {
+    final engine = _Recording(hold: true);
+    SharedPreferences.setMockInitialValues({});
+    final s = app(engine)
+      ..settings = Settings(engine: EngineKind.device, briefFirst: true)
+      ..prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(MaterialApp(home: ChatScreen(state: s)));
+    await tester.enterText(find.byType(TextField), 'What does John 3:16 mean?');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await _frames(tester);
+    expect(find.byTooltip('Stop'), findsOneWidget);
+    expect(find.byTooltip('Send'), findsNothing);
+
+    await tester.tap(find.byTooltip('Stop'));
+    await tester.pumpAndSettle();
+    expect(find.text('Stopped. What was written so far is kept.'), findsOneWidget);
+    expect(find.byTooltip('Send'), findsOneWidget);
+    final deeper = find.widgetWithText(OutlinedButton, goDeeperLabel);
+    expect(deeper, findsOneWidget);
+
+    await tester.tap(deeper);
+    await _frames(tester);
+    expect(s.turns, hasLength(2));
+    expect(deeper, findsNothing);
+    expect(find.byTooltip('Stop'), findsOneWidget);
+    await tester.tap(find.byTooltip('Stop'));
+    await tester.pumpAndSettle();
+    expect(s.answering, isFalse);
   });
 
   test('a notebook answer tells its chat twice however many tokens it has', () async {

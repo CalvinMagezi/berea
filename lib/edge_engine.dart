@@ -44,13 +44,19 @@ Future<void> ensureEdgeAiInitialized() =>
 
 /// Harness engine backed by a LiteRT-LM model loaded through flutter_edge_ai. Each turn opens a
 /// fresh conversation; keeping one open measured slower overall on a phone-sized context.
-class EdgeAiEngine implements LlmEngine {
+class EdgeAiEngine implements LlmEngine, StoppableEngine {
   final InferenceModel model;
   final EdgeModel spec;
 
   /// The model loaded with its audio encoder, so it can transcribe voice questions.
   final bool hearsAudio;
-  const EdgeAiEngine(this.model, this.spec, {this.hearsAudio = false});
+  EdgeAiEngine(this.model, this.spec, {this.hearsAudio = false});
+
+  /// The conversation writing an answer now, so Stop can end it.
+  InferenceChat? _answering;
+
+  @override
+  Future<void> stop() async => _answering?.stopGeneration();
 
   /// Whether [m] is ready to load, and makes it the plugin's active model. The plugin remembers
   /// only the model it installed last, and 2.1.3 cannot restore one registered from a file, so
@@ -136,6 +142,7 @@ class EdgeAiEngine implements LlmEngine {
       modelType: spec.type,
       maxOutputTokens: maxTokens,
     );
+    _answering = chat;
     try {
       for (final m in messages.where((m) => m.role != 'system')) {
         await chat.addQueryChunk(Message.text(text: m.content, isUser: m.role == 'user'));
@@ -144,6 +151,7 @@ class EdgeAiEngine implements LlmEngine {
         if (r is TextResponse) yield r.token;
       }
     } finally {
+      _answering = null;
       await chat.close();
     }
   }

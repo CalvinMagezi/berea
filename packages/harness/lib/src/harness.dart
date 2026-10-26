@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'bible_db.dart';
 import 'ref_parser.dart';
 import 'citation_guard.dart';
@@ -79,12 +81,23 @@ class Harness {
     List<SourceChunk> sources = const [],
     void Function(String token)? onToken,
     void Function(StudyContext shown)? onContext,
+    AnswerStyle style = AnswerStyle.full,
+
+    /// Drops the last question and answer from the history first, for an answer that takes the
+    /// place of the one before it, such as the full study after a brief one.
+    bool replacePrevious = false,
   }) async {
+    if (replacePrevious && history.length >= 2) {
+      history.removeRange(history.length - 2, history.length);
+    }
     final ctx = retriever.retrieve(userText, tier, sources: sources);
-    final prompt = builder.build(ctx, history, userText, tier, notebook: notebook);
+    final prompt = builder.build(ctx, history, userText, tier, notebook: notebook, style: style);
     onContext?.call(prompt.shown);
+    final maxTokens = style == AnswerStyle.brief
+        ? min(tier.maxOutput, briefMaxOutput)
+        : tier.maxOutput;
     final buf = StringBuffer();
-    await for (final token in engine.generate(prompt.messages, maxTokens: tier.maxOutput)) {
+    await for (final token in engine.generate(prompt.messages, maxTokens: maxTokens)) {
       buf.write(token);
       onToken?.call(token);
     }

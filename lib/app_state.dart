@@ -33,6 +33,10 @@ class Settings {
   final String deviceModelId;
   final Tier tier;
   final String translation;
+
+  /// Answer in a few sentences first, with a button for the full study. On by default at the low
+  /// tier, whose phones decode a few tokens a second.
+  final bool briefFirst;
   Settings({
     EngineKind? engine,
     this.ollamaUrl = 'http://localhost:11434',
@@ -40,7 +44,9 @@ class Settings {
     this.deviceModelId = 'gemma-4-e2b',
     this.tier = Tier.mid,
     this.translation = defaultTranslation,
-  }) : engine = engine ?? defaultEngine;
+    bool? briefFirst,
+  }) : engine = engine ?? defaultEngine,
+       briefFirst = briefFirst ?? tier == Tier.low;
 
   EdgeModel get deviceModel => edgeModelById(deviceModelId);
 
@@ -51,6 +57,7 @@ class Settings {
     String? deviceModelId,
     Tier? tier,
     String? translation,
+    bool? briefFirst,
   }) => Settings(
     engine: engine ?? this.engine,
     ollamaUrl: ollamaUrl ?? this.ollamaUrl,
@@ -58,6 +65,7 @@ class Settings {
     deviceModelId: deviceModelId ?? this.deviceModelId,
     tier: tier ?? this.tier,
     translation: translation ?? this.translation,
+    briefFirst: briefFirst ?? this.briefFirst,
   );
 
   static Settings load(SharedPreferences p) {
@@ -69,6 +77,7 @@ class Settings {
       deviceModelId: p.getString('deviceModelId') ?? 'gemma-4-e2b',
       tier: Tier.values.byName(p.getString('tier') ?? Tier.mid.name),
       translation: p.getString('translation') ?? defaultTranslation,
+      briefFirst: p.getBool('briefFirst'),
     );
   }
 
@@ -82,6 +91,7 @@ class Settings {
     await p.setString('deviceModelId', deviceModelId);
     await p.setString('tier', tier.name);
     await p.setString('translation', translation);
+    await p.setBool('briefFirst', briefFirst);
   }
 }
 
@@ -92,9 +102,39 @@ const streamRefresh = Duration(milliseconds: 66);
 /// Verses shown while the model has not yet written a word.
 const readingVerseLimit = 3;
 
+/// The button that asks for the full study, and the question bubble it adds.
+const goDeeperLabel = 'Go deeper';
+
 /// A question and its answer. Listeners hear the answer grow while it streams.
 class ChatTurn extends ChangeNotifier {
   final String question;
+
+  /// How much the model was asked to write. A brief answer offers to go deeper.
+  final AnswerStyle style;
+
+  /// The full study that follows a brief answer, shown under the question "Go deeper".
+  final bool deeper;
+  ChatTurn(this.question, {this.style = AnswerStyle.full, this.deeper = false});
+
+  /// What the reader sees in the question bubble and what is saved as their message.
+  String get shownQuestion => deeper ? goDeeperLabel : question;
+
+  /// The reader ended the answer early; what was written so far is kept.
+  bool stopped = false;
+  bool deeperAsked = false;
+
+  void markStopped() {
+    stopped = true;
+    notifyListeners();
+  }
+
+  void markDeeperAsked() {
+    deeperAsked = true;
+    notifyListeners();
+  }
+
+  /// A finished brief answer can be followed by the full study, once.
+  bool get canGoDeeper => done && error == null && style == AnswerStyle.brief && !deeperAsked;
   String answer = '';
   Timer? _refresh;
   List<Ref> verified = const [];
@@ -110,7 +150,6 @@ class ChatTurn extends ChangeNotifier {
   int rewordedQuotes = 0;
   bool done = false;
   String? error;
-  ChatTurn(this.question);
 
   /// Verses the model is about to read, shown while it works through them.
   List<Verse> reading = const [];
@@ -703,17 +742,48 @@ class AppState extends ChangeNotifier {
   Future<void> send(String question) async {
     final h = harness;
     if (h == null || !ready) return;
-    final turn = ChatTurn(question);
+    final style = settings.briefFirst ? AnswerStyle.brief : AnswerStyle.full;
+    final turn = ChatTurn(question, style: style);
     turns.add(turn);
     await useModel(() => _answer(h, turn));
   }
 
+  /// Writes the full study for [brief], which stays above it. The brief answer leaves the
+  /// harness history, so a follow-up question sees one answer to this one.
+  Future<void> goDeeper(ChatTurn brief) async {
+    final h = harness;
+    if (h == null || !ready || !brief.canGoDeeper) return;
+    brief.markDeeperAsked();
+    final turn = ChatTurn(brief.question, deeper: true);
+    turns.add(turn);
+    await useModel(() => _answer(h, turn));
+  }
+
+  /// True while a question is being answered, which the Stop button can end.
+  bool get answering =>
+      busy && turns.isNotEmpty && !turns.last.done && turns.last.error == null;
+
+  /// Ends the answer being written early; the text so far stays and is checked as usual.
+  Future<void> stopAnswer() async {
+    if (!answering) return;
+    final engine = harness?.engine;
+    if (engine is! StoppableEngine) return;
+    turns.last.markStopped();
+    await (engine as StoppableEngine).stop();
+  }
+
   Future<void> _answer(Harness h, ChatTurn turn) async {
     try {
-      final result = await h.ask(turn.question, onToken: turn.append, onContext: turn.read);
+      final result = await h.ask(
+        turn.question,
+        onToken: turn.append,
+        onContext: turn.read,
+        style: turn.style,
+        replacePrevious: turn.deeper,
+      );
       turn.take(result.guard);
       conversationId ??= study.createConversation(turn.question);
-      study.addMessage(conversationId!, 'user', turn.question, const []);
+      study.addMessage(conversationId!, 'user', turn.shownQuestion, const []);
       study.addMessage(conversationId!, 'assistant', turn.answer, turn.verified);
     } catch (e) {
       turn.error = e.toString();
