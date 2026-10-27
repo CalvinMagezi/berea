@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 Word study
 - Long-press a word in the reader to study the Hebrew or Greek word behind it: its lexicon
