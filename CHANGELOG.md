@@ -71,6 +71,11 @@ Models
 
 ## 0.4.0
 
+App icon
+- The Berea mark (a B drawn as two stacked half-rounds, parchment on lamp gold) replaces the default
+  Flutter logo on iOS, Android (adaptive, with a monochrome layer for themed icons), macOS and
+  Windows. `flutter test tool/make_icons.dart` regenerates every size from the mark's path.
+
 Performance
 - A streaming answer no longer redraws the whole app for every token. Only the answer being
   written redraws, at most 15 times a second, so the Bible and Notes tabs stop rereading the
