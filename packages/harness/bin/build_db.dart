@@ -4,10 +4,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:berea_harness/src/bible_db.dart';
 import 'package:berea_harness/src/books.dart';
 import 'package:berea_harness/src/csv.dart';
 import 'package:berea_harness/src/importers.dart';
 import 'package:berea_harness/src/source_checks.dart';
+import 'package:berea_harness/src/word_study.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 
@@ -16,6 +18,10 @@ const _scrollmapper =
 const _bsb = 'https://bereanbible.com/bsb.txt';
 // Bump only after reading the diff report for the new text; the narrated audio follows it.
 const _bsbSha256 = '2ac3af1de52d4e68261cba91d85c320b7eadc6560e830d99e591767b8ff5ca96';
+// The BSB translation tables: each English phrase of the BSB with its Strong's number, in English
+// order. Public domain with the BSB text (bereanbible.com, "Free Downloads"). Bump with the text.
+const _bsbTables = 'https://bereanbible.com/bsb_tables.tsv';
+const _bsbTablesSha256 = '09bbee6f9fe4fa22b5df28e8a9ffa99bf9c33435f4eb8c47c2dc221d855d35cb';
 // The scrollmapper revision Berea shipped before the official text, kept for the diff report.
 const _oldBsbCommit = 'e1b254cef86d0e65b1a5d1a94b8b112d0f296a2c';
 const _oldBsb =
@@ -94,6 +100,7 @@ void _createSchema(Database db) => db.execute('''
   CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER);
   CREATE INDEX xrefs_from ON xrefs(from_book, from_chapter, from_verse);
   CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
+  CREATE INDEX verses_ref ON verses(translation, book, chapter, verse);
 ''');
 
 Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
@@ -119,6 +126,13 @@ Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
   if (unzip.exitCode != 0) throw StateError('unzip failed: ${unzip.stderr}');
   _loadXrefs(db, File('$cache/xrefs/cross_references.txt').readAsStringSync());
   _buildDailyVerses(db);
+  final bible = BibleDb(db)..buildWordIndex();
+  final tables = parseBsbTables(
+    await _fetch(_bsbTables, '$cache/bsb_tables.tsv', pin: _bsbTablesSha256),
+  );
+  stdout.writeln(
+    'BSB words aligned to the translation tables: ${bible.importBsbAlignment(tables)} verses',
+  );
 }
 
 /// Writes the meta rows and compacts the database; returns the build stamp.
@@ -130,9 +144,18 @@ String _writeMeta(Database db) {
     ..execute(['built', built])
     ..execute(['translations', translations])
     ..execute(['bsb_source', '$_bsb sha256:$_bsbSha256'])
+    ..execute(['bsb_tables_source', '$_bsbTables sha256:$_bsbTablesSha256'])
     ..dispose();
   db.execute('VACUUM');
-  for (final t in ['verses', 'words', 'lexicon', 'xrefs']) {
+  for (final t in [
+    'verses',
+    'words',
+    'lexicon',
+    'xrefs',
+    'word_index',
+    'gloss_index',
+    'bsb_words',
+  ]) {
     final n = db.select('SELECT COUNT(*) AS n FROM $t').first['n'];
     stdout.writeln('$t: $n rows');
   }

@@ -15,6 +15,7 @@ class DataSource {
 
 const builtInSources = [
   DataSource('Berean Standard Bible', 'Public domain (CC0)', 'bereanbible.com'),
+  DataSource('BSB translation tables (word study)', 'Public domain', 'bereanbible.com'),
   DataSource('King James Version', 'Public domain', 'via scrollmapper/bible_databases'),
   DataSource('World English Bible', 'Public domain', 'ebible.org'),
   DataSource(

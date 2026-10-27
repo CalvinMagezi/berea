@@ -2,6 +2,7 @@ import 'bible_db.dart';
 import 'ref_parser.dart';
 import 'sources.dart';
 import 'tier.dart';
+import 'word_study.dart';
 
 class StudyContext {
   final List<Ref> refs;
@@ -41,6 +42,21 @@ class Retriever {
     var words = const <WordTag>[];
     final lexicon = <String, LexEntry>{};
     final xrefVerses = <Verse>[];
+
+    // A word study names its Strong's number: that entry leads the lexicon, and the word's other
+    // uses take the place of search hits, which would only match the question's English.
+    final focus = strongsIn(userText);
+    final focusEntry = focus == null ? null : db.lexicon(focus);
+    if (focusEntry != null) lexicon[focusEntry.key] = focusEntry;
+    final uses = focusEntry == null
+        ? const <Verse>[]
+        : db.wordSample(
+            focus!,
+            k: tier.searchK,
+            exclude: refs.firstOrNull,
+            translation: translation,
+          );
+
     if (refs.isNotEmpty) {
       final primary = refs.first;
       words = db.words(primary);
@@ -59,7 +75,9 @@ class Retriever {
       }
     }
 
-    final hits = db.search(userText, translation: translation, k: tier.searchK);
+    final hits = uses.isNotEmpty
+        ? uses
+        : db.search(userText, translation: translation, k: tier.searchK);
     final searchHits = [
       for (final v in hits)
         if (seen.add(v.label)) v,
@@ -67,7 +85,7 @@ class Retriever {
 
     // With no reference to anchor on, follow the cross-reference graph from the search hits: the
     // passages most of them point to are usually the canonical ones on the topic.
-    if (refs.isEmpty && hits.isNotEmpty) {
+    if (refs.isEmpty && hits.isNotEmpty && uses.isEmpty) {
       final hubs = db.crossReferenceHubs([
         for (final v in hits) Ref(v.book, v.chapter, v.verse, v.verse),
       ], k: tier.xrefK);

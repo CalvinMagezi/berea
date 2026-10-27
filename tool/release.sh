@@ -41,6 +41,8 @@ fi
 echo "Running the grounding eval against Ollama (gemma4:e2b)"
 mkdir -p "$root/build"
 (cd packages/harness && dart run bin/eval.dart --tier mid | tee "$root/build/eval-$version.txt")
+echo "Running the word study eval against Ollama (gemma4:e2b)"
+(cd packages/harness && dart run bin/eval.dart --tier mid --words | tee -a "$root/build/eval-$version.txt")
 
 echo "Building release artifacts"
 [[ -f android/key.properties ]] || { echo "android/key.properties is missing; see android/key.properties.example." >&2; exit 1; }

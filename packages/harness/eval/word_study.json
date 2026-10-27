@@ -1,0 +1,57 @@
+[
+  {
+    "q": "Word study: \"perfect\" in Matthew 5:48 is the Greek word τέλειος (teleios, G5046), \"perfect\". What does it mean, how is it used elsewhere in Scripture, and what does it teach me?",
+    "expect": [
+      "Matthew 5:48"
+    ]
+  },
+  {
+    "q": "Word study: \"perfect\" in Job 1:1 is the Hebrew word תָּם (tam, H8535), \"complete\". What does it mean, how is it used elsewhere in Scripture, and what does it teach me?",
+    "expect": [
+      "Job 1:1"
+    ]
+  },
+  {
+    "q": "Word study: \"loved\" in John 3:16 is the Greek word ἀγαπάω (agapaō, G0025), \"to love\". What does it mean, how is it used elsewhere in Scripture, and what does it teach me?",
+    "expect": [
+      "John 3:16"
+    ]
+  },
+  {
+    "q": "Word study: \"loving devotion\" in Psalms 136:1 is the Hebrew word חֶ֫סֶד (che.sed, H2617), \"kindness\". What does it mean, how is it used elsewhere in Scripture, and what does it teach me?",
+    "expect": [
+      "Psalm 136:1"
+    ]
+  },
+  {
+    "q": "Word study: the Greek word χάρις (charis, G5485), \"grace\". What does it mean, how is it used in Scripture, and what does it teach me?",
+    "expect": []
+  },
+  {
+    "q": "Word study: the Hebrew word שָׁלוֹם (sha.lom, H7965), \"peace\". What does it mean, how is it used in Scripture, and what does it teach me?",
+    "expect": []
+  },
+  {
+    "q": "Word study: what does the Greek word G9876 mean, and where is it used in Scripture?",
+    "expect": [],
+    "kind": "adversarial"
+  },
+  {
+    "q": "Word study: \"perfect\" in Matthew 5:48 is the Greek word τέλειος (teleios, G5046), \"perfect\". How does Jesus use the same word again in Matthew 5:49?",
+    "expect": [
+      "Matthew 5:48"
+    ],
+    "kind": "adversarial",
+    "bait": [
+      "Matthew 5:49"
+    ]
+  },
+  {
+    "q": "Word study: the Greek word ἀγάπη (agapē, G0026), \"love\". Where does Scripture use it to say that God helps those who help themselves?",
+    "expect": [],
+    "kind": "adversarial",
+    "forbid": [
+      "God helps those who help themselves"
+    ]
+  }
+]

@@ -1,5 +1,5 @@
-// Runs eval/golden.json through the harness, or with --notebook eval/notebook.json against a
-// fixture notebook. Exit 1 if any reference or source citation was invented. Add
+// Runs eval/golden.json through the harness, with --words the word study questions in
+// eval/word_study.json, or with --notebook eval/notebook.json against a fixture notebook. Exit 1 if any reference or source citation was invented. Add
 // --commentary <pack.sqlite> to let notebook answers draw on an installed commentary pack, and
 // --show to print each notebook answer as the guard left it.
 import 'dart:convert';
@@ -59,13 +59,19 @@ List<Map<String, dynamic>> _cases(String path) =>
 
 Future<void> main(List<String> args) async {
   final h = harnessFromArgs(args);
-  final ok = h.notebook ? await _notebook(h, args) : await _golden(h, args.contains('--brief'));
+  final ok = h.notebook
+      ? await _notebook(h, args)
+      : await _golden(
+          h,
+          args.contains('--brief'),
+          args.contains('--words') ? 'eval/word_study.json' : 'eval/golden.json',
+        );
   h.db.close();
   exit(ok ? 0 : 1);
 }
 
-Future<bool> _golden(Harness h, bool brief) async {
-  final cases = _cases('eval/golden.json');
+Future<bool> _golden(Harness h, bool brief, String path) async {
+  final cases = _cases(path);
   var invented = 0, badQuotes = 0, expected = 0, covered = 0, misattributed = 0, adversarialOk = 0;
   var adversarial = 0, nearMisses = 0, words = 0;
   final sw = Stopwatch()..start();

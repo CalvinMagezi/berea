@@ -588,6 +588,9 @@ class AppState extends ChangeNotifier {
   void askAbout(Ref ref) =>
       pendingQuestion.value = 'Study ${ref.label}. What does it mean and how does it apply?';
 
+  /// Sends a word study's question (see [wordStudyQuestion]) to the Study tab.
+  void askAboutWord(String question) => pendingQuestion.value = question;
+
   /// Notes and highlights change outside this class; callers poke listeners through here.
   void touch() => notifyListeners();
 

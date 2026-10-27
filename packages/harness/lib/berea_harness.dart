@@ -14,3 +14,4 @@ export 'src/retriever.dart';
 export 'src/sources.dart';
 export 'src/tier.dart';
 export 'src/truncation.dart';
+export 'src/word_study.dart';
