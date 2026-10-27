@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:berea_harness/src/bible_db.dart';
 import 'package:berea_harness/src/books.dart';
 import 'package:berea_harness/src/csv.dart';
 import 'package:berea_harness/src/importers.dart';
@@ -94,6 +95,7 @@ void _createSchema(Database db) => db.execute('''
   CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER);
   CREATE INDEX xrefs_from ON xrefs(from_book, from_chapter, from_verse);
   CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
+  CREATE INDEX verses_ref ON verses(translation, book, chapter, verse);
 ''');
 
 Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
@@ -119,6 +121,7 @@ Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
   if (unzip.exitCode != 0) throw StateError('unzip failed: ${unzip.stderr}');
   _loadXrefs(db, File('$cache/xrefs/cross_references.txt').readAsStringSync());
   _buildDailyVerses(db);
+  BibleDb(db).buildWordIndex();
 }
 
 /// Writes the meta rows and compacts the database; returns the build stamp.
@@ -132,7 +135,7 @@ String _writeMeta(Database db) {
     ..execute(['bsb_source', '$_bsb sha256:$_bsbSha256'])
     ..dispose();
   db.execute('VACUUM');
-  for (final t in ['verses', 'words', 'lexicon', 'xrefs']) {
+  for (final t in ['verses', 'words', 'lexicon', 'xrefs', 'word_index', 'gloss_index']) {
     final n = db.select('SELECT COUNT(*) AS n FROM $t').first['n'];
     stdout.writeln('$t: $n rows');
   }

@@ -9,6 +9,7 @@ import 'plans_screen.dart';
 import 'study_page_screen.dart';
 import 'search_screen.dart';
 import 'theme.dart';
+import 'word_study_screen.dart';
 
 /// Where a jumped-to verse lands: a little below the top so the one before is visible.
 const verseJumpAlignment = 0.08;
@@ -63,6 +64,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// Keys for the verses currently built, so a jump can align to the real widget.
   final _verseKeys = <int, GlobalKey>{};
 
+  /// Keys for each verse's own text, so a long press can find the word under the finger.
+  final _textKeys = <int, GlobalKey>{};
+  Offset? _pressAt;
+
+  /// A long press on a word studies that word; anywhere else in the verse it shows the verse's
+  /// Hebrew or Greek words, as before.
+  void _longPress(Verse v) {
+    final ref = Ref(book, chapter, v.verse);
+    final ctx = _textKeys[v.verse]?.currentContext;
+    final at = _pressAt;
+    final hit = ctx == null || at == null
+        ? null
+        : pressedWord(ctx, at, v.text, '${v.verse} '.length);
+    if (hit == null) {
+      showInterlinear(context, s, ref);
+    } else {
+      showWordStudy(context, s, ref, english: hit.word, occurrence: hit.occurrence);
+    }
+  }
+
   /// Item heights vary and the list builds lazily, so this jumps to an estimate first (which
   /// builds the verse) and then aligns exactly once the verse's widget exists.
   void _scrollToVerse(int verse, [int attempt = 0]) {
@@ -84,6 +105,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _go(Book b, int c) {
     _selected.clear();
     _verseKeys.clear();
+    _textKeys.clear();
     if (_scroll.hasClients) _scroll.jumpTo(0);
     s.setReader(b, c);
   }
@@ -184,51 +206,56 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     final v = verses[i];
                     final on = _selected.contains(v.verse);
                     final other = second[v.verse];
-                    return InkWell(
+                    // Listener only notes where the finger went down; InkWell still decides.
+                    return Listener(
                       key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
-                      onTap: () =>
-                          setState(() => on ? _selected.remove(v.verse) : _selected.add(v.verse)),
-                      onLongPress: () => showInterlinear(context, s, Ref(book, chapter, v.verse)),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: highlights.contains(v.verse)
-                              ? scheme.primary.withValues(alpha: 0.18)
-                              : null,
-                          border: on
-                              ? Border(left: BorderSide(color: scheme.primary, width: 3))
-                              : null,
-                        ),
-                        child: _ParallelRow(
-                          other: other,
-                          otherLabel: parallel,
-                          primary: Text.rich(
-                            TextSpan(
-                              style: scriptureStyle(context).copyWith(fontSize: 18, height: 1.6),
-                              children: [
-                                TextSpan(
-                                  text: '${v.verse} ',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: scheme.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                TextSpan(text: v.text),
-                                if (noted.contains(v.verse))
-                                  WidgetSpan(
-                                    alignment: PlaceholderAlignment.middle,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(left: 6),
-                                      child: Icon(
-                                        Icons.sticky_note_2_outlined,
-                                        size: 14,
-                                        color: scheme.onSurfaceVariant,
-                                      ),
+                      onPointerDown: (e) => _pressAt = e.position,
+                      child: InkWell(
+                        onTap: () =>
+                            setState(() => on ? _selected.remove(v.verse) : _selected.add(v.verse)),
+                        onLongPress: () => _longPress(v),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: highlights.contains(v.verse)
+                                ? scheme.primary.withValues(alpha: 0.18)
+                                : null,
+                            border: on
+                                ? Border(left: BorderSide(color: scheme.primary, width: 3))
+                                : null,
+                          ),
+                          child: _ParallelRow(
+                            other: other,
+                            otherLabel: parallel,
+                            primary: Text.rich(
+                              key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
+                              TextSpan(
+                                style: scriptureStyle(context).copyWith(fontSize: 18, height: 1.6),
+                                children: [
+                                  TextSpan(
+                                    text: '${v.verse} ',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: scheme.primary,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                              ],
+                                  TextSpan(text: v.text),
+                                  if (noted.contains(v.verse))
+                                    WidgetSpan(
+                                      alignment: PlaceholderAlignment.middle,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(left: 6),
+                                        child: Icon(
+                                          Icons.sticky_note_2_outlined,
+                                          size: 14,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         ),

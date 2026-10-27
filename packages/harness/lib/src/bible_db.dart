@@ -5,6 +5,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'books.dart';
 import 'importers.dart';
 import 'ref_parser.dart';
+import 'word_study.dart';
 
 class Verse {
   final Book book;
@@ -21,7 +22,31 @@ class WordTag {
   final String gloss;
   final String strongs;
   final String morph;
-  const WordTag(this.original, this.translit, this.gloss, this.strongs, this.morph);
+
+  /// Place in the verse in the original language's word order, from 1; 0 when not known.
+  final int pos;
+  const WordTag(this.original, this.translit, this.gloss, this.strongs, this.morph, {this.pos = 0});
+}
+
+/// One verse where a word is used, with the word as it appears there (more than once in some).
+class WordUse {
+  final Ref ref;
+
+  /// The verse in the reader's translation, or null when that translation numbers it differently.
+  final String? text;
+  final List<WordTag> words;
+  const WordUse(this.ref, this.text, this.words);
+}
+
+/// A word that some verses gloss with a given English word.
+class GlossedWord {
+  final String code;
+  final LexEntry? entry;
+
+  /// Times STEP glosses it with the English word, and times it is used at all.
+  final int glossed;
+  final int uses;
+  const GlossedWord(this.code, this.entry, this.glossed, this.uses);
 }
 
 class LexEntry {
@@ -292,18 +317,200 @@ class BibleDb {
     final vs = ref.verseStart ?? 1;
     final ve = ref.verseStart == null ? 999 : (ref.verseEnd ?? vs);
     final rows = db.select(
-      'SELECT original, translit, gloss, strongs, morph FROM words '
+      'SELECT original, translit, gloss, strongs, morph, pos FROM words '
       'WHERE book = ? AND chapter = ? AND verse BETWEEN ? AND ? ORDER BY verse, pos',
       [ref.book.id, ref.chapter, vs, ve],
     );
+    return rows.map(_wordTag).toList();
+  }
+
+  static WordTag _wordTag(Row r) => WordTag(
+    r['original'] as String,
+    r['translit'] as String,
+    r['gloss'] as String,
+    r['strongs'] as String,
+    r['morph'] as String,
+    pos: r['pos'] as int,
+  );
+
+  bool? _hasWordIndex;
+
+  /// Builds the word concordance from `words`: `word_index` finds every use of a base Strong's
+  /// number, and `gloss_index` finds the words STEP glosses with an English stem. build_db.dart
+  /// calls this; a database without the tables gets them the first time a word is studied.
+  void buildWordIndex() {
+    final glossed = <String, int>{};
+    db.execute('BEGIN');
+    try {
+      db.execute('''
+        DROP TABLE IF EXISTS word_index;
+        DROP TABLE IF EXISTS gloss_index;
+        CREATE TABLE word_index(strongs TEXT, book INTEGER, chapter INTEGER, verse INTEGER,
+          pos INTEGER, PRIMARY KEY(strongs, book, chapter, verse, pos)) WITHOUT ROWID;
+        CREATE TABLE gloss_index(term TEXT, strongs TEXT, n INTEGER,
+          PRIMARY KEY(term, strongs)) WITHOUT ROWID;
+      ''');
+      final read = db.prepare('SELECT book, chapter, verse, pos, gloss, strongs FROM words');
+      final insert = db.prepare('INSERT OR IGNORE INTO word_index VALUES (?, ?, ?, ?, ?)');
+      try {
+        final cursor = read.selectCursor();
+        while (cursor.moveNext()) {
+          final r = cursor.current;
+          final codes = (r['strongs'] as String).split(' ').where((c) => c.isNotEmpty).toList();
+          if (codes.isEmpty) continue;
+          // A word with a prefix ("and/ upright") is filed under the word, not the "and".
+          var words = codes.where((c) => !isParticleCode(c)).map(strongsBase).toSet();
+          if (words.isEmpty) words = {strongsBase(codes.first)};
+          for (final code in words) {
+            insert.execute([code, r['book'], r['chapter'], r['verse'], r['pos']]);
+          }
+          for (final term in glossStems(r['gloss'] as String)) {
+            final key = '$term\t${words.first}';
+            glossed[key] = (glossed[key] ?? 0) + 1;
+          }
+        }
+      } finally {
+        read.dispose();
+        insert.dispose();
+      }
+      final put = db.prepare('INSERT INTO gloss_index VALUES (?, ?, ?)');
+      try {
+        for (final e in glossed.entries) {
+          final tab = e.key.indexOf('\t');
+          put.execute([e.key.substring(0, tab), e.key.substring(tab + 1), e.value]);
+        }
+      } finally {
+        put.dispose();
+      }
+      db.execute('COMMIT');
+      _hasWordIndex = true;
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  void _ensureWordIndex() {
+    _hasWordIndex ??= db
+        .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'gloss_index'")
+        .isNotEmpty;
+    if (!_hasWordIndex!) buildWordIndex();
+  }
+
+  /// How often the word with base Strong's number [code] is used, and in how many verses.
+  ({int uses, int verses}) wordCount(String code) {
+    _ensureWordIndex();
+    final r = db.select(
+      "SELECT COUNT(*) AS n, COUNT(DISTINCT book || ':' || chapter || ':' || verse) AS v "
+      'FROM word_index WHERE strongs = ?',
+      [strongsBase(code)],
+    ).first;
+    return (uses: r['n'] as int, verses: r['v'] as int);
+  }
+
+  /// Uses of [code] per book, in canonical order.
+  List<(Book, int)> wordBooks(String code) {
+    _ensureWordIndex();
+    return [
+      for (final r in db.select(
+        'SELECT book, COUNT(*) AS n FROM word_index WHERE strongs = ? GROUP BY book ORDER BY book',
+        [strongsBase(code)],
+      ))
+        (bookById(r['book'] as int), r['n'] as int),
+    ];
+  }
+
+  /// How STEP glosses [code] across its uses, most common first, as [cleanGloss] words.
+  List<(String, int)> wordGlosses(String code) {
+    _ensureWordIndex();
+    final counts = <String, int>{};
+    for (final r in db.select(
+      'SELECT w.gloss, w.strongs FROM word_index i JOIN words w ON w.book = i.book AND '
+      'w.chapter = i.chapter AND w.verse = i.verse AND w.pos = i.pos WHERE i.strongs = ?',
+      [strongsBase(code)],
+    )) {
+      final g = cleanGloss(r['gloss'] as String, strongs: r['strongs'] as String);
+      if (g.isNotEmpty) counts[g] = (counts[g] ?? 0) + 1;
+    }
+    return [for (final e in counts.entries) (e.key, e.value)]
+      ..sort((a, b) => b.$2 != a.$2 ? b.$2.compareTo(a.$2) : a.$1.compareTo(b.$1));
+  }
+
+  /// The verses that use [code], in canonical order, a page at a time. With [book], only that
+  /// book. Each holds the verse in [translation] and the word as it appears there.
+  List<WordUse> wordUses(
+    String code, {
+    String translation = defaultTranslation,
+    Book? book,
+    int limit = 30,
+    int offset = 0,
+  }) {
+    _ensureWordIndex();
+    final base = strongsBase(code);
+    final rows = db.select(
+      'WITH vs AS (SELECT DISTINCT book, chapter, verse FROM word_index '
+      'WHERE strongs = ? AND (? IS NULL OR book = ?) ORDER BY book, chapter, verse LIMIT ? OFFSET ?) '
+      'SELECT vs.book, vs.chapter, vs.verse, w.original, w.translit, w.gloss, w.strongs, w.morph, '
+      'w.pos FROM vs JOIN word_index i ON i.strongs = ? AND i.book = vs.book AND '
+      'i.chapter = vs.chapter AND i.verse = vs.verse JOIN words w ON w.book = i.book AND '
+      'w.chapter = i.chapter AND w.verse = i.verse AND w.pos = i.pos '
+      'ORDER BY vs.book, vs.chapter, vs.verse, w.pos',
+      [base, book?.id, book?.id, limit, offset, base],
+    );
+    final uses = <WordUse>[];
+    for (final r in rows) {
+      final ref = Ref(
+        bookById(r['book'] as int),
+        r['chapter'] as int,
+        r['verse'] as int,
+        r['verse'] as int,
+      );
+      if (uses.isEmpty || uses.last.ref != ref) {
+        uses.add(WordUse(ref, passage(ref, translation: translation).firstOrNull?.text, []));
+      }
+      uses.last.words.add(_wordTag(r));
+    }
+    return uses;
+  }
+
+  /// Up to [k] verses that use [code], spread across the Bible rather than the first few, leaving
+  /// out [exclude]. For putting a word's range of use in front of the model.
+  List<Verse> wordSample(
+    String code, {
+    int k = 6,
+    Ref? exclude,
+    String translation = defaultTranslation,
+  }) {
+    _ensureWordIndex();
+    final refs = [
+      for (final r in db.select(
+        'SELECT DISTINCT book, chapter, verse FROM word_index WHERE strongs = ? '
+        'ORDER BY book, chapter, verse',
+        [strongsBase(code)],
+      ))
+        Ref(bookById(r['book'] as int), r['chapter'] as int, r['verse'] as int, r['verse'] as int),
+    ]..removeWhere((r) => exclude != null && r.overlaps(exclude));
+    if (k <= 0 || refs.isEmpty) return const [];
+    final picks = refs.length <= k
+        ? refs
+        : [for (var i = 0; i < k; i++) refs[(i * refs.length) ~/ k]];
+    return [for (final r in picks) ...passage(r, translation: translation)];
+  }
+
+  /// Hebrew and Greek words STEP glosses with [english] (by [wordStem]), most often first.
+  List<GlossedWord> wordsGlossed(String english, {int k = 8}) {
+    _ensureWordIndex();
+    final rows = db.select(
+      'SELECT strongs, n FROM gloss_index WHERE term = ? ORDER BY n DESC, strongs LIMIT ?',
+      [wordStem(english), k],
+    );
     return [
       for (final r in rows)
-        WordTag(
-          r['original'] as String,
-          r['translit'] as String,
-          r['gloss'] as String,
+        GlossedWord(
           r['strongs'] as String,
-          r['morph'] as String,
+          lexicon(r['strongs'] as String),
+          r['n'] as int,
+          wordCount(r['strongs'] as String).uses,
         ),
     ];
   }

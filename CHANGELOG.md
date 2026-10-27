@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+Word study
+- Long-press a word in the reader to study the Hebrew or Greek word behind it: its lexicon
+  entry, part of speech, how often and in which books it is used, how it is glossed, and every
+  verse that uses it (30 at a time, filterable by book), with the English words that render it
+  marked. Tap a verse to open it in the reader.
+- The study lists other words glossed with the same English. "Perfect" stands for τέλειος,
+  τελειόω, כָּלִיל, שָׁלֵם, תָּם and more; the KJV's "perfect" in Job 1:1 opens תָּם, which the BSB
+  calls "blameless".
+- The word is chosen by meaning and labelled as a guess, with the verse's words a tap away to
+  correct it. When nothing matches, as for a word the translators added, the reader chooses.
+  On 2,000 random verses it found the word for 77% of study words in the BSB, 79% in the KJV and
+  82% in the WEB (`bin/word_match_check.dart`).
+- Ask Berea about the word starts a Study chat on it. A question that names a Strong's number puts
+  that lexicon entry first and a spread of the word's other uses in RELATED VERSES, in place of a
+  keyword search, so the answer about its use elsewhere is checked like any other.
+- The interlinear's lexicon dialog has a Word study button. Long-pressing the verse number, or
+  anywhere that is not a word, still opens the interlinear.
+
+Performance
+- The Bible database now indexes verses by translation and reference. Every passage lookup
+  scanned all 93,000 verses before (about 10 ms on a fast desktop, more on a phone); it now takes
+  under 2 ms, which speeds the reader and every answer's retrieval, not only word studies.
+- The word study concordance adds 8.8 MB to the database on the device and 2.6 MB compressed to
+  the download (the verse index 0.5 MB more). Building it on the device instead would cost no
+  download but a first word study of many seconds on a low-end phone.
+
 ## 0.5.0
 
 Performance

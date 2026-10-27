@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'theme.dart';
+import 'word_study_screen.dart';
 
 /// The Hebrew or Greek words of one verse with transliteration and gloss. Tap a word for its
-/// lexicon entry. The original-language word order is kept; it is not aligned to the English.
+/// lexicon entry and, from there, its full word study. The original-language word order is kept; it is not aligned to the English.
 Future<void> showInterlinear(BuildContext context, AppState s, Ref ref) {
   final words = s.db.words(ref);
   return showModalBottomSheet<void>(
@@ -42,7 +43,7 @@ Future<void> showInterlinear(BuildContext context, AppState s, Ref ref) {
                           textDirection: ref.book.id < 40 ? TextDirection.rtl : TextDirection.ltr,
                           spacing: 8,
                           runSpacing: 8,
-                          children: [for (final w in words) _WordCard(s: s, w: w)],
+                          children: [for (final w in words) _WordCard(s: s, w: w, ref: ref)],
                         ),
                       ),
               ),
@@ -57,7 +58,8 @@ Future<void> showInterlinear(BuildContext context, AppState s, Ref ref) {
 class _WordCard extends StatelessWidget {
   final AppState s;
   final WordTag w;
-  const _WordCard({required this.s, required this.w});
+  final Ref ref;
+  const _WordCard({required this.s, required this.w, required this.ref});
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +122,16 @@ class _WordCard extends StatelessWidget {
             ),
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              showWordStudy(context, s, ref, pos: w.pos);
+            },
+            child: const Text('Word study'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+        ],
       ),
     );
   }

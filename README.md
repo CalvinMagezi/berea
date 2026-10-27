@@ -55,9 +55,20 @@ licence. The packs are optional public domain downloads.
 **Bible.** An offline reader with the Berean Standard Bible, the King James Version and the World
 English Bible built in. Search the whole Bible or type a reference to jump to it. Show a second
 translation beside or below the text. Select verses to ask Berea about them, write a note, make a
-study page or highlight them. Long-press a verse for its Hebrew or Greek words with
+study page or highlight them. Long-press the verse number for its Hebrew or Greek words with
 transliteration, gloss and lexicon entry. Import a translation you own (CSV, USFM, OSIS, Zefania
 or a zip); it stays on your device.
+
+**Word study.** Long-press a word in the reader, such as "perfect" in Matthew 5:48, for the Hebrew
+or Greek word behind it (τέλειος, teleios, G5046): its lexicon entry, how often it is used and in
+which books, how STEP glosses it, and every verse that uses it, with the English words that render
+it marked. One English word often stands for several originals, so the study also lists the other
+words glossed the same way: the KJV's "perfect" in Job 1:1 is תָּם (tam), which the BSB calls
+"blameless". Berea picks the word by meaning (its gloss, then its lexicon gloss and definition)
+and says so; the verse's other words are a tap away when it picks wrong or finds none, as for a
+word the translators added. Ask Berea about the word sends a question naming its Strong's number,
+and the answer is grounded in the lexicon entry and a spread of the word's other uses. The words
+in the interlinear open the same study.
 
 **Plans.** Bible in a year, New Testament in 90 days, the Gospels in 30, Psalms and Proverbs in
 60. Today's reading and a verse of the day sit on the Study tab.
@@ -188,6 +199,12 @@ misattributed, 4 of 4 adversarial.
 `dart run bin/retrieval_check.dart` checks topical retrieval without a model: 7 of 8 topical
 questions put a well-known passage on the topic in front of the model.
 
+`dart run bin/word_match_check.dart --translation BSB` measures how often a word pressed in the
+reader finds its Hebrew or Greek word, over 2,000 random verses and leaving out small words such as
+"the" and "his", and prints a sample to check by eye. Last run: BSB 76.6%, KJV 78.5%, WEB 81.9%.
+Most misses are words with no single word behind them ("replied", "Israelites", a "Jesus" the
+Greek says as "he"), where the reader chooses from the verse instead.
+
 ## Data
 
 | Dataset | Licence | Role |
@@ -227,9 +244,11 @@ excerpts from HistoricalChristianFaith/Commentaries-Database are mixed-licence a
 included; see `TECHDEBT.md`. The app lists every source and licence under Settings,
 Commentaries, Licences and sources.
 
-`packages/harness/bin/build_db.dart` downloads these and writes `assets/berea.sqlite` (about 67 MB:
-93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k cross references,
-366 daily verses) and a small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
+`packages/harness/bin/build_db.dart` downloads these and writes `assets/berea.sqlite` (about 77 MB,
+28 MB compressed: 93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k
+cross references, 366 daily verses, and the word study concordance: `word_index` holds every use
+of each base Strong's number and `gloss_index` the words STEP glosses with each English stem) and a
+small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
 the optional lexicon pack, which is published with each release. None of these are committed.
 
 The BSB is imported word for word from the official `bsb.txt`, and the build fails if its SHA-256 no
@@ -333,6 +352,7 @@ lib/
   reader_screen.dart   offline reader, parallel text, selection bar, chapter picker
   search_screen.dart   full-text Bible search
   interlinear_sheet.dart  Hebrew and Greek words with lexicon entries
+  word_study_screen.dart  a word's meaning, use, renderings and every verse; the pressed-word lookup
   commentary_sheet.dart   commentary on the selected verses, with attribution
   commentary_packs.dart   optional commentary packs: pins, download, install, delete
   commentary_settings.dart, attributions_screen.dart  pack settings, licences and sources
@@ -354,13 +374,15 @@ lib/
   theme.dart           colour tokens, parchment and ink with a lamp-gold accent
 packages/harness/
   lib/src/             RefParser, BibleDb, Retriever, PromptBuilder, CitationGuard, importers, engines,
-                       notebook chunking, EPUB and HTML text, notebook retrieval and source tags
+                       notebook chunking, EPUB and HTML text, notebook retrieval and source tags,
+                       word study matching
   bin/build_db.dart    builds assets/berea.sqlite from the datasets above
   bin/build_lexicon_pack.dart  builds the optional LSJ pack
   bin/build_commentary.dart  builds the optional commentary packs from SWORD modules
   bin/berea.dart       CLI chat against Ollama
   bin/eval.dart        golden eval; --notebook runs the notebook cases on bin/notebook_fixture.dart
   bin/retrieval_check.dart  topical retrieval check, no model needed
+  bin/word_match_check.dart  how often a pressed word finds its original, no model needed
   bin/prompt_size.dart real prompt sizes per tier, measured by Ollama against each window
   bin/export_site.dart  writes the Bible data and parity fixture for the site's live check
   eval/golden.json     questions with expected references and adversarial bait
