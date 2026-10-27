@@ -110,12 +110,19 @@ void main() {
 
   test('the pressed word and which time it occurs in the verse', () {
     const text = 'Be perfect, therefore, as your heavenly Father is perfect.';
-    expect(wordAt(text, text.indexOf('perfect') + 2), (word: 'perfect', start: 3, occurrence: 0));
+    expect(wordAt(text, text.indexOf('perfect') + 2), (
+      word: 'perfect',
+      start: 3,
+      index: 1,
+      occurrence: 0,
+    ));
+    expect(wordAt(text, text.lastIndexOf('perfect'))?.index, 8);
     expect(wordAt(text, text.lastIndexOf('perfect'))?.occurrence, 1);
     // The right edge of the last letter still counts; a space or a comma does not.
     expect(wordAt(text, text.indexOf('Father') + 6)?.word, 'Father');
     expect(wordAt(text, text.indexOf(', as') + 1), isNull);
     expect(wordAt('the king’s house', 6)?.word, 'king’s');
+    expect(wordAt('she shall be called ‘woman,’ for', 21)?.word, 'woman');
     expect(wordAt('', 0), isNull);
   });
 
@@ -136,6 +143,33 @@ void main() {
     expect(job[matchOriginal(job, 'perfect', lexicon: db.lexicon).first].translit, 'tam');
     // A word STEP marks as supplied still matches, below one it does not.
     expect(job[matchOriginal(job, 'land').first].strongs, 'H9003 H0776G H9014');
+  });
+
+  test('BSB table phrases are aligned to the words of the verse', () {
+    const verse = 'God blessed them and said to them, “Be fruitful and multiply.”';
+    final codes = alignBsbWords(verse, const [
+      ('God', 'H430'),
+      ('blessed', 'H1288'),
+      ('them', ''),
+      ('and said', 'H559'),
+      ('to them', ''),
+      ('Be fruitful', 'H6509'),
+      ('and multiply', 'H7235'),
+    ]);
+    expect(codes, [
+      'H0430', 'H1288', '', 'H0559', 'H0559', '', '', 'H6509', 'H6509', 'H7235', 'H7235', //
+    ]);
+    // A table word missing from the verse text leaves the rest aligned.
+    expect(
+      alignBsbWords('In the beginning God', const [
+        ('In the very beginning', 'H7225'),
+        ('God', 'H430'),
+      ]),
+      [
+        'H7225', 'H7225', 'H7225', 'H0430', //
+      ],
+    );
+    expect(alignBsbWords('', const [('God', 'H430')]), isEmpty);
   });
 
   test('glosses are cleaned and marked in a verse', () {
@@ -257,5 +291,45 @@ void main() {
     expect(plain.lexicon, isEmpty);
     final unknown = Retriever(db).retrieve('What is G9999 about maturity, mature?', Tier.low);
     expect(unknown.searchHits.map((v) => v.label), ['James 1:4']);
+  });
+
+  test('the BSB tables file is read by column name, in English order', () {
+    const header =
+        'Heb Sort\tGreek Sort\tBSB Sort\tVerse\tLanguage\tWLC\tWLC2\tTranslit\tParsing\tParsing\t'
+        'Str Heb\tStr Grk\tVerseId\tHdg\tCrossref\tPar\tSpace\tbegQ\t BSB version \tpnc\tendQ\t'
+        'footnotes\tEnd text';
+    String row(int sort, int verse, String heb, String grk, String id, String english) =>
+        '$sort\t0\t$sort\t$verse\tHebrew\tx\tx\tx\tx\tx\t$heb\t$grk\t$id\t\t\t\t\t\t $english \t\t\t\t';
+    final tables = parseBsbTables(
+      [
+        header,
+        row(1, 1, '7225', '', 'Genesis 1:1', 'In the beginning'),
+        row(4, 1, '1254', '', '', 'created'),
+        row(3, 1, '853', '', '', '-'),
+        row(2, 1, '430', '', '', 'God'),
+        row(5, 2, '', '', 'Genesis 1:2', 'Now'),
+        '',
+      ].join('\r\n'),
+    );
+    final gen11 = RefParser.parse('Genesis 1:1').first;
+    expect(tables[gen11], [('In the beginning', 'H7225'), ('God', 'H430'), ('created', 'H1254')]);
+    expect(tables[RefParser.parse('Genesis 1:2').first], [('Now', '')]);
+    expect(() => parseBsbTables('Verse\tVerseId\n'), throwsFormatException);
+  });
+
+  test('the BSB alignment is stored per verse and read back as base numbers', () {
+    final db = wordBible();
+    final matt = RefParser.parse('Matthew 5:48').first;
+    expect(db.bsbCodes(matt), isNull);
+    expect(
+      db.importBsbAlignment({
+        matt: const [('Be', 'G1510'), ('perfect', 'G5046'), (', therefore,', '')],
+        RefParser.parse('Genesis 1:1').first: const [('In the beginning', 'H7225')],
+      }),
+      1,
+    );
+    expect(db.bsbCodes(matt)!.take(3), ['G1510', 'G5046', '']);
+    expect(db.bsbCodes(matt)!.length, 9);
+    expect(db.bsbCodes(RefParser.parse('Job 1:1').first), isNull);
   });
 }

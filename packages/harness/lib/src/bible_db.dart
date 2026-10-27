@@ -397,6 +397,62 @@ class BibleDb {
     if (!_hasWordIndex!) buildWordIndex();
   }
 
+  /// Stores each BSB verse's words aligned to the BSB translation tables (see [alignBsbWords]),
+  /// replacing any earlier alignment. Returns the number of verses aligned.
+  int importBsbAlignment(Map<Ref, List<(String, String)>> tables) {
+    db.execute('''
+      DROP TABLE IF EXISTS bsb_words;
+      CREATE TABLE bsb_words(book INTEGER, chapter INTEGER, verse INTEGER, codes TEXT,
+        PRIMARY KEY(book, chapter, verse)) WITHOUT ROWID;
+    ''');
+    final insert = db.prepare('INSERT INTO bsb_words VALUES (?, ?, ?, ?)');
+    var n = 0;
+    db.execute('BEGIN');
+    try {
+      for (final e in tables.entries) {
+        final text = passage(e.key).firstOrNull?.text;
+        if (text == null) continue;
+        // Stored as bare numbers: the book says Hebrew or Greek, and the padding only adds bytes.
+        final codes = alignBsbWords(
+          text,
+          e.value,
+        ).map((c) => c.isEmpty ? '-' : '${int.parse(c.substring(1))}').join(' ');
+        insert.execute([e.key.book.id, e.key.chapter, e.key.verseStart, codes]);
+        n++;
+      }
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    } finally {
+      insert.dispose();
+    }
+    _hasBsbWords = true;
+    return n;
+  }
+
+  bool? _hasBsbWords;
+
+  /// The base Strong's number behind each word of [ref] in the BSB ('' where the translators
+  /// supplied the word), in [verseWordPattern] order. Null when the database has no alignment
+  /// for the verse.
+  List<String>? bsbCodes(Ref ref) {
+    _hasBsbWords ??= db
+        .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'bsb_words'")
+        .isNotEmpty;
+    if (!_hasBsbWords!) return null;
+    final rows = db.select(
+      'SELECT codes FROM bsb_words WHERE book = ? AND chapter = ? AND verse = ?',
+      [ref.book.id, ref.chapter, ref.verseStart ?? 1],
+    );
+    if (rows.isEmpty) return null;
+    final lang = ref.book.id < 40 ? 'H' : 'G';
+    return [
+      for (final c in (rows.first['codes'] as String).split(' '))
+        c == '-' ? '' : strongsBase('$lang$c'),
+    ];
+  }
+
   /// How often the word with base Strong's number [code] is used, and in how many verses.
   ({int uses, int verses}) wordCount(String code) {
     _ensureWordIndex();

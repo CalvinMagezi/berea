@@ -1,4 +1,6 @@
 // How often a word pressed in the reader finds the Hebrew or Greek word behind it. No model needed.
+// In the BSB it also reports the exact rate from the BSB translation tables, and how often the
+// meaning-based guess (what other translations rely on) agrees with them.
 // Usage: dart run bin/word_match_check.dart [--translation BSB] [--verses 2000] [--show 30]
 import 'dart:math';
 
@@ -88,7 +90,7 @@ void main(List<String> args) {
     for (final r in db.db.select('SELECT id FROM verses WHERE translation = ?', [translation]))
       r['id'] as int,
   ];
-  var words = 0, matched = 0;
+  var words = 0, matched = 0, exact = 0, supplied = 0, judged = 0, agreed = 0;
   final ot = [0, 0], nt = [0, 0];
   final examples = <String>[];
   for (var n = 0; n < sample; n++) {
@@ -99,11 +101,22 @@ void main(List<String> args) {
     final tags = db.words(ref);
     if (tags.isEmpty) continue;
     final text = r['text'] as String;
-    for (final m in RegExp(r"[A-Za-z']+").allMatches(text)) {
+    final table = translation == 'BSB' ? db.bsbCodes(ref) : null;
+    for (final m in verseWordPattern.allMatches(text)) {
       if (_skip.contains(m[0]!.toLowerCase())) continue;
       final at = wordAt(text, m.start)!;
       final hit = matchOriginal(tags, at.word, occurrence: at.occurrence, lexicon: db.lexicon);
       words++;
+      final truth = table != null && at.index < table.length ? table[at.index] : null;
+      if (truth != null && truth.isNotEmpty) {
+        exact++;
+        if (hit.isNotEmpty) {
+          judged++;
+          if (studyCode(tags[hit.first]) == truth) agreed++;
+        }
+      } else if (truth != null) {
+        supplied++;
+      }
       final side = ref.book.id < 40 ? ot : nt;
       side[0]++;
       if (hit.isNotEmpty) {
@@ -125,6 +138,12 @@ void main(List<String> args) {
     '$translation, $sample verses: $matched of $words study words matched (${pct(matched, words)})',
   );
   print('  Old Testament ${pct(ot[1], ot[0])}, New Testament ${pct(nt[1], nt[0])}');
+  if (translation == 'BSB') {
+    print(
+      'BSB tables: $exact of $words exact (${pct(exact, words)}), $supplied supplied by the '
+      'translators; the guess agrees with the tables on $agreed of $judged (${pct(agreed, judged)})',
+    );
+  }
   print('\nSample (check by eye that the original word is the one behind the English):');
   examples.forEach(print);
   db.close();

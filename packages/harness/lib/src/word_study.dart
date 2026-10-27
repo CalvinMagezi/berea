@@ -5,7 +5,6 @@ import 'ref_parser.dart';
 /// and from that word to everywhere else it is used. Everything here is keyed by the base Strong's
 /// number (H8549, not H8549G), so a word's senses are counted as one word.
 
-final _letters = RegExp(r"[A-Za-zÀ-ɏ'\u2019]");
 final _nonLetters = RegExp(r'[^a-z]');
 final _token = RegExp(r'[A-Za-z]+');
 final _bracketed = RegExp(r'\[[^\]]*\]|<[^>]*>');
@@ -147,35 +146,98 @@ const _affixes = {
 String cleanOriginal(String original) =>
     original.replaceAll(RegExp(r'[/\\¶.,;:·\u0591-\u05AF]'), '').replaceAll('־', '').trim();
 
-/// The word pressed at [offset] in [text], and which occurrence of that word (by stem) it is in
-/// the verse, counting from 0. Null when the offset is not on a word.
-({String word, int start, int occurrence})? wordAt(String text, int offset) {
+/// The words of a verse, as the reader and the BSB alignment both count them: letters, with an
+/// apostrophe inside a word ("king’s") but not around it.
+final verseWordPattern = RegExp(r"[A-Za-zÀ-ɏ]+(?:['’][A-Za-zÀ-ɏ]+)*");
+
+/// The word pressed at [offset] in [text]: the word, where it starts, its [index] among the
+/// verse's words, and which occurrence of that word (by stem) it is, counting from 0. Null when
+/// the offset is not on a word.
+({String word, int start, int index, int occurrence})? wordAt(String text, int offset) {
   if (offset < 0 || offset > text.length) return null;
-  var i = offset;
-  if (i == text.length || !_letters.hasMatch(text[i])) {
-    // Just after a word, as at its last letter's right edge.
-    if (i > 0 && _letters.hasMatch(text[i - 1])) {
-      i--;
-    } else {
-      return null;
-    }
+  final words = verseWordPattern.allMatches(text).toList();
+  // A press just after a word's last letter, at its right edge, still counts as that word.
+  final index = words.indexWhere((m) => m.start <= offset && offset <= m.end);
+  if (index < 0) return null;
+  final hit = words[index];
+  if (offset == hit.end && index + 1 < words.length && words[index + 1].start == offset) {
+    return null;
   }
-  var start = i, end = i + 1;
-  while (start > 0 && _letters.hasMatch(text[start - 1])) {
-    start--;
-  }
-  while (end < text.length && _letters.hasMatch(text[end])) {
-    end++;
-  }
-  final word = text.substring(start, end).replaceAll(RegExp(r"^'+|'+$"), '');
-  if (word.isEmpty) return null;
-  final stem = wordStem(word);
+  final stem = wordStem(hit[0]!);
   var occurrence = 0;
-  for (final m in _token.allMatches(text.substring(0, start))) {
+  for (final m in words.take(index)) {
     if (wordStem(m[0]!) == stem) occurrence++;
   }
-  return (word: word, start: start, occurrence: occurrence);
+  return (word: hit[0]!, start: hit.start, index: index, occurrence: occurrence);
 }
+
+/// Base Strong's numbers for each word of a BSB verse, from the BSB translation tables, in the
+/// order of [verseWordPattern]: '' for a word the translators supplied with no original behind
+/// it. [phrases] are the table's (English, Strong's) rows for the verse in English order. Words
+/// are matched in order within a short window, so a phrase the table words a little differently
+/// from the verse text leaves only its own words empty.
+List<String> alignBsbWords(String verse, List<(String, String)> phrases) {
+  String norm(String w) => w.toLowerCase().replaceAll('’', "'");
+  final words = [for (final m in verseWordPattern.allMatches(verse)) norm(m[0]!)];
+  final codes = List.filled(words.length, '');
+  var next = 0;
+  for (final (english, code) in phrases) {
+    final base = code.isEmpty ? '' : strongsBase(code);
+    for (final m in verseWordPattern.allMatches(english)) {
+      final w = norm(m[0]!);
+      for (var j = next; j < words.length && j < next + _alignWindow; j++) {
+        if (words[j] == w) {
+          codes[j] = base;
+          next = j + 1;
+          break;
+        }
+      }
+    }
+  }
+  return codes;
+}
+
+/// The BSB translation tables (bsb_tables.tsv from bereanbible.com) as (English, Strong's) rows
+/// per verse, in English order. Rows the BSB leaves untranslated ("-") are dropped; a row with
+/// English and no number is a word the translators supplied.
+Map<Ref, List<(String, String)>> parseBsbTables(String tsv) {
+  final lines = tsv.split('\n');
+  final header = lines.first.split('\t').map((h) => h.trim()).toList();
+  int col(String name) {
+    final i = header.indexOf(name);
+    if (i < 0) throw FormatException('bsb_tables has no "$name" column');
+    return i;
+  }
+
+  final sortCol = col('BSB Sort'), verseCol = col('Verse'), idCol = col('VerseId');
+  final hebCol = col('Str Heb'), grkCol = col('Str Grk'), englishCol = col('BSB version');
+  final refs = <String, Ref>{};
+  final rows = <String, List<(int, String, String)>>{};
+  for (final line in lines.skip(1)) {
+    final c = line.replaceAll('\r', '').split('\t');
+    if (c.length <= englishCol) continue;
+    final verse = c[verseCol];
+    if (c[idCol].isNotEmpty) {
+      final ref = RefParser.parse(c[idCol]).firstOrNull;
+      if (ref == null) throw FormatException('bsb_tables: unknown verse "${c[idCol]}"');
+      refs[verse] = ref;
+    }
+    final english = c[englishCol].trim();
+    if (english.isEmpty || english == '-') continue;
+    final code = c[hebCol].isNotEmpty
+        ? 'H${c[hebCol]}'
+        : (c[grkCol].isNotEmpty ? 'G${c[grkCol]}' : '');
+    rows.putIfAbsent(verse, () => []).add((int.tryParse(c[sortCol]) ?? 0, english, code));
+  }
+  return {
+    for (final e in rows.entries)
+      if (refs[e.key] case final ref?)
+        ref: [for (final r in e.value..sort((a, b) => a.$1.compareTo(b.$1))) (r.$2, r.$3)],
+  };
+}
+
+/// How far ahead of the last matched word the next table word is looked for.
+const _alignWindow = 4;
 
 /// How well each original word in a verse stands behind [english], best first. STEP's glosses are
 /// not aligned to any one translation, so this matches on meaning: the word's own gloss, then its

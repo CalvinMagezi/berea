@@ -64,9 +64,10 @@ or Greek word behind it (τέλειος, teleios, G5046): its lexicon entry, how
 which books, how STEP glosses it, and every verse that uses it, with the English words that render
 it marked. One English word often stands for several originals, so the study also lists the other
 words glossed the same way: the KJV's "perfect" in Job 1:1 is תָּם (tam), which the BSB calls
-"blameless". Berea picks the word by meaning (its gloss, then its lexicon gloss and definition)
-and says so; the verse's other words are a tap away when it picks wrong or finds none, as for a
-word the translators added. Ask Berea about the word sends a question naming its Strong's number,
+"blameless". In the BSB the word is exact: the BSB's own translation tables map each English word
+to its Hebrew or Greek, and a word the translators supplied says so. In other translations Berea
+picks the word by meaning (its gloss, then its lexicon gloss and definition) and labels it a
+guess; the verse's other words are a tap away when it picks wrong or finds none. Ask Berea about the word sends a question naming its Strong's number,
 and the answer is grounded in the lexicon entry and a spread of the word's other uses. The words
 in the interlinear open the same study.
 
@@ -196,14 +197,24 @@ installed commentary pack and `--show` prints each answer. Last run on gemma4:e2
 references, 0 invented source citations, 3 of 3 verses and 5 of 5 sources cited, 0
 misattributed, 4 of 4 adversarial.
 
+`dart run bin/eval.dart --tier mid --words` runs 9 word study questions (`eval/word_study.json`),
+built the way the app builds them: four on a word in a verse (τέλειος in Matthew 5:48, the KJV's
+"perfect" in Job 1:1, ἀγαπάω in John 3:16, חֶסֶד in Psalm 136:1), two on a word alone (χάρις,
+שָׁלוֹם), and three adversarial: a Strong's number that does not exist, Matthew 5:49 (the chapter
+has 48 verses), and a saying attributed to a word's use. Zero invented references and zero
+misattributions are a release gate, as for the golden questions. Not yet run: the session that
+added it could not run Ollama.
+
 `dart run bin/retrieval_check.dart` checks topical retrieval without a model: 7 of 8 topical
 questions put a well-known passage on the topic in front of the model.
 
 `dart run bin/word_match_check.dart --translation BSB` measures how often a word pressed in the
 reader finds its Hebrew or Greek word, over 2,000 random verses and leaving out small words such as
-"the" and "his", and prints a sample to check by eye. Last run: BSB 76.6%, KJV 78.5%, WEB 81.9%.
-Most misses are words with no single word behind them ("replied", "Israelites", a "Jesus" the
-Greek says as "he"), where the reader chooses from the verse instead.
+"the" and "his", and prints a sample to check by eye. Last run, by meaning: BSB 76.6%, KJV 78.4%,
+WEB 83.6%. Most misses are words with no single word behind them ("replied", "Israelites", a
+"Jesus" the Greek says as "he"), where the reader chooses from the verse instead. In the BSB the
+translation tables give the word for 99.8% of those study words, and serve as an answer key for
+the guess: where the guess picks a word, it is the tables' word 91.5% of the time.
 
 ## Data
 
@@ -215,6 +226,7 @@ Greek says as "he"), where the reader chooses from the verse instead.
 | STEPBible TAHOT and TAGNT | CC BY 4.0 | Every Hebrew and Greek word with transliteration, gloss, Strong's number and morphology |
 | STEPBible TBESH and TBESG | CC BY 4.0 | Hebrew and Greek lexicon keyed by Strong's |
 | OpenBible.info cross references | CC BY | Cross references ranked by votes |
+| BSB translation tables | Public domain, with the BSB text ("Licensing is not required for any use", [berean.bible/licensing.htm](https://berean.bible/licensing.htm)) | Each English phrase of the BSB with its Strong's number (`bsb_tables.tsv`), pinned by SHA-256; word study uses it to find the exact Hebrew or Greek behind a pressed BSB word |
 
 | STEPBible TFLSJ | CC BY 4.0 | Optional full Greek lexicon pack (about 9 MB), downloaded only on request from the [`lexicon-1` release](https://github.com/CalvinMagezi/berea/releases/tag/lexicon-1) and checked by SHA-256 |
 
@@ -244,10 +256,11 @@ excerpts from HistoricalChristianFaith/Commentaries-Database are mixed-licence a
 included; see `TECHDEBT.md`. The app lists every source and licence under Settings,
 Commentaries, Licences and sources.
 
-`packages/harness/bin/build_db.dart` downloads these and writes `assets/berea.sqlite` (about 77 MB,
-28 MB compressed: 93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k
+`packages/harness/bin/build_db.dart` downloads these and writes `assets/berea.sqlite` (about 81 MB,
+29 MB compressed: 93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k
 cross references, 366 daily verses, and the word study concordance: `word_index` holds every use
-of each base Strong's number and `gloss_index` the words STEP glosses with each English stem) and a
+of each base Strong's number and `gloss_index` the words STEP glosses with each English stem; `bsb_words` holds, for each BSB verse,
+the Strong's number behind each of its words, aligned from the translation tables) and a
 small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
 the optional lexicon pack, which is published with each release. None of these are committed.
 

@@ -59,7 +59,30 @@ BibleDb wordBible() {
   ]) {
     raw.execute('INSERT INTO lexicon VALUES (?, ?, ?, ?, ?, ?, ?)', l);
   }
-  return BibleDb(raw);
+  // The BSB translation tables for two verses: every word of Matthew 5:48 has its number; in
+  // Job 1:1 "And this" has none.
+  return BibleDb(raw)..importBsbAlignment({
+    RefParser.parse('Matthew 5:48').first: const [
+      ('Be', 'G1510'),
+      ('perfect', 'G5046'),
+      (', therefore,', 'G3767'),
+      ('as', 'G5613'),
+      ('your', 'G4771'),
+      ('heavenly', 'G3770'),
+      ('Father', 'G3962'),
+      ('is', 'G1510'),
+      ('perfect', 'G5046'),
+    ],
+    RefParser.parse('Job 1:1').first: const [
+      ('And this', ''),
+      ('man', 'H376'),
+      ('was', 'H1961'),
+      ('blameless', 'H8535'),
+      ('and upright', 'H3477'),
+      ('fearing', 'H3373'),
+      ('God', 'H430'),
+    ],
+  });
 }
 
 void main() {
@@ -74,7 +97,15 @@ void main() {
     opened.clear();
   });
 
-  Future<void> open(WidgetTester tester, String ref, {String? english, int? pos}) async {
+  Future<void> open(
+    WidgetTester tester,
+    String ref, {
+    String? english,
+    int? pos,
+    int occurrence = 0,
+    int? wordIndex,
+    String translation = defaultTranslation,
+  }) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.75;
     addTearDown(tester.view.reset);
@@ -85,6 +116,9 @@ void main() {
           ref: RefParser.parse(ref).first,
           english: english,
           pos: pos,
+          occurrence: occurrence,
+          wordIndex: wordIndex,
+          translation: translation,
           onAsk: asked.add,
           onOpen: opened.add,
         ),
@@ -197,11 +231,45 @@ void main() {
 
     final ctx = key.currentContext!;
     final second = 3 + text.lastIndexOf('perfect');
-    expect(pressedWord(ctx, at(second), text, 3), (word: 'perfect', occurrence: 1));
+    expect(pressedWord(ctx, at(second), text, 3), (word: 'perfect', index: 8, occurrence: 1));
     expect(pressedWord(ctx, at(3 + text.indexOf('perfect')), text, 3)?.occurrence, 0);
     expect(pressedWord(ctx, at(3 + text.indexOf('Father')), text, 3)?.word, 'Father');
     // On the verse number, or outside the text, there is no word.
     expect(pressedWord(ctx, at(0), text, 3), isNull);
     expect(pressedWord(ctx, paragraph.localToGlobal(const Offset(400, 4)), text, 3), isNull);
+  });
+
+  testWidgets('in the BSB the translation tables give the exact word', (tester) async {
+    await open(tester, 'Matthew 5:48', english: 'perfect', occurrence: 1, wordIndex: 8);
+    expect(find.text('τέλειος'), findsOneWidget);
+    expect(find.textContaining('Chosen by meaning'), findsNothing);
+    expect(find.text('Words in Matthew 5:48'), findsOneWidget);
+    // The second "perfect" is the second τέλειος, the nominative singular.
+    final chip = tester.widget<ChoiceChip>(
+      find.ancestor(of: find.text('τέλειός'), matching: find.byType(ChoiceChip)),
+    );
+    expect(chip.selected, isTrue);
+  });
+
+  testWidgets('a word the BSB translators supplied says so', (tester) async {
+    await open(tester, 'Job 1:1', english: 'this', wordIndex: 1);
+    expect(find.textContaining('The translators supplied "this" here'), findsOneWidget);
+    expect(find.textContaining('no Hebrew word stands behind it'), findsOneWidget);
+    expect(find.text('MEANING'), findsNothing);
+  });
+
+  testWidgets('a word the tables number but STEP does not tag is still studied', (tester) async {
+    // "fearing" is H3373 in the tables; this fixture's Job 1:1 has no STEP word for it.
+    await open(tester, 'Job 1:1', english: 'fearing', wordIndex: 7);
+    expect(find.text('H3373 · Hebrew'), findsOneWidget);
+    expect(find.text('No lexicon entry for H3373.'), findsOneWidget);
+    expect(find.textContaining('Chosen by meaning'), findsNothing);
+    expect(find.text('Words in Job 1:1'), findsOneWidget);
+  });
+
+  testWidgets('other translations keep the guess by meaning', (tester) async {
+    await open(tester, 'Job 1:1', english: 'perfect', wordIndex: 7, translation: 'KJV');
+    expect(find.text('tam · H8535 · Hebrew · adjective'), findsOneWidget);
+    expect(find.textContaining('Chosen by meaning'), findsOneWidget);
   });
 }

@@ -80,7 +80,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (hit == null) {
       showInterlinear(context, s, ref);
     } else {
-      showWordStudy(context, s, ref, english: hit.word, occurrence: hit.occurrence);
+      showWordStudy(
+        context,
+        s,
+        ref,
+        english: hit.word,
+        occurrence: hit.occurrence,
+        wordIndex: hit.index,
+      );
     }
   }
 

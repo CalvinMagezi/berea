@@ -12,7 +12,8 @@ const wordUsesPage = 30;
 const glossedWordsShown = 6;
 
 /// Opens a word study on [ref] for the [english] word the reader pressed (its [occurrence] in the
-/// verse, from 0), or on the original word at [pos]. Asking about the word sends the question to
+/// verse by stem and its [wordIndex] among the verse's words, from 0), or on the original word at
+/// [pos]. Asking about the word sends the question to
 /// the Study tab; tapping a verse opens it in the reader.
 Future<void> showWordStudy(
   BuildContext context,
@@ -20,6 +21,7 @@ Future<void> showWordStudy(
   Ref ref, {
   String? english,
   int occurrence = 0,
+  int? wordIndex,
   int? pos,
 }) {
   return Navigator.push(
@@ -30,6 +32,7 @@ Future<void> showWordStudy(
         ref: ref,
         english: english,
         occurrence: occurrence,
+        wordIndex: wordIndex,
         pos: pos,
         translation: s.settings.translation,
         onAsk: (question) {
@@ -48,7 +51,7 @@ Future<void> showWordStudy(
 /// The word under [global] in the verse laid out by the text widget at [textContext], whose first
 /// [prefixLength] characters (the verse number) come before [text]. Null when the press is not on
 /// a word of [text], as on the verse number or a parallel translation.
-({String word, int occurrence})? pressedWord(
+({String word, int index, int occurrence})? pressedWord(
   BuildContext textContext,
   Offset global,
   String text,
@@ -60,7 +63,7 @@ Future<void> showWordStudy(
   if (!(Offset.zero & paragraph.size).contains(local)) return null;
   final offset = paragraph.getPositionForOffset(local).offset - prefixLength;
   final hit = wordAt(text, offset);
-  return hit == null ? null : (word: hit.word, occurrence: hit.occurrence);
+  return hit == null ? null : (word: hit.word, index: hit.index, occurrence: hit.occurrence);
 }
 
 RenderParagraph? _paragraphIn(RenderObject? o) {
@@ -79,6 +82,10 @@ class WordStudyScreen extends StatefulWidget {
   final Ref ref;
   final String? english;
   final int occurrence;
+
+  /// The pressed word's place among the verse's words ([verseWordPattern]), which the BSB
+  /// translation tables map to its original word exactly.
+  final int? wordIndex;
   final int? pos;
   final String translation;
   final void Function(String question) onAsk;
@@ -92,6 +99,7 @@ class WordStudyScreen extends StatefulWidget {
     required this.onOpen,
     this.english,
     this.occurrence = 0,
+    this.wordIndex,
     this.pos,
     this.translation = defaultTranslation,
   });
@@ -122,12 +130,30 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   /// True when Berea chose the word from the English, so the reader is asked to check it.
   var _guessed = false;
 
+  /// True when the BSB tables say the translators supplied the pressed word.
+  var _supplied = false;
+
   @override
   void initState() {
     super.initState();
     WordTag? start;
     if (widget.pos != null) {
       start = _verseWords.where((w) => w.pos == widget.pos).firstOrNull;
+    } else if (_exactCode() case final exact?) {
+      if (exact.code.isEmpty) {
+        _supplied = true;
+      } else {
+        final same = [
+          for (final w in _verseWords)
+            if (studyCode(w) == exact.code) w,
+        ];
+        if (same.isEmpty) {
+          // STEP numbers this verse's word differently; the word itself is still known.
+          _study(exact.code);
+        } else {
+          start = same[exact.repeat.clamp(0, same.length - 1)];
+        }
+      }
     } else if (widget.english != null) {
       final ranked = matchOriginal(
         _verseWords,
@@ -139,6 +165,23 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
       _guessed = start != null;
     }
     if (start != null) _studyTag(start);
+  }
+
+  /// In the BSB, the pressed word's Strong's number from the translation tables ('' for a word the
+  /// translators supplied), and how many times the same word came earlier in the English, to pick
+  /// among repeats. Null in other translations or where the tables do not cover the verse.
+  ({String code, int repeat})? _exactCode() {
+    final at = widget.wordIndex;
+    if (at == null || widget.translation != defaultTranslation) return null;
+    final codes = widget.db.bsbCodes(widget.ref);
+    if (codes == null || at >= codes.length) return null;
+    final code = codes[at];
+    var repeat = 0;
+    for (var j = 0; j < at; j++) {
+      // A phrase ("and multiply") gives its number to each of its words; count phrases.
+      if (codes[j] == code && (j == 0 || codes[j - 1] != code)) repeat++;
+    }
+    return (code: code, repeat: repeat);
   }
 
   void _studyTag(WordTag w) {
@@ -190,6 +233,8 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     _loadUses();
   });
 
+  String get _verseLanguage => widget.ref.book.id < 40 ? 'Hebrew' : 'Greek';
+
   String get _language => languageOf(_code ?? '', morph: _tag?.morph ?? '');
 
   @override
@@ -217,9 +262,11 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
                 Text(
                   english == null
                       ? 'Choose a word from ${widget.ref.label}.'
-                      : 'Berea could not tell which ${widget.ref.book.id < 40 ? 'Hebrew' : 'Greek'} '
-                            'word is behind "$english" here. It may be a word the translators '
-                            'added. Choose one:',
+                      : _supplied
+                      ? 'The translators supplied "$english" here so the English reads well; no '
+                            '$_verseLanguage word stands behind it. Choose a word from the verse:'
+                      : 'Berea could not tell which $_verseLanguage word is behind "$english" '
+                            'here. It may be a word the translators added. Choose one:',
                   style: const TextStyle(height: 1.45),
                 )
               else

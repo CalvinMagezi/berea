@@ -10,13 +10,18 @@ Word study
 - The study lists other words glossed with the same English. "Perfect" stands for τέλειος,
   τελειόω, כָּלִיל, שָׁלֵם, תָּם and more; the KJV's "perfect" in Job 1:1 opens תָּם, which the BSB
   calls "blameless".
-- The word is chosen by meaning and labelled as a guess, with the verse's words a tap away to
-  correct it. When nothing matches, as for a word the translators added, the reader chooses.
-  On 2,000 random verses it found the word for 77% of study words in the BSB, 79% in the KJV and
-  82% in the WEB (`bin/word_match_check.dart`).
+- In the BSB the word is exact, from the BSB's own translation tables (public domain with the
+  text, pinned by SHA-256): 99.8% of study words on 2,000 random verses. A word the translators
+  supplied says that no Hebrew or Greek word stands behind it.
+- In other translations the word is chosen by meaning and labelled as a guess, with the verse's
+  words a tap away to correct it: 78% of study words found in the KJV and 84% in the WEB, and
+  where it picks a word it is the tables' word 91.5% of the time (`bin/word_match_check.dart`).
 - Ask Berea about the word starts a Study chat on it. A question that names a Strong's number puts
   that lexicon entry first and a spread of the word's other uses in RELATED VERSES, in place of a
   keyword search, so the answer about its use elsewhere is checked like any other.
+- `bin/eval.dart --words` runs 9 word study questions, 3 of them adversarial, as a release gate
+  in `tool/release.sh`. It has not been run yet.
+- The site has a section on word study.
 - The interlinear's lexicon dialog has a Word study button. Long-pressing the verse number, or
   anywhere that is not a word, still opens the interlinear.
 
@@ -25,7 +30,7 @@ Performance
   scanned all 93,000 verses before (about 10 ms on a fast desktop, more on a phone); it now takes
   under 2 ms, which speeds the reader and every answer's retrieval, not only word studies.
 - The word study concordance adds 8.8 MB to the database on the device and 2.6 MB compressed to
-  the download (the verse index 0.5 MB more). Building it on the device instead would cost no
+  the download, the BSB alignment 3.7 MB and 1 MB, and the verse index 1.6 MB and 0.5 MB. Building it on the device instead would cost no
   download but a first word study of many seconds on a low-end phone.
 
 ## 0.5.0
