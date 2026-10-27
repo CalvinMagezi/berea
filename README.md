@@ -202,8 +202,10 @@ built the way the app builds them: four on a word in a verse (τέλειος in 
 "perfect" in Job 1:1, ἀγαπάω in John 3:16, חֶסֶד in Psalm 136:1), two on a word alone (χάρις,
 שָׁלוֹם), and three adversarial: a Strong's number that does not exist, Matthew 5:49 (the chapter
 has 48 verses), and a saying attributed to a word's use. Zero invented references and zero
-misattributions are a release gate, as for the golden questions. Not yet run: the session that
-added it could not run Ollama.
+misattributions are a release gate, as for the golden questions. Last run on gemma4:e2b, for the
+0.6.0 release: 0 invented, 5 of 5 expected references, 0 unverified quotes, 0 misattributed and
+3 of 3 adversarial, averaging 285 words; a run just before it (0.3 temperature, so each varies a
+little) differed only in 1 unverified quote, in the John 3:16 answer.
 
 `dart run bin/retrieval_check.dart` checks topical retrieval without a model: 7 of 8 topical
 questions put a well-known passage on the topic in front of the model.
