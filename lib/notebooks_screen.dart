@@ -22,7 +22,8 @@ const _citedPadding = 12.0;
 const _kindLabelSize = 11.0;
 const _bottomBarPadding = 12.0;
 
-/// Local rather than the shell's constant, so the Notes screens do not import the shell.
+/// Measured on the room the Notes place has beside the sidebar, not the window; local rather
+/// than the shell's constant, so the Notes screens do not import the shell.
 const notesWideBreakpoint = 760.0;
 const notesWideListWidth = 400.0;
 const _detailTitleSize = 26.0;

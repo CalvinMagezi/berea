@@ -9,7 +9,8 @@ import 'theme.dart';
 export 'prayer_pray_now.dart' show PrayNowScreen, LordsPrayerScreen;
 export 'prayer_sheet.dart' show PassageLookup, ShareText, passageLookupFor, showPrayerSheet;
 
-/// Local rather than the shell's constant, so this screen does not import the shell.
+/// Measured on the room the Prayer place has beside the sidebar, not the window; local rather
+/// than the shell's constant, so this screen does not import the shell.
 const _wideBreakpoint = 760.0;
 const _wideListWidth = 400.0;
 const _pagePadding = 16.0;

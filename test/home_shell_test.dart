@@ -6,6 +6,7 @@ import 'package:berea/home_shell.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/notes_screen.dart';
 import 'package:berea/plans_screen.dart';
+import 'package:berea/prayer_pray_now.dart';
 import 'package:berea/prayer_screen.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/study_button.dart';
@@ -18,6 +19,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 // Wide enough for the reader's chapter bar in the test font, which is wider than real type.
 const _phone = Size(600, 900);
 const _mac = Size(1280, 800);
+
+/// Over the shell's breakpoint, so the sidebar shows, but leaves the places too little room for
+/// two panes.
+const _narrowMac = Size(900, 800);
 const _places = ['Bible', 'Plans', 'Study', 'Prayer', 'Notes'];
 
 void main() {
@@ -185,6 +190,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(lit('Sunday sermons'), isFalse);
     state.notebooks.deleteNotebook(id);
+  });
+
+  testWidgets('Notes and Prayer show two panes only when their own room allows', (tester) async {
+    final id = state.notebooks.createNotebook('Sunday sermons');
+    final prayer = state.prayers.add(title: 'Courage');
+    addTearDown(() {
+      state.notebooks.deleteNotebook(id);
+      state.prayers.delete(prayer);
+    });
+    for (final (size, wide) in [(_narrowMac, false), (_mac, true)]) {
+      await pumpShell(tester, size);
+      expect(find.text('NOTEBOOKS'), findsOneWidget);
+      await tester.tap(find.text('Notes'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListAndDetail), wide ? findsOneWidget : findsNothing);
+      await tester.tap(find.text('Sunday sermons').first);
+      await tester.pumpAndSettle();
+      expect(find.byType(ListAndDetail), wide ? findsOneWidget : findsNothing);
+      await tester.tap(find.text('Prayer'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PrayNowView), wide ? findsOneWidget : findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    }
   });
 
   testWidgets('the Notes place shows the notebooks row and Recent under the bar', (tester) async {
