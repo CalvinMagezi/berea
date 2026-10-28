@@ -62,11 +62,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     widget.state.pendingQuestion.addListener(_jumpToStudy);
     widget.state.openReaderRequest.addListener(_jumpToBible);
+    widget.state.openStudyRequest.addListener(_openStudy);
     // The Bible is on screen first; the helper loads behind it.
     WidgetsBinding.instance.addPostFrameCallback((_) => widget.state.startHelper());
   }
 
   void _jumpToBible() => _select(HomeTab.bible);
+
+  void _openStudy() => _select(HomeTab.study);
 
   /// The microphone stops listening as soon as Berea is not in front.
   @override
@@ -77,6 +80,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     widget.state.pendingQuestion.removeListener(_jumpToStudy);
     widget.state.openReaderRequest.removeListener(_jumpToBible);
+    widget.state.openStudyRequest.removeListener(_openStudy);
     super.dispose();
   }
 

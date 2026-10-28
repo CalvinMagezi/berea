@@ -144,4 +144,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(PrayerScreen), findsOneWidget);
   });
+
+  testWidgets('Ask about this notebook opens Study scoped to it', (tester) async {
+    final id = state.notebooks.createNotebook('Romans with the youth');
+    await pumpShell(tester, _phone);
+    state.askAboutNotebook(id);
+    await tester.pump();
+    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(state.studyScope.value, id);
+    state.studyScope.value = null;
+    state.notebooks.deleteNotebook(id);
+  });
 }

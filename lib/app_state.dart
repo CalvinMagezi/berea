@@ -736,6 +736,18 @@ class AppState extends ChangeNotifier {
   /// Sends a word study's question (see [wordStudyQuestion]) to the Study tab.
   void askAboutWord(String question) => pendingQuestion.value = question;
 
+  /// What Study answers from: a notebook's id, or null for the whole Bible.
+  final studyScope = ValueNotifier<int?>(null);
+
+  /// Asks the shell to show Study.
+  final openStudyRequest = ValueNotifier<int>(0);
+
+  /// Ask about this notebook: Study opens scoped to [notebookId].
+  void askAboutNotebook(int notebookId) {
+    studyScope.value = notebookId;
+    openStudyRequest.value++;
+  }
+
   /// Notes and highlights change outside this class; callers poke listeners through here. A
   /// first note on a verse or a saved study page can create the notes on verses notebook.
   void touch() {
