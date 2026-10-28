@@ -4,6 +4,7 @@ import 'package:berea/app_state.dart';
 import 'package:berea/chat_screen.dart';
 import 'package:berea/home_shell.dart';
 import 'package:berea/notebooks_screen.dart';
+import 'package:berea/notes_screen.dart';
 import 'package:berea/prayer_screen.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/study_button.dart';
@@ -129,12 +130,38 @@ void main() {
     expect(find.byType(ReaderScreen), findsOneWidget);
   });
 
-  testWidgets('a notebook is listed under Notes in the sidebar and opens', (tester) async {
+  testWidgets('a notebook is listed under Notes in the sidebar and opens beside it', (
+    tester,
+  ) async {
     final id = state.notebooks.createNotebook('Sunday sermons');
     await pumpShell(tester, _mac);
     await tester.tap(find.text('Sunday sermons'));
     await tester.pumpAndSettle();
     expect(find.byType(NotebookScreen), findsOneWidget);
+    expect(find.text('NOTEBOOKS'), findsOneWidget);
+
+    // Ask about this notebook, from inside it, lands on Study scoped to it.
+    await tester.tap(find.text('Ask about this notebook'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(find.byType(NotebookScreen), findsNothing);
+    expect(state.studyScope.value, id);
+    state.studyScope.value = null;
+    state.notebooks.deleteNotebook(id);
+  });
+
+  testWidgets('the Notes place shows the notebooks row and Recent under the bar', (tester) async {
+    final id = state.notebooks.createNotebook('Romans with the youth');
+    await pumpShell(tester, _phone);
+    await tester.tap(find.text('Notes'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NotesScreen), findsOneWidget);
+    expect(find.text('RECENT'), findsOneWidget);
+    await tester.tap(find.text('Romans with the youth'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NotebookScreen), findsOneWidget);
+    // The bar stays under a notebook.
+    expect(find.byType(StudyButton), findsOneWidget);
     state.notebooks.deleteNotebook(id);
   });
 
