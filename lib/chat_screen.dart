@@ -11,6 +11,7 @@ import 'download_details_sheet.dart';
 import 'helper_setup.dart';
 import 'keep_sheet.dart';
 import 'markdown_lite.dart';
+import 'models.dart';
 import 'note_dialog.dart';
 import 'notebooks_screen.dart';
 import 'past_questions.dart';
@@ -334,7 +335,10 @@ class ScopeBar extends StatelessWidget {
           'and the Bible.';
     }
     return switch (state.settings.engine) {
-      EngineKind.device => '${state.settings.deviceModel.label} on this $deviceNoun.',
+      EngineKind.device => switch (state.settings.deviceModel) {
+        EdgeModel(:final label, firstWords: final first?) => '$label on this $deviceNoun. $first.',
+        EdgeModel(:final label) => '$label on this $deviceNoun.',
+      },
       EngineKind.ollama => switch (state.offDeviceHost) {
         final host? => 'Ollama at $host.',
         null => 'Ollama on this $deviceNoun.',

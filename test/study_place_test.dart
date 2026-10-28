@@ -13,6 +13,7 @@ import 'package:berea/notebooks_screen.dart';
 import 'package:berea/past_questions.dart';
 import 'package:berea/pinned_download.dart';
 import 'package:berea/settings_sheet.dart';
+import 'package:berea/setup_screen.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea/voice.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -244,6 +245,32 @@ void main() {
     final before = s.openReaderRequest.value;
     await tester.tap(find.text('Keep reading'));
     expect(s.openReaderRequest.value, before + 1, reason: 'Keep reading goes to the Bible');
+  });
+
+  testWidgets('the helper choice offers two, in the design\'s words, as radio buttons', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final s = await app()
+      ..deviceGb = 6;
+    await pumpStudy(tester, s);
+    expect(find.text('Gemma 4 E2B'), findsOneWidget);
+    expect(find.text('Gemma 3 1B'), findsOneWidget);
+    expect(find.text('Gemma 4 E4B'), findsNothing, reason: 'Settings still lists it');
+    expect(find.text('2.6 GB · for 5 to 7 GB ${deviceNoun}s like this one'), findsOneWidget);
+    expect(find.text('First words in about a minute. Hears spoken questions.'), findsOneWidget);
+    expect(find.text('0.6 GB · quicker, shorter answers'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.text('Gemma 4 E2B')),
+      isSemantics(isInMutuallyExclusiveGroup: true, hasCheckedState: true, isChecked: true),
+    );
+    expect(
+      tester.getSemantics(find.text('Gemma 3 1B')),
+      isSemantics(isInMutuallyExclusiveGroup: true, hasCheckedState: true, isChecked: false),
+    );
+    expect(helperChoices(12).map((m) => m.id), ['gemma-4-e4b', 'gemma-3-1b']);
+    expect(helperChoices(3).map((m) => m.id), ['gemma-3-1b', 'gemma-4-e2b']);
+    semantics.dispose();
   });
 
   testWidgets('the Gemma terms page comes only before Gemma 3 1B', (tester) async {
