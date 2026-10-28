@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:file_picker/file_picker.dart';
 
+import 'prayer_store.dart';
 import 'study_store.dart';
 
 String _date(DateTime d) =>
@@ -50,6 +51,11 @@ String allNotesMarkdown(StudyStore store, BibleDb db, String translation) {
   ];
   for (final c in studies) {
     b.writeln(studyMarkdown(store, db, c.id, translation).replaceFirst('# ', '## '));
+  }
+  if (store.db.select('SELECT 1 FROM prayers LIMIT 1').isNotEmpty) {
+    // One level down, so Prayer sits beside the notebooks under the document title.
+    final prayers = prayersMarkdown(PrayerStore(store.db));
+    b.write(prayers.replaceAllMapped(RegExp('^#', multiLine: true), (_) => '##'));
   }
   return b.toString();
 }

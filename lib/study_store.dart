@@ -5,6 +5,7 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'notebook_store.dart';
+import 'prayer_store.dart';
 
 /// Everything the user writes: notes, highlights and saved studies. One local SQLite file,
 /// never synced, never sent anywhere.
@@ -114,7 +115,12 @@ class StudyStore {
   /// above predate it and stay `IF NOT EXISTS`.
   /// Append only: a migration that has shipped is never edited, since installs that ran it
   /// would differ from new ones. Change the schema with a new entry; a test pins each text.
-  static const migrations = [notebookSchema, notebookChatSchema, notesMergeSchema];
+  static const migrations = [
+    notebookSchema,
+    notebookChatSchema,
+    notesMergeSchema,
+    prayerSchema,
+  ];
 
   static int get schemaVersion => migrations.length;
 
@@ -621,6 +627,7 @@ class StudyStore {
     'notebook_sources',
     'notebook_chunks',
     'notebook_messages',
+    ...prayerTables,
   ];
 
   Map<String, List<Map<String, Object?>>> exportTables() => {
@@ -671,6 +678,7 @@ class StudyStore {
       'refs': String,
       'sources': String,
     },
+    ...prayerColumnTypes,
   };
 
   /// Columns a backup may lack, older ones having been written before they existed. When
@@ -715,6 +723,7 @@ class StudyStore {
     }
     _validateColumns(tables);
     _validateNotebooks(tables);
+    validatePrayerTables(tables);
   }
 
   void _validateColumns(Map<String, List<Map<String, Object?>>> tables) {
@@ -842,6 +851,8 @@ class StudyStore {
       for (final t in userTables) {
         if (!tables.containsKey(t) && _notebookTables.contains(t)) continue;
         if (!hasNotebooks && _notebookChatTables.contains(t)) continue;
+        // A backup from before Prayer leaves the prayers on the device alone.
+        if (!tables.containsKey('prayers') && prayerTables.contains(t)) continue;
         db.execute('DELETE FROM $t');
         for (final row in tables[t] ?? const <Map<String, Object?>>[]) {
           final cols = row.keys.toList();

@@ -304,6 +304,7 @@ void main() {
       'nmY8srEE0IlsNADuGRT2qEZiWJaRUfFUtXqgjuRfsVU=',
       'A240KlyJsB1gIQ3D4PbpGMO5Y1lM/IEDcPIp8K4pKVs=',
       'nqwGTAa44RwwDcMnEHXNLoJhErV5x0Jmc/E6CqwWDRo=',
+      'QAyzQtbwdF1vaLBE6nuGIbtMOyb2sGcP4Jcs11JfI7Q=',
     ];
     final actual = [
       for (final m in StudyStore.migrations)

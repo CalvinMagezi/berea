@@ -90,10 +90,12 @@ String _makeFixture(Directory dir) {
 
 typedef _Tables = Map<String, List<Map<String, Object?>>>;
 
+/// Tables a later migration adds are left out of a snapshot taken before it ran.
 _Tables _snapshot(Database db) => {
   for (final t in StudyStore.userTables)
-    t: [
-      for (final r in db.select('SELECT * FROM $t ORDER BY 1, 2, 3')) Map<String, Object?>.from(r),
+    if (db.select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", [t]).isNotEmpty)
+      t: [
+      for (final r in db.select('SELECT * FROM $t ORDER BY 1, 2')) Map<String, Object?>.from(r),
     ],
 };
 
