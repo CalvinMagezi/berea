@@ -42,10 +42,46 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// The reader title: the book and the chapter number, in the app bar.
+  void expectTitle(String book, int chapter) {
+    final bar = find.byType(AppBar);
+    expect(find.descendant(of: bar, matching: find.text(book)), findsOneWidget);
+    expect(find.descendant(of: bar, matching: find.text(' $chapter')), findsOneWidget);
+  }
+
+  testWidgets('a long book name fits the phone app bar on one line, chapter number whole', (
+    tester,
+  ) async {
+    final state = await tester.runAsync(
+      () => open({'readerBook': 52, 'readerChapter': 5, 'tipT14Done': true}),
+    );
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: bereaTheme(Brightness.dark),
+        home: ReaderScreen(state: state!),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: 'no overflow');
+    expectTitle('1 Thessalonians', 5);
+
+    final bar = tester.getRect(find.byType(AppBar));
+    final name = find.text('1 Thessalonians');
+    final number = tester.getRect(find.text(' 5'));
+    expect(bar.contains(number.topLeft) && bar.contains(number.bottomRight), isTrue);
+    expect(tester.getRect(name).height, number.height, reason: 'the name stays on one line');
+    expect(tester.getRect(name).right, lessThanOrEqualTo(number.left));
+    final search = tester.getRect(find.byTooltip('Search'));
+    expect(number.right, lessThanOrEqualTo(search.left), reason: 'clear of the actions');
+  });
+
   testWidgets('the first ever open lands on John 1 with today\'s card and tip T14', (tester) async {
     final state = await tester.runAsync(() => open({}));
     await pumpReader(tester, state!);
-    expect(find.text('John 1'), findsOneWidget);
+    expectTitle('John', 1);
     expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
     expect(find.text('Start a reading plan'), findsOneWidget);
     expect(find.textContaining('Where you stopped'), findsNothing);
@@ -79,7 +115,7 @@ void main() {
       }),
     );
     await pumpReader(tester, state!);
-    expect(find.text('John 3'), findsOneWidget);
+    expectTitle('John', 3);
     expect(find.text('Where you stopped yesterday').hitTestable(), findsOneWidget);
     expect(find.text(tipT14), findsNothing);
     expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'seen today already');
@@ -106,7 +142,7 @@ void main() {
 
     state.openInReader(Ref(bookById(40), 8));
     await tester.pumpAndSettle();
-    expect(find.text('Matthew 8'), findsOneWidget);
+    expectTitle('Matthew', 8);
     expect(offset(), 0);
     expect(find.textContaining('Where you stopped'), findsNothing);
     expect(state.prefs.getInt('readerVerse'), 1);

@@ -221,11 +221,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
     };
     return Scaffold(
       appBar: AppBar(
+        // One line on a phone: a long book name gives way, the chapter number never does.
         title: TextButton(
           onPressed: _pickChapter,
-          child: Text(
-            '${book.name} $chapter',
-            style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 22),
+          child: DefaultTextStyle.merge(
+            style: const TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 22),
+            maxLines: 1,
+            softWrap: false,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: Text(book.name, overflow: TextOverflow.ellipsis)),
+                Text(' $chapter'),
+              ],
+            ),
           ),
         ),
         actions: [
