@@ -18,9 +18,6 @@ const maxVerseJumpAttempts = 3;
 /// Wide enough to set two translations side by side instead of stacked.
 const parallelSideBySideWidth = 560.0;
 
-/// The list's first item is today's card, so verse n is item n.
-const _cardItems = 1;
-
 /// Tip T14, shown once on the first chapter until it is dismissed.
 const _tipKey = 'tipT14Done';
 const tipsOffKey = 'tipsOff';
@@ -65,8 +62,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(() => _tip = false);
   }
 
-  /// Remembers the verse at the top of the list once a scroll settles.
-  bool _onScrollEnd(ScrollEndNotification n) {
+  /// Folds today's card once the reader starts reading, and remembers the verse at the top of
+  /// the list once a scroll settles.
+  bool _onScroll(ScrollNotification n) {
+    if (n is ScrollStartNotification && n.dragDetails != null && s.todayCardFull) {
+      setState(() => s.todayCardFull = false);
+    }
+    if (n is! ScrollEndNotification) return false;
     final top = (n.context?.findRenderObject() as RenderBox?)?.localToGlobal(Offset.zero).dy;
     if (top == null) return false;
     final shown = _verseKeys.entries.where((e) {
@@ -140,8 +142,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final count = s.db.passage(Ref(book, chapter), translation: s.settings.translation).length;
     if (count < 2) return;
     final pos = _scroll.position;
-    final perItem = (pos.maxScrollExtent + pos.viewportDimension) / (count + _cardItems);
-    _scroll.jumpTo(((verse - 1 + _cardItems) * perItem).clamp(0, pos.maxScrollExtent));
+    final perVerse = (pos.maxScrollExtent + pos.viewportDimension) / count;
+    _scroll.jumpTo(((verse - 1) * perVerse).clamp(0, pos.maxScrollExtent));
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(verse, attempt + 1));
   }
 
@@ -231,97 +233,106 @@ class _ReaderScreenState extends State<ReaderScreen> {
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-              child: verses.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No text for ${book.name} $chapter in $translation.',
-                        style: TextStyle(color: scheme.onSurfaceVariant),
-                      ),
-                    )
-                  : NotificationListener<ScrollEndNotification>(
-                      onNotification: _onScrollEnd,
-                      child: ListView.builder(
-                        controller: _scroll,
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
-                        itemCount: verses.length + _cardItems,
-                        itemBuilder: (_, i) {
-                          if (i < _cardItems) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: TodayCard(
-                                state: s,
-                                full: s.todayCardFull,
-                                onFull: (full) => setState(() => s.todayCardFull = full),
-                              ),
-                            );
-                          }
-                          final v = verses[i - _cardItems];
-                          final on = _selected.contains(v.verse);
-                          final other = second[v.verse];
-                          final stopped = _resume?.verseStart == v.verse;
-                          // Listener only notes where the finger went down; InkWell still decides.
-                          final item = Listener(
-                            key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
-                            onPointerDown: (e) => _pressAt = e.position,
-                            child: InkWell(
-                              onTap: () => setState(
-                                () => on ? _selected.remove(v.verse) : _selected.add(v.verse),
-                              ),
-                              onLongPress: () => _longPress(v),
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: highlights.contains(v.verse)
-                                      ? scheme.primary.withValues(alpha: 0.18)
-                                      : stopped
-                                      ? scheme.surfaceContainerHighest
-                                      : null,
-                                  border: on
-                                      ? Border(left: BorderSide(color: scheme.primary, width: 3))
-                                      : null,
-                                ),
-                                child: _ParallelRow(
-                                  other: other,
-                                  otherLabel: parallel,
-                                  primary: Text.rich(
-                                    key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
-                                    TextSpan(
-                                      style: scriptureStyle(context)
-                                          .copyWith(fontSize: 18, height: 1.6),
-                                      children: [
-                                        TextSpan(
-                                          text: '${v.verse} ',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: scheme.primary,
-                                            fontWeight: FontWeight.w600,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                    child: TodayCard(
+                      state: s,
+                      full: s.todayCardFull,
+                      onFull: (full) => setState(() => s.todayCardFull = full),
+                    ),
+                  ),
+                  Expanded(
+                    child: verses.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No text for ${book.name} $chapter in $translation.',
+                              style: TextStyle(color: scheme.onSurfaceVariant),
+                            ),
+                          )
+                        : NotificationListener<ScrollNotification>(
+                            onNotification: _onScroll,
+                            child: ListView.builder(
+                              controller: _scroll,
+                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
+                              itemCount: verses.length,
+                              itemBuilder: (_, i) {
+                                final v = verses[i];
+                                final on = _selected.contains(v.verse);
+                                final other = second[v.verse];
+                                final stopped = _resume?.verseStart == v.verse;
+                                // Listener only notes where the finger went down; InkWell still decides.
+                                final item = Listener(
+                                  key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                  onPointerDown: (e) => _pressAt = e.position,
+                                  child: InkWell(
+                                    onTap: () => setState(
+                                      () => on ? _selected.remove(v.verse) : _selected.add(v.verse),
+                                    ),
+                                    onLongPress: () => _longPress(v),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: highlights.contains(v.verse)
+                                            ? scheme.primary.withValues(alpha: 0.18)
+                                            : stopped
+                                            ? scheme.surfaceContainerHighest
+                                            : null,
+                                        border: on
+                                            ? Border(
+                                                left: BorderSide(color: scheme.primary, width: 3),
+                                              )
+                                            : null,
+                                      ),
+                                      child: _ParallelRow(
+                                        other: other,
+                                        otherLabel: parallel,
+                                        primary: Text.rich(
+                                          key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                          TextSpan(
+                                            style: scriptureStyle(context)
+                                                .copyWith(fontSize: 18, height: 1.6),
+                                            children: [
+                                              TextSpan(
+                                                text: '${v.verse} ',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: scheme.primary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              TextSpan(text: v.text),
+                                              if (noted.contains(v.verse))
+                                                WidgetSpan(
+                                                  alignment: PlaceholderAlignment.middle,
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.only(left: 6),
+                                                    child: Icon(
+                                                      Icons.sticky_note_2_outlined,
+                                                      size: 14,
+                                                      color: scheme.onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
                                           ),
                                         ),
-                                        TextSpan(text: v.text),
-                                        if (noted.contains(v.verse))
-                                          WidgetSpan(
-                                            alignment: PlaceholderAlignment.middle,
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(left: 6),
-                                              child: Icon(
-                                                Icons.sticky_note_2_outlined,
-                                                size: 14,
-                                                color: scheme.onSurfaceVariant,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
+                                );
+                                return stopped ? _StoppedMarker(at: s.resumeAt, child: item) : item;
+                              },
                             ),
-                          );
-                          return stopped ? _StoppedMarker(at: s.resumeAt, child: item) : item;
-                        },
-                      ),
-                    ),
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
           if (_tip && verses.isNotEmpty)

@@ -56,6 +56,11 @@ void main() {
     await tester.pump();
     expect(find.text(tipT14), findsNothing);
     expect(state.prefs.getBool('tipT14Done'), isTrue);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'reading folds it');
+    expect(find.byTooltip('Show today'), findsOneWidget);
   });
 
   testWidgets('a later open resumes where the reader stopped, with a marker and a folded card', (
@@ -74,12 +79,10 @@ void main() {
     );
     await pumpReader(tester, state!);
     expect(find.text('John 3'), findsOneWidget);
-    expect(find.text('Where you stopped yesterday'), findsOneWidget);
+    expect(find.text('Where you stopped yesterday').hitTestable(), findsOneWidget);
     expect(find.text(tipT14), findsNothing);
     expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'seen today already');
 
-    await tester.drag(find.byType(ListView), const Offset(0, 4000));
-    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Show today'));
     await tester.pump();
     expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
