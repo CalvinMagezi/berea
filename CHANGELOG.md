@@ -1,5 +1,81 @@
 # Changelog
 
+## 0.7.0
+
+Opens on the Bible
+- Berea now opens on the Bible, and the helper loads after the first screen is up. On a Galaxy A32
+  the first verse is on screen in a median 1.50 s from launch, against 2.47 s before (5 cold
+  starts each, same script).
+- First launch says "Setting up the Bible on this phone". It needs about 85 MB of free space and
+  downloads nothing. Failures are in plain words: a full device, a notes safety copy that could
+  not be written, a helper that would not start.
+- A question asked while the helper loads waits and is answered when the helper is ready, or you
+  are told why it was not.
+
+Five places
+- Bible, Plans, Study, Prayer and Notes, with Study as the raised Lamp b button. In a wide window
+  (760 px and up) a sidebar replaces the bar: Cmd 1 to 5 switch places, notebooks are listed under
+  Notes, and the helper's state sits at the foot.
+- The Lamp b mark is the app icon and launch screen on Android, iOS, Mac and Windows, light and
+  dark. The Mac menu bar, Dock and About now read Berea.
+- The first open lands on John 1 with today's verse card; later opens resume where you stopped. The
+  Reading plans icon is gone from the reader, and so is the Ask pill under a chapter, since Study
+  and the selection bar both ask.
+
+Plans
+- Plans is a place: today's portion with chapter ticks and Read next, a week row, Catch up and
+  Start another. There are no streaks. Ticks you made by day in earlier versions carry over.
+
+Study
+- With no helper installed, Study offers the choice of helper and Keep reading. Wi-Fi only is on
+  by default.
+- A helper download now resumes after a pause, a lost connection or a restart, instead of starting
+  over. The partial file is kept, and size and SHA-256 are checked before it is used. An older
+  copy of a model is removed only after the new one passes those checks.
+- A scope chip sets the question's reach: the Bible, or one notebook. A notebook-scoped answer
+  reads that notebook's notes and readings, and its source chips open the cited place.
+- Past questions sit behind the clock, each labelled with its scope. An answer can be kept in a
+  notebook.
+
+Prayer
+- A new place. Add a prayer, choose Pray now to go through them one at a time with the verse in
+  full (the one prayed least recently first), and Amen records the day. The Lord's Prayer from
+  Matthew 6:9-13 is there to start from.
+- Answered keeps your own line and the date, and can be undone. Deleting asks first. Stopped
+  prayers can be resumed. Sharing a prayer uses plain text through the system share sheet.
+- Prayers stay on the device and are included in backup and export.
+
+Notes
+- Notes and notebooks are one place. A note can belong to a verse or stand alone. A notebook shows
+  Everything, Notes, Readings, Add, and Ask about this notebook.
+- The note editor is full screen, with a notebook picker, a title, an optional verse and a Pray
+  this button. References you type become links.
+- One Keep in a notebook sheet, with the last notebook used first, serves word study, commentary
+  and answers.
+- The separate notebook chat screen is gone. Its messages were copied into scoped conversations,
+  and pins stay.
+
+Selection bar
+- Highlighting verses opens a bar with Highlight, Note, Pray, Ask and More (Words, Commentary,
+  Study page, Copy, Share). Pray fills in the verses you chose, and a selection with gaps acts only
+  on the verses selected. The Mac toolbar gains Pray.
+
+Your data
+- Moving to this version rewrites the notes database. Berea first copies it to
+  `study.sqlite.pre-notes-merge` and does not migrate if it cannot. Backups now carry prayers,
+  reading plan ticks and the running plan, and backups from older versions still restore.
+- The change is one way: after the first launch, 0.6.0 cannot read notes that have no verse. Back
+  up first if you may go back.
+- Tried on real data: a phone went from schema 2 to 6 with all 39 conversations and 84 messages
+  kept, and the pre-merge copy holds the same counts. A Mac went from 2 to 6 with its 2
+  conversations and 4 messages kept.
+
+Not in this version
+- The daily verse notification, Find a plan on Plans, page counts and dates on PDF and EPUB
+  reading rows, and a Cmd K palette on the Mac are not built.
+- Study does not read a notebook's study pages, so its notes count can be lower than the notebook
+  page's.
+
 ## 0.6.0
 
 Word study
