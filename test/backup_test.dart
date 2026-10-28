@@ -96,7 +96,11 @@ void main() {
     expect(contents.version, backupVersion);
     expect(contents.hasNotebooks, isTrue);
     target.importTables(contents.tables);
-    expect(targetBooks.notebooks().single.title, 'Romans 8');
+    // The restored verse note brings the notebook verse notes now live in.
+    expect(
+      targetBooks.notebooks().map((n) => n.title),
+      unorderedEquals(['Romans 8', notesOnVersesTitle]),
+    );
     final chunks = targetBooks.chunks(nb);
     expect(chunks.map((c) => c.text), books.chunks(nb).map((c) => c.text));
     expect(targetBooks.search(nb, 'separated').length, chunks.length);
@@ -118,7 +122,7 @@ void main() {
     expect(target.notes().single.text, 'Loved first.');
     expect(target.highlights(bookById(43), 3), {16});
     expect(target.studyPageFor(RefParser.parse('Psalm 23:1').first)!.application, 'A');
-    expect(books.notebooks().single.title, 'Kept');
+    expect(books.notebooks().map((n) => n.title), unorderedEquals(['Kept', notesOnVersesTitle]));
     expect(books.search(kept, 'grace').single.title, 'Mine');
   });
 

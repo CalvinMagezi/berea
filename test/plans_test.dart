@@ -1,90 +1,31 @@
+import 'dart:io';
+
 import 'package:berea/plans.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Real chapter counts for the 66 books.
-const _counts = [
-  50,
-  40,
-  27,
-  36,
-  34,
-  24,
-  21,
-  4,
-  31,
-  24,
-  22,
-  25,
-  29,
-  36,
-  10,
-  13,
-  10,
-  42,
-  150,
-  31,
-  12,
-  8,
-  66,
-  52,
-  5,
-  48,
-  12,
-  14,
-  3,
-  9,
-  1,
-  4,
-  7,
-  3,
-  3,
-  3,
-  2,
-  14,
-  4,
-  28,
-  16,
-  24,
-  21,
-  28,
-  16,
-  16,
-  13,
-  6,
-  6,
-  4,
-  4,
-  5,
-  3,
-  6,
-  4,
-  3,
-  1,
-  13,
-  5,
-  5,
-  3,
-  5,
-  1,
-  1,
-  1,
-  22,
-];
-
-int _count(Book b) => _counts[b.id - 1];
+import 'support/bible.dart';
 
 void main() {
   test('every plan covers each chapter exactly once with no empty days', () {
     for (final p in readingPlans) {
-      final days = p.schedule(_count);
+      final days = p.schedule();
       expect(days.length, p.days, reason: p.id);
       expect(days.every((d) => d.isNotEmpty), isTrue, reason: p.id);
       final all = days.expand((d) => d).toList();
-      expect(all.length, p.books.fold(0, (n, b) => n + _count(b)), reason: p.id);
+      expect(all.length, p.chapters, reason: p.id);
       expect(all.toSet().length, all.length, reason: p.id);
     }
-    expect(planById('bible-year')!.schedule(_count).expand((d) => d).length, 1189);
+    expect(planById('bible-year')!.schedule().expand((d) => d).length, 1189);
+  });
+
+  test('the fixed chapter counts match every translation of the bundled Bible', skip: needsBuiltBible, () {
+    final db = BibleDb.open(File('assets/berea.sqlite').absolute.path);
+    for (final t in db.translations()) {
+      for (final b in books) {
+        expect(chapterCount(b), db.chapterCount(b, translation: t), reason: '${b.name} $t');
+      }
+    }
   });
 
   test('reading labels group consecutive chapters', () {
@@ -93,5 +34,19 @@ void main() {
       ...RefParser.parse('Exodus 1'),
     ];
     expect(readingLabel(refs), 'Genesis 1-3, Exodus 1');
+  });
+
+  test('progress reads next from today, and offers the unread chapters of missed days', () {
+    final plan = planById('nt-90')!;
+    final days = plan.schedule();
+    final done = {...days[0], days[1].first, days[2].first};
+    final p = PlanProgress(plan, done, 3);
+    expect(p.portion, days[2]);
+    expect(p.next, days[2][1]);
+    expect(p.missed, [2]);
+    expect(p.catchUp, days[1].skip(1));
+    expect(p.chaptersDone, days[0].length + 2);
+    expect(PlanProgress(plan, {...done, ...days[2]}, 3).next, isNull);
+    expect(plan.dailyLoad, 3);
   });
 }

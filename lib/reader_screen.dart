@@ -1,14 +1,18 @@
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_state.dart';
 import 'commentary_sheet.dart';
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
-import 'plans_screen.dart';
+import 'prayer_screen.dart';
+import 'prayer_sheet.dart' show passageText, shareOrigin, shareText;
+import 'selection_bar.dart';
 import 'study_page_screen.dart';
 import 'search_screen.dart';
 import 'theme.dart';
+import 'today_card.dart';
 import 'word_study_screen.dart';
 
 /// Where a jumped-to verse lands: a little below the top so the one before is visible.
@@ -18,12 +22,50 @@ const maxVerseJumpAttempts = 3;
 /// Wide enough to set two translations side by side instead of stacked.
 const parallelSideBySideWidth = 560.0;
 
+/// Tip T14, shown once on the first chapter until it is dismissed.
+const _tipKey = 'tipT14Done';
+const tipsOffKey = 'tipsOff';
+const tipT14 = 'Tap a verse to highlight it, write a note, pray it or ask about it.';
+
+/// Where the tip sits above the chapter bar, with no selection card under it.
+const _tipGap = 16.0;
+const _tipCardGap = 8.0;
+const _toolbarTop = 8.0;
+const _toolbarInset = 8.0;
+
+/// The verses of [ref] as plain text with the reference and translation, for Copy and Share.
+String selectionText(List<Verse> verses, Ref ref, String translation) =>
+    '${passageText(verses)}\n${ref.label} ($translation)';
+
+/// Selected verses as runs of neighbours, in order: 1, 2 and 5 are 1-2 and 5.
+List<(int, int)> verseRuns(Iterable<int> verses) {
+  final runs = <(int, int)>[];
+  for (final v in verses.toList()..sort()) {
+    if (runs.isNotEmpty && runs.last.$2 == v - 1) {
+      runs.last = (runs.last.$1, v);
+    } else {
+      runs.add((v, v));
+    }
+  }
+  return runs;
+}
+
+/// "John 3:1-2, 5" for verses that are not all neighbours; a plain label otherwise.
+String versesLabel(Book book, int chapter, Iterable<int> verses) {
+  final [(start, end), ...rest] = verseRuns(verses);
+  final first = Ref(book, chapter, start, end).label;
+  return [first, for (final (a, b) in rest) a == b ? '$a' : '$a-$b'].join(', ');
+}
+
+/// Verses that are not all neighbours, each on its own line with its number, for Copy and Share.
+String gappedSelectionText(List<Verse> verses, String label, String translation) =>
+    '${verses.map((v) => '${v.verse} ${v.text}').join('\n')}\n$label ($translation)';
+
 class ReaderScreen extends StatefulWidget {
   final AppState state;
 
   /// Opens the quick chat; shown in the chapter bar so it never covers the reader's buttons.
-  final VoidCallback? onQuickChat;
-  const ReaderScreen({super.key, required this.state, this.onQuickChat});
+  const ReaderScreen({super.key, required this.state});
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -37,20 +79,77 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Book get book => bookById(s.readerBook);
   int get chapter => s.readerChapter;
 
+  /// Where the reader stopped last session, marked until the reader moves to another chapter.
+  late Ref? _resume = s.resumeVerse == null ? null : Ref(book, chapter, s.resumeVerse);
+  late bool _tip = !(s.prefs.getBool(_tipKey) ?? false) && !(s.prefs.getBool(tipsOffKey) ?? false);
+
   @override
   void initState() {
     super.initState();
     s.addListener(_refresh);
+    _lifecycle = AppLifecycleListener(onResume: _newDay);
+    _shown = (book.id, chapter);
+    final resume = _resume;
+    // Read once: a remount, as when a Mac window crosses the wide layout, must not mark again.
+    s.resumeVerse = null;
+    if (resume != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(resume.verseStart!));
+    }
+  }
+
+  late final AppLifecycleListener _lifecycle;
+
+  /// The book and chapter last built, so a jump from elsewhere starts the new chapter at the top.
+  var _shown = (0, 0);
+
+  void _newDay() {
+    if (s.openTodayIfNewDay()) setState(() {});
+  }
+
+  void _dismissTip({bool allTips = false}) {
+    s.prefs.setBool(_tipKey, true);
+    if (allTips) s.prefs.setBool(tipsOffKey, true);
+    setState(() => _tip = false);
+  }
+
+  /// Folds today's card once the reader starts reading, and remembers the verse at the top of
+  /// the list once a scroll settles.
+  bool _onScroll(ScrollNotification n) {
+    if (n is ScrollStartNotification && n.dragDetails != null && s.todayCardFull) {
+      setState(() => s.todayCardFull = false);
+    }
+    if (n is! ScrollEndNotification) return false;
+    final viewport = n.context;
+    // After layout, since a jump ends before the list has laid out at its new offset.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _rememberTop(viewport));
+    return false;
+  }
+
+  void _rememberTop(BuildContext? viewport) {
+    if (!mounted || viewport == null || !viewport.mounted) return;
+    final top = (viewport.findRenderObject() as RenderBox?)?.localToGlobal(Offset.zero).dy;
+    if (top == null) return;
+    final shown = _verseKeys.entries.where((e) {
+      final box = e.value.currentContext?.findRenderObject() as RenderBox?;
+      return box != null && box.attached && box.localToGlobal(Offset(0, box.size.height)).dy > top;
+    });
+    final first = shown.map((e) => e.key).fold<int?>(null, (a, v) => a == null || v < a ? v : a);
+    if (first != null) s.rememberVerse(first);
   }
 
   @override
   void dispose() {
     s.removeListener(_refresh);
+    _lifecycle.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
   void _refresh() {
+    if (_resume case final r? when r.book.id != book.id || r.chapter != chapter) _resume = null;
+    final changed = _shown != (book.id, chapter);
+    _shown = (book.id, chapter);
+    if (changed && s.readerTargetVerse == null) _startChapter();
     setState(() {});
     final target = s.readerTargetVerse;
     if (target == null) return;
@@ -109,11 +208,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(verse, attempt + 1));
   }
 
-  void _go(Book b, int c) {
+  /// Jumps again after layout: the list corrects its offset to the old chapter's item sizes.
+  void _startChapter() {
     _selected.clear();
     _verseKeys.clear();
     _textKeys.clear();
-    if (_scroll.hasClients) _scroll.jumpTo(0);
+    void top() => _scroll.hasClients ? _scroll.jumpTo(0) : null;
+    top();
+    WidgetsBinding.instance.addPostFrameCallback((_) => top());
+  }
+
+  void _go(Book b, int c) {
+    _startChapter();
+    _resume = null;
+    s.todayCardFull = false;
     s.setReader(b, c);
   }
 
@@ -121,6 +229,98 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final sorted = _selected.toList()..sort();
     return Ref(book, chapter, sorted.first, sorted.last);
   }
+
+  bool get _gapped => verseRuns(_selected).length > 1;
+
+  String get _selectionLabel => versesLabel(book, chapter, _selected);
+
+  String get _selectionText {
+    final translation = s.settings.translation;
+    final ref = _selection;
+    final verses = s.db.passage(ref, translation: translation);
+    if (!_gapped) return selectionText(verses, ref, translation);
+    final chosen = verses.where((v) => _selected.contains(v.verse)).toList();
+    return gappedSelectionText(chosen, _selectionLabel, translation);
+  }
+
+  /// Runs [act] for an action that takes one passage; with gaps in the selection it says so
+  /// rather than act on verses that were never chosen.
+  void _onePassage(String action, void Function() act) {
+    if (!_gapped) return act();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$action works on verses next to each other. Choose one verse or a run of verses.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _note() async {
+    final ref = _selection;
+    final existing = s.study
+        .notes(book: book, chapter: chapter)
+        .where((n) => n.ref == ref)
+        .firstOrNull;
+    await showNoteDialog(context, s, ref: ref, note: existing);
+    setState(_selected.clear);
+  }
+
+  Future<void> _pray() async {
+    await showPrayerSheet(
+      context,
+      s.prayers,
+      verse: _selection.label,
+      passage: passageLookupFor(s.db, () => s.settings.translation),
+    );
+    if (mounted) setState(_selected.clear);
+  }
+
+  void _studyPage() {
+    final ref = _selection;
+    setState(_selected.clear);
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(builder: (_) => StudyPageScreen(state: s, ref: ref)),
+    );
+  }
+
+  Future<void> _copy() async {
+    final label = _selectionLabel;
+    await Clipboard.setData(ClipboardData(text: _selectionText));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Copied $label.')));
+    setState(_selected.clear);
+  }
+
+  void _share(BuildContext button) {
+    shareText(_selectionText, shareOrigin(button));
+    setState(_selected.clear);
+  }
+
+  Widget _selectionBar({required bool wide}) => SelectionBar(
+    label: _selectionLabel,
+    count: _selected.length,
+    wide: wide,
+    onHighlight: () {
+      for (final v in _selected) {
+        s.study.toggleHighlight(book, chapter, v);
+      }
+      setState(_selected.clear);
+    },
+    onNote: () => _onePassage('Note', _note),
+    onPray: () => _onePassage('Pray', _pray),
+    onAsk: () => _onePassage('Ask', () {
+      s.askAbout(_selection);
+      setState(_selected.clear);
+    }),
+    onWords: () => _onePassage('Words', () => showInterlinear(context, s, _selection)),
+    onCommentary: () => _onePassage('Commentary', () => showCommentary(context, s, _selection)),
+    onStudyPage: () => _onePassage('Study page', _studyPage),
+    onCopy: _copy,
+    onShare: _share,
+    onClear: () => setState(_selected.clear),
+  );
 
   Future<void> _pickChapter() async {
     final picked = await showDialog<(Book, int)>(
@@ -144,6 +344,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
           };
     final chapters = s.db.chapterCount(book, translation: translation);
     final highlights = s.study.highlights(book, chapter);
+    final wide = MediaQuery.sizeOf(context).width >= wideLayoutBreakpoint;
+    final card = _selected.isEmpty || wide ? null : _selectionBar(wide: false);
+    final tip = _tip && verses.isNotEmpty;
     final noted = {
       for (final n in s.study.notes(book: book, chapter: chapter))
         for (var v = n.ref.verseStart!; v <= n.ref.verseEnd!; v++) v,
@@ -152,20 +355,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
       appBar: AppBar(
         title: TextButton(
           onPressed: _pickChapter,
-          child: Text(
-            '${book.name} $chapter',
-            style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 22),
-          ),
+          child: _ReaderTitle(name: book.name, chapter: chapter),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Reading plans',
-            icon: const Icon(Icons.calendar_month_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(builder: (_) => PlansScreen(state: s)),
-            ),
-          ),
           IconButton(
             tooltip: 'Search',
             icon: const Icon(Icons.search),
@@ -195,86 +387,144 @@ class _ReaderScreenState extends State<ReaderScreen> {
           const SizedBox(width: 12),
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-          child: verses.isEmpty
-              ? Center(
-                  child: Text(
-                    'No text for ${book.name} $chapter in $translation.',
-                    style: TextStyle(color: scheme.onSurfaceVariant),
+      body: Stack(
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: contentMaxWidth),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                    child: TodayCard(
+                      state: s,
+                      full: s.todayCardFull,
+                      onFull: (full) => setState(() => s.todayCardFull = full),
+                    ),
                   ),
-                )
-              : ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
-                  itemCount: verses.length,
-                  itemBuilder: (_, i) {
-                    final v = verses[i];
-                    final on = _selected.contains(v.verse);
-                    final other = second[v.verse];
-                    // Listener only notes where the finger went down; InkWell still decides.
-                    return Listener(
-                      key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
-                      onPointerDown: (e) => _pressAt = e.position,
-                      child: InkWell(
-                        onTap: () =>
-                            setState(() => on ? _selected.remove(v.verse) : _selected.add(v.verse)),
-                        onLongPress: () => _longPress(v),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: highlights.contains(v.verse)
-                                ? scheme.primary.withValues(alpha: 0.18)
-                                : null,
-                            border: on
-                                ? Border(left: BorderSide(color: scheme.primary, width: 3))
-                                : null,
-                          ),
-                          child: _ParallelRow(
-                            other: other,
-                            otherLabel: parallel,
-                            primary: Text.rich(
-                              key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
-                              TextSpan(
-                                style: scriptureStyle(context).copyWith(fontSize: 18, height: 1.6),
-                                children: [
-                                  TextSpan(
-                                    text: '${v.verse} ',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: scheme.primary,
-                                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: verses.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No text for ${book.name} $chapter in $translation.',
+                              style: TextStyle(color: scheme.onSurfaceVariant),
+                            ),
+                          )
+                        : NotificationListener<ScrollNotification>(
+                            onNotification: _onScroll,
+                            child: ListView.builder(
+                              controller: _scroll,
+                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
+                              itemCount: verses.length,
+                              itemBuilder: (_, i) {
+                                final v = verses[i];
+                                final on = _selected.contains(v.verse);
+                                final other = second[v.verse];
+                                final stopped = _resume?.verseStart == v.verse;
+                                // Listener only notes where the finger went down; InkWell still decides.
+                                final item = Listener(
+                                  key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                  onPointerDown: (e) => _pressAt = e.position,
+                                  child: InkWell(
+                                    onTap: () => setState(
+                                      () => on ? _selected.remove(v.verse) : _selected.add(v.verse),
                                     ),
-                                  ),
-                                  TextSpan(text: v.text),
-                                  if (noted.contains(v.verse))
-                                    WidgetSpan(
-                                      alignment: PlaceholderAlignment.middle,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(left: 6),
-                                        child: Icon(
-                                          Icons.sticky_note_2_outlined,
-                                          size: 14,
-                                          color: scheme.onSurfaceVariant,
+                                    onLongPress: () => _longPress(v),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: highlights.contains(v.verse)
+                                            ? scheme.primary.withValues(alpha: 0.18)
+                                            : stopped
+                                            ? scheme.surfaceContainerHighest
+                                            : null,
+                                        border: on
+                                            ? Border(
+                                                left: BorderSide(color: scheme.primary, width: 3),
+                                              )
+                                            : null,
+                                      ),
+                                      child: _ParallelRow(
+                                        other: other,
+                                        otherLabel: parallel,
+                                        primary: Text.rich(
+                                          key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                          TextSpan(
+                                            style: scriptureStyle(context)
+                                                .copyWith(fontSize: 18, height: 1.6),
+                                            children: [
+                                              TextSpan(
+                                                text: '${v.verse} ',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: scheme.primary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              TextSpan(text: v.text),
+                                              if (noted.contains(v.verse))
+                                                WidgetSpan(
+                                                  alignment: PlaceholderAlignment.middle,
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.only(left: 6),
+                                                    child: Icon(
+                                                      Icons.sticky_note_2_outlined,
+                                                      size: 14,
+                                                      color: scheme.onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                                ],
-                              ),
+                                  ),
+                                );
+                                return stopped ? _StoppedMarker(at: s.resumeAt, child: item) : item;
+                              },
                             ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (tip || card != null)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: card == null
+                  ? _tipGap
+                  : selectionBarGap + MediaQuery.paddingOf(context).bottom,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (tip)
+                    _Tip(onGotIt: _dismissTip, onTurnOff: () => _dismissTip(allTips: true)),
+                  if (tip && card != null) const SizedBox(height: _tipCardGap),
+                  ?card,
+                ],
+              ),
+            ),
+          if (wide && _selected.isNotEmpty)
+            Positioned(
+              top: _toolbarTop,
+              left: _toolbarInset,
+              right: _toolbarInset,
+              // A narrow Mac window leaves the reader less room than the toolbar's full width.
+              child: Center(
+                child: FittedBox(fit: BoxFit.scaleDown, child: _selectionBar(wide: true)),
+              ),
+            ),
+        ],
       ),
-      bottomNavigationBar: _selected.isEmpty
+      bottomNavigationBar: card == null
           ? _ChapterNav(
-              onQuickChat: widget.onQuickChat,
               canPrev: chapter > 1 || book.id > 1,
               canNext: chapter < chapters || book.id < books.length,
               onPrev: () =>
@@ -282,44 +532,133 @@ class _ReaderScreenState extends State<ReaderScreen> {
               onNext: () =>
                   chapter < chapters ? _go(book, chapter + 1) : _go(bookById(book.id + 1), 1),
             )
-          : _SelectionBar(
-              label: _selection.label,
-              onAsk: () {
-                s.askAbout(_selection);
-                setState(_selected.clear);
-              },
-              onCommentary: () => showCommentary(context, s, _selection),
-              onNote: () async {
-                final ref = _selection;
-                final existing = s.study
-                    .notes(book: book, chapter: chapter)
-                    .where((n) => n.ref == ref)
-                    .firstOrNull;
-                await showNoteDialog(context, s, ref: ref, note: existing);
-                setState(_selected.clear);
-              },
-              onStudyPage: () {
-                final ref = _selection;
-                setState(_selected.clear);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => StudyPageScreen(state: s, ref: ref),
-                  ),
-                );
-              },
-              onHighlight: () {
-                for (final v in _selected) {
-                  s.study.toggleHighlight(book, chapter, v);
-                }
-                setState(_selected.clear);
-              },
-              onClear: () => setState(_selected.clear),
-            ),
+          : null,
     );
   }
 
   void _goLastChapter(Book b) => _go(b, s.db.chapterCount(b, translation: s.settings.translation));
+}
+
+const _titleSize = 22.0;
+
+/// How far the title shrinks to fit before the book name is cut short.
+const _titleFloor = 0.8;
+
+/// Scaled text measured to the exact width can round over it and be cut; a pixel spare avoids it.
+const _titleSlack = 1.0;
+
+/// One line on a phone: the whole title scales down to [_titleFloor] first, then only the book
+/// name gives way; the chapter number is never cut.
+class _ReaderTitle extends StatelessWidget {
+  final String name;
+  final int chapter;
+  const _ReaderTitle({required this.name, required this.chapter});
+
+  @override
+  Widget build(BuildContext context) {
+    final base = DefaultTextStyle.of(context).style
+        .merge(const TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: _titleSize));
+    final label = '$name $chapter';
+    return LayoutBuilder(
+      builder: (context, c) {
+        final painter = TextPainter(
+          text: TextSpan(text: label, style: base),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        final width = painter.width;
+        painter.dispose();
+        final room = c.maxWidth - _titleSlack;
+        final scale = width <= room ? 1.0 : (room / width).clamp(_titleFloor, 1.0);
+        return DefaultTextStyle.merge(
+          style: base.copyWith(fontSize: _titleSize * scale),
+          maxLines: 1,
+          softWrap: false,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: Text(name, overflow: TextOverflow.ellipsis)),
+              Text(' $chapter'),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A quiet line above the verse the reader stopped at last time.
+class _StoppedMarker extends StatelessWidget {
+  final DateTime? at;
+  final Widget child;
+  const _StoppedMarker({required this.at, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+          child: Row(
+            children: [
+              Container(width: 12, height: 1.5, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                stoppedLabel(at, DateTime.now()),
+                style: TextStyle(fontSize: 12, color: scheme.primary),
+              ),
+            ],
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+/// Tip T14: a dark bubble over the first chapter until it is dismissed.
+class _Tip extends StatelessWidget {
+  final VoidCallback onGotIt;
+  final VoidCallback onTurnOff;
+  const _Tip({required this.onGotIt, required this.onTurnOff});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final button = TextButton.styleFrom(foregroundColor: scheme.surface);
+    return Material(
+      color: scheme.onSurface,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 8, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.lightbulb_outline, size: 18, color: scheme.surface),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(tipT14, style: TextStyle(color: scheme.surface)),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(style: button, onPressed: onTurnOff, child: const Text('Turn off tips')),
+                TextButton(style: button, onPressed: onGotIt, child: const Text('Got it')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// The primary verse with the parallel translation beside it on wide screens, below it on phones.
@@ -336,9 +675,8 @@ class _ParallelRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final secondary = Text(
       text,
-      style: scriptureStyle(
-        context,
-      ).copyWith(fontSize: 16, height: 1.5, color: scheme.onSurfaceVariant),
+      style: scriptureStyle(context)
+          .copyWith(fontSize: 16, height: 1.5, color: scheme.onSurfaceVariant),
       semanticsLabel: '$otherLabel: $text',
     );
     return LayoutBuilder(
@@ -367,9 +705,7 @@ class _ChapterNav extends StatelessWidget {
   final bool canNext;
   final VoidCallback onPrev;
   final VoidCallback onNext;
-  final VoidCallback? onQuickChat;
   const _ChapterNav({
-    this.onQuickChat,
     required this.canPrev,
     required this.canNext,
     required this.onPrev,
@@ -389,12 +725,6 @@ class _ChapterNav extends StatelessWidget {
               icon: const Icon(Icons.chevron_left),
               label: const Text('Previous'),
             ),
-            if (onQuickChat != null)
-              FilledButton.tonalIcon(
-                onPressed: onQuickChat,
-                icon: const Icon(Icons.chat_bubble_outline),
-                label: const Text('Ask'),
-              ),
             TextButton.icon(
               onPressed: canNext ? onNext : null,
               icon: const Icon(Icons.chevron_right),
@@ -402,78 +732,6 @@ class _ChapterNav extends StatelessWidget {
               iconAlignment: IconAlignment.end,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SelectionBar extends StatelessWidget {
-  final String label;
-  final VoidCallback onAsk;
-  final VoidCallback onCommentary;
-  final VoidCallback onNote;
-  final VoidCallback onStudyPage;
-  final VoidCallback onHighlight;
-  final VoidCallback onClear;
-  const _SelectionBar({
-    required this.onStudyPage,
-    required this.label,
-    required this.onAsk,
-    required this.onCommentary,
-    required this.onNote,
-    required this.onHighlight,
-    required this.onClear,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHighest,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(fontWeight: FontWeight.w600, color: scheme.onSurface),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Ask Berea',
-                icon: const Icon(Icons.auto_stories_outlined),
-                onPressed: onAsk,
-              ),
-              IconButton(
-                tooltip: 'Commentary',
-                icon: const Icon(Icons.library_books_outlined),
-                onPressed: onCommentary,
-              ),
-              IconButton(
-                tooltip: 'Note',
-                icon: const Icon(Icons.sticky_note_2_outlined),
-                onPressed: onNote,
-              ),
-              IconButton(
-                tooltip: 'Study page',
-                icon: const Icon(Icons.article_outlined),
-                onPressed: onStudyPage,
-              ),
-              IconButton(
-                tooltip: 'Highlight',
-                icon: const Icon(Icons.border_color_outlined),
-                onPressed: onHighlight,
-              ),
-              IconButton(
-                tooltip: 'Clear selection',
-                icon: const Icon(Icons.close),
-                onPressed: onClear,
-              ),
-            ],
-          ),
         ),
       ),
     );

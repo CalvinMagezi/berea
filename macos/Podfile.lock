@@ -14,6 +14,8 @@ PODS:
     - FlutterMacOS
   - record_macos (2.0.0):
     - FlutterMacOS
+  - share_plus (0.0.1):
+    - FlutterMacOS
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -51,6 +53,7 @@ DEPENDENCIES:
   - large_file_handler (from `Flutter/ephemeral/.symlinks/plugins/large_file_handler/macos`)
   - pdfium_flutter (from `Flutter/ephemeral/.symlinks/plugins/pdfium_flutter/darwin`)
   - record_macos (from `Flutter/ephemeral/.symlinks/plugins/record_macos/macos`)
+  - share_plus (from `Flutter/ephemeral/.symlinks/plugins/share_plus/macos`)
   - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sqlite3_flutter_libs (from `Flutter/ephemeral/.symlinks/plugins/sqlite3_flutter_libs/darwin`)
 
@@ -73,6 +76,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/pdfium_flutter/darwin
   record_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/record_macos/macos
+  share_plus:
+    :path: Flutter/ephemeral/.symlinks/plugins/share_plus/macos
   shared_preferences_foundation:
     :path: Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin
   sqlite3_flutter_libs:
@@ -86,6 +91,7 @@ SPEC CHECKSUMS:
   large_file_handler: b337fef756ae925be9c28112a81c7c4275d91c45
   pdfium_flutter: f29beeb612293cc42df95beee223a4925ce2458e
   record_macos: 2e43c16b84ce188b8137754ee648322a2dcdf7fa
+  share_plus: 510bf0af1a42cd602274b4629920c9649c52f4cc
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   sqlite3: a51c07cf16e023d6c48abd5e5791a61a47354921
   sqlite3_flutter_libs: b3e120efe9a82017e5552a620f696589ed4f62ab

@@ -5,10 +5,18 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'commentary_sheet.dart';
 import 'export.dart';
+import 'download_details_sheet.dart';
+import 'helper_setup.dart';
+import 'keep_sheet.dart';
 import 'markdown_lite.dart';
-import 'plans.dart';
+import 'models.dart';
+import 'note_dialog.dart';
+import 'notebooks_screen.dart';
+import 'past_questions.dart';
 import 'settings_sheet.dart';
+import 'setup_screen.dart';
 import 'theme.dart';
 import 'voice.dart';
 import 'voice_composer.dart';
@@ -37,6 +45,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     widget.state.addListener(_onChange);
     widget.state.pendingQuestion.addListener(_onPending);
+    widget.state.studyScope.addListener(_onChange);
     _voice.addListener(_onVoice);
     // Opens at the newest turn, and follows an answer already streaming (the quick-chat sheet).
     _follower.follow(widget.state.turns.lastOrNull);
@@ -46,6 +55,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     widget.state.removeListener(_onChange);
     widget.state.pendingQuestion.removeListener(_onPending);
+    widget.state.studyScope.removeListener(_onChange);
     _voice.removeListener(_onVoice);
     unawaited(_voice.release(this));
     _follower.dispose();
@@ -94,38 +104,100 @@ class _ChatScreenState extends State<ChatScreen> {
     _focus.requestFocus();
   }
 
+  /// Study answers once there is a helper; before that it shows the choice or the download.
+  Widget? _withoutHelper(AppState s) => s.harness != null
+      ? null
+      : switch (s.helperState) {
+          HelperNotInstalled() => HelperSetup(state: s, onKeepReading: _keepReading),
+          HelperFailed(:final offersRetry) when offersRetry => HelperSetup(
+            state: s,
+            onKeepReading: _keepReading,
+          ),
+          HelperDownloading() => ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            children: [
+              DownloadDetails(state: s),
+              const SizedBox(height: 8),
+              TextButton(onPressed: _keepReading, child: const Text('Keep reading')),
+            ],
+          ),
+          _ => null,
+        };
+
+  void _keepReading() => widget.state.openReaderRequest.value++;
+
+  /// Files [turn]'s answer in a notebook under its question, beside the first verse it cites.
+  Future<void> _keep(BuildContext context, ChatTurn turn) => showKeepSheet(
+    context,
+    widget.state,
+    title: turn.question,
+    body: turn.answer,
+    verse: turn.verified.firstOrNull,
+  );
+
+  void _pick(String q) {
+    _input.text = q;
+    _send();
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.state;
-    final scheme = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, c) {
+        final wide = c.maxWidth >= pastQuestionsBreakpoint;
+        final study = _study(context, s, wide: wide);
+        if (!wide || _withoutHelper(s) != null) return study;
+        return Row(
+          children: [
+            SizedBox(
+              width: pastQuestionsWidth,
+              child: SafeArea(
+                right: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: SectionLabel('Past questions'),
+                    ),
+                    Expanded(child: PastQuestions(state: s)),
+                  ],
+                ),
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(child: study),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _study(BuildContext context, AppState s, {required bool wide}) {
+    final setup = _withoutHelper(s);
+    final scoped = s.studyScope.value != null;
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: widget.onClose == null,
-        title: Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              'Berea',
-              style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 24),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Text(
-                '${s.engineLabel} · ${s.settings.tier.name} · ${s.settings.translation}',
-                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        title: Text(
+          'Study',
+          style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 24),
         ),
         actions: [
-          IconButton(
-            tooltip: 'New study',
-            icon: const Icon(Icons.edit_note_outlined),
-            onPressed: s.turns.isEmpty || s.busy ? null : s.clear,
-          ),
-          if (s.conversationId != null)
+          if (setup == null && !wide)
+            IconButton(
+              tooltip: 'Past questions',
+              icon: const Icon(Icons.history),
+              onPressed: () => showPastQuestions(context, s),
+            ),
+          if (setup == null)
+            IconButton(
+              tooltip: 'New study',
+              icon: const Icon(Icons.edit_note_outlined),
+              onPressed: s.turns.isEmpty || s.busy ? null : s.clear,
+            ),
+          if (s.conversationId != null && setup == null)
             IconButton(
               tooltip: 'Export study as Markdown',
               icon: const Icon(Icons.ios_share),
@@ -147,51 +219,268 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-          child: Column(
-            children: [
-              Expanded(
-                child: s.turns.isEmpty
-                    ? _Empty(
-                        state: s,
-                        db: s.db,
-                        translation: s.settings.translation,
-                        onPick: (q) {
-                          _input.text = q;
-                          _send();
-                        },
-                      )
-                    : ListView.builder(
-                        controller: _scroll,
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                        itemCount: s.turns.length,
-                        itemBuilder: (_, i) => TurnView(
-                          turn: s.turns[i],
-                          db: s.db,
-                          translation: s.settings.translation,
-                          onDeeper: s.ready && s.canGoDeeperFrom(s.turns[i])
-                              ? () => s.goDeeper(s.turns[i])
-                              : null,
-                        ),
-                      ),
-              ),
-              if (s.harness == null) EngineNotice(state: s),
-              VoiceStatusLine(_voice, owner: this),
-              ChatInputBar(
-                controller: _input,
-                focus: _focus,
-                busy: s.busy,
-                canSend: !_voice.inUse,
-                onSend: _send,
-                onStop: s.canStopAnswer ? s.stopAnswer : null,
-                mic: VoiceMicButton(
-                  voice: _voice,
-                  owner: this,
-                  support: voiceSupport(s.settings, s.deviceState, hearsAudio: s.deviceHearsAudio),
-                  modelFree: s.ready,
-                  onOpenSettings: () => showSettingsSheet(context, s),
+          child: setup ?? _conversation(context, s, scoped: scoped),
+        ),
+      ),
+    );
+  }
+
+  Widget _conversation(BuildContext context, AppState s, {required bool scoped}) => Column(
+    children: [
+      ScopeBar(state: s),
+      Expanded(
+        child: s.turns.isEmpty
+            ? Suggestions(state: s, onPick: _pick)
+            : ListView.builder(
+                controller: _scroll,
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                itemCount: s.turns.length,
+                itemBuilder: (_, i) => TurnView(
+                  turn: s.turns[i],
+                  db: s.db,
+                  translation: s.settings.translation,
+                  onDeeper: s.ready && s.canGoDeeperFrom(s.turns[i])
+                      ? () => s.goDeeper(s.turns[i])
+                      : null,
+                  onKeep: () => _keep(context, s.turns[i]),
+                  onSource: (cited) => openCitedSource(context, s, cited),
                 ),
               ),
-            ],
+      ),
+      if (s.harness == null) EngineNotice(state: s),
+      VoiceStatusLine(_voice, owner: this),
+      ChatInputBar(
+        controller: _input,
+        focus: _focus,
+        busy: s.busy,
+        canSend: !_voice.inUse,
+        onSend: _send,
+        onStop: s.canStopAnswer ? s.stopAnswer : null,
+        hint: scoped ? 'Ask about this notebook' : ChatInputBar.bibleHint,
+        mic: VoiceMicButton(
+          voice: _voice,
+          owner: this,
+          support: voiceSupport(s.settings, s.deviceState, hearsAudio: s.deviceHearsAudio),
+          modelFree: s.ready,
+          onOpenSettings: () => showSettingsSheet(context, s),
+        ),
+      ),
+    ],
+  );
+}
+
+/// Past questions sit beside Study when the window has room for both.
+const pastQuestionsBreakpoint = 900.0;
+const pastQuestionsWidth = 256.0;
+
+/// Suggestions stop at this many per section, so the list stays a glance.
+const _suggestionsPerSection = 2;
+const _notebookSuggestions = 3;
+
+/// What Study is answering from, with the way to change it, and a line on what it reads.
+class ScopeBar extends StatelessWidget {
+  final AppState state;
+  const ScopeBar({super.key, required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final scope = state.studyScope.value;
+    final note = TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ActionChip(
+            avatar: Icon(scope == null ? Icons.menu_book_outlined : Icons.class_outlined, size: 18),
+            label: Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(text: 'Asking about  '),
+                  TextSpan(
+                    text: scopeName(state, scope),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Icon(Icons.expand_more, size: 18),
+                  ),
+                ],
+              ),
+            ),
+            onPressed: state.canChangeScope ? () => _choose(context) : null,
+          ),
+          const SizedBox(height: 4),
+          Text(_reads(context, scope), style: note),
+          if (state.pendingScope case (:final id))
+            Text(
+              'Study will switch to ${scopeName(state, id)} when this answer is finished.',
+              style: note,
+            ),
+          if ((scope, state.offDeviceHost) case (_?, final host?))
+            Text(
+              'Questions here send sections of your sources to the Ollama server at $host.',
+              style: note,
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _reads(BuildContext context, int? scope) {
+    if (scope != null) {
+      final readings = plural(state.notebookReadings(scope).length, 'reading', 'readings');
+      return 'Reads its ${plural(state.answerNoteCount(scope), 'note', 'notes')} and $readings, '
+          'and the Bible.';
+    }
+    return switch (state.settings.engine) {
+      EngineKind.device => switch (state.settings.deviceModel) {
+        // How soon it answers was measured on a phone, so only a phone says it.
+        EdgeModel(:final label, firstWords: final first?) when onPhone(context) =>
+          '$label on this $deviceNoun. $first.',
+        EdgeModel(:final label) => '$label on this $deviceNoun.',
+      },
+      EngineKind.ollama => switch (state.offDeviceHost) {
+        final host? => 'Ollama at $host.',
+        null => 'Ollama on this $deviceNoun.',
+      },
+    };
+  }
+
+  Future<void> _choose(BuildContext context) async {
+    final current = state.studyScope.value;
+    final picked = await showModalBottomSheet<({int? id})>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: SectionLabel('Asking about'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.menu_book_outlined),
+              title: const Text('The Bible'),
+              selected: current == null,
+              onTap: () => Navigator.pop(sheet, (id: null)),
+            ),
+            for (final n in state.notebooks.notebooks())
+              ListTile(
+                leading: const Icon(Icons.class_outlined),
+                title: Text(n.title),
+                selected: current == n.id,
+                onTap: () => Navigator.pop(sheet, (id: n.id)),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) state.setStudyScope(picked.id);
+  }
+}
+
+/// Study with nothing asked yet: questions from today's reading, from where the reader stopped,
+/// and about their notebooks.
+class Suggestions extends StatelessWidget {
+  final AppState state;
+  final void Function(String) onPick;
+  const Suggestions({super.key, required this.state, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = state.studyScope.value;
+    final sections = scope == null ? _bible() : _notebook(scope);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        for (final (label, rows) in sections)
+          if (rows.isNotEmpty) ...[SectionLabel(label), ...rows, const SizedBox(height: 16)],
+      ],
+    );
+  }
+
+  List<(String, List<Widget>)> _bible() {
+    final reading = state.todaysReading ?? const <Ref>[];
+    final stopped = Ref(bookById(state.readerBook), state.readerChapter);
+    return [
+      (
+        'From today\'s reading',
+        [
+          for (final r in reading.take(_suggestionsPerSection))
+            _Suggestion(Icons.menu_book_outlined, 'What does ${r.label} teach?', onPick),
+        ],
+      ),
+      (
+        'Where you stopped',
+        [
+          _Suggestion(
+            Icons.menu_book_outlined,
+            'What is happening in ${stopped.label}, and why does it matter?',
+            onPick,
+          ),
+        ],
+      ),
+      (
+        'Your notebooks',
+        [
+          for (final n in state.notebooks.notebooks().take(_notebookSuggestions))
+            _Suggestion(
+              Icons.class_outlined,
+              'Ask about ${n.title}',
+              (_) => state.askAboutNotebook(n.id),
+            ),
+        ],
+      ),
+    ];
+  }
+
+  List<(String, List<Widget>)> _notebook(int id) {
+    final title = scopeName(state, id);
+    return [
+      (
+        'In this notebook',
+        [
+          _Suggestion(Icons.class_outlined, 'What are the main points of $title?', onPick),
+          _Suggestion(
+            Icons.class_outlined,
+            'Which passages does $title come back to, and what do they say?',
+            onPick,
+          ),
+        ],
+      ),
+    ];
+  }
+}
+
+class _Suggestion extends StatelessWidget {
+  final IconData icon;
+  final String question;
+  final void Function(String) onPick;
+  const _Suggestion(this.icon, this.question, this.onPick);
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => onPick(question),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 12),
+                Expanded(child: Text(question)),
+              ],
+            ),
           ),
         ),
       ),
@@ -199,82 +488,36 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-class _Empty extends StatelessWidget {
-  final AppState state;
-  final BibleDb db;
-  final String translation;
-  final void Function(String) onPick;
-  const _Empty({
-    required this.state,
-    required this.db,
-    required this.translation,
-    required this.onPick,
-  });
-
-  static const prompts = [
-    'Study Acts 17:11. Why were the Bereans called noble?',
-    'Do a word study on "created" in Genesis 1:1.',
-    'What does Philippians 4:6-7 teach about anxiety?',
-    'What does the Bible say about caring for widows?',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final daily = db.dailyVerse(DateTime.now()) ?? RefParser.parse('Acts 17:11').first;
-    final verse = db.passage(daily, translation: translation);
-    final reading = state.todaysReading;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(28, 40, 28, 24),
-      children: [
-        Text(
-          'VERSE OF THE DAY',
-          style: TextStyle(fontSize: 11, letterSpacing: 1.4, color: scheme.onSurfaceVariant),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          verse.map((v) => v.text).join(' '),
-          style: scriptureStyle(context).copyWith(fontSize: 18, fontStyle: FontStyle.italic),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Text(
-              '${daily.label}, $translation',
-              style: TextStyle(color: scheme.primary, letterSpacing: 0.5),
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () =>
-                  onPick('Study ${daily.label}. What does it mean and how does it apply?'),
-              child: const Text('Study it'),
-            ),
-          ],
-        ),
-        if (reading != null) ...[
-          const SizedBox(height: 16),
-          Card(
-            elevation: 0,
-            color: scheme.surfaceContainerHighest,
-            child: ListTile(
-              leading: const Icon(Icons.calendar_month_outlined),
-              title: Text('Today: ${readingLabel(reading)}'),
-              subtitle: Text(state.activePlan!.name),
-              onTap: () => state.openInReader(reading.first),
-            ),
-          ),
-        ],
-        const SizedBox(height: 32),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final p in prompts) ActionChip(label: Text(p), onPressed: () => onPick(p)),
-          ],
-        ),
-      ],
-    );
+/// Opens what an answer cites: a commentary passage, a note, or a notebook reading at the cited
+/// section. Says so in words when it is no longer there.
+void openCitedSource(BuildContext context, AppState s, ShownSource cited) {
+  void say(String message) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  final c = cited.chunk;
+  if (c.fromPack) {
+    final ref = c.ref;
+    if (ref == null) return say('That commentary passage cannot be found.');
+    unawaited(showCommentary(context, s, ref));
+    return;
   }
+  if (c.noteId case final id?) {
+    final note = s.study.note(id);
+    if (note == null) return say('That note has been deleted.');
+    unawaited(showNoteEditor(context, s, note: note));
+    return;
+  }
+  final source = c.sourceId == null ? null : s.notebooks.source(c.sourceId!);
+  if (source == null) return say('That reading has been removed from the notebook.');
+  // A restore can give the id to another reading; the saved title tells them apart.
+  if (source.title != c.title) return say('That reading is no longer in this notebook.');
+  unawaited(
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => SourceScreen(store: s.notebooks, source: source, focusOrdinal: c.ordinal),
+      ),
+    ),
+  );
 }
 
 /// A question and its answer, with chips for what the answer cites.
@@ -283,11 +526,14 @@ class TurnView extends StatelessWidget {
   final BibleDb db;
   final String translation;
 
-  /// Opens a cited notebook source or commentary passage; notebook chats set it.
+  /// Opens a cited notebook reading, note or commentary passage.
   final void Function(ShownSource source)? onSource;
 
   /// Asks for the full study after a brief answer; only the Study chat sets it.
   final VoidCallback? onDeeper;
+
+  /// Keeps a finished answer in a notebook; only the Study chat sets it.
+  final VoidCallback? onKeep;
   const TurnView({
     super.key,
     required this.turn,
@@ -295,6 +541,7 @@ class TurnView extends StatelessWidget {
     required this.translation,
     this.onSource,
     this.onDeeper,
+    this.onKeep,
   });
 
   @override
@@ -343,6 +590,18 @@ class TurnView extends StatelessWidget {
                     ? 'Stopped before an answer was written.'
                     : 'Stopped. Finished sentences are kept.',
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+              ),
+            ),
+          if (onKeep != null && turn.done && turn.error == null && turn.answer.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: onKeep,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Keep in a notebook'),
+                ),
               ),
             ),
           if (turn.canGoDeeper && onDeeper != null)
@@ -436,8 +695,7 @@ class _Waiting extends StatelessWidget {
                 style: TextStyle(color: scheme.onSurface),
               ),
             ),
-          if (status case final text?)
-            Text(text, style: TextStyle(color: scheme.onSurfaceVariant)),
+          if (status case final text?) Text(text, style: TextStyle(color: scheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -571,7 +829,7 @@ class EngineNotice extends StatelessWidget {
         'Downloading ${state.settings.deviceModel.label}: ${state.downloadProgress}%',
       DeviceModelState.loading => 'Loading ${state.settings.deviceModel.label}\u2026',
       DeviceModelState.failed => 'Model failed to load. Open settings for details.',
-      _ => 'No model yet. Open settings to download ${state.settings.deviceModel.label}.',
+      _ => 'No helper yet. Choose one in Study.',
     };
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -611,9 +869,11 @@ class ChatInputBar extends StatelessWidget {
     this.canSend = true,
     required this.onSend,
     this.onStop,
-    this.hint = 'Ask about a passage, a word, or a question of life',
+    this.hint = bibleHint,
     this.mic,
   });
+
+  static const bibleHint = 'Ask about a passage, a word, or a question of life';
 
   @override
   Widget build(BuildContext context) {

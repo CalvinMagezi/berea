@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -27,3 +29,12 @@ BibleDb testBible() {
   raw.execute("INSERT INTO verses_fts(verses_fts) VALUES('rebuild')");
   return BibleDb(raw);
 }
+
+/// Null when the built Bible database is here; else why a test that opens it is skipped. CI
+/// writes an empty stand-in, since the database is built, not committed.
+final String? needsBuiltBible = () {
+  final db = File('assets/berea.sqlite');
+  return db.existsSync() && db.lengthSync() > 0
+      ? null
+      : 'needs the built Bible database; CI has an empty stand-in';
+}();

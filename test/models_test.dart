@@ -20,17 +20,21 @@ void main() {
     expect(recommendedTier(recommendedModel(12), 12), Tier.high);
   });
 
-  test('no model needs an account: a catalog file is hosted by Berea or is ungated on Hugging Face', () {
-    final hosted = edgeModels.where((m) => m.source != null);
-    expect(hosted.map((m) => m.id), ['gemma-3-1b']);
-    for (final m in hosted) {
-      final source = m.source!;
-      expect(source.url, startsWith('https://github.com/CalvinMagezi/berea/releases/download/'));
+  test('no model needs an account: each file is pinned by release or commit', () {
+    for (final m in edgeModels) {
+      final source = m.source;
+      final hosted = source.url.startsWith(
+        'https://github.com/CalvinMagezi/berea/releases/download/',
+      );
+      final commit = RegExp(
+        '^https://huggingface.co/${RegExp.escape(m.repo)}/resolve/[0-9a-f]{40}/',
+      ).hasMatch(source.url);
+      expect(hosted || commit, isTrue, reason: m.id);
       expect(source.url, endsWith(m.file));
       expect(source.sha256, matches(RegExp(r'^[0-9a-f]{64}$')));
-      expect(source.bytes, greaterThan(0));
-      expect(m.notice, gemmaNotice);
+      expect(gbOf(source.bytes), m.sizeGb.toStringAsFixed(1), reason: 'the label is the size');
     }
+    expect(edgeModelById('gemma-3-1b').notice, gemmaNotice);
   });
 
   test('a token saved by an older build is removed', () async {

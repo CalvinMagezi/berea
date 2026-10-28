@@ -96,7 +96,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       setState(() => draft = draft.copyWith(translation: code));
       _say('Imported $code: $n verses');
     } catch (e) {
-      _say('Import failed: $e');
+      _say(plainFailure(e, 'The translation could not be imported.'));
     }
   }
 
@@ -165,7 +165,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       setState(() {});
       _say('Full lexicon installed.');
     } catch (e) {
-      _say('Lexicon install failed: $e');
+      _say(plainFailure(e, 'The lexicon pack could not be installed.'));
     }
   }
 
@@ -193,7 +193,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     try {
       contents = await widget.state.openBackup(bytes, pass);
     } catch (e) {
-      _say('$e');
+      _say(plainFailure(e, 'The backup could not be opened. Nothing changed.'));
       return;
     }
     if (!context.mounted) return;
@@ -243,7 +243,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                   '${skipped.join(', ')}.',
       );
     } catch (e) {
-      _say('$e');
+      _say(plainFailure(e, 'The backup could not be restored.'));
     }
   }
 
@@ -289,13 +289,27 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                     for (final m in edgeModels)
                       DropdownMenuItem(value: m.id, child: Text('${m.label} · ${m.sizeGb} GB')),
                   ],
-                  onChanged: (id) => setState(
-                    () => draft = draft.copyWith(
-                      deviceModelId: id,
-                      tier: recommendedTier(edgeModelById(id!), widget.state.deviceGb),
+                  // The model cannot change under a download; its part file belongs to it.
+                  onChanged: widget.state.helperState is HelperDownloading
+                      ? null
+                      : (id) => setState(
+                          () => draft = draft.copyWith(
+                            deviceModelId: id,
+                            tier: recommendedTier(edgeModelById(id!), widget.state.deviceGb),
+                          ),
+                        ),
+                ),
+                if (widget.state.helperState is HelperDownloading)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'A helper is downloading. Cancel it in Study to choose another model.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
                 if (widget.state.deviceGb != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
@@ -488,12 +502,19 @@ class _DeviceModelStatus extends StatelessWidget {
         return const Text('Loading model…');
       case DeviceModelState.ready:
         return Text('Installed and loaded', style: TextStyle(color: scheme.primary));
-      case DeviceModelState.failed:
       case DeviceModelState.notInstalled:
+        // Study is where a helper is chosen and downloaded, with Wi-Fi only and its progress.
+        return Text(
+          sameModel
+              ? 'Not downloaded. Choose and download the helper in Study.'
+              : 'Save, then download ${draft.deviceModel.label} in Study.',
+          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+        );
+      case DeviceModelState.failed:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (state.deviceError != null && sameModel)
+            if (state.deviceError != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
@@ -504,8 +525,8 @@ class _DeviceModelStatus extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.download_outlined),
-                label: Text('Download (${draft.deviceModel.sizeGb} GB)'),
+                icon: const Icon(Icons.build_outlined),
+                label: Text('Repair (${draft.deviceModel.sizeGb} GB)'),
                 onPressed: () async {
                   if (!await confirmModelTerms(context, state, draft.deviceModel)) return;
                   await state.downloadModelFor(draft);

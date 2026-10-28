@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Berea Lamp b, notification small icon. All white; the mark's 88-unit height is 20dp, centred. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:translateX="0.635"
+        android:translateY="0.635"
+        android:scaleX="0.2273"
+        android:scaleY="0.2273">
+        <!-- flame -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M32.5,6C36,11 39.5,15 39.5,20A7,7 0,0 1,25.5,20C25.5,15 29,11 32.5,6Z"/>
+        <!-- stem -->
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="12"
+            android:strokeLineCap="round"
+            android:pathData="M32.5,40V88"/>
+        <!-- bowl -->
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="12"
+            android:pathData="M32.5,70a18,18 0,1 0,36,0a18,18 0,1 0,-36,0z"/>
+    </group>
+</vector>

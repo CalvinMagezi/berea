@@ -5,15 +5,17 @@ import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 
+import 'plans.dart';
 import 'study_store.dart';
 
 /// Encrypted backups the user keeps themselves. AES-256-GCM with a key derived from their
 /// passphrase by PBKDF2-HMAC-SHA256. Nothing is sent anywhere; a lost passphrase is unrecoverable.
 const backupMagic = 'BEREA-BACKUP-2';
 
-/// Version 2 adds notebooks. Version 1 files (0.3.0 and earlier) still restore.
-const backupVersion = 2;
-const _readableVersions = {1, 2};
+/// Version 2 adds notebooks; version 3 puts notes and study pages in notebooks and scopes
+/// conversations. Versions 1 (0.3.0 and earlier) and 2 still restore, and come back merged.
+const backupVersion = 3;
+const _readableVersions = {1, 2, 3};
 
 /// OWASP's 2023 guidance for PBKDF2-HMAC-SHA256. Stored in the file so it can rise later.
 const pbkdf2Iterations = 600000;
@@ -41,14 +43,21 @@ Future<SecretKey> _key(String passphrase, List<int> salt, int iterations) async 
   return SecretKey(bytes);
 }
 
+/// The running reading plan, carried in a backup so its restored ticks keep their plan.
+typedef BackupPlan = ({String id, DateTime start});
+
 /// Layout: magic line, iteration count (4 bytes, big endian), salt, nonce, ciphertext and MAC.
 /// The payload is gzipped JSON.
 Future<Uint8List> createBackup(
   StudyStore store,
   Map<String, String> importedTranslations,
-  String passphrase,
-) async {
+  String passphrase, {
+  BackupPlan? plan,
+}) async {
   final tables = store.exportTables();
+  final planJson = plan == null
+      ? null
+      : {'id': plan.id, 'start': plan.start.toUtc().toIso8601String()};
   final created = DateTime.now().toUtc().toIso8601String();
   // Notebooks can make this large; encode off the UI isolate. Locals only cross over.
   final payload = await Isolate.run(
@@ -59,6 +68,7 @@ Future<Uint8List> createBackup(
           'created': created,
           'tables': tables,
           'imports': importedTranslations,
+          'plan': ?planJson,
         }),
       ),
     ),
@@ -79,7 +89,10 @@ class BackupContents {
   final int version;
   final Map<String, List<Map<String, Object?>>> tables;
   final Map<String, String> imports;
-  const BackupContents(this.version, this.tables, this.imports);
+
+  /// Null for a backup made with no plan running, or before backups carried one.
+  final BackupPlan? plan;
+  const BackupContents(this.version, this.tables, this.imports, {this.plan});
 
   /// Older backups have no notebook tables, so restoring one keeps the notebooks on the device.
   bool get hasNotebooks => tables.containsKey('notebooks');
@@ -143,12 +156,23 @@ Future<BackupContents> readBackup(Uint8List bytes, String passphrase) async {
       version,
       tables,
       Map<String, String>.from(json['imports'] as Map? ?? const {}),
+      plan: _plan(json['plan']),
     );
   } on BackupException {
     rethrow;
   } catch (_) {
     throw const BackupException('The backup file is damaged.');
   }
+}
+
+/// A plan this version no longer offers, or a damaged entry, restores as no plan: the ticks
+/// still come back and nothing else depends on it.
+BackupPlan? _plan(Object? json) {
+  if (json is! Map) return null;
+  final (id, start) = (json['id'], json['start']);
+  if (id is! String || start is! String || planById(id) == null) return null;
+  final when = DateTime.tryParse(start);
+  return when == null ? null : (id: id, start: when.toLocal());
 }
 
 bool _startsWith(Uint8List bytes, List<int> prefix) {

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import 'app_state.dart';
+import 'keep_sheet.dart';
+import 'study_store.dart' show keptWordKind;
 import 'theme.dart';
 
 /// Verses of a word's use loaded at a time; "Show more" loads the next page.
@@ -43,10 +45,29 @@ Future<void> showWordStudy(
           Navigator.of(ctx).popUntil((r) => r.isFirst);
           s.openInReader(verse);
         },
+        onKeep: ({required title, required body, required subtitle, verse}) =>
+            showKeepSheet(
+              ctx,
+              s,
+              title: title,
+              body: body,
+              subtitle: subtitle,
+              verse: verse,
+              kind: keptWordKind,
+            ),
       ),
     ),
   );
 }
+
+/// Files a word in a notebook: Save word.
+typedef KeepWord =
+    void Function({
+      required String title,
+      required String body,
+      required String subtitle,
+      Ref? verse,
+    });
 
 /// The word under [global] in the verse laid out by the text widget at [textContext], whose first
 /// [prefixLength] characters (the verse number) come before [text]. Null when the press is not on
@@ -91,6 +112,9 @@ class WordStudyScreen extends StatefulWidget {
   final void Function(String question) onAsk;
   final void Function(Ref verse) onOpen;
 
+  /// Null hides Save word.
+  final KeepWord? onKeep;
+
   const WordStudyScreen({
     super.key,
     required this.db,
@@ -102,6 +126,7 @@ class WordStudyScreen extends StatefulWidget {
     this.wordIndex,
     this.pos,
     this.translation = defaultTranslation,
+    this.onKeep,
   });
 
   @override
@@ -317,22 +342,53 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
         ),
       const SizedBox(height: 16),
       if (e != null)
-        Align(
-          alignment: Alignment.centerLeft,
-          child: FilledButton.icon(
-            icon: const Icon(Icons.auto_stories_outlined),
-            label: Text('Ask Berea about $lemma'),
-            onPressed: () => widget.onAsk(
-              wordStudyQuestion(
-                entry: e,
-                language: _language,
-                english: tag == null ? null : widget.english,
-                ref: tag == null ? null : widget.ref,
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilledButton.icon(
+              icon: const Icon(Icons.auto_stories_outlined),
+              label: Text('Ask Berea about $lemma'),
+              onPressed: () => widget.onAsk(
+                wordStudyQuestion(
+                  entry: e,
+                  language: _language,
+                  english: tag == null ? null : widget.english,
+                  ref: tag == null ? null : widget.ref,
+                ),
               ),
             ),
-          ),
+            if (widget.onKeep != null)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.bookmark_add_outlined),
+                label: const Text('Save word'),
+                onPressed: () => _keep(e, lemma),
+              ),
+          ],
         ),
     ];
+  }
+
+  /// Files the word as a note titled with the word and its gloss; see [keptWordBody].
+  void _keep(LexEntry e, String lemma) {
+    final from = _tag == null ? null : widget.ref;
+    widget.onKeep!(
+      title: e.gloss.isEmpty ? lemma : '$lemma, ${e.gloss}',
+      body: keptWordBody(
+        code: _code!,
+        meaning: e.definition.isEmpty ? e.gloss : e.definition,
+        translit: e.translit,
+        language: _language,
+        from: from,
+        translation: widget.translation,
+      ),
+      subtitle: [
+        if (e.gloss.isNotEmpty) e.gloss,
+        _code!,
+        if (from != null) 'from ${from.label}, ${widget.translation}',
+      ].join(' · '),
+      verse: from,
+    );
   }
 
   /// The original words of the verse, so a wrong guess is one tap from the right word.

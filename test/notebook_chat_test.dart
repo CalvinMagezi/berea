@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:berea/backup.dart';
 import 'package:berea/notebook_chat.dart';
-import 'package:berea/notebook_chat_screen.dart';
+import 'package:berea/notebooks_screen.dart';
 import 'package:berea/notebook_store.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -112,7 +112,10 @@ void main() {
       old.dispose();
       final upgraded = StudyStore.open(path);
       addTearDown(upgraded.close);
-      expect(upgraded.db.select('PRAGMA user_version').first.values.first, 2);
+      expect(
+        upgraded.db.select('PRAGMA user_version').first.values.first,
+        StudyStore.schemaVersion,
+      );
       final books = NotebookStore(upgraded.db);
       expect(books.sources(1).single.pinned, isFalse);
       expect(books.messages(1), isEmpty);
@@ -207,85 +210,58 @@ void main() {
     });
   });
 
-  group('chat screen', () {
-    late BibleDb bible;
-    late int nb;
-    setUp(() => bible = testBible());
-
-    NotebookChat chatWith(String answer) {
+  // Study answers scoped questions through NotebookChat; these held for the retired screen.
+  group('notebook chat', () {
+    test('an answer is saved with its question, wherever it is shown', () async {
+      final nb = store.createNotebook('Late');
       final harness = Harness(
-        db: bible,
-        engine: _Scripted(answer),
+        db: testBible(),
+        engine: _Scripted('Late answer.'),
         systemPrompt: 'SYS',
-        notebook: true,
       );
-      return NotebookChat(
+      final chat = NotebookChat(
         store: store,
         notebookId: nb,
         ready: () => true,
-        answer: (q, history, onToken) {
-          harness.history
-            ..clear()
-            ..addAll(history);
-          final sources = notebookSources(
-            index: NotebookIndex(store.db, nb),
-            question: q,
-            tier: Tier.mid,
-          );
-          return harness.ask(q, sources: sources, onToken: onToken);
-        },
+        answer: (q, history, onToken) => harness.ask(q),
       );
-    }
+      await chat.send('Slow question');
+      expect(store.messages(nb).map((m) => m.text), ['Slow question', 'Late answer.']);
+      expect(chat.answering, isFalse);
+    });
 
-    Widget screen(NotebookChat chat, {String? Function()? privacy}) => MaterialApp(
-      home: NotebookChatScreen(
+    test('a busy engine leaves the question unanswered and says why', () async {
+      final nb = store.createNotebook('Busy');
+      final chat = NotebookChat(
         store: store,
         notebookId: nb,
-        chat: chat,
-        db: bible,
-        translation: () => 'BSB',
-        commentary: CommentaryLibrary(),
-        privacyNotice: privacy,
-      ),
-    );
+        ready: () => true,
+        answer: (q, history, onToken) async => null,
+      );
+      await chat.send('Anything?');
+      expect(chat.turns.single.error, engineBusyMessage);
+      expect(store.messages(nb), isEmpty);
+    });
+  });
 
-    Future<void> ask(WidgetTester tester, String question) async {
-      await tester.enterText(find.byType(TextField), question);
-      await tester.testTextInput.receiveAction(TextInputAction.send);
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
-      await tester.pumpAndSettle();
-    }
-
-    testWidgets('source citations are chips that open the source at the cited page', (
-      tester,
-    ) async {
+  group('source screen', () {
+    // The notebook chat screen is gone; Study cites readings and opens them here.
+    testWidgets('a cited section opens at its page, marked', (tester) async {
       late int guide;
       await tester.runAsync(() async {
-        nb = store.createNotebook('Bereans');
-        await store.addSource(nb, const SourceRequest(SourceKind.text, 'Notes', text: 'Test it.'));
+        final nb = store.createNotebook('Bereans');
         guide = (await store.addSource(
           nb,
           const SourceRequest(SourceKind.pdf, 'Guide.pdf', path: 'x'),
         ))!;
       });
+      final source = store.source(guide)!;
+      final cited = store.sourceChunks(guide).firstWhere((c) => c.page == 2);
       await tester.pumpWidget(
-        screen(
-          chatWith(
-            'The guide names three habits [S$guide p.2]. John 3:16 shows the love of God. '
-            'Page 9 says more [S$guide p.9].',
-          ),
+        MaterialApp(
+          home: SourceScreen(store: store, source: source, focusOrdinal: cited.ordinal),
         ),
       );
-      expect(find.text('Ask about your sources'), findsOneWidget);
-      await ask(tester, 'What habits does the guide name?');
-
-      expect(find.textContaining('S$guide p.2 · Guide.pdf'), findsOneWidget);
-      expect(find.widgetWithText(ActionChip, 'John 3:16'), findsOneWidget);
-      expect(find.textContaining('Not among the sources shown: S$guide p.9'), findsOneWidget);
-      expect(find.textContaining('[unverified source: S$guide p.9]'), findsOneWidget);
-
-      await tester.tap(find.textContaining('S$guide p.2 · Guide.pdf'));
-      await tester.pumpAndSettle();
       expect(find.text('PAGE 2'), findsOneWidget);
       expect(
         find.descendant(
@@ -294,102 +270,6 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-
-      // Verse chips still open the passage.
-      await tester.tap(find.widgetWithText(ActionChip, 'John 3:16'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('For God so loved the world'), findsOneWidget);
-      await tester.tap(find.text('Close'));
-      await tester.pumpAndSettle();
-
-      // The conversation and its chips come back when the notebook's chat is opened again.
-      await tester.pumpWidget(const SizedBox());
-      await tester.pumpWidget(screen(chatWith('unused')));
-      await tester.pumpAndSettle();
-      expect(find.text('What habits does the guide name?'), findsOneWidget);
-      expect(find.textContaining('S$guide p.2 · Guide.pdf'), findsOneWidget);
-
-      // A chip whose source was removed says so instead of opening nothing.
-      store.removeSource(guide);
-      await tester.tap(find.textContaining('S$guide p.2 · Guide.pdf'));
-      await tester.pump();
-      expect(find.text('That source has been removed from the notebook.'), findsOneWidget);
-    });
-
-    testWidgets('a chip whose source id now names another source does not open it', (tester) async {
-      late int notes;
-      await tester.runAsync(() async {
-        nb = store.createNotebook('Restored');
-        notes = (await store.addSource(
-          nb,
-          const SourceRequest(SourceKind.text, 'Notes', text: 'Test it.'),
-        ))!;
-      });
-      await tester.pumpWidget(screen(chatWith('Test everything [S$notes §1].')));
-      await ask(tester, 'What do my notes say?');
-      study.db.execute("UPDATE notebook_sources SET title = 'Someone else' WHERE id = ?", [notes]);
-      await tester.tap(find.textContaining('S$notes §1 · Notes'));
-      await tester.pump();
-      expect(find.text('That source is no longer in this notebook.'), findsOneWidget);
-    });
-
-    testWidgets('an answer that finishes after the screen closed is there when it opens again', (
-      tester,
-    ) async {
-      nb = store.createNotebook('Late');
-      final gate = Completer<void>();
-      final harness = Harness(db: bible, engine: _Scripted('Late answer.'), systemPrompt: 'SYS');
-      final chat = NotebookChat(
-        store: store,
-        notebookId: nb,
-        ready: () => true,
-        answer: (q, history, onToken) async {
-          await gate.future;
-          return harness.ask(q);
-        },
-      );
-      await tester.pumpWidget(
-        screen(chat, privacy: () => 'Questions here go to the Ollama server at example.org.'),
-      );
-      expect(find.textContaining('Ollama server at example.org'), findsOneWidget);
-      await tester.enterText(find.byType(TextField), 'Slow question');
-      await tester.testTextInput.receiveAction(TextInputAction.send);
-      await tester.pump();
-      await tester.pumpWidget(const SizedBox());
-      await tester.runAsync(() async {
-        gate.complete();
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      });
-      expect(store.messages(nb).map((m) => m.text), ['Slow question', 'Late answer.']);
-      await tester.pumpWidget(screen(chat));
-      await tester.pumpAndSettle();
-      expect(find.text('Late answer.'), findsOneWidget);
-    });
-
-    testWidgets('a busy engine leaves the question unanswered and says why', (tester) async {
-      nb = store.createNotebook('Busy');
-      await tester.pumpWidget(
-        MaterialApp(
-          home: NotebookChatScreen(
-            store: store,
-            notebookId: nb,
-            chat: NotebookChat(
-              store: store,
-              notebookId: nb,
-              ready: () => true,
-              answer: (q, history, onToken) async => null,
-            ),
-            db: bible,
-            translation: () => 'BSB',
-            commentary: CommentaryLibrary(),
-          ),
-        ),
-      );
-      await ask(tester, 'Anything?');
-      expect(find.text(engineBusyMessage), findsOneWidget);
-      expect(store.messages(nb), isEmpty);
     });
   });
 }

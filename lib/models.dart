@@ -1,8 +1,8 @@
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
-/// A model file Berea hosts itself, pinned by tag and checked by hash, so getting it needs no
-/// account anywhere.
+/// Where a model file comes from, pinned by tag or commit and checked by size and hash, so what
+/// arrives is exactly what was released and getting it needs no account anywhere.
 class PinnedSource {
   final String url;
   final String sha256;
@@ -29,11 +29,17 @@ class EdgeModel {
   final ModelType type;
   final Tier tier;
 
-  /// Set when Berea hosts the file; otherwise it comes from [repo] on Hugging Face.
-  final PinnedSource? source;
+  /// The file Berea downloads, from its own releases or a Hugging Face commit.
+  final PinnedSource source;
 
   /// A licence notice to show before the download, for models that ask for one.
   final String? notice;
+
+  /// One line on what the model is like, for the helper choice in Study.
+  final String summary;
+
+  /// How soon an answer starts, where it has been measured on a phone Berea is tested on.
+  final String? firstWords;
   const EdgeModel({
     required this.id,
     required this.label,
@@ -42,16 +48,28 @@ class EdgeModel {
     required this.sizeGb,
     required this.type,
     required this.tier,
-    this.source,
+    required this.summary,
+    required this.source,
     this.notice,
+    this.firstWords,
   });
 
-  /// flutter_edge_ai keys installed models by the downloaded filename.
+  /// flutter_edge_ai keys installed models by the downloaded filename. Builds up to 0.6.0 let
+  /// the plugin fetch from [repo] into its own folder, and such a copy is still used.
   String get installedName => file;
 
   /// Gemma 4 takes spoken audio directly, so voice questions need no separate speech model.
   bool get hearsAudio => type == ModelType.gemma4;
+
+  /// The download's size in bytes.
+  int get publishedBytes => source.bytes;
 }
+
+/// Download sizes are labelled in decimal gigabytes, as model sizes are published.
+const bytesPerDownloadGb = 1000 * 1000 * 1000;
+
+/// [bytes] in decimal gigabytes to one place, such as "1.1".
+String gbOf(int bytes) => (bytes / bytesPerDownloadGb).toStringAsFixed(1);
 
 const edgeModels = <EdgeModel>[
   EdgeModel(
@@ -62,15 +80,32 @@ const edgeModels = <EdgeModel>[
     sizeGb: 2.6,
     type: ModelType.gemma4,
     tier: Tier.mid,
+    summary: 'Hears spoken questions.',
+    firstWords: 'First words in about a minute',
+    source: PinnedSource(
+      url:
+          'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/'
+          '1caa527c1e88b55f046fcd8d2b4265606680663d/gemma-4-E2B-it.litertlm',
+      sha256: '181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c',
+      bytes: 2588147712,
+    ),
   ),
   EdgeModel(
     id: 'gemma-4-e4b',
     label: 'Gemma 4 E4B',
     repo: 'litert-community/gemma-4-E4B-it-litert-lm',
     file: 'gemma-4-E4B-it.litertlm',
-    sizeGb: 4.3,
+    sizeGb: 3.7,
     type: ModelType.gemma4,
     tier: Tier.high,
+    summary: 'Fuller answers. Hears spoken questions.',
+    source: PinnedSource(
+      url:
+          'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/'
+          'e6a3892a8c22cf87ff99583996149cf3cb32452b/gemma-4-E4B-it.litertlm',
+      sha256: '0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0',
+      bytes: 3659530240,
+    ),
   ),
   EdgeModel(
     id: 'gemma-3-1b',
@@ -80,6 +115,7 @@ const edgeModels = <EdgeModel>[
     sizeGb: 0.6,
     type: ModelType.gemmaIt,
     tier: Tier.low,
+    summary: 'Quicker, shorter answers.',
     source: PinnedSource(
       url:
           'https://github.com/CalvinMagezi/berea/releases/download/model-gemma3-1b-1/'
@@ -99,6 +135,31 @@ const minGbForE2b = 5.0;
 
 /// At or above this, Gemma 4 E4B is comfortable.
 const minGbForE4b = 10.0;
+
+/// The upper end of the memory band the helper choice names for Gemma 4 E2B, as the design
+/// draws it; above it the band is named from [minGbForE4b].
+const e2bNamedBandGb = 8.0;
+
+/// The memory band [m] is suggested for, such as "for 5 to 7 GB phones like this one", given
+/// the [gb] of this device and what it is called; null when the memory is not known.
+String? memoryBand(EdgeModel m, double? gb, String noun) {
+  if (gb == null) return null;
+  final band = switch (m.id) {
+    'gemma-3-1b' => 'for ${noun}s under ${minGbForE2b.round()} GB',
+    'gemma-4-e4b' => 'for ${minGbForE4b.round()} GB ${noun}s and up',
+    _ when gb < e2bNamedBandGb => 'for ${minGbForE2b.round()} to 7 GB ${noun}s',
+    _ => 'for ${e2bNamedBandGb.round()} to ${minGbForE4b.round() - 1} GB ${noun}s',
+  };
+  return '$band like this one';
+}
+
+/// The two helpers Study offers: the one suggested for [gb], and the quicker small one, or
+/// Gemma 4 E2B when the small one is the suggestion. Settings lists every model.
+List<EdgeModel> helperChoices(double? gb) {
+  final suggested = recommendedModel(gb);
+  final small = edgeModelById('gemma-3-1b');
+  return [suggested, suggested == small ? edgeModelById('gemma-4-e2b') : small];
+}
 
 /// Best model for [gb] of RAM; null [gb] (unknown) picks the default.
 EdgeModel recommendedModel(double? gb) {

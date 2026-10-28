@@ -88,7 +88,7 @@ class NotebookChat extends ChangeNotifier {
       store.addExchange(notebookId, question, turn.answer, turn.verified, turn.sources);
     } catch (e) {
       turn
-        ..error = e.toString()
+        ..error = answerFailure(e)
         ..done = true;
     } finally {
       answering = false;

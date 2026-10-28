@@ -60,6 +60,9 @@ Future<void> expectPdfiumLicences(WidgetTester tester) async {
 
 /// Creates a notebook through the UI and returns its id.
 Future<int> createNotebook(WidgetTester tester, AppState s, String title) async {
+  // Notebooks live under Notes, one row above the notes.
+  await tester.tap(find.text('Notes').last);
+  await tester.pumpAndSettle();
   await tester.tap(find.text('Notebooks').last);
   await tester.pumpAndSettle();
   await tester.tap(find.byTooltip('New notebook'));
