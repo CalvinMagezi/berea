@@ -20,6 +20,9 @@ const _chapterBarWidth = 600.0;
 
 /// A phone the chapter bar fits in the test font, for flows that end with the selection cleared.
 const _roomyPhone = Size(_chapterBarWidth, 900);
+
+/// Tall enough that verse 3 of John 3 sits above the selection card in the test font.
+const _tallPhone = Size(_chapterBarWidth, 1600);
 const _phones = [Size(360, 800), Size(412, 915)];
 const _phoneActions = ['Highlight', 'Note', 'Pray', 'Ask', 'More'];
 
@@ -180,5 +183,53 @@ void main() {
     final reader = tester.getRect(find.byType(ReaderScreen));
     final bar = tester.getRect(find.byType(SelectionBar));
     expect(bar.left >= reader.left && bar.right <= reader.right, isTrue);
+  });
+
+  test('verses with gaps are labelled run by run', () {
+    final john = bookById(43);
+    expect(verseRuns([5, 1, 2]), [(1, 2), (5, 5)]);
+    expect(versesLabel(john, 3, [1, 5]), 'John 3:1, 5');
+    expect(versesLabel(john, 3, [1, 2, 5, 7, 8]), 'John 3:1-2, 5, 7-8');
+    expect(versesLabel(john, 3, [3, 4]), 'John 3:3-4');
+  });
+
+  testWidgets('a selection with a gap copies only the chosen verses and asks before Pray', (
+    tester,
+  ) async {
+    final state = await pumpSelected(tester, _tallPhone, [1, 3]);
+    expect(find.text('John 3:1, 3'), findsOneWidget);
+    expect(find.text('2 verses'), findsOneWidget);
+
+    await tester.tap(action('Pray'));
+    await tester.pumpAndSettle();
+    expect(find.text('What are you praying for?'), findsNothing);
+    expect(find.textContaining('Pray works on verses next to each other.'), findsOneWidget);
+    tester
+        .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first)
+        .removeCurrentSnackBar();
+    await tester.pumpAndSettle();
+
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (
+      call,
+    ) async {
+      if (call.method == 'Clipboard.setData') copied = (call.arguments as Map)['text'] as String;
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Copy'));
+    await tester.pumpAndSettle();
+    final translation = state.settings.translation;
+    String verse(int n) =>
+        state.db.passage(Ref(bookById(43), 3, n), translation: translation).single.text;
+    expect(copied, '1 ${verse(1)}\n3 ${verse(3)}\nJohn 3:1, 3 ($translation)');
+    expect(find.text('Copied John 3:1, 3.'), findsOneWidget);
   });
 }
