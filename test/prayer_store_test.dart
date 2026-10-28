@@ -169,5 +169,20 @@ void main() {
       }),
       throwsFormatException,
     );
+    for (final bad in [
+      {'answered': 'yesterday'},
+      {'reminder': '6:30'},
+      {'answer': 42},
+    ]) {
+      expect(
+        () => validatePrayerTables({
+          'prayers': [
+            {...tables['prayers']!.single, ...bad},
+          ],
+        }),
+        throwsFormatException,
+        reason: '$bad',
+      );
+    }
   });
 }

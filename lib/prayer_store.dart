@@ -41,6 +41,9 @@ void validatePrayerTables(Map<String, List<Map<String, Object?>>> tables) {
     if (r['archived'] != 0 && r['archived'] != 1) {
       throw FormatException('prayer ${r['id']} has a bad archived flag');
     }
+    _nullableOf<int>(r, 'answered');
+    _nullableOf<int>(r, 'reminder');
+    _nullableOf<String>(r, 'answer');
     final verse = r['verse'];
     if (verse != null && (verse is! String || RefParser.parse(verse).isEmpty)) {
       throw FormatException('prayer ${r['id']} has a bad verse');
@@ -51,6 +54,12 @@ void validatePrayerTables(Map<String, List<Map<String, Object?>>> tables) {
       throw FormatException('prayer day ${r['day']} has no prayer');
     }
   }
+}
+
+/// The readers cast these optional columns, so a mistyped value would break Prayer for good.
+void _nullableOf<T>(Map<String, Object?> row, String column) {
+  final v = row[column];
+  if (v != null && v is! T) throw FormatException('prayers.$column must be $T or null, not $v');
 }
 
 /// A local calendar day as yyyymmdd.

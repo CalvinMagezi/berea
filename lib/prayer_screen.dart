@@ -89,7 +89,8 @@ class _PrayerScreenState extends State<PrayerScreen> {
     ),
   );
 
-  void _shareList() => widget.share(prayerListText(_store.praying()));
+  void _shareList(BuildContext button) =>
+      widget.share(prayerListText(_store.praying()), shareOrigin(button));
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -146,10 +147,12 @@ class _PrayerScreenState extends State<PrayerScreen> {
       appBar: AppBar(
         title: const Text('Prayer'),
         actions: [
-          IconButton(
-            tooltip: 'Share the list',
-            onPressed: praying.isEmpty ? null : _shareList,
-            icon: const Icon(Icons.share_outlined),
+          Builder(
+            builder: (button) => IconButton(
+              tooltip: 'Share the list',
+              onPressed: praying.isEmpty ? null : () => _shareList(button),
+              icon: const Icon(Icons.share_outlined),
+            ),
           ),
           IconButton(tooltip: 'Add a prayer', onPressed: _add, icon: const Icon(Icons.add)),
         ],
@@ -176,7 +179,11 @@ class _PrayerScreenState extends State<PrayerScreen> {
           if (wide) ...[
             _section('Answered · ${answered.length}'),
             for (final p in answered)
-              _PrayerRow(prayer: p, subtitle: 'answered ${answeredLabel(p, now)}'),
+              _PrayerRow(
+                prayer: p,
+                subtitle: 'answered ${answeredLabel(p, now)}',
+                onTap: _answered,
+              ),
           ] else if (answered.isNotEmpty)
             ListTile(
               leading: Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
@@ -378,12 +385,14 @@ class AnsweredScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Answered'),
           actions: [
-            IconButton(
-              tooltip: 'Share answered prayers',
-              onPressed: answered.isEmpty
-                  ? null
-                  : () => share(answered.map(testimonyText).join('\n\n')),
-              icon: const Icon(Icons.share_outlined),
+            Builder(
+              builder: (button) => IconButton(
+                tooltip: 'Share answered prayers',
+                onPressed: answered.isEmpty
+                    ? null
+                    : () => share(answered.map(testimonyText).join('\n\n'), shareOrigin(button)),
+                icon: const Icon(Icons.share_outlined),
+              ),
             ),
           ],
         ),
@@ -411,10 +420,12 @@ class AnsweredScreen extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       children: [
-                        TextButton.icon(
-                          onPressed: () => share(testimonyText(p)),
-                          icon: const Icon(Icons.share_outlined, size: 18),
-                          label: const Text('Share a testimony'),
+                        Builder(
+                          builder: (button) => TextButton.icon(
+                            onPressed: () => share(testimonyText(p), shareOrigin(button)),
+                            icon: const Icon(Icons.share_outlined, size: 18),
+                            label: const Text('Share a testimony'),
+                          ),
                         ),
                         TextButton(
                           onPressed: () => store.unanswer(p.id),

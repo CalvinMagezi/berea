@@ -28,10 +28,12 @@ List<Verse> fakePassage(Ref ref) => switch ((ref.book.id, ref.chapter)) {
 void main() {
   late PrayerStore store;
   late List<String> shared;
+  late List<Rect?> origins;
 
   setUp(() {
     store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema));
     shared = [];
+    origins = [];
   });
 
   /// A phone-sized window; the default test surface is wide enough for the Mac layout.
@@ -47,7 +49,10 @@ void main() {
         store: store,
         passage: fakePassage,
         translation: () => 'BSB',
-        share: (t) async => shared.add(t),
+        share: (t, origin) async {
+          shared.add(t);
+          origins.add(origin);
+        },
       ),
     ),
   );
@@ -216,5 +221,12 @@ void main() {
     expect(find.text('Amen, next'), findsOneWidget);
     expect(find.text('Our cell group on Thursday'), findsNWidgets(2));
     expect(find.byType(Switch), findsNothing);
+
+    // Answered opens from the wide list too, with its testimony.
+    await tester.tap(find.text('Job interview'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share a testimony'));
+    expect(shared.single, startsWith('Job interview\nAnswered '));
+    expect(origins.single, isNotNull);
   });
 }

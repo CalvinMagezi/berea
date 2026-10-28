@@ -8,10 +8,19 @@ import 'theme.dart';
 /// The verses of [ref] in the reader's translation.
 typedef PassageLookup = List<Verse> Function(Ref ref);
 
-/// Opens the OS share sheet with plain text. The app itself sends nothing.
-typedef ShareText = Future<void> Function(String text);
+/// Opens the OS share sheet with plain text, pointing from [origin]. The app itself sends nothing.
+typedef ShareText = Future<void> Function(String text, Rect? origin);
 
-Future<void> shareText(String text) => SharePlus.instance.share(ShareParams(text: text));
+Future<void> shareText(String text, Rect? origin) =>
+    SharePlus.instance.share(ShareParams(text: text, sharePositionOrigin: origin));
+
+/// The tapped control's rectangle. iPad needs one to anchor the share popover; macOS
+/// otherwise opens it from the window's corner.
+Rect? shareOrigin(BuildContext context) {
+  final box = context.findRenderObject();
+  if (box is! RenderBox || !box.hasSize) return null;
+  return box.localToGlobal(Offset.zero) & box.size;
+}
 
 /// Reads passages from [db] in whatever translation the reader is on when asked.
 PassageLookup passageLookupFor(BibleDb db, String Function() translation) =>
