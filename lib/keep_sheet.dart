@@ -154,6 +154,9 @@ class _KeepSheetState extends State<KeepSheet> {
     final notebooks = [?last, ...widget.notebooks.notebooks().where((n) => n.id != last?.id)];
     final verse = widget.verse;
     final label = TextStyle(fontSize: 12, letterSpacing: 1.2, color: scheme.primary);
+    // A kept word is titled "lemma, gloss" and its subtitle opens with the gloss; the heading
+    // shows the word alone so the gloss is not said twice.
+    final heading = widget.kind == keptWordKind ? widget.title.split(', ').first : widget.title;
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -162,7 +165,7 @@ class _KeepSheetState extends State<KeepSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Keep ${widget.title}',
+              'Keep $heading',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 22),
@@ -225,8 +228,14 @@ class _KeepSheetState extends State<KeepSheet> {
     );
   }
 
+  /// "6 notes, 3 readings", leaving out what the notebook has none of.
   String _counts(Notebook n) {
     final notes = writtenCount(widget.study, n.id);
-    return '${plural(notes, 'note', 'notes')} · ${plural(n.sourceCount, 'reading', 'readings')}';
+    final readings = listedReadings(widget.study, widget.notebooks, n.id).length;
+    if (notes == 0 && readings == 0) return 'Nothing in it yet';
+    return [
+      if (notes > 0) plural(notes, 'note', 'notes'),
+      if (readings > 0) plural(readings, 'reading', 'readings'),
+    ].join(', ');
   }
 }

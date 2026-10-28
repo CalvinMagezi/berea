@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
+import 'package:berea/brand/lamp_mark.dart';
 import 'package:berea/keep_sheet.dart';
 import 'package:berea/note_dialog.dart';
 import 'package:berea/notebook_store.dart';
@@ -338,7 +339,7 @@ void main() {
 
     await tester.tap(find.text('Keep'));
     await tester.pumpAndSettle();
-    expect(find.text('Last used · 1 note · 0 readings'), findsOneWidget);
+    expect(find.text('Last used · 1 note'), findsOneWidget);
     final tiles = find.byType(RadioListTile<int>);
     expect(find.descendant(of: tiles.first, matching: find.text('Sunday sermons')), findsOneWidget);
     final first = tester.widget<RadioListTile<int>>(tiles.first);
@@ -500,5 +501,34 @@ void main() {
     await tester.tap(find.text('Outline for Thursday'));
     await tester.pumpAndSettle();
     expect(find.byType(NoteEditor), findsOneWidget);
+  });
+
+  testWidgets('a passage reading shows its translation and verses, and Ask shows the mark', (
+    tester,
+  ) async {
+    final nb = s.notebooks.createNotebook('Romans with the youth');
+    final translation = s.settings.translation;
+    final passage = passageSource(s.db, 'Romans 8:18-20', translation)!;
+    await tester.runAsync(() => s.notebooks.addSource(nb, passage));
+    await pump(tester, NotebookScreen(state: s, notebookId: nb));
+    expect(find.text('Romans 8:18-20'), findsOneWidget);
+    expect(find.text('$translation · 3 verses'), findsOneWidget);
+    final ask = find.widgetWithText(FilledButton, 'Ask about this notebook');
+    expect(find.descendant(of: ask, matching: find.byType(LampMark)), findsOneWidget);
+  });
+
+  testWidgets('the Keep sheet counts only what a notebook holds', (tester) async {
+    final youth = s.notebooks.createNotebook('Romans with the youth');
+    s.notebooks.createNotebook('Empty one');
+    s.study.addNotebookNote(youth, 'What we suffer.');
+    await tester.runAsync(
+      () => s.notebooks.addSource(
+        youth,
+        const SourceRequest(SourceKind.text, 'Outline', text: 'Notes on chapter 8.'),
+      ),
+    );
+    await openKeep(tester);
+    expect(find.text('1 note, 1 reading'), findsOneWidget);
+    expect(find.text('Nothing in it yet'), findsOneWidget);
   });
 }
