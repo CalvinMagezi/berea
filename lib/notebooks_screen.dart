@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:berea_harness/berea_harness.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -20,6 +21,13 @@ const _citedMarkWidth = 3.0;
 const _citedPadding = 12.0;
 const _kindLabelSize = 11.0;
 const _bottomBarPadding = 12.0;
+
+/// Local rather than the shell's constant, so the Notes screens do not import the shell.
+const notesWideBreakpoint = 760.0;
+const notesWideListWidth = 400.0;
+const _detailTitleSize = 26.0;
+const _detailPadding = 24.0;
+const _askIconSize = 32.0;
 
 IconData kindIcon(SourceKind k) => switch (k) {
   SourceKind.text => Icons.notes,
@@ -163,6 +171,9 @@ class LabelledTile extends StatelessWidget {
   final String? detail;
   final Widget? trailing;
   final VoidCallback? onTap;
+
+  /// Shown in the panel beside the list, on a wide screen.
+  final bool selected;
   const LabelledTile({
     super.key,
     required this.label,
@@ -170,6 +181,7 @@ class LabelledTile extends StatelessWidget {
     this.detail,
     this.trailing,
     this.onTap,
+    this.selected = false,
   });
 
   @override
@@ -177,6 +189,9 @@ class LabelledTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return ListTile(
       onTap: onTap,
+      selected: selected,
+      selectedTileColor: scheme.surfaceContainerHighest,
+      selectedColor: scheme.onSurface,
       trailing: trailing,
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,6 +211,168 @@ class LabelledTile extends StatelessWidget {
       subtitle: detail == null
           ? null
           : Text(detail!, maxLines: 2, overflow: TextOverflow.ellipsis),
+    );
+  }
+}
+
+/// What identifies a note, study page or reading across rebuilds, which make new objects.
+(Type, int)? entryKey(Object? entry) => switch (entry) {
+  Note n => (Note, n.id),
+  StudyPageRecord p => (StudyPageRecord, p.id),
+  NotebookSource r => (NotebookSource, r.id),
+  _ => null,
+};
+
+/// Opens a note in the editor, or a study page or reading on its own page.
+Future<void> openEntryPage(BuildContext context, AppState s, Object entry) => switch (entry) {
+  Note n => showNoteEditor(context, s, note: n),
+  StudyPageRecord p => Navigator.push(
+    context,
+    MaterialPageRoute<void>(builder: (_) => StudyPageScreen(state: s, ref: p.ref)),
+  ),
+  NotebookSource r => Navigator.push(
+    context,
+    MaterialPageRoute<void>(builder: (_) => SourceScreen(store: s.notebooks, source: r)),
+  ),
+  _ => Future.value(),
+};
+
+/// A list with the chosen entry beside it, on a wide screen.
+class ListAndDetail extends StatelessWidget {
+  final Widget list;
+  final Widget detail;
+  const ListAndDetail({super.key, required this.list, required this.detail});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      SizedBox(width: notesWideListWidth, child: list),
+      const VerticalDivider(width: 1),
+      Expanded(child: detail),
+    ],
+  );
+}
+
+/// The panel beside the list on a wide screen: the chosen note, study page or reading.
+/// [onChanged] runs after it was edited on its own page, so the lists show the change.
+class EntryDetail extends StatelessWidget {
+  final AppState state;
+  final Object entry;
+  final VoidCallback onChanged;
+  const EntryDetail({
+    super.key,
+    required this.state,
+    required this.entry,
+    required this.onChanged,
+  });
+
+  Future<void> _edit(BuildContext context) async {
+    await openEntryPage(context, state, entry);
+    onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) => switch (entry) {
+    NotebookSource r => SourceScreen(
+      key: ValueKey(r.id),
+      store: state.notebooks,
+      source: r,
+      embedded: true,
+    ),
+    Note n => _DetailPage(
+      label: noteKind(n),
+      title: noteHeading(n),
+      detail: noteDate(n.updated),
+      verse: n.verse,
+      state: state,
+      action: FilledButton.icon(
+        onPressed: () => _edit(context),
+        icon: const Icon(Icons.edit_outlined),
+        label: const Text('Edit'),
+      ),
+      children: [SelectableText(n.text, style: const TextStyle(fontSize: 17, height: 1.5))],
+    ),
+    StudyPageRecord p => _DetailPage(
+      label: 'Study page',
+      title: p.ref.label,
+      detail: 'Saved ${noteDate(p.updated)}',
+      verse: p.ref,
+      state: state,
+      action: FilledButton.icon(
+        onPressed: () => _edit(context),
+        icon: const Icon(Icons.edit_outlined),
+        label: const Text('Open'),
+      ),
+      children: [
+        for (final (heading, text) in [
+          ('Observation', p.observation),
+          ('Interpretation', p.interpretation),
+          ('Application', p.application),
+        ])
+          if (text.isNotEmpty) ...[
+            Text(heading, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            SelectableText(text, style: const TextStyle(height: 1.5)),
+            const SizedBox(height: 20),
+          ],
+      ],
+    ),
+    _ => const SizedBox.shrink(),
+  };
+}
+
+class _DetailPage extends StatelessWidget {
+  final String label;
+  final String title;
+  final String detail;
+  final Ref? verse;
+  final AppState state;
+  final Widget action;
+  final List<Widget> children;
+  const _DetailPage({
+    required this.label,
+    required this.title,
+    required this.detail,
+    required this.verse,
+    required this.state,
+    required this.action,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.all(_detailPadding),
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: TextStyle(fontSize: 12, letterSpacing: 1.2, color: scheme.primary),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          title,
+          style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: _detailTitleSize),
+        ),
+        Text(detail, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            action,
+            if (verse case final v?)
+              OutlinedButton.icon(
+                onPressed: () => state.openInReader(v),
+                icon: const Icon(Icons.menu_book_outlined),
+                label: Text('Open ${v.label} in the Bible'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        ...children,
+      ],
     );
   }
 }
@@ -296,6 +473,10 @@ class NotebookScreen extends StatefulWidget {
 class _NotebookScreenState extends State<NotebookScreen> {
   var _view = _View.everything;
 
+  /// The entry shown beside the list on a wide screen.
+  (Type, int)? _selected;
+  var _wide = false;
+
   AppState get _s => widget.state;
   NotebookStore get store => _s.notebooks;
   int get notebookId => widget.notebookId;
@@ -333,46 +514,73 @@ class _NotebookScreenState extends State<NotebookScreen> {
           ],
         ),
         bottomNavigationBar: _bottomBar(context),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Text(
-                    '${plural(written, 'note', 'notes')} · '
-                    '${plural(readings.length, 'reading', 'readings')}',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
+        body: LayoutBuilder(
+          builder: (context, c) {
+            _wide = c.maxWidth >= notesWideBreakpoint;
+            final list = _views(context, notes, pages, readings, pending, written);
+            if (!_wide) {
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: contentMaxWidth),
+                  child: list,
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<_View>(
-                      showSelectedIcon: false,
-                      segments: [
-                        const ButtonSegment(value: _View.everything, label: Text('Everything')),
-                        ButtonSegment(value: _View.notes, label: Text('Notes $written')),
-                        ButtonSegment(
-                          value: _View.readings,
-                          label: Text('Readings ${readings.length}'),
-                        ),
-                      ],
-                      selected: {_view},
-                      onSelectionChanged: (v) => setState(() => _view = v.single),
-                    ),
-                  ),
-                ),
-                Expanded(child: _list(context, notes, pages, readings, pending)),
-              ],
-            ),
-          ),
+              );
+            }
+            final chosen = [...notes, ...pages, ...readings]
+                .where((e) => entryKey(e) == _selected)
+                .firstOrNull;
+            return ListAndDetail(
+              list: list,
+              detail: chosen == null
+                  ? const _AskPanel()
+                  : EntryDetail(state: _s, entry: chosen, onChanged: () => setState(() {})),
+            );
+          },
         ),
       );
     },
+  );
+
+  /// The counts, the Everything, Notes and Readings views, and the list under them.
+  Widget _views(
+    BuildContext context,
+    List<Note> notes,
+    List<StudyPageRecord> pages,
+    List<NotebookSource> readings,
+    List<PendingSource> pending,
+    int written,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+        child: Text(
+          '${plural(written, 'note', 'notes')} · '
+          '${plural(readings.length, 'reading', 'readings')}',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<_View>(
+            showSelectedIcon: false,
+            segments: [
+              const ButtonSegment(value: _View.everything, label: Text('Everything')),
+              ButtonSegment(value: _View.notes, label: Text('Notes $written')),
+              ButtonSegment(
+                value: _View.readings,
+                label: Text('Readings ${readings.length}'),
+              ),
+            ],
+            selected: {_view},
+            onSelectionChanged: (v) => setState(() => _view = v.single),
+          ),
+        ),
+      ),
+      Expanded(child: _list(context, notes, pages, readings, pending)),
+    ],
   );
 
   Widget _bottomBar(BuildContext context) => SafeArea(
@@ -442,11 +650,19 @@ class _NotebookScreenState extends State<NotebookScreen> {
     return ListView(padding: const EdgeInsets.fromLTRB(8, 8, 8, 24), children: tiles);
   }
 
+  /// A wide screen shows the entry beside the list; otherwise it opens on its own.
+  void _open(BuildContext context, Object entry) => _wide
+      ? setState(() => _selected = entryKey(entry))
+      : openEntryPage(context, _s, entry);
+
+  bool _isSelected(Object entry) => _wide && entryKey(entry) == _selected;
+
   Widget _noteTile(BuildContext context, Note n) => LabelledTile(
     label: noteKind(n),
     title: noteHeading(n),
     detail: n.text.isEmpty ? null : n.text,
-    onTap: () => showNoteEditor(context, _s, note: n),
+    selected: _isSelected(n),
+    onTap: () => _open(context, n),
   );
 
   Widget _pageTile(BuildContext context, StudyPageRecord p) => LabelledTile(
@@ -468,10 +684,8 @@ class _NotebookScreenState extends State<NotebookScreen> {
         _s.touch();
       },
     ),
-    onTap: () => Navigator.push(
-      context,
-      MaterialPageRoute<void>(builder: (_) => StudyPageScreen(state: _s, ref: p.ref)),
-    ),
+    selected: _isSelected(p),
+    onTap: () => _open(context, p),
   );
 
   Widget _readingTile(BuildContext context, NotebookSource r) => LabelledTile(
@@ -504,10 +718,8 @@ class _NotebookScreenState extends State<NotebookScreen> {
         ),
       ],
     ),
-    onTap: () => Navigator.push(
-      context,
-      MaterialPageRoute<void>(builder: (_) => SourceScreen(store: store, source: r)),
-    ),
+    selected: _isSelected(r),
+    onTap: () => _open(context, r),
   );
 
   Widget _pendingTile(PendingSource p) => ListTile(
@@ -718,6 +930,36 @@ class _NotebookScreenState extends State<NotebookScreen> {
   }
 }
 
+/// Beside the list on a wide screen until an entry is chosen: what asking about it draws on.
+class _AskPanel extends StatelessWidget {
+  const _AskPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(_detailPadding),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.chat_bubble_outline, size: _askIconSize, color: scheme.primary),
+            const SizedBox(height: 12),
+            Text('Ask about this notebook', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              "Answers draw on this notebook's notes and readings, and on Scripture. Pin a "
+              'reading to include it in every answer. Choose a note or reading to see it here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NotePicker extends StatefulWidget {
   final List<Note> notes;
   const _NotePicker({required this.notes});
@@ -770,7 +1012,16 @@ class SourceScreen extends StatelessWidget {
 
   /// The section to open at and mark, where an answer cited it; null opens at the start.
   final int? focusOrdinal;
-  const SourceScreen({super.key, required this.store, required this.source, this.focusOrdinal});
+
+  /// Shown beside a list rather than as a page of its own, so it has no way back.
+  final bool embedded;
+  const SourceScreen({
+    super.key,
+    required this.store,
+    required this.source,
+    this.focusOrdinal,
+    this.embedded = false,
+  });
 
   static const _focusKey = ValueKey('focus');
 
@@ -788,7 +1039,10 @@ class SourceScreen extends StatelessWidget {
     // The cited section is the scroll origin, so a section deep in a long book opens at once and
     // the sections before it build lazily as the reader scrolls up.
     return Scaffold(
-      appBar: AppBar(title: Text(source.title, maxLines: 1, overflow: TextOverflow.ellipsis)),
+      appBar: AppBar(
+        automaticallyImplyLeading: !embedded,
+        title: Text(source.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: contentMaxWidth),

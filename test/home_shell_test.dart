@@ -141,7 +141,7 @@ void main() {
     expect(find.text('NOTEBOOKS'), findsOneWidget);
 
     // Ask about this notebook, from inside it, lands on Study scoped to it.
-    await tester.tap(find.text('Ask about this notebook'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Ask about this notebook'));
     await tester.pumpAndSettle();
     expect(find.byType(ChatScreen), findsOneWidget);
     expect(find.byType(NotebookScreen), findsNothing);
@@ -175,6 +175,8 @@ void main() {
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     expect(lit('Notes'), isTrue);
+    // Notes beside the sidebar is wide enough for its list and detail.
+    expect(find.byType(ListAndDetail), findsOneWidget);
     expect(lit('Sunday sermons'), isFalse);
 
     // Only while Notes is in front.

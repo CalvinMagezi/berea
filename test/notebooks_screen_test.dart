@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _phone = Size(600, 1000);
+const _mac = Size(1280, 800);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -38,8 +39,8 @@ void main() {
     }
   });
 
-  Future<void> pump(WidgetTester tester, Widget home) async {
-    tester.view.physicalSize = _phone;
+  Future<void> pump(WidgetTester tester, Widget home, {Size size = _phone}) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(MaterialApp(theme: bereaTheme(Brightness.light), home: home));
@@ -369,5 +370,91 @@ void main() {
     expect(withDictation(typed, 'Romans 8').text, 'Read Romans 8 again.');
     expect(withDictation(const TextEditingValue(text: 'Read'), 'it').text, 'Read it');
     expect(withDictation(TextEditingValue.empty, 'Hope').text, 'Hope');
+  });
+
+  testWidgets('wide Notes shows the chosen entry beside the list', (tester) async {
+    final sermons = s.notebooks.createNotebook('Sunday sermons');
+    s.study.addNotebookNote(
+      sermons,
+      'Suffering is not the last word.',
+      title: 'Pastor on Romans 8',
+    );
+    s.study.saveStudyPage(
+      ref('Romans 8:28-30'),
+      'Paul moves',
+      'God works',
+      '',
+      notebookId: sermons,
+    );
+    await tester.runAsync(
+      () => s.notebooks.addSource(
+        sermons,
+        const SourceRequest(SourceKind.text, 'Outline', text: 'What we suffer.'),
+      ),
+    );
+    await pump(tester, NotesScreen(state: s), size: _mac);
+    expect(find.byType(ListAndDetail), findsOneWidget);
+    expect(find.text('Choose a note to read it here.'), findsOneWidget);
+
+    await tester.tap(find.text('Pastor on Romans 8'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NoteEditor), findsNothing);
+    expect(find.widgetWithText(SelectableText, 'Suffering is not the last word.'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Edit'), findsOneWidget);
+
+    await tester.tap(find.text('Romans 8:28-30'));
+    await tester.pumpAndSettle();
+    expect(find.text('Interpretation'), findsOneWidget);
+    expect(find.text('Open Romans 8:28-30 in the Bible'), findsOneWidget);
+
+    await tester.tap(find.text('Outline'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SourceScreen), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
+    expect(find.text('What we suffer.'), findsOneWidget);
+
+    // Edit opens the editor, and the panel shows what was saved.
+    await tester.tap(find.text('Pastor on Romans 8'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'Hope is.');
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(SelectableText, 'Hope is.'), findsOneWidget);
+  });
+
+  testWidgets('a wide notebook shows its views beside the chosen entry', (tester) async {
+    final nb = s.notebooks.createNotebook('Romans with the youth');
+    s.study.addNotebookNote(nb, 'What we suffer.', title: 'Outline for Thursday');
+    await pump(tester, NotebookScreen(state: s, notebookId: nb), size: _mac);
+    expect(find.byType(ListAndDetail), findsOneWidget);
+    expect(find.text('Everything'), findsOneWidget);
+    expect(find.textContaining('Choose a note or reading'), findsOneWidget);
+
+    await tester.tap(find.text('Outline for Thursday'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NoteEditor), findsNothing);
+    expect(find.widgetWithText(SelectableText, 'What we suffer.'), findsOneWidget);
+    expect(
+      tester.widget<ListTile>(find.widgetWithText(ListTile, 'Outline for Thursday')).selected,
+      isTrue,
+    );
+
+    // A deleted entry leaves the panel.
+    s.study.deleteNote(s.study.notebookNotes(nb).single.id);
+    s.notebooks.renameNotebook(nb, 'Romans 8');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Choose a note or reading'), findsOneWidget);
+  });
+
+  testWidgets('the phone layout keeps opening entries on their own', (tester) async {
+    final nb = s.notebooks.createNotebook('Romans with the youth');
+    s.study.addNotebookNote(nb, 'What we suffer.', title: 'Outline for Thursday');
+    await pump(tester, NotebookScreen(state: s, notebookId: nb));
+    expect(find.byType(ListAndDetail), findsNothing);
+    await tester.tap(find.text('Outline for Thursday'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NoteEditor), findsOneWidget);
   });
 }
