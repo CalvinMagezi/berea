@@ -176,8 +176,9 @@ a:hover { color: var(--gold-soft); }
 .rail-lead { flex: 0 0 min(24rem, 80vw); }
 .rail-lead h2 { margin: 0 0 0.8rem; }
 .phone { flex: 0 0 clamp(12rem, 20vw, 15.5rem); margin: 0; }
-.phone img { display: block; width: 100%; height: auto; border-radius: 28px; border: 1px solid var(--glass-edge); box-shadow: 0 0 0 6px color-mix(in oklab, var(--sc-surface) 80%, transparent), var(--sc-e3); background: var(--sc-surface); }
-.phone figcaption { margin-top: 0.9rem; font: 0.88rem/1.4 var(--ui); color: var(--sc-ink-soft); }
+.mac { flex: 0 0 clamp(22rem, 44vw, 38rem); margin: 0; }
+.phone img, .mac img { display: block; width: 100%; height: auto; border-radius: 28px; border: 1px solid var(--glass-edge); box-shadow: 0 0 0 6px color-mix(in oklab, var(--sc-surface) 80%, transparent), var(--sc-e3); background: var(--sc-surface); }
+.phone figcaption, .mac figcaption { margin-top: 0.9rem; font: 0.88rem/1.4 var(--ui); color: var(--sc-ink-soft); }
 .rail-end { flex: 0 0 min(18rem, 70vw); font: 500 var(--sc-t-xl)/1.25 var(--sc-font-display); color: var(--gold-soft); margin: 0; }
 
 /* 6 The peak: silence, then the box. */
@@ -286,6 +287,7 @@ a:hover { color: var(--gold-soft); }
   .ledger div { flex-direction: column; gap: 0.15rem; }
   .ledger dd { text-align: left; }
   .phone { flex-basis: 58vw; }
+  .mac { flex-basis: 86vw; }
   .foot { position: static; padding-top: 2rem; }
   .close-stage { padding-bottom: 2rem; align-content: center; }
 }
