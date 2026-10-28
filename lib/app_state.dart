@@ -20,6 +20,7 @@ import 'pinned_download.dart';
 import 'plans.dart';
 import 'prayer_store.dart';
 import 'study_store.dart';
+import 'today.dart';
 import 'voice.dart';
 
 enum EngineKind { ollama, device }
@@ -398,8 +399,7 @@ class AppState extends ChangeNotifier {
       final m = recommendedModel(s.deviceGb);
       s.settings = s.settings.copyWith(deviceModelId: m.id, tier: recommendedTier(m, s.deviceGb));
     }
-    s.readerBook = s.prefs.getInt('readerBook') ?? 1;
-    s.readerChapter = s.prefs.getInt('readerChapter') ?? 1;
+    s._loadReader();
     s.parallelTranslation = s.prefs.getString('parallelTranslation');
     s._restoreImports();
     s._keepTranslationValid();
@@ -555,6 +555,40 @@ class AppState extends ChangeNotifier {
     } finally {
       if (staged.existsSync()) staged.deleteSync();
     }
+  }
+
+  /// John: where the Bible opens the very first time.
+  static const firstOpenBook = 43;
+
+  /// The verse the reader stopped at in an earlier session, and when; marked once on opening.
+  int? resumeVerse;
+  DateTime? resumeAt;
+
+  /// Today's card shows in full on the first look of the day, then folds to one line.
+  bool todayCardFull = false;
+
+  /// Asks the shell to show Plans.
+  final openPlansRequest = ValueNotifier<int>(0);
+
+  /// The reader keys are written at once, so a first open that never turns a page is still
+  /// remembered as opened.
+  void _loadReader() {
+    final firstOpen = !prefs.containsKey('readerBook');
+    readerBook = prefs.getInt('readerBook') ?? firstOpenBook;
+    readerChapter = prefs.getInt('readerChapter') ?? 1;
+    prefs.setInt('readerBook', readerBook);
+    prefs.setInt('readerChapter', readerChapter);
+    resumeVerse = firstOpen ? null : prefs.getInt('readerVerse');
+    resumeAt = DateTime.tryParse(prefs.getString('readerReadAt') ?? '');
+    final today = dayKey(DateTime.now());
+    todayCardFull = prefs.getString('todayCardFullOn') != today;
+    prefs.setString('todayCardFullOn', today);
+  }
+
+  /// The verse at the top of the reader, so the next open resumes there.
+  void rememberVerse(int verse) {
+    prefs.setInt('readerVerse', verse);
+    prefs.setString('readerReadAt', DateTime.now().toIso8601String());
   }
 
   void setReader(Book book, int chapter, [int? verse]) {

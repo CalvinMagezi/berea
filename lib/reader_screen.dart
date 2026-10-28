@@ -5,10 +5,10 @@ import 'app_state.dart';
 import 'commentary_sheet.dart';
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
-import 'plans_screen.dart';
 import 'study_page_screen.dart';
 import 'search_screen.dart';
 import 'theme.dart';
+import 'today_card.dart';
 import 'word_study_screen.dart';
 
 /// Where a jumped-to verse lands: a little below the top so the one before is visible.
@@ -17,6 +17,14 @@ const maxVerseJumpAttempts = 3;
 
 /// Wide enough to set two translations side by side instead of stacked.
 const parallelSideBySideWidth = 560.0;
+
+/// The list's first item is today's card, so verse n is item n.
+const _cardItems = 1;
+
+/// Tip T14, shown once on the first chapter until it is dismissed.
+const _tipKey = 'tipT14Done';
+const tipsOffKey = 'tipsOff';
+const tipT14 = 'Tap a verse to highlight it, write a note, pray it or ask about it.';
 
 class ReaderScreen extends StatefulWidget {
   final AppState state;
@@ -37,10 +45,37 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Book get book => bookById(s.readerBook);
   int get chapter => s.readerChapter;
 
+  /// Where the reader stopped last session, marked until the reader moves to another chapter.
+  late Ref? _resume = s.resumeVerse == null ? null : Ref(book, chapter, s.resumeVerse);
+  late bool _tip = !(s.prefs.getBool(_tipKey) ?? false) && !(s.prefs.getBool(tipsOffKey) ?? false);
+
   @override
   void initState() {
     super.initState();
     s.addListener(_refresh);
+    final resume = _resume;
+    if (resume != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(resume.verseStart!));
+    }
+  }
+
+  void _dismissTip({bool allTips = false}) {
+    s.prefs.setBool(_tipKey, true);
+    if (allTips) s.prefs.setBool(tipsOffKey, true);
+    setState(() => _tip = false);
+  }
+
+  /// Remembers the verse at the top of the list once a scroll settles.
+  bool _onScrollEnd(ScrollEndNotification n) {
+    final top = (n.context?.findRenderObject() as RenderBox?)?.localToGlobal(Offset.zero).dy;
+    if (top == null) return false;
+    final shown = _verseKeys.entries.where((e) {
+      final box = e.value.currentContext?.findRenderObject() as RenderBox?;
+      return box != null && box.attached && box.localToGlobal(Offset(0, box.size.height)).dy > top;
+    });
+    final first = shown.map((e) => e.key).fold<int?>(null, (a, v) => a == null || v < a ? v : a);
+    if (first != null) s.rememberVerse(first);
+    return false;
   }
 
   @override
@@ -51,6 +86,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _refresh() {
+    if (_resume case final r? when r.book.id != book.id || r.chapter != chapter) _resume = null;
     setState(() {});
     final target = s.readerTargetVerse;
     if (target == null) return;
@@ -104,8 +140,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final count = s.db.passage(Ref(book, chapter), translation: s.settings.translation).length;
     if (count < 2) return;
     final pos = _scroll.position;
-    final perVerse = (pos.maxScrollExtent + pos.viewportDimension) / count;
-    _scroll.jumpTo(((verse - 1) * perVerse).clamp(0, pos.maxScrollExtent));
+    final perItem = (pos.maxScrollExtent + pos.viewportDimension) / (count + _cardItems);
+    _scroll.jumpTo(((verse - 1 + _cardItems) * perItem).clamp(0, pos.maxScrollExtent));
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(verse, attempt + 1));
   }
 
@@ -114,6 +150,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _verseKeys.clear();
     _textKeys.clear();
     if (_scroll.hasClients) _scroll.jumpTo(0);
+    _resume = null;
+    s.todayCardFull = false;
+    s.rememberVerse(1);
     s.setReader(b, c);
   }
 
@@ -159,14 +198,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Reading plans',
-            icon: const Icon(Icons.calendar_month_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(builder: (_) => PlansScreen(state: s)),
-            ),
-          ),
-          IconButton(
             tooltip: 'Search',
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
@@ -195,82 +226,112 @@ class _ReaderScreenState extends State<ReaderScreen> {
           const SizedBox(width: 12),
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-          child: verses.isEmpty
-              ? Center(
-                  child: Text(
-                    'No text for ${book.name} $chapter in $translation.',
-                    style: TextStyle(color: scheme.onSurfaceVariant),
-                  ),
-                )
-              : ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
-                  itemCount: verses.length,
-                  itemBuilder: (_, i) {
-                    final v = verses[i];
-                    final on = _selected.contains(v.verse);
-                    final other = second[v.verse];
-                    // Listener only notes where the finger went down; InkWell still decides.
-                    return Listener(
-                      key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
-                      onPointerDown: (e) => _pressAt = e.position,
-                      child: InkWell(
-                        onTap: () =>
-                            setState(() => on ? _selected.remove(v.verse) : _selected.add(v.verse)),
-                        onLongPress: () => _longPress(v),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: highlights.contains(v.verse)
-                                ? scheme.primary.withValues(alpha: 0.18)
-                                : null,
-                            border: on
-                                ? Border(left: BorderSide(color: scheme.primary, width: 3))
-                                : null,
-                          ),
-                          child: _ParallelRow(
-                            other: other,
-                            otherLabel: parallel,
-                            primary: Text.rich(
-                              key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
-                              TextSpan(
-                                style: scriptureStyle(context).copyWith(fontSize: 18, height: 1.6),
-                                children: [
-                                  TextSpan(
-                                    text: '${v.verse} ',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: scheme.primary,
-                                      fontWeight: FontWeight.w600,
+      body: Stack(
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: contentMaxWidth),
+              child: verses.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No text for ${book.name} $chapter in $translation.',
+                        style: TextStyle(color: scheme.onSurfaceVariant),
+                      ),
+                    )
+                  : NotificationListener<ScrollEndNotification>(
+                      onNotification: _onScrollEnd,
+                      child: ListView.builder(
+                        controller: _scroll,
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
+                        itemCount: verses.length + _cardItems,
+                        itemBuilder: (_, i) {
+                          if (i < _cardItems) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: TodayCard(
+                                state: s,
+                                full: s.todayCardFull,
+                                onFull: (full) => setState(() => s.todayCardFull = full),
+                              ),
+                            );
+                          }
+                          final v = verses[i - _cardItems];
+                          final on = _selected.contains(v.verse);
+                          final other = second[v.verse];
+                          final stopped = _resume?.verseStart == v.verse;
+                          // Listener only notes where the finger went down; InkWell still decides.
+                          final item = Listener(
+                            key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
+                            onPointerDown: (e) => _pressAt = e.position,
+                            child: InkWell(
+                              onTap: () => setState(
+                                () => on ? _selected.remove(v.verse) : _selected.add(v.verse),
+                              ),
+                              onLongPress: () => _longPress(v),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: highlights.contains(v.verse)
+                                      ? scheme.primary.withValues(alpha: 0.18)
+                                      : stopped
+                                      ? scheme.surfaceContainerHighest
+                                      : null,
+                                  border: on
+                                      ? Border(left: BorderSide(color: scheme.primary, width: 3))
+                                      : null,
+                                ),
+                                child: _ParallelRow(
+                                  other: other,
+                                  otherLabel: parallel,
+                                  primary: Text.rich(
+                                    key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                    TextSpan(
+                                      style: scriptureStyle(context)
+                                          .copyWith(fontSize: 18, height: 1.6),
+                                      children: [
+                                        TextSpan(
+                                          text: '${v.verse} ',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: scheme.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        TextSpan(text: v.text),
+                                        if (noted.contains(v.verse))
+                                          WidgetSpan(
+                                            alignment: PlaceholderAlignment.middle,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 6),
+                                              child: Icon(
+                                                Icons.sticky_note_2_outlined,
+                                                size: 14,
+                                                color: scheme.onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
-                                  TextSpan(text: v.text),
-                                  if (noted.contains(v.verse))
-                                    WidgetSpan(
-                                      alignment: PlaceholderAlignment.middle,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(left: 6),
-                                        child: Icon(
-                                          Icons.sticky_note_2_outlined,
-                                          size: 14,
-                                          color: scheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                    ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
-                        ),
+                          );
+                          return stopped ? _StoppedMarker(at: s.resumeAt, child: item) : item;
+                        },
                       ),
-                    );
-                  },
-                ),
-        ),
+                    ),
+            ),
+          ),
+          if (_tip && verses.isNotEmpty)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: _Tip(onGotIt: _dismissTip, onTurnOff: () => _dismissTip(allTips: true)),
+            ),
+        ],
       ),
       bottomNavigationBar: _selected.isEmpty
           ? _ChapterNav(
@@ -322,6 +383,79 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _goLastChapter(Book b) => _go(b, s.db.chapterCount(b, translation: s.settings.translation));
 }
 
+/// A quiet line above the verse the reader stopped at last time.
+class _StoppedMarker extends StatelessWidget {
+  final DateTime? at;
+  final Widget child;
+  const _StoppedMarker({required this.at, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+          child: Row(
+            children: [
+              Container(width: 12, height: 1.5, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                stoppedLabel(at, DateTime.now()),
+                style: TextStyle(fontSize: 12, color: scheme.primary),
+              ),
+            ],
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+/// Tip T14: a dark bubble over the first chapter until it is dismissed.
+class _Tip extends StatelessWidget {
+  final VoidCallback onGotIt;
+  final VoidCallback onTurnOff;
+  const _Tip({required this.onGotIt, required this.onTurnOff});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final button = TextButton.styleFrom(foregroundColor: scheme.surface);
+    return Material(
+      color: scheme.onSurface,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 8, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.lightbulb_outline, size: 18, color: scheme.surface),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(tipT14, style: TextStyle(color: scheme.surface)),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(style: button, onPressed: onTurnOff, child: const Text('Turn off tips')),
+                TextButton(style: button, onPressed: onGotIt, child: const Text('Got it')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// The primary verse with the parallel translation beside it on wide screens, below it on phones.
 class _ParallelRow extends StatelessWidget {
   final Widget primary;
@@ -336,9 +470,8 @@ class _ParallelRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final secondary = Text(
       text,
-      style: scriptureStyle(
-        context,
-      ).copyWith(fontSize: 16, height: 1.5, color: scheme.onSurfaceVariant),
+      style: scriptureStyle(context)
+          .copyWith(fontSize: 16, height: 1.5, color: scheme.onSurfaceVariant),
       semanticsLabel: '$otherLabel: $text',
     );
     return LayoutBuilder(
