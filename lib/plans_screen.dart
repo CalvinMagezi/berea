@@ -202,15 +202,15 @@ class _PlansScreenState extends State<PlansScreen> {
 TextStyle _muted(BuildContext context) =>
     TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant);
 
+/// A Material, not a decorated box, so list tiles inside it show their ink.
 Widget _card(Widget child) => Builder(
-  builder: (context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(_cardRadius),
+  builder: (context) => Material(
+    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    borderRadius: BorderRadius.circular(_cardRadius),
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: SizedBox(width: double.infinity, child: child),
     ),
-    child: child,
   ),
 );
 
