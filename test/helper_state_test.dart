@@ -1,11 +1,14 @@
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
+import 'package:berea/chat_screen.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea/voice.dart';
 import 'package:berea_harness/berea_harness.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:record/record.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'support/bible.dart';
@@ -108,5 +111,36 @@ void main() {
     await s.startHelper();
     expect(s.helperState, isA<HelperLoading>());
     expect(s.harness, isNull);
+  });
+
+  testWidgets('a question from the reader waits in Study and is answered once the helper is ready', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final s = loading()..prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(MaterialApp(home: ChatScreen(state: s)));
+    s.askAboutWord('What is grace?');
+    await tester.pump();
+    expect(s.turns.single.question, 'What is grace?');
+    expect(s.turns.single.done, isFalse);
+    expect(find.text('What is grace?'), findsOneWidget, reason: 'the held question is shown');
+
+    s.harness = Harness(db: bible, engine: _Answer(), systemPrompt: 'SYS');
+    s.helperState = const HelperReady();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pumpAndSettle();
+    expect(s.turns.single.done, isTrue);
+    expect(find.textContaining('Grace is a gift'), findsOneWidget);
+  });
+
+  test('clearing the study drops a held question', () async {
+    final s = loading();
+    final sent = s.send('What is grace?');
+    s.clear();
+    await sent;
+    expect(s.turns, isEmpty);
+    s.harness = Harness(db: bible, engine: _Answer(), systemPrompt: 'SYS');
+    s.helperState = const HelperReady();
+    expect(s.busy, isFalse, reason: 'nothing was left to answer');
   });
 }

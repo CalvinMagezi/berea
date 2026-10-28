@@ -707,8 +707,8 @@ class AppState extends ChangeNotifier {
   void touch() => notifyListeners();
 
   void openConversation(int id) {
-    // Switching studies under an answer being written would put it in the wrong one.
-    if (busy) return;
+    // Switching studies under an answer being written, or one waiting, would put it in the wrong one.
+    if (busy || _held != null) return;
     turns.clear();
     harness?.resetConversation();
     conversationId = id;
@@ -730,7 +730,7 @@ class AppState extends ChangeNotifier {
   }
 
   void deleteConversation(int id) {
-    if (busy && conversationId == id) return;
+    if ((busy || _held != null) && conversationId == id) return;
     study.deleteConversation(id);
     if (conversationId == id) clear();
     notifyListeners();
@@ -926,6 +926,14 @@ class AppState extends ChangeNotifier {
     return _heldDone!.future;
   }
 
+  /// Forgets a held question whose study was cleared away.
+  void _dropHeld() {
+    final done = _heldDone;
+    _held = null;
+    _heldDone = null;
+    done?.complete();
+  }
+
   /// Answers the held question once the helper settles, or says in plain words why it cannot.
   void _releaseHeld() {
     final turn = _held;
@@ -1066,6 +1074,7 @@ class AppState extends ChangeNotifier {
   });
 
   void clear() {
+    _dropHeld();
     turns.clear();
     harness?.resetConversation();
     conversationId = null;

@@ -199,12 +199,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 ),
               );
             }
-            final typing = MediaQuery.viewInsetsOf(context).bottom > 0;
             return Scaffold(
               body: body,
-              bottomNavigationBar: typing
-                  ? null
-                  : _PlaceBar(state: s, selected: _tab, onSelect: _select),
+              bottomNavigationBar: _PlaceBar(state: s, selected: _tab, onSelect: _select),
             );
           },
         ),
@@ -230,6 +227,8 @@ class _PlaceBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Checked here, not in the shell, so the keyboard's animation does not rebuild every place.
+    if (MediaQuery.viewInsetsOf(context).bottom > 0) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
     final bottom = MediaQuery.paddingOf(context).bottom;
     return SizedBox(
@@ -332,6 +331,7 @@ class _StudyPlace extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
+      excludeFromSemantics: true,
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.only(bottom: _labelBottom),
