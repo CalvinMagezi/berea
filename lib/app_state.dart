@@ -254,6 +254,19 @@ final class HelperFailed extends HelperState {
   const HelperFailed(this.reason, {this.detail});
 }
 
+/// A start that cannot go on, told in plain words.
+class StartupFailure implements Exception {
+  final String message;
+  const StartupFailure(this.message);
+
+  @override
+  String toString() => message;
+}
+
+const notesCopyFailed =
+    'Berea could not make a safety copy of your notes before updating them, so nothing was '
+    'changed. Free some space on this device and open Berea again.';
+
 const helperDownloadFailed = 'The download stopped. Check the connection and try again.';
 const helperLoadFailed = 'The helper could not start on this device. Open settings to repair it.';
 const helperNotAvailable = 'The helper is not set up yet, so this question was not answered.';
@@ -266,7 +279,7 @@ class AppState extends ChangeNotifier {
   late final StudyStore study;
 
   /// Notebooks share study.sqlite, so they are backed up and restored with the notes.
-  late final NotebookStore notebooks;
+  late final NotebookStore notebooks = NotebookStore(study.db);
   late final Directory supportDir;
 
   /// Optional public domain commentaries the user has downloaded.
@@ -370,8 +383,7 @@ class AppState extends ChangeNotifier {
     s.supportDir = supportDir ?? await getApplicationSupportDirectory();
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir, onFirstSetup));
-    s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
-    s.notebooks = NotebookStore(s.study.db);
+    s.study = _openStudy('${s.supportDir.path}/study.sqlite');
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
     s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
@@ -402,6 +414,20 @@ class AppState extends ChangeNotifier {
     _helperStarted = true;
     await _rebuildHarness();
     if (_autorunAllowed) unawaited(_autorun());
+  }
+
+  /// Opens the notes database. The notes merge first writes a safety copy beside it; if that
+  /// copy cannot be written the store throws before migrating, and Berea stops with [StartupFailure]
+  /// rather than open notes it could not protect.
+  static StudyStore _openStudy(String path) {
+    final raw = sqlite3.open(path);
+    try {
+      return StudyStore(raw);
+    } on Object catch (e) {
+      raw.dispose();
+      debugPrint('The notes database did not open: $e');
+      throw const StartupFailure(notesCopyFailed);
+    }
   }
 
   /// Debug builds only: questions in `BEREA_AUTORUN` or `autorun.txt` (one per line) under the
@@ -660,6 +686,8 @@ class AppState extends ChangeNotifier {
     study.importTables(contents.tables);
     // A source still being read belongs to a notebook id the backup may have reused.
     if (contents.hasNotebooks) notebooks.cancelAll();
+    // Restoring an older backup merges its notes into notebooks, which may add one.
+    notebooks.refresh();
     _keepTranslationValid();
     clear();
     return skipped;
@@ -703,8 +731,12 @@ class AppState extends ChangeNotifier {
   /// Sends a word study's question (see [wordStudyQuestion]) to the Study tab.
   void askAboutWord(String question) => pendingQuestion.value = question;
 
-  /// Notes and highlights change outside this class; callers poke listeners through here.
-  void touch() => notifyListeners();
+  /// Notes and highlights change outside this class; callers poke listeners through here. A
+  /// first note on a verse or a saved study page can create the notes on verses notebook.
+  void touch() {
+    notebooks.refresh();
+    notifyListeners();
+  }
 
   void openConversation(int id) {
     // Switching studies under an answer being written, or one waiting, would put it in the wrong one.

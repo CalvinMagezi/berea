@@ -42,7 +42,8 @@ class _BereaAppState extends State<BereaApp> {
         builder: (context, snap) {
           if (snap.hasError) {
             debugPrint('Berea did not start: ${snap.error}\n${snap.stackTrace}');
-            return const SetupScreen(failure: startFailure);
+            final error = snap.error;
+            return SetupScreen(failure: error is StartupFailure ? error.message : startFailure);
           }
           if (!snap.hasData) return SetupScreen(settingUp: _settingUp);
           if (_launch.isRunning) {
