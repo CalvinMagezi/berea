@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark mode launch screen: Night background with linen ink and gold flame -->
+    <color name="splash_background">#161310</color>
+    <color name="splash_ink">#EAE2D4</color>
+    <color name="splash_flame">#D4A94E</color>
+</resources>

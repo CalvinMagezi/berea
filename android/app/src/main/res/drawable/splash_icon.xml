@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Berea Lamp b, launch screen mark. 288dp canvas (Android 12 splash icon size);
+     the 100-unit box is 120dp, centred, inside the 192dp circle the system masks to. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="1.2"
+        android:scaleY="1.2">
+        <!-- flame -->
+        <path
+            android:fillColor="@color/splash_flame"
+            android:pathData="M32.5,6C36,11 39.5,15 39.5,20A7,7 0,0 1,25.5,20C25.5,15 29,11 32.5,6Z"/>
+        <!-- stem -->
+        <path
+            android:strokeColor="@color/splash_ink"
+            android:strokeWidth="12"
+            android:strokeLineCap="round"
+            android:pathData="M32.5,40V88"/>
+        <!-- bowl -->
+        <path
+            android:strokeColor="@color/splash_ink"
+            android:strokeWidth="12"
+            android:pathData="M32.5,70a18,18 0,1 0,36,0a18,18 0,1 0,-36,0z"/>
+    </group>
+</vector>
