@@ -1,3 +1,6 @@
+import 'package:berea/keep_sheet.dart';
+import 'package:berea/notebook_store.dart';
+import 'package:berea/study_store.dart';
 import 'package:berea/word_study_screen.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
@@ -271,5 +274,62 @@ void main() {
     await open(tester, 'Job 1:1', english: 'perfect', wordIndex: 7, translation: 'KJV');
     expect(find.text('tam · H8535 · Hebrew · adjective'), findsOneWidget);
     expect(find.textContaining('Chosen by meaning'), findsOneWidget);
+  });
+
+  testWidgets('Save word keeps the word in a notebook through the Keep sheet', (tester) async {
+    final study = StudyStore(sqlite3.openInMemory());
+    final notebooks = NotebookStore(study.db);
+    final youth = notebooks.createNotebook('Romans with the youth');
+    final nav = GlobalKey<NavigatorState>();
+    int? kept;
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: nav,
+        home: WordStudyScreen(
+          db: db,
+          ref: RefParser.parse('Matthew 5:48').first,
+          english: 'perfect',
+          wordIndex: 1,
+          onAsk: asked.add,
+          onOpen: opened.add,
+          onKeep: ({required title, required body, required subtitle, verse}) async {
+            kept = await showModalBottomSheet<int>(
+              context: nav.currentContext!,
+              isScrollControlled: true,
+              builder: (_) => KeepSheet(
+                study: study,
+                notebooks: notebooks,
+                title: title,
+                body: body,
+                subtitle: subtitle,
+                verse: verse,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.tap(find.text('Save word'));
+    await tester.pumpAndSettle();
+    expect(find.text('Keep τέλειος, perfect'), findsOneWidget);
+    expect(find.text('perfect · G5046 · from Matthew 5:48, BSB'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Keep'));
+    await tester.pumpAndSettle();
+
+    final note = study.note(kept!)!;
+    expect(note.notebookId, youth);
+    expect(note.title, 'τέλειος, perfect');
+    expect(note.verse!.label, 'Matthew 5:48');
+    expect(isKeptWord(note), isTrue);
+    expect(note.text, contains("Strong's G5046 · teleios · Greek"));
+    expect(note.text, contains('From Matthew 5:48, BSB'));
+  });
+
+  testWidgets('without a way to keep, Save word is not offered', (tester) async {
+    await open(tester, 'Matthew 5:48', english: 'perfect', wordIndex: 1);
+    expect(find.text('Save word'), findsNothing);
   });
 }

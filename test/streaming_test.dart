@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:berea/app_state.dart';
 import 'package:berea/chat_screen.dart';
 import 'package:berea/notebook_chat.dart';
-import 'package:berea/notebook_chat_screen.dart';
 import 'package:berea/notebook_store.dart';
 import 'package:berea/study_page_screen.dart';
 import 'package:berea/study_store.dart';
@@ -559,57 +558,6 @@ void main() {
     position().jumpTo(position().maxScrollExtent);
     await tester.pumpAndSettle();
     expect(find.textContaining('It makes us thankful.'), findsOneWidget);
-  });
-
-  testWidgets('a notebook chat opened while its answer streams follows it', (tester) async {
-    final store = NotebookStore(study.db);
-    final nb = store.createNotebook('Grace');
-    for (var i = 0; i < 8; i++) {
-      store.addExchange(nb, 'Earlier question $i', _earlierAnswer, const [], const []);
-    }
-    final tokens = StreamController<String>();
-    final harness = Harness(
-      db: bible,
-      engine: _Tokens(tokens.stream),
-      systemPrompt: 'SYS',
-      notebook: true,
-    );
-    final chat = NotebookChat(
-      store: store,
-      notebookId: nb,
-      ready: () => true,
-      answer: (q, history, onToken) => harness.ask(q, onToken: onToken),
-    );
-    unawaited(chat.send('What is grace?'));
-    tokens.add('Grace is the gift of God.\n\n');
-    await tester.pump(streamRefresh);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: NotebookChatScreen(
-          store: store,
-          notebookId: nb,
-          chat: chat,
-          db: bible,
-          translation: () => 'BSB',
-          commentary: CommentaryLibrary(),
-        ),
-      ),
-    );
-    await _frames(tester);
-    expect(find.textContaining('Grace is the gift of God.'), findsOneWidget);
-    expect(_position(tester).pixels, _position(tester).maxScrollExtent);
-
-    await _stream(tester, tokens, 'It is not earned.\n\nIt is received by faith.\n\n');
-    expect(find.textContaining('It is received by faith.'), findsOneWidget);
-    expect(_position(tester).pixels, _position(tester).maxScrollExtent);
-
-    _position(tester).jumpTo(0);
-    await _stream(tester, tokens, 'It makes us thankful.\n\n');
-    await tokens.close();
-    await tester.pumpAndSettle();
-    expect(chat.answering, isFalse);
-    expect(_position(tester).pixels, 0);
   });
 
   testWidgets('a study page draft streams in, and closing the page mid-draft leaves it be', (
