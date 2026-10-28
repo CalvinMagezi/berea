@@ -526,9 +526,11 @@ class _NotebookScreenState extends State<NotebookScreen> {
                 ),
               );
             }
-            final chosen = [...notes, ...pages, ...readings]
-                .where((e) => entryKey(e) == _selected)
-                .firstOrNull;
+            // Only what the current view lists; a hidden entry leaves the panel.
+            final chosen = [
+              if (_view != _View.readings) ...[...notes, ...pages],
+              if (_view != _View.notes) ...readings,
+            ].where((e) => entryKey(e) == _selected).firstOrNull;
             return ListAndDetail(
               list: list,
               detail: chosen == null

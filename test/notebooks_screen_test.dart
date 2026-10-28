@@ -441,6 +441,13 @@ void main() {
       isTrue,
     );
 
+    await tester.tap(find.text('Readings 0'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Choose a note or reading'), findsOneWidget);
+    await tester.tap(find.text('Everything'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(SelectableText, 'What we suffer.'), findsOneWidget);
+
     // A deleted entry leaves the panel.
     s.study.deleteNote(s.study.notebookNotes(nb).single.id);
     s.notebooks.renameNotebook(nb, 'Romans 8');
