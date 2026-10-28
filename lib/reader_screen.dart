@@ -50,10 +50,23 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void initState() {
     super.initState();
     s.addListener(_refresh);
+    _lifecycle = AppLifecycleListener(onResume: _newDay);
+    _shown = (book.id, chapter);
     final resume = _resume;
+    // Read once: a remount, as when a Mac window crosses the wide layout, must not mark again.
+    s.resumeVerse = null;
     if (resume != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(resume.verseStart!));
     }
+  }
+
+  late final AppLifecycleListener _lifecycle;
+
+  /// The book and chapter last built, so a jump from elsewhere starts the new chapter at the top.
+  var _shown = (0, 0);
+
+  void _newDay() {
+    if (s.openTodayIfNewDay()) setState(() {});
   }
 
   void _dismissTip({bool allTips = false}) {
@@ -69,26 +82,37 @@ class _ReaderScreenState extends State<ReaderScreen> {
       setState(() => s.todayCardFull = false);
     }
     if (n is! ScrollEndNotification) return false;
-    final top = (n.context?.findRenderObject() as RenderBox?)?.localToGlobal(Offset.zero).dy;
-    if (top == null) return false;
+    final viewport = n.context;
+    // After layout, since a jump ends before the list has laid out at its new offset.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _rememberTop(viewport));
+    return false;
+  }
+
+  void _rememberTop(BuildContext? viewport) {
+    if (!mounted || viewport == null || !viewport.mounted) return;
+    final top = (viewport.findRenderObject() as RenderBox?)?.localToGlobal(Offset.zero).dy;
+    if (top == null) return;
     final shown = _verseKeys.entries.where((e) {
       final box = e.value.currentContext?.findRenderObject() as RenderBox?;
       return box != null && box.attached && box.localToGlobal(Offset(0, box.size.height)).dy > top;
     });
     final first = shown.map((e) => e.key).fold<int?>(null, (a, v) => a == null || v < a ? v : a);
     if (first != null) s.rememberVerse(first);
-    return false;
   }
 
   @override
   void dispose() {
     s.removeListener(_refresh);
+    _lifecycle.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
   void _refresh() {
     if (_resume case final r? when r.book.id != book.id || r.chapter != chapter) _resume = null;
+    final changed = _shown != (book.id, chapter);
+    _shown = (book.id, chapter);
+    if (changed && s.readerTargetVerse == null) _startChapter();
     setState(() {});
     final target = s.readerTargetVerse;
     if (target == null) return;
@@ -147,14 +171,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(verse, attempt + 1));
   }
 
-  void _go(Book b, int c) {
+  /// Jumps again after layout: the list corrects its offset to the old chapter's item sizes.
+  void _startChapter() {
     _selected.clear();
     _verseKeys.clear();
     _textKeys.clear();
-    if (_scroll.hasClients) _scroll.jumpTo(0);
+    void top() => _scroll.hasClients ? _scroll.jumpTo(0) : null;
+    top();
+    WidgetsBinding.instance.addPostFrameCallback((_) => top());
+  }
+
+  void _go(Book b, int c) {
+    _startChapter();
     _resume = null;
     s.todayCardFull = false;
-    s.rememberVerse(1);
     s.setReader(b, c);
   }
 

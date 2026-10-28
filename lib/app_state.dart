@@ -580,9 +580,16 @@ class AppState extends ChangeNotifier {
     prefs.setInt('readerChapter', readerChapter);
     resumeVerse = firstOpen ? null : prefs.getInt('readerVerse');
     resumeAt = DateTime.tryParse(prefs.getString('readerReadAt') ?? '');
+    openTodayIfNewDay();
+  }
+
+  /// Unfolds today's card on the first look of a new day; true when it did.
+  bool openTodayIfNewDay() {
     final today = dayKey(DateTime.now());
-    todayCardFull = prefs.getString('todayCardFullOn') != today;
+    if (prefs.getString('todayCardFullOn') == today) return false;
+    todayCardFull = true;
     prefs.setString('todayCardFullOn', today);
+    return true;
   }
 
   /// The verse at the top of the reader, so the next open resumes there.
@@ -597,6 +604,7 @@ class AppState extends ChangeNotifier {
     readerTargetVerse = verse;
     prefs.setInt('readerBook', book.id);
     prefs.setInt('readerChapter', chapter);
+    rememberVerse(verse ?? 1);
     notifyListeners();
   }
 

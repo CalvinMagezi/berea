@@ -5,6 +5,7 @@ import 'package:berea/reader_screen.dart';
 import 'package:berea/theme.dart';
 import 'package:berea/today.dart';
 import 'package:berea/today_card.dart';
+import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -91,6 +92,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Where you stopped'), findsNothing);
     expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'folds after a look');
+  });
+
+  testWidgets('a jump from elsewhere starts the chapter at the top and moves the resume point', (
+    tester,
+  ) async {
+    final state = await tester.runAsync(
+      () => open({'readerBook': 43, 'readerChapter': 3, 'readerVerse': 16, 'tipT14Done': true}),
+    );
+    await pumpReader(tester, state!);
+    double offset() => tester.widget<ListView>(find.byType(ListView)).controller!.offset;
+    expect(offset(), greaterThan(0));
+
+    state.openInReader(Ref(bookById(40), 8));
+    await tester.pumpAndSettle();
+    expect(find.text('Matthew 8'), findsOneWidget);
+    expect(offset(), 0);
+    expect(find.textContaining('Where you stopped'), findsNothing);
+    expect(state.prefs.getInt('readerVerse'), 1);
+  });
+
+  testWidgets('the resume marker shows once, not again when the reader is rebuilt', (tester) async {
+    final state = await tester.runAsync(
+      () => open({'readerBook': 43, 'readerChapter': 3, 'readerVerse': 16, 'tipT14Done': true}),
+    );
+    await pumpReader(tester, state!);
+    expect(find.textContaining('Where you stopped'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await pumpReader(tester, state);
+    expect(find.textContaining('Where you stopped'), findsNothing);
   });
 
   test('the card is in full on the first look of the day, then folds', () async {
