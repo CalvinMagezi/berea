@@ -730,6 +730,7 @@ class AppState extends ChangeNotifier {
     if (prefs.getString('todayCardFullOn') == today) return false;
     todayCardFull = true;
     prefs.setString('todayCardFullOn', today);
+    notifyListeners();
     return true;
   }
 
@@ -972,6 +973,12 @@ class AppState extends ChangeNotifier {
     notebooks.refresh();
     notifyListeners();
   }
+
+  /// Every saved question, about the Bible and each notebook, newest first.
+  List<Conversation> pastQuestions() => [
+    ...study.conversations(),
+    for (final n in notebooks.notebooks()) ...study.conversations(notebookId: n.id),
+  ]..sort((a, b) => b.updated.compareTo(a.updated));
 
   void openConversation(int id) {
     // Switching studies under an answer being written, or one waiting, would put it in the wrong one.

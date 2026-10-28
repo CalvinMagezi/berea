@@ -155,6 +155,25 @@ void main() {
     expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'folds after a look');
   });
 
+  testWidgets('left open past midnight, the folded card opens on the new day', (tester) async {
+    final now = DateTime.now();
+    final state = await tester.runAsync(
+      () => open({
+        'readerBook': 43,
+        'readerChapter': 3,
+        'todayCardFullOn': dayKey(now),
+        'tipT14Done': true,
+      }),
+    );
+    await pumpReader(tester, state!);
+    expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'seen today already');
+
+    // The clock in a test does not move, so the remembered day stands in for yesterday's.
+    await state.prefs.setString('todayCardFullOn', 'yesterday');
+    await tester.pump(const Duration(hours: 24, seconds: 2));
+    expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
+  });
+
   testWidgets('a jump from elsewhere starts the chapter at the top and moves the resume point', (
     tester,
   ) async {

@@ -482,12 +482,15 @@ void main() {
       s.study.addMessage(c, 'user', q, const []);
       s.study.addMessage(c, 'assistant', 'An answer to "$q".', const []);
     }
+    final romans = s.notebooks.createNotebook('Romans 8');
+    s.study.createConversation('How does 8:28 fit 8:18?', notebookId: romans);
     await pumpStudy(tester, s);
     await tester.tap(find.byTooltip('Past questions'));
     await tester.pumpAndSettle();
     expect(find.text('Who were the Bereans?'), findsOneWidget);
     expect(find.text('What does John 3:16 teach?'), findsOneWidget);
     expect(find.textContaining('Today · the Bible'), findsNWidgets(2));
+    expect(find.text('Today · Romans 8'), findsOneWidget, reason: 'every scope, each labelled');
 
     await tester.tap(find.text('Who were the Bereans?'));
     await tester.pumpAndSettle();

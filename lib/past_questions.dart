@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'study_store.dart';
+import 'today.dart';
 
 const _daysInWeek = 7;
 const _months = [
@@ -22,8 +23,8 @@ const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 /// When a question was last asked, in words: Today, Yesterday, a weekday, or a date.
 String askedWhen(DateTime d, {DateTime? now}) {
-  final today = DateUtils.dateOnly(now ?? DateTime.now());
-  final days = today.difference(DateUtils.dateOnly(d)).inDays;
+  // Calendar days, so the day the clocks change still counts yesterday as Yesterday.
+  final days = daysBetween(d, now ?? DateTime.now());
   if (days <= 0) return 'Today';
   if (days == 1) return 'Yesterday';
   if (days < _daysInWeek) return _weekdays[d.weekday - 1];
@@ -45,7 +46,8 @@ Future<void> showPastQuestions(BuildContext context, AppState state) => Navigato
   ),
 );
 
-/// The questions asked in Study's current scope, newest first. Opening one loads it into Study.
+/// Every question asked in Study, each labelled with what it asked about, newest first.
+/// Opening one loads it into Study, in its scope.
 class PastQuestions extends StatelessWidget {
   final AppState state;
 
@@ -55,33 +57,32 @@ class PastQuestions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([state, state.studyScope]),
+    listenable: Listenable.merge([state, state.studyScope, state.notebooks]),
     builder: (context, _) => _build(context),
   );
 
   Widget _build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final scope = state.studyScope.value;
-    final asked = state.study.conversations(notebookId: scope);
+    final asked = state.pastQuestions();
     if (asked.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(20),
         child: Text(
-          'No past questions about ${scopeName(state, scope)} yet. What you ask is kept here.',
+          'No past questions yet. What you ask is kept here.',
           style: TextStyle(color: scheme.onSurfaceVariant),
         ),
       );
     }
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [for (final c in asked) _row(context, c, scope)],
+      children: [for (final c in asked) _row(context, c)],
     );
   }
 
-  Widget _row(BuildContext context, Conversation c, int? scope) => ListTile(
+  Widget _row(BuildContext context, Conversation c) => ListTile(
     selected: c.id == state.conversationId,
     title: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-    subtitle: Text('${askedWhen(c.updated)} · ${scopeName(state, scope)}'),
+    subtitle: Text('${askedWhen(c.updated)} · ${scopeName(state, c.notebookId)}'),
     trailing: IconButton(
       tooltip: 'Delete',
       icon: const Icon(Icons.delete_outline),
