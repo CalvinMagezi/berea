@@ -8,6 +8,7 @@ import 'package:berea/download_details_sheet.dart';
 import 'package:berea/helper_download.dart';
 import 'package:berea/models.dart';
 import 'package:berea/past_questions.dart';
+import 'package:berea/pinned_download.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea/voice.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -56,6 +57,18 @@ class _NoRecorder implements AudioRecorder {
 
 const _gb = bytesPerDownloadGb;
 
+/// A model download that never arrives, and ends only when stopped.
+Future<void> _stalls(
+  EdgeModel m, {
+  required Directory modelsDir,
+  required void Function(int received, int total) onProgress,
+  Future<void>? stop,
+  bool recheck = false,
+}) async {
+  await stop;
+  throw const DownloadStopped();
+}
+
 void main() {
   late Directory dir;
 
@@ -78,8 +91,10 @@ void main() {
         recorder: _NoRecorder(),
         cacheDir: () async => dir,
       )
+      ..supportDir = dir
       ..mobileDataNow = (() async => false)
-      ..mobileDataChanges = (() => const Stream.empty());
+      ..mobileDataChanges = (() => const Stream.empty())
+      ..modelDownload = _stalls;
     if (engine != null) s.harness = Harness(db: bible, engine: engine, systemPrompt: 'SYS');
     s.helperState = helper;
     return s;
@@ -179,9 +194,9 @@ void main() {
       expect(HelperDownloading.at(12, 10).fraction, 1, reason: 'never past the end');
     });
 
-    test('a hosted model reports its size; one from Hugging Face its published size', () {
+    test('each model reports its pinned size', () {
       expect(edgeModelById('gemma-3-1b').publishedBytes, 584417280);
-      expect(edgeModelById('gemma-4-e2b').publishedBytes, 26 * _gb ~/ 10);
+      expect(edgeModelById('gemma-4-e2b').publishedBytes, 2588147712);
     });
   });
 

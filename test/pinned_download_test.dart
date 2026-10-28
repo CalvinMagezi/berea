@@ -106,7 +106,7 @@ void main() {
       expect(File('${file.path}.part').existsSync(), isFalse);
     });
 
-    test('a stopped download ends at once and leaves neither file behind', () async {
+    test('a stopped download ends at once, keeping its part and not the file', () async {
       final stop = Completer<void>();
       final bytes = <int>[];
       final fetching = downloadModelFile(
@@ -124,7 +124,8 @@ void main() {
       );
       await expectLater(fetching, throwsA(isA<DownloadStopped>()));
       expect(bytes, [8], reason: 'progress is in bytes received');
-      expect(Directory('${dir.path}/models').listSync(), isEmpty);
+      expect(File('${dir.path}/models/m.litertlm').existsSync(), isFalse);
+      expect(partialDownload(Directory('${dir.path}/models'), 'm.litertlm')?.bytes, 8);
     });
 
     test('a failed check leaves neither the file nor the partial one', () async {

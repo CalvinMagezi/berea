@@ -1,8 +1,8 @@
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
-/// A model file Berea hosts itself, pinned by tag and checked by hash, so getting it needs no
-/// account anywhere.
+/// Where a model file comes from, pinned by tag or commit and checked by size and hash, so what
+/// arrives is exactly what was released and getting it needs no account anywhere.
 class PinnedSource {
   final String url;
   final String sha256;
@@ -29,8 +29,8 @@ class EdgeModel {
   final ModelType type;
   final Tier tier;
 
-  /// Set when Berea hosts the file; otherwise it comes from [repo] on Hugging Face.
-  final PinnedSource? source;
+  /// The file Berea downloads, from its own releases or a Hugging Face commit.
+  final PinnedSource source;
 
   /// A licence notice to show before the download, for models that ask for one.
   final String? notice;
@@ -46,18 +46,19 @@ class EdgeModel {
     required this.type,
     required this.tier,
     required this.summary,
-    this.source,
+    required this.source,
     this.notice,
   });
 
-  /// flutter_edge_ai keys installed models by the downloaded filename.
+  /// flutter_edge_ai keys installed models by the downloaded filename. Berea 0.4 to 0.6 let the
+  /// plugin fetch from [repo] into its own folder, and such a copy is still used.
   String get installedName => file;
 
   /// Gemma 4 takes spoken audio directly, so voice questions need no separate speech model.
   bool get hearsAudio => type == ModelType.gemma4;
 
-  /// The download's size in bytes: exact when Berea hosts the file, else from [sizeGb].
-  int get publishedBytes => source?.bytes ?? (sizeGb * bytesPerDownloadGb).round();
+  /// The download's size in bytes.
+  int get publishedBytes => source.bytes;
 }
 
 /// Download sizes are labelled in decimal gigabytes, as model sizes are published.
@@ -76,16 +77,30 @@ const edgeModels = <EdgeModel>[
     type: ModelType.gemma4,
     tier: Tier.mid,
     summary: 'Hears spoken questions.',
+    source: PinnedSource(
+      url:
+          'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/'
+          '1caa527c1e88b55f046fcd8d2b4265606680663d/gemma-4-E2B-it.litertlm',
+      sha256: '181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c',
+      bytes: 2588147712,
+    ),
   ),
   EdgeModel(
     id: 'gemma-4-e4b',
     label: 'Gemma 4 E4B',
     repo: 'litert-community/gemma-4-E4B-it-litert-lm',
     file: 'gemma-4-E4B-it.litertlm',
-    sizeGb: 4.3,
+    sizeGb: 3.7,
     type: ModelType.gemma4,
     tier: Tier.high,
     summary: 'Fuller answers for phones with 10 GB or more. Hears spoken questions.',
+    source: PinnedSource(
+      url:
+          'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/'
+          'e6a3892a8c22cf87ff99583996149cf3cb32452b/gemma-4-E4B-it.litertlm',
+      sha256: '0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0',
+      bytes: 3659530240,
+    ),
   ),
   EdgeModel(
     id: 'gemma-3-1b',

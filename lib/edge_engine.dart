@@ -72,25 +72,27 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
   static Future<bool> isInstalled(EdgeModel m, Directory modelsDir) async {
     await ensureEdgeAiInitialized();
     final source = m.source;
-    if (source == null) {
-      if (!await FlutterEdgeAi.isModelInstalled(m.installedName)) return false;
-      await _installModel(m).fromHuggingFace(m.repo, file: m.file).install();
-      return true;
-    }
     final file = File('${modelsDir.path}/${m.file}');
     if (hostedModelCurrent(file, sha256: source.sha256, bytes: source.bytes)) {
       await _installModel(m).fromFile(file.path).install();
       _writeNotice(m, modelsDir);
       return true;
     }
-    // Berea 0.4.0 downloaded Gemma 3 1B from Hugging Face into the plugin's own folder. With no
-    // hosted file at all, that copy is still good and does not need fetching again.
+    // Berea 0.6 and before let the plugin download from Hugging Face into its own folder. With
+    // no file of Berea's own, that copy is still good and does not need fetching again.
     if (!file.existsSync() && await FlutterEdgeAi.isModelInstalled(m.installedName)) {
       await _installModel(m).fromHuggingFace(m.repo, file: m.file).install();
       return true;
     }
     return false;
   }
+
+  /// The bytes of [m] a stopped download left in [modelsDir], and the size it is heading for.
+  static ({int bytes, int? total})? partial(EdgeModel m, Directory modelsDir) =>
+      partialDownload(modelsDir, m.file);
+
+  /// Removes what a stopped download of [m] left behind.
+  static void dropPartial(EdgeModel m, Directory modelsDir) => discardPartial(modelsDir, m.file);
 
   static void _writeNotice(EdgeModel m, Directory modelsDir) {
     if (m.notice case final notice?) writeModelNotice(modelsDir, notice);
@@ -99,10 +101,9 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
   static InferenceInstallationBuilder _installModel(EdgeModel m) =>
       FlutterEdgeAi.installModel(modelType: m.type, fileType: ModelFileType.litertlm);
 
-  /// Fetches [m] into [modelsDir] when Berea hosts it, else from Hugging Face, and installs it.
-  /// A hosted file stays where it was put: the plugin registers its path instead of copying it.
-  /// [onProgress] hears bytes; Hugging Face reports a percent, read against [m]'s published size.
-  /// Once [stop] completes the transfer ends with [DownloadStopped] and nothing is installed.
+  /// Fetches [m] into [modelsDir], continuing a stopped download, and installs it. The file stays
+  /// where it was put: the plugin registers its path instead of copying it. Once [stop] completes
+  /// the transfer ends with [DownloadStopped], the part kept, and nothing is installed.
   static Future<void> download(
     EdgeModel m, {
     required Directory modelsDir,
@@ -112,22 +113,6 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
   }) async {
     await ensureEdgeAiInitialized();
     final source = m.source;
-    if (source == null) {
-      final cancel = CancelToken();
-      unawaited(stop?.then((_) => cancel.cancel('Stopped by the reader')));
-      final total = m.publishedBytes;
-      try {
-        await _installModel(m)
-            .fromHuggingFace(m.repo, file: m.file)
-            .withProgress((percent) => onProgress(total * percent ~/ 100, total))
-            .withCancelToken(cancel)
-            .install();
-      } on Object {
-        if (cancel.isCancelled) throw const DownloadStopped();
-        rethrow;
-      }
-      return;
-    }
     final file = await downloadModelFile(
       Uri.parse(source.url),
       modelsDir,
