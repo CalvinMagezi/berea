@@ -4,6 +4,7 @@ import 'package:berea/app_state.dart';
 import 'package:berea/chat_screen.dart';
 import 'package:berea/home_shell.dart';
 import 'package:berea/notebooks_screen.dart';
+import 'package:berea/prayer_screen.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/study_button.dart';
 import 'package:berea/theme.dart';
@@ -135,5 +136,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(NotebookScreen), findsOneWidget);
     state.notebooks.deleteNotebook(id);
+  });
+
+  testWidgets('the Prayer place is the prayer list', (tester) async {
+    await pumpShell(tester, _phone);
+    await tester.tap(find.text('Prayer'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PrayerScreen), findsOneWidget);
   });
 }

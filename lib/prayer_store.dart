@@ -122,6 +122,9 @@ class PrayerStore extends ChangeNotifier {
 
   int _nowMs() => now().millisecondsSinceEpoch;
 
+  /// Tells the screens to read again after a restore replaced the rows underneath.
+  void refresh() => notifyListeners();
+
   static const _select = '''
     SELECT p.*, MAX(d.day) AS last_day, MIN(d.day) AS first_day, COUNT(d.day) AS day_count
     FROM prayers p LEFT JOIN prayer_days d ON d.prayer_id = p.id''';

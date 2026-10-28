@@ -18,6 +18,7 @@ import 'notebook_chat.dart';
 import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
+import 'prayer_store.dart';
 import 'study_store.dart';
 import 'voice.dart';
 
@@ -280,6 +281,9 @@ class AppState extends ChangeNotifier {
 
   /// Notebooks share study.sqlite, so they are backed up and restored with the notes.
   late final NotebookStore notebooks = NotebookStore(study.db);
+
+  /// Prayers share study.sqlite, so they are backed up and restored with the notes.
+  late final PrayerStore prayers = PrayerStore(study.db);
   late final Directory supportDir;
 
   /// Optional public domain commentaries the user has downloaded.
@@ -688,6 +692,7 @@ class AppState extends ChangeNotifier {
     if (contents.hasNotebooks) notebooks.cancelAll();
     // Restoring an older backup merges its notes into notebooks, which may add one.
     notebooks.refresh();
+    prayers.refresh();
     _keepTranslationValid();
     clear();
     return skipped;

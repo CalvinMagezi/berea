@@ -12,6 +12,7 @@ import 'notebook_store.dart';
 import 'notebooks_screen.dart';
 import 'notes_screen.dart';
 import 'plans_screen.dart';
+import 'prayer_screen.dart';
 import 'reader_screen.dart';
 import 'setup_screen.dart';
 import 'study_button.dart';
@@ -168,7 +169,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         ReaderScreen(state: s, onQuickChat: () => _select(HomeTab.study)),
         PlansScreen(state: s),
         ChatScreen(state: s),
-        const _PrayerPlace(),
+        PrayerScreen(
+          store: s.prayers,
+          passage: passageLookupFor(s.db, () => s.settings.translation),
+          translation: () => s.settings.translation,
+        ),
         _NotesPlace(
           state: s,
           onOpenStudy: () => _select(HomeTab.study),
@@ -554,45 +559,6 @@ class _HelperFooter extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Interim Prayer place until the prayer list lands.
-class _PrayerPlace extends StatelessWidget {
-  const _PrayerPlace();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Prayer',
-          style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 24),
-        ),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconTheme.merge(
-                data: IconThemeData(size: 48, color: scheme.onSurfaceVariant),
-                child: const PrayerIcon(),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Your prayer list will live here. It stays on this $deviceNoun and never needs '
-                'the helper.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: scheme.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
