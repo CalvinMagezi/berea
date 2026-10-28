@@ -410,6 +410,7 @@ class AppState extends ChangeNotifier {
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir, onFirstSetup));
     s.study = _openStudy('${s.supportDir.path}/study.sqlite');
+    s.study.copyNotebookChats();
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
     s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();

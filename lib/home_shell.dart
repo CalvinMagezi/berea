@@ -8,8 +8,6 @@ import 'brand/lamp_mark.dart';
 import 'brand/prayer_icon.dart';
 import 'chat_screen.dart';
 import 'download_details_sheet.dart';
-import 'notebook_chat_screen.dart';
-import 'notebook_store.dart';
 import 'notebooks_screen.dart';
 import 'notes_screen.dart';
 import 'plans_screen.dart';
@@ -95,59 +93,21 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     setState(() => _tab = t);
   }
 
-  late final _lookup = SourceLookup(
-    notes: () => widget.state.study.notes(),
-    passage: (r) => passageSource(widget.state.db, r, widget.state.settings.translation),
-    commentary: (r) => commentarySources(widget.state.commentary.library, r),
-    hasCommentary: () => !widget.state.commentary.library.isEmpty,
-  );
+  /// The Notes place keeps its own pages, so a notebook opens under the bar or beside the
+  /// sidebar, as the other places do.
+  final _notesNav = GlobalKey<NavigatorState>();
 
-  void _openNotebookChat(BuildContext context, int notebookId) {
-    final s = widget.state;
-    Navigator.push(
-      context,
+  void _openNotebook(BuildContext context, int id) {
+    _select(HomeTab.notes);
+    final nav = _notesNav.currentState;
+    if (nav == null) return;
+    nav.popUntil((r) => r.isFirst);
+    nav.push(
       MaterialPageRoute<void>(
-        builder: (_) => NotebookChatScreen(
-          store: s.notebooks,
-          notebookId: notebookId,
-          db: s.db,
-          translation: () => s.settings.translation,
-          commentary: s.commentary.library,
-          engineNotice: EngineNotice(state: s),
-          chat: s.notebookChat(notebookId),
-          engine: s,
-          privacyNotice: () => switch (s.offDeviceHost) {
-            final host? =>
-              'Questions here send sections of your sources to the Ollama server at $host.',
-            null => null,
-          },
-        ),
+        builder: (_) => NotebookScreen(state: widget.state, notebookId: id),
       ),
     );
   }
-
-  void _openNotebooks(BuildContext context) => Navigator.push(
-    context,
-    MaterialPageRoute<void>(
-      builder: (_) => NotebooksScreen(
-        store: widget.state.notebooks,
-        lookup: _lookup,
-        onChat: _openNotebookChat,
-      ),
-    ),
-  );
-
-  void _openNotebook(BuildContext context, int id) => Navigator.push(
-    context,
-    MaterialPageRoute<void>(
-      builder: (_) => NotebookScreen(
-        store: widget.state.notebooks,
-        lookup: _lookup,
-        notebookId: id,
-        onChat: _openNotebookChat,
-      ),
-    ),
-  );
 
   /// Cmd 1 to Cmd 5 on a Mac, Ctrl elsewhere, in the order of the places.
   Map<ShortcutActivator, VoidCallback> get _shortcuts {
@@ -179,11 +139,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           passage: passageLookupFor(s.db, () => s.settings.translation),
           translation: () => s.settings.translation,
         ),
-        _NotesPlace(
-          state: s,
-          onOpenStudy: () => _select(HomeTab.study),
-          onOpenNotebooks: _openNotebooks,
-          onOpenNotebook: _openNotebook,
+        NavigatorPopHandler(
+          enabled: _tab == HomeTab.notes,
+          onPopWithResult: (_) => _notesNav.currentState?.maybePop(),
+          child: Navigator(
+            key: _notesNav,
+            // Taking focus while hidden would leave the place shortcuts with nothing focused.
+            requestFocus: false,
+            onGenerateRoute: (_) =>
+                MaterialPageRoute<void>(builder: (_) => NotesScreen(state: s)),
+          ),
         ),
       ],
     );
@@ -568,63 +533,6 @@ class _HelperFooter extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Interim Notes place: the notes, with the notebooks one row above them.
-class _NotesPlace extends StatelessWidget {
-  final AppState state;
-  final VoidCallback onOpenStudy;
-  final void Function(BuildContext context) onOpenNotebooks;
-  final void Function(BuildContext context, int id) onOpenNotebook;
-  const _NotesPlace({
-    required this.state,
-    required this.onOpenStudy,
-    required this.onOpenNotebooks,
-    required this.onOpenNotebook,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SafeArea(
-          bottom: false,
-          child: SizedBox(
-            height: 48,
-            child: ListenableBuilder(
-              listenable: state.notebooks,
-              builder: (context, _) => ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                children: [
-                  ActionChip(
-                    avatar: const Icon(Icons.collections_bookmark_outlined),
-                    label: const Text('Notebooks'),
-                    onPressed: () => onOpenNotebooks(context),
-                  ),
-                  for (final n in state.notebooks.notebooks())
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: ActionChip(
-                        label: Text(n.title),
-                        onPressed: () => onOpenNotebook(context, n.id),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Expanded(
-          child: MediaQuery.removePadding(
-            context: context,
-            removeTop: true,
-            child: NotesScreen(state: state, onOpenStudy: onOpenStudy),
-          ),
-        ),
-      ],
     );
   }
 }

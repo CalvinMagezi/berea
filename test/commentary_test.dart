@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:berea/commentary_packs.dart';
 import 'package:berea/commentary_sheet.dart';
+import 'package:berea/keep_sheet.dart';
+import 'package:berea/notebook_store.dart';
+import 'package:berea/study_store.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -165,5 +168,57 @@ void main() {
     for (final spec in commentaryPackSpecs) {
       expect(commentaryPins[spec.id]?.sha256, matches(RegExp(r'^[0-9a-f]{64}$')), reason: spec.id);
     }
+  });
+
+  testWidgets('Keep in a notebook files a comment with its attribution', (tester) async {
+    final library = CommentaryLibrary()
+      ..open(
+        'core',
+        writePack(dir, 'core', [
+          ['MHCC', 43, 3, 14, 18, 'Verses 14-18 The love of God.'],
+        ]),
+      );
+    final study = StudyStore(sqlite3.openInMemory());
+    final notebooks = NotebookStore(study.db);
+    final nav = GlobalKey<NavigatorState>();
+    int? kept;
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: nav,
+        home: Scaffold(
+          body: CommentaryPanel(
+            library: library,
+            passage: RefParser.parse('John 3:16').first,
+            onKeep: (title, body, verse) async {
+              kept = await showModalBottomSheet<int>(
+                context: nav.currentContext!,
+                isScrollControlled: true,
+                builder: (_) => KeepSheet(
+                  study: study,
+                  notebooks: notebooks,
+                  title: title,
+                  body: body,
+                  verse: verse,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Keep in a notebook'));
+    await tester.pumpAndSettle();
+    // With no notebooks yet, the comment goes to the notes on verses notebook, made for it.
+    expect(find.text(notesOnVersesTitle), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Keep'));
+    await tester.pumpAndSettle();
+
+    final note = study.note(kept!)!;
+    final spec = commentaryModuleById('MHCC')!;
+    expect(note.title, '${spec.title} on John 3:14-18');
+    expect(note.text, 'Verses 14-18 The love of God.\n\n${spec.author} · ${spec.licence}');
+    expect(note.verse!.label, 'John 3:14-18');
+    expect(notebooks.notebook(note.notebookId!)!.title, notesOnVersesTitle);
+    expect(isKeptWord(note), isFalse);
   });
 }
