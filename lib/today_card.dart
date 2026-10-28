@@ -57,7 +57,7 @@ class TodayCard extends StatelessWidget {
               ActionChip(
                 avatar: const Icon(Icons.calendar_month_outlined, size: 16),
                 label: Text(readingLabel(reading)),
-                onPressed: () => state.openInReader(reading.first),
+                onPressed: () => state.openInReader(state.planProgress?.next ?? reading.first),
               ),
             IconButton(
               tooltip: 'Show today',
@@ -140,7 +140,9 @@ class TodayCard extends StatelessWidget {
       leading: Icon(Icons.calendar_month_outlined, color: scheme.onSurfaceVariant),
       title: Text(title),
       subtitle: Text(subtitle),
-      onTap: reading == null ? openPlans : () => state.openInReader(reading.first),
+      onTap: reading == null
+          ? openPlans
+          : () => state.openInReader(state.planProgress?.next ?? reading.first),
       trailing: reading == null
           ? const Icon(Icons.chevron_right)
           : TextButton(onPressed: openPlans, child: const Text('Open Plans')),

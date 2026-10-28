@@ -623,14 +623,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<List<Ref>> planSchedule(ReadingPlan plan) =>
-      plan.schedule((b) => db.chapterCount(b, translation: defaultTranslation));
+  List<List<Ref>> planSchedule(ReadingPlan plan) => plan.schedule();
+
+  DateTime get planStart =>
+      DateTime.tryParse(prefs.getString('activePlanStart') ?? '') ?? DateTime.now();
 
   /// Day of [plan] for today, counting the start day as day 1 and stopping at the last day.
-  int planDay(ReadingPlan plan) {
-    final start = DateTime.tryParse(prefs.getString('activePlanStart') ?? '') ?? DateTime.now();
-    final days = DateTime.now().difference(DateTime(start.year, start.month, start.day)).inDays;
-    return (days + 1).clamp(1, plan.days);
+  int planDay(ReadingPlan plan) => (daysBetween(planStart, DateTime.now()) + 1).clamp(1, plan.days);
+
+  /// The running plan's ticks against its days, or null when no plan runs.
+  PlanProgress? get planProgress {
+    final plan = activePlan;
+    return plan == null ? null : PlanProgress(plan, study.planChaptersDone(plan.id), planDay(plan));
   }
 
   /// Today's chapters if a plan is running.

@@ -95,13 +95,14 @@ _Tables _snapshot(Database db) => {
   for (final t in StudyStore.userTables)
     if (db.select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", [t]).isNotEmpty)
       t: [
-      for (final r in db.select('SELECT * FROM $t ORDER BY 1, 2')) Map<String, Object?>.from(r),
-    ],
+        for (final r in db.select('SELECT * FROM $t ORDER BY 1, 2')) Map<String, Object?>.from(r),
+      ],
 };
 
 /// Every row of [before] is in [after] with the same values, matched on its key columns.
+/// Day ticks are kept as chapter ticks by migration 4; tests check those through the store.
 void _expectKept(_Tables before, _Tables after) {
-  for (final t in before.keys) {
+  for (final t in before.keys.where((t) => t != 'plan_progress')) {
     expect(after[t]!.length, greaterThanOrEqualTo(before[t]!.length), reason: t);
     for (final row in before[t]!) {
       final match = after[t]!.where((r) => row.keys.every((c) => r[c] == row[c]));
@@ -139,7 +140,7 @@ void main() {
     final after = _snapshot(db);
     _expectKept(before, after);
     for (final t in before.keys) {
-      if (t == 'notebooks' || t == 'conversations' || t == 'messages') continue;
+      if (const ['notebooks', 'conversations', 'messages', 'plan_progress'].contains(t)) continue;
       expect(after[t]!.length, before[t]!.length, reason: t);
     }
 
@@ -147,6 +148,7 @@ void main() {
     expect([for (final r in after['notes']!) r['notebook_id']], [verses, verses, verses]);
     expect(store.notes().map((n) => n.text), containsAll(['Loved first.', 'All things.']));
     expect(store.notebookNotes(verses), hasLength(3));
+    expect(store.planDaysDone('nt-90'), {1});
 
     // Exact passage, containing chapter, then no notebook.
     expect(

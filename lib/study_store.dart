@@ -5,6 +5,7 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'notebook_store.dart';
+import 'plans.dart';
 import 'prayer_store.dart';
 
 /// Everything the user writes: notes, highlights and saved studies. One local SQLite file,
@@ -84,6 +85,13 @@ const notesMergeSchema = '''
   ALTER TABLE notebook_sources ADD COLUMN note_id INTEGER;
 ''';
 
+/// Study store migration 4: plans tick chapters, not days. [StudyStore.carryPlanDays] then
+/// ticks every chapter of each day already ticked.
+const planChaptersSchema = '''
+  CREATE TABLE IF NOT EXISTS plan_chapters(plan_id TEXT, book INTEGER, chapter INTEGER,
+    done_at INTEGER, PRIMARY KEY(plan_id, book, chapter)) WITHOUT ROWID;
+''';
+
 /// The copy of study.sqlite written before the notes merge, beside the database.
 const preNotesMergeSuffix = '.pre-notes-merge';
 
@@ -120,6 +128,7 @@ class StudyStore {
     notebookChatSchema,
     notesMergeSchema,
     prayerSchema,
+    planChaptersSchema,
   ];
 
   static int get schemaVersion => migrations.length;
@@ -127,9 +136,11 @@ class StudyStore {
   /// Data moves SQL cannot make, run after the migration at the same index, in its transaction.
   static final _dataSteps = <int, void Function(StudyStore)>{
     _notesMergeIndex: (s) => s.mergeNotes(),
+    _planChaptersIndex: (s) => s.carryPlanDays(),
   };
 
   static const _notesMergeIndex = 2;
+  static const _planChaptersIndex = 4;
 
   /// A file from a newer Berea (a downgrade) is opened as it is: later migrations only add
   /// tables, and columns with defaults. Not across the notes merge: 0.6.0 cannot read a note
@@ -527,20 +538,68 @@ class StudyStore {
       ),
   ];
 
-  Set<int> planDaysDone(String planId) => {
-    for (final r in db.select('SELECT day FROM plan_progress WHERE plan_id = ?', [planId]))
-      r['day'] as int,
+  Set<Ref> planChaptersDone(String planId) => {
+    for (final r in db.select('SELECT book, chapter FROM plan_chapters WHERE plan_id = ?', [
+      planId,
+    ]))
+      Ref(bookById(r['book'] as int), r['chapter'] as int),
   };
 
-  void setPlanDay(String planId, int day, bool done) => db.execute(
+  void setPlanChapter(String planId, Ref chapter, bool done) => db.execute(
     done
-        ? 'INSERT OR REPLACE INTO plan_progress VALUES (?, ?, ?)'
-        : 'DELETE FROM plan_progress WHERE plan_id = ? AND day = ?',
-    done ? [planId, day, _now()] : [planId, day],
+        ? 'INSERT OR REPLACE INTO plan_chapters VALUES (?, ?, ?, ?)'
+        : 'DELETE FROM plan_chapters WHERE plan_id = ? AND book = ? AND chapter = ?',
+    [planId, chapter.book.id, chapter.chapter, if (done) _now()],
   );
 
-  void clearPlan(String planId) =>
-      db.execute('DELETE FROM plan_progress WHERE plan_id = ?', [planId]);
+  /// Days of the plan whose chapters are all read.
+  Set<int> planDaysDone(String planId) {
+    final plan = planById(planId);
+    if (plan == null) return {};
+    final progress = PlanProgress(plan, planChaptersDone(planId), 1);
+    return {
+      for (var d = 1; d <= plan.days; d++)
+        if (progress.dayDone(d)) d,
+    };
+  }
+
+  /// Ticks or unticks every chapter of [day].
+  void setPlanDay(String planId, int day, bool done) {
+    final plan = planById(planId);
+    if (plan == null || day < 1 || day > plan.days) return;
+    _transaction(() {
+      for (final chapter in plan.schedule()[day - 1]) {
+        setPlanChapter(planId, chapter, done);
+      }
+    });
+  }
+
+  void clearPlan(String planId) => _transaction(() {
+    db.execute('DELETE FROM plan_chapters WHERE plan_id = ?', [planId]);
+    db.execute('DELETE FROM plan_progress WHERE plan_id = ?', [planId]);
+  });
+
+  /// Ticks every chapter of each day ticked before plans counted chapters, then drops the day,
+  /// so a later restore cannot tick again a chapter the reader unticked. Days of a plan Berea
+  /// no longer has are left as they are. Safe to run again, as after restoring an older backup.
+  void carryPlanDays() {
+    final schedules = <String, List<List<Ref>>>{};
+    for (final r in db.select('SELECT plan_id, day, done_at FROM plan_progress')) {
+      final plan = planById(r['plan_id'] as String?);
+      final day = r['day'] as int?;
+      if (plan == null || day == null || day < 1 || day > plan.days) continue;
+      final days = schedules.putIfAbsent(plan.id, plan.schedule);
+      for (final chapter in days[day - 1]) {
+        db.execute('INSERT OR IGNORE INTO plan_chapters VALUES (?, ?, ?, ?)', [
+          plan.id,
+          chapter.book.id,
+          chapter.chapter,
+          r['done_at'],
+        ]);
+      }
+      db.execute('DELETE FROM plan_progress WHERE plan_id = ? AND day = ?', [plan.id, day]);
+    }
+  }
 
   StudyPageRecord _page(Row r) => StudyPageRecord(
     r['id'] as int,
@@ -622,6 +681,7 @@ class StudyStore {
     'conversations',
     'messages',
     'plan_progress',
+    'plan_chapters',
     'study_pages',
     'notebooks',
     'notebook_sources',
@@ -643,6 +703,7 @@ class StudyStore {
     'conversations': {'id': int, 'title': String, 'updated': int},
     'messages': {'conversation_id': int, 'role': String, 'text': String, 'refs': String},
     'plan_progress': {'plan_id': String, 'day': int},
+    'plan_chapters': {'plan_id': String, 'book': int, 'chapter': int},
     'study_pages': {
       'id': int,
       'book': int,
@@ -865,6 +926,8 @@ class StudyStore {
       // The notes were replaced under the kept notebooks, so their note ids mean other notes.
       if (!hasNotebooks) db.execute('UPDATE notebook_sources SET note_id = NULL');
       mergeNotes();
+      // A backup from before chapter ticks brings day ticks; they come back as chapters.
+      carryPlanDays();
     });
   }
 
