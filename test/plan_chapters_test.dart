@@ -1,15 +1,19 @@
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:berea/app_state.dart';
 import 'package:berea/backup.dart';
 import 'package:berea/plans.dart';
 import 'package:berea/study_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 /// The version before chapter ticks: every migration up to Prayer.
 const _beforeChapters = 4;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final plan = planById('nt-90')!;
   final days = plan.schedule();
 
@@ -99,5 +103,50 @@ void main() {
       );
     }
     expect(store.planChaptersDone('nt-90'), {days[0].first});
+  });
+
+  group('on a new phone', () {
+    late Directory dir;
+    late AppState s;
+    final started = DateTime(2026, 10, 1, 7);
+
+    setUp(() async {
+      dir = Directory.systemTemp.createTempSync('berea-plan-restore');
+      SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name});
+      s = await AppState.bootstrap(supportDir: dir, prefs: await SharedPreferences.getInstance());
+      s.startPlan(plan);
+      s.prefs.setString('activePlanStart', started.toIso8601String());
+      s.study.setPlanDay(plan.id, 1, true);
+    });
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    /// What a phone with nothing on it is left with once [backup] is restored.
+    Future<void> restoreOnEmptyPhone(Uint8List backup) async {
+      s.stopPlan();
+      s.study.clearPlan(plan.id);
+      s.applyBackup(await s.openBackup(backup, 'correct horse'));
+    }
+
+    test('a restore brings back the running plan, its start and its ticks', () async {
+      await restoreOnEmptyPhone(await s.backup('correct horse'));
+      expect(s.activePlan?.id, plan.id);
+      expect(s.planStart, started);
+      expect(s.study.planChaptersDone(plan.id), days[0].toSet());
+    });
+
+    test('starting the plan again after an older restore keeps its ticks', () async {
+      final older = await createBackup(s.study, const {}, 'correct horse');
+      await restoreOnEmptyPhone(older);
+      expect(s.activePlan, isNull);
+      s.startPlan(plan);
+      expect(s.study.planChaptersDone(plan.id), days[0].toSet());
+    });
+
+    test('switching from a running plan still starts the new one afresh', () {
+      final other = planById('gospels-30')!;
+      s.study.setPlanDay(other.id, 1, true);
+      s.startPlan(other);
+      expect(s.study.planChaptersDone(other.id), isEmpty);
+    });
   });
 }

@@ -770,11 +770,17 @@ class AppState extends ChangeNotifier {
 
   ReadingPlan? get activePlan => planById(prefs.getString('activePlan'));
 
+  /// Switching from a running plan starts the new one afresh. With none running, ticks the
+  /// plan already has (restored from a backup, or kept from before it stopped) stay.
   void startPlan(ReadingPlan plan) {
-    study.clearPlan(plan.id);
-    prefs.setString('activePlan', plan.id);
-    prefs.setString('activePlanStart', DateTime.now().toIso8601String());
+    if (activePlan != null) study.clearPlan(plan.id);
+    _setPlan(plan.id, DateTime.now());
     notifyListeners();
+  }
+
+  void _setPlan(String id, DateTime start) {
+    prefs.setString('activePlan', id);
+    prefs.setString('activePlanStart', start.toIso8601String());
   }
 
   void stopPlan() {
@@ -855,8 +861,15 @@ class AppState extends ChangeNotifier {
         f.uri.pathSegments.last.replaceAll('.csv', ''): f.readAsStringSync(),
   };
 
-  Future<Uint8List> backup(String passphrase) =>
-      createBackup(study, importedTranslations, passphrase);
+  Future<Uint8List> backup(String passphrase) => createBackup(
+    study,
+    importedTranslations,
+    passphrase,
+    plan: switch (activePlan) {
+      final plan? => (id: plan.id, start: planStart),
+      null => null,
+    },
+  );
 
   /// Decrypts and checks a backup without changing anything, so the user can confirm what it
   /// holds. Throws [BackupException] or [FormatException] if it cannot be used.
@@ -886,6 +899,8 @@ class AppState extends ChangeNotifier {
       File('${importsDir.path}/${e.key}.csv').writeAsStringSync(e.value.csv);
     }
     study.importTables(contents.tables);
+    // The restored ticks belong to the plan that was running; an older backup leaves it be.
+    if (contents.plan case final plan?) _setPlan(plan.id, plan.start);
     // A source still being read belongs to a notebook id the backup may have reused.
     if (contents.hasNotebooks) notebooks.cancelAll();
     // Restoring an older backup merges its notes into notebooks, which may add one.
