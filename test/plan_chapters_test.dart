@@ -20,6 +20,10 @@ void main() {
     // A study.sqlite as Prayer left it, with two ticked days and a day of a retired plan.
     StudyStore(sqlite3.open(path)).db
       ..execute('DROP TABLE plan_chapters')
+      // Migration 5 came later; take its columns off too.
+      ..execute('DROP INDEX notebooks_system_key')
+      ..execute('ALTER TABLE notebooks DROP COLUMN system_key')
+      ..execute('ALTER TABLE notes DROP COLUMN kind')
       ..execute('PRAGMA user_version = $_beforeChapters')
       ..execute('''
         INSERT INTO plan_progress VALUES ('nt-90', 1, 100);

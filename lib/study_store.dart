@@ -19,7 +19,20 @@ class Note {
   final DateTime updated;
   final int? notebookId;
   final String title;
-  const Note(this.id, this.verse, this.text, this.updated, {this.notebookId, this.title = ''});
+
+  /// [plainNoteKind] for what the reader wrote, [keptWordKind] for a word kept from a word study.
+  final String kind;
+  const Note(
+    this.id,
+    this.verse,
+    this.text,
+    this.updated, {
+    this.notebookId,
+    this.title = '',
+    this.kind = plainNoteKind,
+  });
+
+  bool get isKeptWord => kind == keptWordKind;
 
   /// The verse of a verse note. [StudyStore.notes] returns only verse notes.
   Ref get ref => verse!;
@@ -70,6 +83,23 @@ const maxTitleChars = 60;
 
 /// Where verse notes, and study pages whose passage no notebook holds, are kept.
 const notesOnVersesTitle = 'Notes on verses';
+
+/// Finds the notes on verses notebook whatever the reader renames it to, in any language.
+const notesOnVersesKey = 'verse_notes';
+
+const plainNoteKind = 'note';
+const keptWordKind = 'word';
+
+/// Study store migration 5: the notes on verses notebook carries a key, so it is found by key
+/// rather than by its title, and a note says whether it is a kept word.
+const notebookKeySchema = '''
+  ALTER TABLE notebooks ADD COLUMN system_key TEXT;
+  CREATE UNIQUE INDEX IF NOT EXISTS notebooks_system_key ON notebooks(system_key);
+  ALTER TABLE notes ADD COLUMN kind TEXT NOT NULL DEFAULT 'note';
+''';
+
+/// How word study bodies marked a kept word before notes had a kind.
+final _legacyKeptWord = RegExp("^Strong's [GH]\\d+", multiLine: true);
 
 /// Study store migration 2: notes and study pages belong to notebooks, a note need not be on a
 /// verse, a note source links to its note, and conversations are scoped to the Bible (null) or
@@ -129,6 +159,7 @@ class StudyStore {
     notesMergeSchema,
     prayerSchema,
     planChaptersSchema,
+    notebookKeySchema,
   ];
 
   static int get schemaVersion => migrations.length;
@@ -137,10 +168,12 @@ class StudyStore {
   static final _dataSteps = <int, void Function(StudyStore)>{
     _notesMergeIndex: (s) => s.mergeNotes(),
     _planChaptersIndex: (s) => s.carryPlanDays(),
+    _notebookKeyIndex: (s) => s.keyNotebooksAndWords(),
   };
 
   static const _notesMergeIndex = 2;
   static const _planChaptersIndex = 4;
+  static const _notebookKeyIndex = 5;
 
   /// A file from a newer Berea (a downgrade) is opened as it is: later migrations only add
   /// tables, and columns with defaults. Not across the notes merge: 0.6.0 cannot read a note
@@ -211,9 +244,24 @@ class StudyStore {
     _copyNotebookChats();
   }
 
-  /// The id of the notebook named [notesOnVersesTitle], created when there is none.
-  /// [except] skips a notebook about to be deleted.
+  /// The id of the notes on verses notebook, created when there is none. [except] skips a
+  /// notebook about to be deleted, which gives up the key.
   static int notesOnVersesNotebook(Database db, {int? except}) {
+    // The notes merge (migration 2) runs before the key exists (migration 5).
+    if (!_hasNotebookKey(db)) return _notesOnVersesByTitle(db, except);
+    if (except != null) {
+      db.execute('UPDATE notebooks SET system_key = NULL WHERE id = ?', [except]);
+    }
+    final rows = db.select('SELECT id FROM notebooks WHERE system_key = ?', [notesOnVersesKey]);
+    if (rows.isNotEmpty) return rows.first['id'] as int;
+    db.execute(
+      'INSERT INTO notebooks(title, created, updated, system_key) VALUES (?, ?, ?, ?)',
+      [notesOnVersesTitle, _now(), _now(), notesOnVersesKey],
+    );
+    return db.lastInsertRowId;
+  }
+
+  static int _notesOnVersesByTitle(Database db, int? except) {
     final rows = db.select(
       'SELECT id FROM notebooks WHERE title = ? AND id IS NOT ? ORDER BY id LIMIT 1',
       [notesOnVersesTitle, except],
@@ -225,6 +273,32 @@ class StudyStore {
       _now(),
     ]);
     return db.lastInsertRowId;
+  }
+
+  static bool _hasNotebookKey(Database db) => db
+      .select("SELECT 1 FROM pragma_table_info('notebooks') WHERE name = 'system_key'")
+      .isNotEmpty;
+
+  /// The id of the notes on verses notebook, or null while there is none.
+  static int? notesOnVersesId(Database db) => db
+      .select('SELECT id FROM notebooks WHERE system_key = ?', [notesOnVersesKey])
+      .firstOrNull?['id'] as int?;
+
+  /// Keys the notes on verses notebook made before keys existed (by migration 5, or restored
+  /// from an older backup), and marks kept words saved before notes had a kind.
+  void keyNotebooksAndWords() {
+    if (notesOnVersesId(db) == null) {
+      db.execute(
+        'UPDATE notebooks SET system_key = ? WHERE id = '
+        '(SELECT id FROM notebooks WHERE title = ? ORDER BY id LIMIT 1)',
+        [notesOnVersesKey, notesOnVersesTitle],
+      );
+    }
+    for (final r in db.select("SELECT id, text FROM notes WHERE kind = 'note'")) {
+      if (_legacyKeptWord.hasMatch(r['text'] as String)) {
+        db.execute('UPDATE notes SET kind = ? WHERE id = ?', [keptWordKind, r['id']]);
+      }
+    }
   }
 
   /// The notebook with a passage source for exactly [ref], else one whose passage contains it;
@@ -330,6 +404,7 @@ class StudyStore {
     DateTime.fromMillisecondsSinceEpoch(r['updated'] as int),
     notebookId: r['notebook_id'] as int?,
     title: r['title'] as String,
+    kind: r['kind'] as String? ?? plainNoteKind,
   );
 
   static Ref _pageRef(Row r) => Ref(
@@ -366,12 +441,18 @@ class StudyStore {
   /// A note on [ref], kept in the notes on verses notebook.
   int addNote(Ref ref, String text) => addNotebookNote(notesOnVersesNotebook(db), text, verse: ref);
 
-  int addNotebookNote(int notebookId, String text, {Ref? verse, String title = ''}) {
+  int addNotebookNote(
+    int notebookId,
+    String text, {
+    Ref? verse,
+    String title = '',
+    String kind = plainNoteKind,
+  }) {
     final (book, chapter, vs, ve) = _verseColumns(verse);
     db.execute(
-      'INSERT INTO notes(book, chapter, verse_start, verse_end, text, title, notebook_id, created, '
-      'updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [book, chapter, vs, ve, text, title, notebookId, _now(), _now()],
+      'INSERT INTO notes(book, chapter, verse_start, verse_end, text, title, notebook_id, kind, '
+      'created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [book, chapter, vs, ve, text, title, notebookId, kind, _now(), _now()],
     );
     return db.lastInsertRowId;
   }
@@ -752,7 +833,9 @@ class StudyStore {
       'verse_end': int,
       'notebook_id': int,
       'title': String,
+      'kind': String,
     },
+    'notebooks': {'system_key': String},
     'study_pages': {'notebook_id': int},
     'conversations': {'notebook_id': int},
     'messages': {'sources': String, 'notebook_message_id': int},
@@ -760,6 +843,7 @@ class StudyStore {
   };
 
   static const _nullable = {
+    'system_key',
     'book',
     'chapter',
     'verse_start',
@@ -925,6 +1009,9 @@ class StudyStore {
       }
       // The notes were replaced under the kept notebooks, so their note ids mean other notes.
       if (!hasNotebooks) db.execute('UPDATE notebook_sources SET note_id = NULL');
+      // An older backup's notes on verses notebook has no key yet; key it before the merge
+      // looks for it, or the merge would make a second one.
+      keyNotebooksAndWords();
       mergeNotes();
       // A backup from before chapter ticks brings day ticks; they come back as chapters.
       carryPlanDays();
