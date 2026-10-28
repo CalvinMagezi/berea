@@ -126,7 +126,8 @@ class StudyStore {
   static const _notesMergeIndex = 2;
 
   /// A file from a newer Berea (a downgrade) is opened as it is: later migrations only add
-  /// tables, and columns with defaults, so what this version reads keeps its meaning.
+  /// tables, and columns with defaults. Not across the notes merge: 0.6.0 cannot read a note
+  /// without a verse, and notes it writes after a downgrade get no notebook.
   void _migrate() {
     final version = db.select('PRAGMA user_version').first.values.first as int;
     if (version <= _notesMergeIndex) _backUpBeforeNotesMerge();
@@ -856,10 +857,16 @@ class StudyStore {
     });
   }
 
-  void deleteConversation(int id) {
+  /// Also deletes the notebook messages it was copied from, so no later copy brings it back.
+  void deleteConversation(int id) => _transaction(() {
+    db.execute(
+      'DELETE FROM notebook_messages WHERE id IN '
+      '(SELECT notebook_message_id FROM messages WHERE conversation_id = ?)',
+      [id],
+    );
     db.execute('DELETE FROM messages WHERE conversation_id = ?', [id]);
     db.execute('DELETE FROM conversations WHERE id = ?', [id]);
-  }
+  });
 }
 
 /// Larger than any chapter, so a chapter reference holds every verse.

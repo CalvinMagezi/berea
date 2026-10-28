@@ -173,6 +173,18 @@ void main() {
     again.close();
   });
 
+  test('a deleted copied conversation stays deleted after a copy and a restore', () async {
+    final store = StudyStore.open(_makeFixture(dir));
+    store.deleteConversation(store.conversations(notebookId: 1).single.id);
+    store.copyNotebookChats();
+    expect(store.conversations(notebookId: 1), isEmpty);
+    final bytes = await createBackup(store, const {}, 'correct horse');
+    store.importTables((await readBackup(bytes, 'correct horse')).tables);
+    expect(store.conversations(notebookId: 1), isEmpty);
+    expect(store.conversations().single.title, 'What is grace?');
+    store.close();
+  });
+
   test('a fresh install writes no backup and makes no notes on verses notebook', () {
     final path = '${dir.path}/study.sqlite';
     final store = StudyStore.open(path);

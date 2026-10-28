@@ -253,6 +253,10 @@ class NotebookStore extends ChangeNotifier {
 
   void _changed() => notifyListeners();
 
+  /// For writes made through [StudyStore] that can add a notebook, such as the first note on a
+  /// verse creating the notes on verses notebook.
+  void refresh() => _changed();
+
   /// Sources still being read for [notebookId].
   List<PendingSource> pendingFor(int notebookId) =>
       pending.where((p) => p.notebookId == notebookId && !p.cancelled).toList();
