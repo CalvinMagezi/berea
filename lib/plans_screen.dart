@@ -83,7 +83,9 @@ class _PlansScreenState extends State<PlansScreen> {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: Column(children: _running(progress))),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: _running(progress)),
+        ),
         const SizedBox(width: 24),
         Expanded(child: _card(Column(children: _others(progress.plan)))),
       ],
