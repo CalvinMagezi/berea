@@ -114,8 +114,13 @@ class _PrayerSheetState extends State<_PrayerSheet> {
       setState(() => _error = 'Write what you are praying for first.');
       return;
     }
-    if (typedVerse.isNotEmpty && verseLabel(typedVerse) == null) {
+    final ref = RefParser.parse(typedVerse).firstOrNull;
+    if (typedVerse.isNotEmpty && ref == null) {
       setState(() => _error = 'That verse was not recognised. Try one like Philippians 4:6-7.');
+      return;
+    }
+    if (ref != null && ref.verseStart == null) {
+      setState(() => _error = 'Choose a verse or a few verses, such as Psalm 23:1-4.');
       return;
     }
     final s = widget.store;

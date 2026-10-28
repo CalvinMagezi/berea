@@ -2,6 +2,7 @@ import 'package:berea/prayer_screen.dart';
 import 'package:berea/prayer_store.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -228,5 +229,76 @@ void main() {
     await tester.tap(find.text('Share a testimony'));
     expect(shared.single, startsWith('Job interview\nAnswered '));
     expect(origins.single, isNotNull);
+  });
+
+  testWidgets('on a wide window a clicked row opens in the panel and arrow keys move', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    var clock = DateTime(2026, 10, 2, 9);
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema), now: () => clock);
+    for (final title in ['First', 'Second', 'Third']) {
+      store.add(title: title);
+      clock = clock.add(const Duration(minutes: 1));
+    }
+    await tester.pumpWidget(app());
+    expect(find.text('1 of 3 · ← → to move'), findsOneWidget);
+
+    // The list shows newest first; clicking Second opens it in its place in the order.
+    await tester.tap(find.text('Second').first);
+    await tester.pumpAndSettle();
+    expect(find.text('2 of 3 · ← → to move'), findsOneWidget);
+    expect(find.text('Second'), findsNWidgets(2));
+    expect(find.text('Edit prayer'), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(find.text('3 of 3 · ← → to move'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+    expect(find.text('1 of 3 · ← → to move'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+    expect(find.text('1 of 3 · ← → to move'), findsOneWidget);
+
+    // Edit is reachable from the panel.
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit prayer'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'What are you praying for?'),
+      'First, now',
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('First, now'), findsNWidgets(2));
+    expect(find.text('1 of 3 · ← → to move'), findsOneWidget);
+  });
+
+  testWidgets('the sheet asks for verses, not a whole chapter', (tester) async {
+    phone(tester);
+    await tester.pumpWidget(app());
+    await tester.tap(find.text('Add a prayer'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'What are you praying for?'), 'Rest');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'A verse to pray (optional)'),
+      'Psalm 23',
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    expect(find.text('Choose a verse or a few verses, such as Psalm 23:1-4.'), findsOneWidget);
+    expect(store.isEmpty, isTrue);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'A verse to pray (optional)'),
+      'Psalm 23:1-4',
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(store.praying().single.verse, 'Psalms 23:1-4');
   });
 }

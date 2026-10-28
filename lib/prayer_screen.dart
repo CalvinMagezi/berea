@@ -61,11 +61,20 @@ class _PrayerScreenState extends State<PrayerScreen> {
   /// Bumped to start a fresh Pray now session in the wide panel.
   var _session = 0;
 
+  /// The prayer the wide panel opens on, set by clicking a row.
+  int? _startAt;
+
   PrayerStore get _store => widget.store;
 
   Future<void> _add() => showPrayerSheet(context, _store, passage: widget.passage);
 
   void _edit(Prayer p) => showPrayerSheet(context, _store, editing: p, passage: widget.passage);
+
+  /// Wide layout: a clicked row opens in the panel beside the list. Edit is in the panel.
+  void _showInPanel(Prayer p) => setState(() {
+    _startAt = p.id;
+    _session++;
+  });
 
   void _prayNow() => Navigator.push(
     context,
@@ -131,7 +140,12 @@ class _PrayerScreenState extends State<PrayerScreen> {
             store: _store,
             passage: widget.passage,
             translation: widget.translation,
-            onDone: () => setState(() => _session++),
+            startAt: _startAt,
+            keyHint: true,
+            onDone: () => setState(() {
+              _startAt = null;
+              _session++;
+            }),
           ),
         ),
         const _PrivacyLine(),
@@ -173,7 +187,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
             _PrayerRow(
               prayer: p,
               subtitle: lastPrayedLabel(p, now),
-              onTap: () => _edit(p),
+              onTap: wide ? () => _showInPanel(p) : () => _edit(p),
               onCheck: () => answerPrayer(context, _store, p),
             ),
           if (wide) ...[

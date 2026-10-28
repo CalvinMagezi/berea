@@ -1,5 +1,6 @@
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'prayer_sheet.dart';
 import 'prayer_store.dart';
@@ -120,12 +121,21 @@ class PrayNowView extends StatefulWidget {
 
   /// Leaves Pray now: closes the page on a phone, resets the panel on a wide screen.
   final VoidCallback onDone;
+
+  /// The prayer to open on, such as the row clicked in the wide list. Its place in the order
+  /// is kept, so the ones before it are a step back.
+  final int? startAt;
+
+  /// Shows that the arrow keys move between prayers, for the wide layout.
+  final bool keyHint;
   const PrayNowView({
     super.key,
     required this.store,
     required this.passage,
     required this.translation,
     required this.onDone,
+    this.startAt,
+    this.keyHint = false,
   });
 
   @override
@@ -134,7 +144,10 @@ class PrayNowView extends StatefulWidget {
 
 class _PrayNowViewState extends State<PrayNowView> {
   late final _ids = [for (final p in widget.store.prayNowQueue()) p.id];
-  var _index = 0;
+  late var _index = switch (_ids.indexOf(widget.startAt ?? -1)) {
+    -1 => 0,
+    final i => i,
+  };
   var _prayed = 0;
 
   Prayer? get _current {
@@ -147,6 +160,15 @@ class _PrayNowViewState extends State<PrayNowView> {
   }
 
   void _next() => setState(() => _index++);
+
+  void _back() {
+    if (_index > 0) setState(() => _index--);
+  }
+
+  Future<void> _edit(Prayer p) async {
+    await showPrayerSheet(context, widget.store, editing: p, passage: widget.passage);
+    if (mounted) setState(() {});
+  }
 
   void _amen(Prayer p) {
     widget.store.amen(p.id);
@@ -193,6 +215,17 @@ class _PrayNowViewState extends State<PrayNowView> {
     if (p == null) return _finished(context);
     final muted = Theme.of(context).textTheme.bodySmall
         ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+    final position = '${_index + 1} of ${_ids.length}';
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.arrowRight): _next,
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): _back,
+      },
+      child: Focus(autofocus: true, child: _body(context, p, position, muted)),
+    );
+  }
+
+  Widget _body(BuildContext context, Prayer p, String position, TextStyle? muted) {
     return ListView(
       padding: const EdgeInsets.all(_cardPadding),
       children: [
@@ -200,7 +233,7 @@ class _PrayNowViewState extends State<PrayNowView> {
           children: [
             _StepDots(_index, _ids.length),
             const SizedBox(width: 8),
-            Text('${_index + 1} of ${_ids.length}', style: muted),
+            Text(widget.keyHint ? '$position · ← → to move' : position, style: muted),
           ],
         ),
         const SizedBox(height: 16),
@@ -238,6 +271,7 @@ class _PrayNowViewState extends State<PrayNowView> {
               icon: const Icon(Icons.edit_outlined, size: 18),
               label: const Text('Add a line'),
             ),
+            TextButton(onPressed: () => _edit(p), child: const Text('Edit')),
           ],
         ),
       ],
