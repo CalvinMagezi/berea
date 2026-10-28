@@ -312,4 +312,13 @@ void main() {
     expect(find.byType(ReaderScreen), findsOneWidget, reason: 'the Bible stays the place');
     state.helperState = before;
   });
+
+  testWidgets('reading stays quiet: the chapter footer has Previous and Next, no Ask', (
+    tester,
+  ) async {
+    await pumpShell(tester, _phone);
+    expect(find.text('Previous'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Ask'), findsNothing);
+  });
 }

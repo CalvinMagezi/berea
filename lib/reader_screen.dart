@@ -65,8 +65,7 @@ class ReaderScreen extends StatefulWidget {
   final AppState state;
 
   /// Opens the quick chat; shown in the chapter bar so it never covers the reader's buttons.
-  final VoidCallback? onQuickChat;
-  const ReaderScreen({super.key, required this.state, this.onQuickChat});
+  const ReaderScreen({super.key, required this.state});
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -526,7 +525,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
       bottomNavigationBar: card == null
           ? _ChapterNav(
-              onQuickChat: widget.onQuickChat,
               canPrev: chapter > 1 || book.id > 1,
               canNext: chapter < chapters || book.id < books.length,
               onPrev: () =>
@@ -707,9 +705,7 @@ class _ChapterNav extends StatelessWidget {
   final bool canNext;
   final VoidCallback onPrev;
   final VoidCallback onNext;
-  final VoidCallback? onQuickChat;
   const _ChapterNav({
-    this.onQuickChat,
     required this.canPrev,
     required this.canNext,
     required this.onPrev,
@@ -729,12 +725,6 @@ class _ChapterNav extends StatelessWidget {
               icon: const Icon(Icons.chevron_left),
               label: const Text('Previous'),
             ),
-            if (onQuickChat != null)
-              FilledButton.tonalIcon(
-                onPressed: onQuickChat,
-                icon: const Icon(Icons.chat_bubble_outline),
-                label: const Text('Ask'),
-              ),
             TextButton.icon(
               onPressed: canNext ? onNext : null,
               icon: const Icon(Icons.chevron_right),

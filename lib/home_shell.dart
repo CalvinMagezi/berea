@@ -134,7 +134,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final body = IndexedStack(
       index: _tab.index,
       children: [
-        ReaderScreen(state: s, onQuickChat: () => _select(HomeTab.study)),
+        ReaderScreen(state: s),
         PlansScreen(state: s),
         ChatScreen(state: s),
         PrayerScreen(

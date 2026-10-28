@@ -28,7 +28,7 @@ const _tallPhone = Size(_chapterBarWidth, 1600);
 const _phones = [Size(360, 800), Size(412, 915)];
 const _phoneActions = ['Highlight', 'Note', 'Pray', 'Ask', 'More'];
 
-/// An action on the selection bar, apart from the chapter bar's own Ask.
+/// An action on the selection bar.
 Finder action(String label) =>
     find.descendant(of: find.byType(SelectionBar), matching: find.bySemanticsLabel(label));
 
