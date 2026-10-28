@@ -282,6 +282,9 @@ final class HelperFailed extends HelperState {
   /// The underlying error, for settings and bug reports.
   final String? detail;
   const HelperFailed(this.reason, {this.detail});
+
+  /// A download that stopped or arrived damaged, so the helper choice is offered again.
+  bool get offersRetry => reason == helperDownloadFailed || reason == helperDownloadDamaged;
 }
 
 /// A start that cannot go on, told in plain words.

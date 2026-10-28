@@ -200,6 +200,20 @@ void main() {
     });
   });
 
+  testWidgets('a download that failed or arrived damaged offers the helper choice again', (
+    tester,
+  ) async {
+    for (final reason in [helperDownloadFailed, helperDownloadDamaged]) {
+      final s = await app(helper: HelperFailed(reason));
+      await pumpStudy(tester, s);
+      expect(find.text(reason), findsOneWidget);
+      expect(find.text('Suggested'), findsOneWidget, reason: reason);
+    }
+    final s = await app(helper: const HelperFailed(helperLoadFailed));
+    await pumpStudy(tester, s);
+    expect(find.text('Suggested'), findsNothing, reason: 'a load failure is repaired in settings');
+  });
+
   testWidgets('with no helper, Study offers the choice with Wi-Fi only on and Keep reading', (
     tester,
   ) async {
