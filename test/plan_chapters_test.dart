@@ -9,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'support/bible.dart';
+
 /// The version before chapter ticks: every migration up to Prayer.
 const _beforeChapters = 4;
 
@@ -105,7 +107,7 @@ void main() {
     expect(store.planChaptersDone('nt-90'), {days[0].first});
   });
 
-  group('on a new phone', () {
+  group('on a new phone', skip: needsBuiltBible, () {
     late Directory dir;
     late AppState s;
     final started = DateTime(2026, 10, 1, 7);

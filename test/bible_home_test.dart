@@ -11,9 +11,15 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/bible.dart';
+
 const _phone = Size(600, 900);
 
 void main() {
+  if (needsBuiltBible case final why?) {
+    test('these tests open the built Bible', () {}, skip: why);
+    return;
+  }
   TestWidgetsFlutterBinding.ensureInitialized();
   final dirs = <Directory>[];
   tearDownAll(() {

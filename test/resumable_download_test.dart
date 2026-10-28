@@ -12,6 +12,8 @@ import 'package:http/http.dart' as http;
 import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/bible.dart';
+
 const _size = 4096;
 const _dropAt = 1000;
 const _timeout = Duration(seconds: 5);
@@ -293,7 +295,7 @@ void main() {
     expect(verified.existsSync(), isTrue);
   });
 
-  group('across a restart', () {
+  group('across a restart', skip: needsBuiltBible, () {
     final m = edgeModelById('gemma-4-e2b');
     late StreamController<bool> network;
     late int downloads;

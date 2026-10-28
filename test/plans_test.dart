@@ -4,6 +4,8 @@ import 'package:berea/plans.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/bible.dart';
+
 void main() {
   test('every plan covers each chapter exactly once with no empty days', () {
     for (final p in readingPlans) {
@@ -17,7 +19,7 @@ void main() {
     expect(planById('bible-year')!.schedule().expand((d) => d).length, 1189);
   });
 
-  test('the fixed chapter counts match every translation of the bundled Bible', () {
+  test('the fixed chapter counts match every translation of the bundled Bible', skip: needsBuiltBible, () {
     final db = BibleDb.open(File('assets/berea.sqlite').absolute.path);
     for (final t in db.translations()) {
       for (final b in books) {

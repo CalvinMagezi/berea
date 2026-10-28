@@ -17,6 +17,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/bible.dart';
+
 // Wide enough for the reader's chapter bar in the test font, which is wider than real type.
 const _phone = Size(600, 900);
 const _mac = Size(1280, 800);
@@ -29,6 +31,10 @@ const _places = ['Bible', 'Plans', 'Study', 'Prayer', 'Notes'];
 final _model = edgeModels.first;
 
 void main() {
+  if (needsBuiltBible case final why?) {
+    test('these tests open the built Bible', () {}, skip: why);
+    return;
+  }
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory dir;
   late AppState state;

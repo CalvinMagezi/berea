@@ -13,6 +13,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/bible.dart';
+
 const _mac = Size(1280, 800);
 
 // Wide enough for the reader's chapter bar in the test font, which is wider than real type.
@@ -31,6 +33,10 @@ Finder action(String label) =>
     find.descendant(of: find.byType(SelectionBar), matching: find.bySemanticsLabel(label));
 
 void main() {
+  if (needsBuiltBible case final why?) {
+    test('these tests open the built Bible', () {}, skip: why);
+    return;
+  }
   TestWidgetsFlutterBinding.ensureInitialized();
   final dirs = <Directory>[];
   tearDownAll(() {

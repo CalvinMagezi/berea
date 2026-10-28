@@ -15,10 +15,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/bible.dart';
+
 const _phone = Size(600, 1000);
 const _mac = Size(1280, 800);
 
 void main() {
+  if (needsBuiltBible case final why?) {
+    test('these tests open the built Bible', () {}, skip: why);
+    return;
+  }
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory dir;
   late AppState s;

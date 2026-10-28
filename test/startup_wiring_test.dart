@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'support/bible.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory dir;
@@ -39,7 +41,10 @@ void main() {
     raw.dispose();
   });
 
-  test('a first note on a verse shows its notebook to anyone listening', () async {
+  test(
+    'a first note on a verse shows its notebook to anyone listening',
+    skip: needsBuiltBible,
+    () async {
     final s = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),

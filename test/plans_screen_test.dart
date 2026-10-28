@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/bible.dart';
+
 const _phone = Size(600, 1000);
 final _streakCount = RegExp(
   r'\d+\s*(-|\s)?\s*days?\s+(streak|in a row)|streak\s*:?\s*\d',
@@ -16,6 +18,10 @@ final _streakCount = RegExp(
 );
 
 void main() {
+  if (needsBuiltBible case final why?) {
+    test('these tests open the built Bible', () {}, skip: why);
+    return;
+  }
   TestWidgetsFlutterBinding.ensureInitialized();
   final dirs = <Directory>[];
   tearDownAll(() {
