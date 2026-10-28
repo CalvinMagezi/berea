@@ -1,11 +1,18 @@
+import 'dart:async';
+
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'brand/prayer_icon.dart';
 import 'keep_sheet.dart';
 import 'notebooks_screen.dart';
+import 'prayer_sheet.dart';
+import 'settings_sheet.dart';
 import 'study_store.dart';
 import 'theme.dart';
+import 'voice.dart';
+import 'voice_composer.dart';
 
 const _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const _months = [
@@ -66,6 +73,23 @@ class RefLinkController extends TextEditingController {
   }
 }
 
+/// Dictation transcribes with the on-device model, so the editor's microphone shows only when
+/// that model is loaded and hears audio; with Ollama or no model it is hidden.
+bool canDictate(AppState s) =>
+    voiceSupport(s.settings, s.deviceState, hearsAudio: s.deviceHearsAudio) == VoiceSupport.ready;
+
+/// [value] with [heard] put in at the cursor, or at the end when there is none.
+TextEditingValue withDictation(TextEditingValue value, String heard) {
+  final text = value.text;
+  final at = value.selection.isValid ? value.selection.start : text.length;
+  final before = text.substring(0, at);
+  final gap = before.isEmpty || before.endsWith(' ') || before.endsWith('\n') ? '' : ' ';
+  return TextEditingValue(
+    text: '$before$gap$heard${text.substring(at)}',
+    selection: TextSelection.collapsed(offset: at + gap.length + heard.length),
+  );
+}
+
 /// Opens the note editor on [ref], editing [note] when given. Kept for the reader's Note action.
 Future<void> showNoteDialog(BuildContext context, AppState s, {Ref? ref, Note? note}) =>
     showNoteEditor(context, s, note: note, verse: ref);
@@ -89,7 +113,17 @@ class NoteEditor extends StatefulWidget {
   final Note? note;
   final Ref? verse;
   final int? notebookId;
-  const NoteEditor({super.key, required this.state, this.note, this.verse, this.notebookId});
+
+  /// Whether the microphone shows; tests stand in for a loaded device model.
+  final bool Function(AppState) dictates;
+  const NoteEditor({
+    super.key,
+    required this.state,
+    this.note,
+    this.verse,
+    this.notebookId,
+    this.dictates = canDictate,
+  });
 
   @override
   State<NoteEditor> createState() => _NoteEditorState();
@@ -105,8 +139,28 @@ class _NoteEditorState extends State<NoteEditor> {
   late Ref? _verse = widget.note?.verse ?? widget.verse;
   late int _notebook = _initialNotebook();
   var _dirty = false;
+  late final VoiceInput _voice = widget.state.voice;
+  var _voicePhase = VoicePhase.idle;
 
   AppState get _s => widget.state;
+
+  @override
+  void initState() {
+    super.initState();
+    _voice.addListener(_onVoice);
+  }
+
+  /// A finished dictation goes in at the cursor, for the writer to check like anything typed.
+  void _onVoice() {
+    if (_voice.phase == _voicePhase) return;
+    _voicePhase = _voice.phase;
+    if (_voice.phase != VoicePhase.confirm || !_voice.ownedBy(this)) return;
+    final heard = _voice.transcript.trim();
+    _voice.accept();
+    if (heard.isEmpty) return;
+    _body.value = withDictation(_body.value, heard);
+    _changed();
+  }
 
   int _initialNotebook() {
     if (widget.note?.notebookId ?? widget.notebookId case final id?) return id;
@@ -120,6 +174,8 @@ class _NoteEditorState extends State<NoteEditor> {
 
   @override
   void dispose() {
+    _voice.removeListener(_onVoice);
+    unawaited(_voice.release(this));
     _title.dispose();
     _body.dispose();
     super.dispose();
@@ -193,6 +249,26 @@ class _NoteEditorState extends State<NoteEditor> {
     _changed();
   }
 
+  /// Opens the new prayer sheet from the note: its title, else its first words, and its verse.
+  /// A chapter alone is not a prayer's verse, so it is left out.
+  Future<void> _prayThis() {
+    final verse = _verse;
+    final title = _title.text.trim();
+    final words = firstWords(_body.text);
+    return showPrayerSheet(
+      context,
+      _s.prayers,
+      title: _clip(title.isNotEmpty ? title : words),
+      verse: verse?.verseStart == null ? null : verse!.label,
+      passage: passageLookupFor(_s.db, () => _s.settings.translation),
+    );
+  }
+
+  /// A prayer's title has a limit a note's title does not; empty means no prefill.
+  static String? _clip(String title) => title.isEmpty
+      ? null
+      : title.substring(0, title.length.clamp(0, prayerTitleMaxChars));
+
   /// The reference under the cursor, else the first one typed, else the note's verse.
   Ref? get _previewRef {
     final matches = RefParser.matches(_body.text);
@@ -251,17 +327,41 @@ class _NoteEditorState extends State<NoteEditor> {
           ],
         ),
         bottomNavigationBar: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Row(
-              children: [
-                TextButton.icon(
-                  onPressed: _addVerse,
-                  icon: const Icon(Icons.menu_book_outlined),
-                  label: Text(_verse == null ? 'Add a verse' : 'Change the verse'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              VoiceStatusLine(_voice, owner: this),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: _addVerse,
+                      icon: const Icon(Icons.menu_book_outlined),
+                      label: Text(_verse == null ? 'Add a verse' : 'Change the verse'),
+                    ),
+                    TextButton.icon(
+                      onPressed: _prayThis,
+                      icon: const PrayerIcon(),
+                      label: const Text('Pray this'),
+                    ),
+                    const Spacer(),
+                    ListenableBuilder(
+                      listenable: _s,
+                      builder: (context, _) => widget.dictates(_s)
+                          ? VoiceMicButton(
+                              voice: _voice,
+                              owner: this,
+                              support: VoiceSupport.ready,
+                              modelFree: _s.ready,
+                              onOpenSettings: () => showSettingsSheet(context, _s),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         body: Center(

@@ -120,6 +120,26 @@ void main() {
     expect(store.praying().single.verse, 'Isaiah 41:10');
   });
 
+  testWidgets('a prefilled title shows in the new prayer sheet and saves', (tester) async {
+    phone(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showPrayerSheet(context, store, title: 'Strength for Mum'),
+            child: const Text('Pray'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Pray'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'Strength for Mum'), findsOneWidget);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(store.praying().single.title, 'Strength for Mum');
+  });
+
   testWidgets('the list shows Praying and Answered and shares as text', (tester) async {
     phone(tester);
     store.add(title: 'Rain for the harvest', forWhom: 'Uncle Ssali');

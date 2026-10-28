@@ -6,7 +6,6 @@ import 'export.dart';
 import 'note_dialog.dart';
 import 'notebook_store.dart';
 import 'notebooks_screen.dart';
-import 'study_page_screen.dart';
 import 'study_store.dart';
 import 'theme.dart';
 
@@ -17,11 +16,57 @@ const _cardHeight = 116.0;
 const _cardRadius = 14.0;
 const _refsShown = 2;
 
-/// Opens notebook [id] where the Notes place keeps its pages.
-void openNotebook(BuildContext context, AppState s, int id) => Navigator.push(
-  context,
-  MaterialPageRoute<void>(builder: (_) => NotebookScreen(state: s, notebookId: id)),
+/// Notebook [id]'s page, carrying its id so the sidebar can tell which notebook is open.
+Route<void> notebookRoute(AppState s, int id) => MaterialPageRoute<void>(
+  settings: RouteSettings(name: notebookRouteName, arguments: id),
+  builder: (_) => NotebookScreen(state: s, notebookId: id),
 );
+
+const notebookRouteName = 'notebook';
+
+/// Opens notebook [id] where the Notes place keeps its pages.
+void openNotebook(BuildContext context, AppState s, int id) =>
+    Navigator.push(context, notebookRoute(s, id));
+
+/// Follows the Notes place's pages and tells which notebook is open under whatever is on top.
+class OpenNotebookObserver extends NavigatorObserver {
+  final open = ValueNotifier<int?>(null);
+  final _stack = <Route<dynamic>>[];
+
+  void _sync() => open.value =
+      _stack.reversed
+              .where((r) => r.settings.name == notebookRouteName)
+              .firstOrNull
+              ?.settings
+              .arguments
+          as int?;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _stack.add(route);
+    _sync();
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _stack.remove(route);
+    _sync();
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _stack.remove(route);
+    _sync();
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    final at = _stack.indexOf(oldRoute!);
+    if (at < 0 || newRoute == null) return;
+    _stack[at] = newRoute;
+    _sync();
+  }
+}
 
 /// Notes: the notebooks in a row, with New, and Recent: notes, kept words, study pages and
 /// readings, newest first, each labelled with its notebook.
@@ -36,6 +81,10 @@ class NotesScreen extends StatefulWidget {
 class _NotesScreenState extends State<NotesScreen> {
   var _searching = false;
   var _filter = '';
+
+  /// The entry shown beside the list on a wide screen.
+  (Type, int)? _selected;
+  var _wide = false;
 
   AppState get _s => widget.state;
 
@@ -89,43 +138,69 @@ class _NotesScreenState extends State<NotesScreen> {
       ),
       body: ListenableBuilder(
         listenable: _s.notebooks,
-        builder: (context, _) {
-          final notebooks = _s.notebooks.notebooks();
-          final recent = _recent(notebooks);
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 96),
-                children: [
-                  if (!_searching) ...[
-                    const _Header('Notebooks'),
-                    _NotebookRow(
-                      state: _s,
-                      notebooks: notebooks,
-                      onOpen: (id) => openNotebook(context, _s, id),
-                      onNew: _newNotebook,
-                    ),
-                  ],
-                  const _Header('Recent'),
-                  if (recent.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
+        builder: (context, _) => LayoutBuilder(
+          builder: (context, c) {
+            _wide = c.maxWidth >= notesWideBreakpoint;
+            final notebooks = _s.notebooks.notebooks();
+            final recent = _recent(notebooks);
+            final list = _list(notebooks, [for (final (_, tile) in recent) tile]);
+            if (!_wide) {
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: contentMaxWidth),
+                  child: list,
+                ),
+              );
+            }
+            final chosen = recent
+                .map((r) => r.$1)
+                .where((e) => entryKey(e) == _selected)
+                .firstOrNull;
+            return ListAndDetail(
+              list: list,
+              detail: chosen == null
+                  ? Center(
                       child: Text(
-                        _filter.isEmpty
-                            ? 'Notes you write, words you keep, study pages and readings appear '
-                                  'here. Everything stays on this device.'
-                            : 'Nothing matches "$_filter".',
-                        style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5),
+                        'Choose a note to read it here.',
+                        style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
-                    ),
-                  ...recent,
-                ],
-              ),
-            ),
-          );
-        },
+                    )
+                  : EntryDetail(state: _s, entry: chosen, onChanged: () => setState(() {})),
+            );
+          },
+        ),
       ),
+    );
+  }
+
+  Widget _list(List<Notebook> notebooks, List<Widget> recent) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 96),
+      children: [
+        if (!_searching) ...[
+          const _Header('Notebooks'),
+          _NotebookRow(
+            state: _s,
+            notebooks: notebooks,
+            onOpen: (id) => openNotebook(context, _s, id),
+            onNew: _newNotebook,
+          ),
+        ],
+        const _Header('Recent'),
+        if (recent.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              _filter.isEmpty
+                  ? 'Notes you write, words you keep, study pages and readings appear '
+                        'here. Everything stays on this device.'
+                  : 'Nothing matches "$_filter".',
+              style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5),
+            ),
+          ),
+        ...recent,
+      ],
     );
   }
 
@@ -134,22 +209,30 @@ class _NotesScreenState extends State<NotesScreen> {
 
   /// Notes and study pages by when they changed; readings carry no date of their own, so they
   /// sort by their notebook's.
-  List<Widget> _recent(List<Notebook> notebooks) {
+  List<(Object, Widget)> _recent(List<Notebook> notebooks) {
     final byId = {for (final n in notebooks) n.id: n};
-    final dated = <(DateTime, Widget)>[
+    final dated = <(DateTime, Object, Widget)>[
       for (final (n, nb) in allNotes(_s.study, _s.notebooks))
         if (_matches([n.title, n.text, n.verse?.label ?? '', nb.title]))
-          (n.updated, _noteTile(n, nb)),
+          (n.updated, n, _noteTile(n, nb)),
       for (final p in _s.study.studyPages())
         if (byId[p.notebookId] case final nb?)
-          if (_matches([p.ref.label, p.observation, nb.title])) (p.updated, _pageTile(p, nb)),
+          if (_matches([p.ref.label, p.observation, nb.title]))
+            (p.updated, p, _pageTile(p, nb)),
       for (final nb in notebooks)
         for (final r in _s.notebooks.sources(nb.id))
           if (r.kind != SourceKind.note && _matches([r.title, nb.title]))
-            (nb.updated, _readingTile(r, nb)),
+            (nb.updated, r, _readingTile(r, nb)),
     ]..sort((a, b) => b.$1.compareTo(a.$1));
-    return [for (final (_, tile) in dated.take(recentLimit)) tile];
+    return [for (final (_, entry, tile) in dated.take(recentLimit)) (entry, tile)];
   }
+
+  /// A wide screen shows the entry beside the list; otherwise it opens on its own.
+  void _open(Object entry) => _wide
+      ? setState(() => _selected = entryKey(entry))
+      : openEntryPage(context, _s, entry);
+
+  bool _isSelected(Object entry) => _wide && entryKey(entry) == _selected;
 
   Widget _noteTile(Note n, Notebook nb) {
     final where = switch (n.verse) {
@@ -163,7 +246,8 @@ class _NotesScreenState extends State<NotesScreen> {
       label: '${noteKind(n)} · ${nb.title}',
       title: noteHeading(n),
       detail: detail,
-      onTap: () => showNoteEditor(context, _s, note: n),
+      selected: _isSelected(n),
+      onTap: () => _open(n),
     );
   }
 
@@ -171,20 +255,16 @@ class _NotesScreenState extends State<NotesScreen> {
     label: 'Study page · ${nb.title}',
     title: p.ref.label,
     detail: p.observation.isEmpty ? null : 'Observation: ${p.observation}',
-    onTap: () => Navigator.push(
-      context,
-      MaterialPageRoute<void>(builder: (_) => StudyPageScreen(state: _s, ref: p.ref)),
-    ),
+    selected: _isSelected(p),
+    onTap: () => _open(p),
   );
 
   Widget _readingTile(NotebookSource r, Notebook nb) => LabelledTile(
     label: 'Reading · ${nb.title}',
     title: r.title,
     detail: [r.kind.label, if (r.pinned) 'Always included'].join(' · '),
-    onTap: () => Navigator.push(
-      context,
-      MaterialPageRoute<void>(builder: (_) => SourceScreen(store: _s.notebooks, source: r)),
-    ),
+    selected: _isSelected(r),
+    onTap: () => _open(r),
   );
 }
 
