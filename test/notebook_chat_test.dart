@@ -112,7 +112,10 @@ void main() {
       old.dispose();
       final upgraded = StudyStore.open(path);
       addTearDown(upgraded.close);
-      expect(upgraded.db.select('PRAGMA user_version').first.values.first, 2);
+      expect(
+        upgraded.db.select('PRAGMA user_version').first.values.first,
+        StudyStore.schemaVersion,
+      );
       final books = NotebookStore(upgraded.db);
       expect(books.sources(1).single.pinned, isFalse);
       expect(books.messages(1), isEmpty);

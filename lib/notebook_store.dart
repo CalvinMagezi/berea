@@ -52,6 +52,9 @@ class NotebookSource {
 
   /// Pinned sources are offered to every answer in the notebook's chat, not only when they match.
   final bool pinned;
+
+  /// The note a note source links to; null for other kinds, and for a copy whose note is gone.
+  final int? noteId;
   const NotebookSource(
     this.id,
     this.notebookId,
@@ -60,6 +63,7 @@ class NotebookSource {
     this.origin,
     this.chunkCount, {
     this.pinned = false,
+    this.noteId,
   });
 }
 
@@ -107,7 +111,10 @@ class SourceRequest {
   final String origin;
   final String? text;
   final String? path;
-  const SourceRequest(this.kind, this.title, {this.origin = '', this.text, this.path});
+
+  /// For a note source, the note it links to.
+  final int? noteId;
+  const SourceRequest(this.kind, this.title, {this.origin = '', this.text, this.path, this.noteId});
 }
 
 /// Extracts and chunks [r]. Runs in a background isolate; touches no database. [pdfiumPath]
@@ -306,12 +313,25 @@ class NotebookStore extends ChangeNotifier {
     _changed();
   }
 
-  /// Removes the notebook with its sources and chunks in one transaction.
+  /// Removes the notebook with its sources and chunks in one transaction. Its notes and study
+  /// pages move to the notes on verses notebook and its conversations to the Bible, so
+  /// deleting a notebook never deletes what the user wrote.
   void deleteNotebook(int id) {
     for (final p in pending.where((p) => p.notebookId == id)) {
       p.cancelled = true;
     }
     _transaction(() {
+      final holds = db.select(
+        'SELECT 1 FROM notes WHERE notebook_id = ? UNION ALL '
+        'SELECT 1 FROM study_pages WHERE notebook_id = ? LIMIT 1',
+        [id, id],
+      );
+      if (holds.isNotEmpty) {
+        final home = StudyStore.notesOnVersesNotebook(db, except: id);
+        db.execute('UPDATE notes SET notebook_id = ? WHERE notebook_id = ?', [home, id]);
+        db.execute('UPDATE study_pages SET notebook_id = ? WHERE notebook_id = ?', [home, id]);
+      }
+      db.execute('UPDATE conversations SET notebook_id = NULL WHERE notebook_id = ?', [id]);
       db.execute(
         'DELETE FROM notebook_chunks WHERE source_id IN '
         '(SELECT id FROM notebook_sources WHERE notebook_id = ?)',
@@ -326,7 +346,7 @@ class NotebookStore extends ChangeNotifier {
 
   List<NotebookSource> sources(int notebookId) => [
     for (final r in db.select(
-      'SELECT s.id, s.notebook_id, s.kind, s.title, s.origin, s.pinned, '
+      'SELECT s.id, s.notebook_id, s.kind, s.title, s.origin, s.pinned, s.note_id, '
       '(SELECT COUNT(*) FROM notebook_chunks c WHERE c.source_id = s.id) AS chunks '
       'FROM notebook_sources s WHERE s.notebook_id = ? ORDER BY s.created, s.id',
       [notebookId],
@@ -342,12 +362,13 @@ class NotebookStore extends ChangeNotifier {
     r['origin'] as String,
     r['chunks'] as int,
     pinned: r['pinned'] == 1,
+    noteId: r['note_id'] as int?,
   );
 
   /// The source with [id], or null when it has been removed.
   NotebookSource? source(int id) {
     final rows = db.select(
-      'SELECT s.id, s.notebook_id, s.kind, s.title, s.origin, s.pinned, '
+      'SELECT s.id, s.notebook_id, s.kind, s.title, s.origin, s.pinned, s.note_id, '
       '(SELECT COUNT(*) FROM notebook_chunks c WHERE c.source_id = s.id) AS chunks '
       'FROM notebook_sources s WHERE s.id = ?',
       [id],
@@ -395,12 +416,17 @@ class NotebookStore extends ChangeNotifier {
 
   int? _save(int notebookId, SourceRequest r, ChunkedText chunked) {
     if (db.select('SELECT 1 FROM notebooks WHERE id = ?', [notebookId]).isEmpty) return null;
+    // A note deleted while it was read leaves a copy, as deleting a linked note does.
+    final noteId =
+        r.noteId != null && db.select('SELECT 1 FROM notes WHERE id = ?', [r.noteId]).isNotEmpty
+        ? r.noteId
+        : null;
     late int sourceId;
     _transaction(() {
       db.execute(
-        'INSERT INTO notebook_sources(notebook_id, kind, title, origin, text, created) '
-        'VALUES (?, ?, ?, ?, ?, ?)',
-        [notebookId, r.kind.name, r.title, r.origin, chunked.text, _now()],
+        'INSERT INTO notebook_sources(notebook_id, kind, title, origin, text, note_id, created) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [notebookId, r.kind.name, r.title, r.origin, chunked.text, noteId, _now()],
       );
       sourceId = db.lastInsertRowId;
       final insert = db.prepare(
@@ -541,9 +567,14 @@ class NotebookStore extends ChangeNotifier {
   }
 }
 
-/// A note as a source: its reference, then what the user wrote.
-SourceRequest noteSource(Note n) =>
-    SourceRequest(SourceKind.note, 'Note on ${n.ref.label}', origin: n.ref.label, text: n.text);
+/// A note as a source: a link to the note, which keeps the source in step when it is edited.
+SourceRequest noteSource(Note n) => SourceRequest(
+  SourceKind.note,
+  noteSourceTitle(n),
+  origin: n.verse?.label ?? '',
+  text: n.text,
+  noteId: n.id,
+);
 
 /// The verses of [reference] in [translation], one per line with its number, or null when the
 /// reference is not a passage in that translation.
