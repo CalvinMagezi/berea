@@ -21,6 +21,7 @@ import 'pinned_download.dart';
 import 'plans.dart';
 import 'prayer_store.dart';
 import 'study_store.dart';
+import 'today.dart';
 import 'voice.dart';
 
 enum EngineKind { ollama, device }
@@ -421,8 +422,7 @@ class AppState extends ChangeNotifier {
       final m = recommendedModel(s.deviceGb);
       s.settings = s.settings.copyWith(deviceModelId: m.id, tier: recommendedTier(m, s.deviceGb));
     }
-    s.readerBook = s.prefs.getInt('readerBook') ?? 1;
-    s.readerChapter = s.prefs.getInt('readerChapter') ?? 1;
+    s._loadReader();
     s.parallelTranslation = s.prefs.getString('parallelTranslation');
     s._restoreImports();
     s._keepTranslationValid();
@@ -580,12 +580,54 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// John: where the Bible opens the very first time.
+  static const firstOpenBook = 43;
+
+  /// The verse the reader stopped at in an earlier session, and when; marked once on opening.
+  int? resumeVerse;
+  DateTime? resumeAt;
+
+  /// Today's card shows in full on the first look of the day, then folds to one line.
+  bool todayCardFull = false;
+
+  /// Asks the shell to show Plans.
+  final openPlansRequest = ValueNotifier<int>(0);
+
+  /// The reader keys are written at once, so a first open that never turns a page is still
+  /// remembered as opened.
+  void _loadReader() {
+    final firstOpen = !prefs.containsKey('readerBook');
+    readerBook = prefs.getInt('readerBook') ?? firstOpenBook;
+    readerChapter = prefs.getInt('readerChapter') ?? 1;
+    prefs.setInt('readerBook', readerBook);
+    prefs.setInt('readerChapter', readerChapter);
+    resumeVerse = firstOpen ? null : prefs.getInt('readerVerse');
+    resumeAt = DateTime.tryParse(prefs.getString('readerReadAt') ?? '');
+    openTodayIfNewDay();
+  }
+
+  /// Unfolds today's card on the first look of a new day; true when it did.
+  bool openTodayIfNewDay() {
+    final today = dayKey(DateTime.now());
+    if (prefs.getString('todayCardFullOn') == today) return false;
+    todayCardFull = true;
+    prefs.setString('todayCardFullOn', today);
+    return true;
+  }
+
+  /// The verse at the top of the reader, so the next open resumes there.
+  void rememberVerse(int verse) {
+    prefs.setInt('readerVerse', verse);
+    prefs.setString('readerReadAt', DateTime.now().toIso8601String());
+  }
+
   void setReader(Book book, int chapter, [int? verse]) {
     readerBook = book.id;
     readerChapter = chapter;
     readerTargetVerse = verse;
     prefs.setInt('readerBook', book.id);
     prefs.setInt('readerChapter', chapter);
+    rememberVerse(verse ?? 1);
     notifyListeners();
   }
 
@@ -612,14 +654,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<List<Ref>> planSchedule(ReadingPlan plan) =>
-      plan.schedule((b) => db.chapterCount(b, translation: defaultTranslation));
+  List<List<Ref>> planSchedule(ReadingPlan plan) => plan.schedule();
+
+  DateTime get planStart =>
+      DateTime.tryParse(prefs.getString('activePlanStart') ?? '') ?? DateTime.now();
 
   /// Day of [plan] for today, counting the start day as day 1 and stopping at the last day.
-  int planDay(ReadingPlan plan) {
-    final start = DateTime.tryParse(prefs.getString('activePlanStart') ?? '') ?? DateTime.now();
-    final days = DateTime.now().difference(DateTime(start.year, start.month, start.day)).inDays;
-    return (days + 1).clamp(1, plan.days);
+  int planDay(ReadingPlan plan) => (daysBetween(planStart, DateTime.now()) + 1).clamp(1, plan.days);
+
+  /// The running plan's ticks against its days, or null when no plan runs.
+  PlanProgress? get planProgress {
+    final plan = activePlan;
+    return plan == null ? null : PlanProgress(plan, study.planChaptersDone(plan.id), planDay(plan));
   }
 
   /// Today's chapters if a plan is running.
