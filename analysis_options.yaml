@@ -2,6 +2,7 @@ analyzer:
   exclude:
     - packages/**
     - build/**
+    - .worktrees/**
     - android/**
     - ios/**
     - macos/**
