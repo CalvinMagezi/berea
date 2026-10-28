@@ -276,12 +276,21 @@ class _NoteEditorState extends State<NoteEditor> {
     return (under ?? matches.firstOrNull)?.ref ?? _verse;
   }
 
-  void _open(Ref ref) {
+  /// Leaving for the reader asks the same question as closing, so a draft is never lost.
+  Future<void> _open(Ref ref) async {
+    if (!await _mayLeave()) return;
+    if (!mounted) return;
     Navigator.of(context, rootNavigator: true).popUntil((r) => r.isFirst);
     _s.openInReader(ref);
   }
 
   Future<void> _close() async {
+    if (!await _mayLeave() || !mounted) return;
+    Navigator.pop(context);
+  }
+
+  /// Whether the editor may go: nothing unsaved, or the writer chose to discard it.
+  Future<bool> _mayLeave() async {
     if (_unsaved) {
       final discard = await confirmAction(
         context,
@@ -289,10 +298,10 @@ class _NoteEditorState extends State<NoteEditor> {
         'What you wrote here has not been saved.',
         'Discard',
       );
-      if (!discard || !mounted) return;
+      if (!discard || !mounted) return false;
     }
     _dirty = false;
-    Navigator.pop(context);
+    return true;
   }
 
   bool get _unsaved => _dirty || _body.text.trim() != (widget.note?.text ?? '').trim();

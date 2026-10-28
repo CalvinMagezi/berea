@@ -184,6 +184,37 @@ void main() {
     expect(find.text('NOTE · SUNDAY SERMONS'), findsOneWidget);
   });
 
+  testWidgets('opening the verse preview asks before it drops what was written', (tester) async {
+    await pump(
+      tester,
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => showNoteEditor(context, s),
+          child: const Text('Write'),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Write'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'Read Romans 8:18 again.');
+    await tester.pump();
+
+    await tester.tap(find.text('tap to open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard this note?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NoteEditor), findsOneWidget);
+    expect(find.text('Read Romans 8:18 again.'), findsOneWidget);
+
+    await tester.tap(find.text('tap to open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NoteEditor), findsNothing);
+    expect(s.study.notes(), isEmpty);
+  });
+
   testWidgets('the editor saves a note on a verse, and edits keep it', (tester) async {
     await pump(
       tester,
