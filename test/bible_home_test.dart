@@ -159,6 +159,51 @@ void main() {
     expect(find.textContaining('Where you stopped'), findsNothing);
   });
 
+  testWidgets('the folded card shortens book names at phone width, as the board does', (
+    tester,
+  ) async {
+    final now = DateTime.now();
+    final state = await tester.runAsync(
+      () => open({
+        'readerBook': 43,
+        'todayCardFullOn': dayKey(now),
+        'tipT14Done': true,
+        'activePlan': 'nt-90',
+        'activePlanStart': now.toIso8601String(),
+      }),
+    );
+    final daily = verseOfTheDay(state!.db, now);
+    String line() => tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((t) => t.text.toPlainText())
+        .firstWhere((t) => t.startsWith('Today ·'));
+
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: bereaTheme(Brightness.light),
+        home: ReaderScreen(state: state),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(line(), 'Today · ${shortLabel(daily)}');
+    expect(find.text('Matt 1-3'), findsOneWidget);
+
+    tester.view.physicalSize = const Size(1000, 800);
+    await tester.pumpAndSettle();
+    expect(line(), 'Today · ${daily.label}');
+    expect(find.text('Matthew 1-3'), findsOneWidget);
+  });
+
+  test('every book has a short name', () {
+    expect(bookAbbreviations, hasLength(books.length));
+    expect(shortLabel(RefParser.parse('2 Corinthians 4:18').first), '2 Cor 4:18');
+    expect(shortLabel(RefParser.parse('Song of Solomon 2:4').first), 'Song 2:4');
+  });
+
   test('the card is in full on the first look of the day, then folds', () async {
     final first = await open({'readerBook': 43});
     expect(first.todayCardFull, isTrue);

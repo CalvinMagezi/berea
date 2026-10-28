@@ -5,6 +5,7 @@ import 'package:berea/chat_screen.dart';
 import 'package:berea/home_shell.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/notes_screen.dart';
+import 'package:berea/plans_screen.dart';
 import 'package:berea/prayer_screen.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/study_button.dart';
@@ -168,6 +169,15 @@ void main() {
     await tester.tap(find.text('Prayer'));
     await tester.pumpAndSettle();
     expect(find.byType(PrayerScreen), findsOneWidget);
+  });
+
+  testWidgets('today\'s card on the Bible opens the Plans place', (tester) async {
+    state.todayCardFull = true;
+    await pumpShell(tester, _phone);
+    expect(find.byType(PlansScreen), findsNothing);
+    await tester.tap(find.text('Start a reading plan'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PlansScreen), findsOneWidget);
   });
 
   testWidgets('Ask about this notebook opens Study scoped to it', (tester) async {

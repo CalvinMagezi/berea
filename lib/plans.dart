@@ -1,5 +1,7 @@
 import 'package:berea_harness/berea_harness.dart';
 
+import 'today.dart';
+
 /// A reading plan: whole chapters spread evenly over its days, computed from chapter counts.
 class ReadingPlan {
   final String id;
@@ -74,8 +76,9 @@ final readingPlans = <ReadingPlan>[
 
 ReadingPlan? planById(String? id) => readingPlans.where((p) => p.id == id).firstOrNull;
 
-/// Groups consecutive chapters of one book: "Genesis 1-3", "Exodus 1".
-String readingLabel(List<Ref> refs) {
+/// Groups consecutive chapters of one book: "Genesis 1-3", "Exodus 1". [short] gives "Gen 1-3".
+String readingLabel(List<Ref> refs, {bool short = false}) {
+  String name(Book b) => short ? shortBookName(b) : b.name;
   final parts = <String>[];
   var i = 0;
   while (i < refs.length) {
@@ -87,8 +90,8 @@ String readingLabel(List<Ref> refs) {
     }
     parts.add(
       j == i
-          ? '${refs[i].book.name} ${refs[i].chapter}'
-          : '${refs[i].book.name} ${refs[i].chapter}-${refs[j].chapter}',
+          ? '${name(refs[i].book)} ${refs[i].chapter}'
+          : '${name(refs[i].book)} ${refs[i].chapter}-${refs[j].chapter}',
     );
     i = j + 1;
   }

@@ -8,6 +8,9 @@ import 'today.dart';
 const _cardRadius = 16.0;
 const _labelSpacing = 1.4;
 
+/// Below this the folded card shortens book names.
+const _fullNamesWidth = 560.0;
+
 /// Today on the Bible: the verse of the day and today's reading. In full on the first look of
 /// the day, then one line that opens it again.
 class TodayCard extends StatelessWidget {
@@ -34,37 +37,43 @@ class TodayCard extends StatelessWidget {
       onTap: () => onFull(true),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
-        child: Row(
-          children: [
-            Icon(Icons.wb_sunny_outlined, size: 18, color: scheme.onSurfaceVariant),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text.rich(
-                TextSpan(
-                  children: [
+        child: LayoutBuilder(
+          builder: (context, c) {
+            // A phone shortens book names, as the board does, so the line keeps the reference.
+            final short = c.maxWidth < _fullNamesWidth;
+            return Row(
+              children: [
+                Icon(Icons.wb_sunny_outlined, size: 18, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text.rich(
                     TextSpan(
-                      text: 'Today',
-                      style: TextStyle(fontWeight: FontWeight.w600, color: scheme.primary),
+                      children: [
+                        TextSpan(
+                          text: 'Today',
+                          style: TextStyle(fontWeight: FontWeight.w600, color: scheme.primary),
+                        ),
+                        TextSpan(text: ' · ${short ? shortLabel(daily) : daily.label}'),
+                      ],
                     ),
-                    TextSpan(text: ' · ${daily.label}'),
-                  ],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (reading != null)
-              ActionChip(
-                avatar: const Icon(Icons.calendar_month_outlined, size: 16),
-                label: Text(readingLabel(reading)),
-                onPressed: () => state.openInReader(state.planProgress?.next ?? reading.first),
-              ),
-            IconButton(
-              tooltip: 'Show today',
-              icon: const Icon(Icons.expand_more),
-              onPressed: () => onFull(true),
-            ),
-          ],
+                if (reading != null)
+                  ActionChip(
+                    avatar: const Icon(Icons.calendar_month_outlined, size: 16),
+                    label: Text(readingLabel(reading, short: short)),
+                    onPressed: () => state.openInReader(state.planProgress?.next ?? reading.first),
+                  ),
+                IconButton(
+                  tooltip: 'Show today',
+                  icon: const Icon(Icons.expand_more),
+                  onPressed: () => onFull(true),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
