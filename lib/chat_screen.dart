@@ -8,6 +8,7 @@ import 'app_state.dart';
 import 'export.dart';
 import 'download_details_sheet.dart';
 import 'helper_setup.dart';
+import 'keep_sheet.dart';
 import 'markdown_lite.dart';
 import 'past_questions.dart';
 import 'settings_sheet.dart';
@@ -121,6 +122,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _keepReading() => widget.state.openReaderRequest.value++;
 
+  /// Files [turn]'s answer in a notebook under its question, beside the first verse it cites.
+  Future<void> _keep(BuildContext context, ChatTurn turn) => showKeepSheet(
+    context,
+    widget.state,
+    title: turn.question,
+    body: turn.answer,
+    verse: turn.verified.firstOrNull,
+  );
+
   void _pick(String q) {
     _input.text = q;
     _send();
@@ -228,6 +238,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   onDeeper: s.ready && s.canGoDeeperFrom(s.turns[i])
                       ? () => s.goDeeper(s.turns[i])
                       : null,
+                  onKeep: () => _keep(context, s.turns[i]),
                 ),
               ),
       ),
@@ -472,6 +483,9 @@ class TurnView extends StatelessWidget {
 
   /// Asks for the full study after a brief answer; only the Study chat sets it.
   final VoidCallback? onDeeper;
+
+  /// Keeps a finished answer in a notebook; only the Study chat sets it.
+  final VoidCallback? onKeep;
   const TurnView({
     super.key,
     required this.turn,
@@ -479,6 +493,7 @@ class TurnView extends StatelessWidget {
     required this.translation,
     this.onSource,
     this.onDeeper,
+    this.onKeep,
   });
 
   @override
@@ -527,6 +542,18 @@ class TurnView extends StatelessWidget {
                     ? 'Stopped before an answer was written.'
                     : 'Stopped. Finished sentences are kept.',
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+              ),
+            ),
+          if (onKeep != null && turn.done && turn.error == null && turn.answer.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: onKeep,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Keep in a notebook'),
+                ),
               ),
             ),
           if (turn.canGoDeeper && onDeeper != null)

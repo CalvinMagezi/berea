@@ -326,4 +326,22 @@ void main() {
     expect(s.studyScope.value, id);
     expect(s.turns.single.answer, 'Paul weighs them.');
   });
+
+  testWidgets('Keep in a notebook files an answer through the shared Keep sheet', (tester) async {
+    final s = await app(helper: const HelperReady(), engine: _Answer());
+    final youth = s.notebooks.createNotebook('Romans with the youth');
+    await tester.runAsync(() => s.send('What is grace?'));
+    await pumpStudy(tester, s);
+    await tester.tap(find.text('Keep in a notebook'));
+    await tester.pumpAndSettle();
+    expect(find.text('Show it beside John 3:16'), findsOneWidget, reason: 'the first cited verse');
+    await tester.tap(find.text('Romans with the youth'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Keep'));
+    await tester.pumpAndSettle();
+
+    final note = s.study.notes().single;
+    expect(note.notebookId, youth);
+    expect(note.title, 'What is grace?');
+    expect(note.text, contains('Grace is a gift'));
+  });
 }
