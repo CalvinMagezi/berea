@@ -1,7 +1,9 @@
 import 'package:berea/prayer_screen.dart';
 import 'package:berea/prayer_store.dart';
+import 'package:berea/setup_screen.dart' show deviceNoun;
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -320,5 +322,141 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(store.praying().single.verse, 'Psalms 23:1-4');
+  });
+
+  testWidgets('Still praying offers Undo that brings back the line and the date', (tester) async {
+    phone(tester);
+    var clock = DateTime(2026, 8, 3, 9);
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema), now: () => clock);
+    final job = store.add(title: 'Job interview at the bank');
+    store.markAnswered(job, 'I got the job.');
+    clock = DateTime(2026, 10, 28, 9);
+    await tester.pumpWidget(MaterialApp(home: AnsweredScreen(store: store)));
+    expect(find.text('1 answered since August, newest first.'), findsOneWidget);
+
+    await tester.tap(find.text('Still praying'));
+    await tester.pumpAndSettle();
+    expect(store.answered(), isEmpty);
+    expect(find.textContaining('Nothing is marked answered yet.'), findsOneWidget);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    final back = store.answered().single;
+    expect(back.answer, 'I got the job.');
+    expect(back.answered, DateTime(2026, 8, 3, 9));
+  });
+
+  testWidgets('the Answered row shows the latest answer and when', (tester) async {
+    phone(tester);
+    store.add(title: 'Rain for the harvest');
+    const long = 'Job interview at the bank on Kampala Road, with the manager and two others';
+    store.markAnswered(store.add(title: long), '');
+    await tester.pumpWidget(app());
+    final title = tester.renderObject<RenderParagraph>(find.text(long));
+    expect(title.didExceedMaxLines, isTrue, reason: 'the title gives way');
+    final day = tester.getRect(find.text(', today'));
+    expect(day.right, lessThanOrEqualTo(tester.getRect(find.byIcon(Icons.chevron_right)).left));
+  });
+
+  testWidgets('Delete asks first, and a stopped prayer can be resumed', (tester) async {
+    phone(tester);
+    final rain = store.add(title: 'Rain for the harvest');
+    store.add(title: 'Wisdom in the new job');
+    await tester.pumpWidget(app());
+
+    await tester.tap(find.text('Rain for the harvest'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete this prayer?'), findsOneWidget);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(store.prayer(rain), isNotNull);
+
+    await tester.tap(find.text('Stop praying'));
+    await tester.pumpAndSettle();
+    expect(find.text('PRAYING · 1'), findsOneWidget);
+    await tester.tap(find.text('No longer praying · 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Resume'));
+    await tester.pumpAndSettle();
+    expect(store.prayer(rain)!.archived, isFalse);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('PRAYING · 2'), findsOneWidget);
+    expect(find.textContaining('No longer praying'), findsNothing);
+  });
+
+  testWidgets('a fast second tap on Amen does not pray for the next prayer unseen', (tester) async {
+    phone(tester);
+    final first = store.add(title: 'First');
+    final second = store.add(title: 'Second');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PrayNowScreen(store: store, passage: fakePassage, translation: () => 'BSB'),
+      ),
+    );
+    await tester.tap(find.text('Amen, next'));
+    await tester.pump();
+    await tester.tap(find.text('Amen, next'));
+    await tester.pump();
+    expect(store.prayer(second)!.daysPrayed, 0);
+    expect(find.text('2 of 2'), findsOneWidget);
+
+    // Back to the first and Amen again: still one request.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+    await tester.tap(find.text('Amen, next'));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.text('Skip'));
+    await tester.pump();
+    expect(store.prayer(first)!.daysPrayed, 1);
+    expect(find.text('You prayed for one request today.'), findsOneWidget);
+  });
+
+  testWidgets('skipping every prayer says so', (tester) async {
+    phone(tester);
+    store.add(title: 'Only one');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PrayNowScreen(store: store, passage: fakePassage, translation: () => 'BSB'),
+      ),
+    );
+    await tester.tap(find.text('Skip'));
+    await tester.pump();
+    expect(find.text('You skipped them all this time. They stay on the list.'), findsOneWidget);
+  });
+
+  testWidgets('the wide list marks the panel prayer and the panel takes new prayers', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    var clock = DateTime(2026, 10, 2, 9);
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema), now: () => clock);
+    for (final title in ['First', 'Second']) {
+      store.add(title: title);
+      clock = clock.add(const Duration(minutes: 1));
+    }
+    await tester.pumpWidget(app());
+    await tester.pump();
+    expect(find.text('Pray now · 2 prayers'), findsOneWidget);
+    expect(find.textContaining('Prayers stay on this $deviceNoun.'), findsOneWidget);
+    bool selected(String title) =>
+        tester.widget<ListTile>(find.widgetWithText(ListTile, title).first).selected;
+    expect(find.textContaining('ANSWERED'), findsNothing, reason: 'no empty Answered header');
+    expect(selected('First'), isTrue);
+    expect(selected('Second'), isFalse);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    await tester.pump();
+    expect(selected('Second'), isTrue);
+
+    store.add(title: 'Third');
+    await tester.pump();
+    expect(find.text('2 of 3 · ← → to move'), findsOneWidget);
   });
 }

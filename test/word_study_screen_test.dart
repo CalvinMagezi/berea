@@ -315,7 +315,7 @@ void main() {
     );
     await tester.tap(find.text('Save word'));
     await tester.pumpAndSettle();
-    expect(find.text('Keep τέλειος, perfect'), findsOneWidget);
+    expect(find.text('Keep τέλειος'), findsOneWidget, reason: 'the gloss is said once, below');
     expect(find.text('perfect · G5046 · from Matthew 5:48, BSB'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, 'Keep'));
     await tester.pumpAndSettle();

@@ -200,8 +200,13 @@ class _TodayCardState extends State<TodayCard> {
 
   static String _choiceSummary() {
     final days = [for (final p in readingPlans) p.days]..sort();
-    return '${readingPlans.length} to choose from, ${days.first} to ${days.last} days';
+    final count = readingPlans.length;
+    final many = count < _countWords.length ? _countWords[count] : '$count';
+    return '$many to choose from, ${days.first} to ${days.last} days';
   }
+
+  /// Small counts in words, as the card's line is drawn: "Three to choose from".
+  static const _countWords = ['None', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven'];
 }
 
 /// The quiet line above the verse the reader stopped at in an earlier session.

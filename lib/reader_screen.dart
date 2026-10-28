@@ -37,6 +37,30 @@ const _toolbarInset = 8.0;
 String selectionText(List<Verse> verses, Ref ref, String translation) =>
     '${passageText(verses)}\n${ref.label} ($translation)';
 
+/// Selected verses as runs of neighbours, in order: 1, 2 and 5 are 1-2 and 5.
+List<(int, int)> verseRuns(Iterable<int> verses) {
+  final runs = <(int, int)>[];
+  for (final v in verses.toList()..sort()) {
+    if (runs.isNotEmpty && runs.last.$2 == v - 1) {
+      runs.last = (runs.last.$1, v);
+    } else {
+      runs.add((v, v));
+    }
+  }
+  return runs;
+}
+
+/// "John 3:1-2, 5" for verses that are not all neighbours; a plain label otherwise.
+String versesLabel(Book book, int chapter, Iterable<int> verses) {
+  final [(start, end), ...rest] = verseRuns(verses);
+  final first = Ref(book, chapter, start, end).label;
+  return [first, for (final (a, b) in rest) a == b ? '$a' : '$a-$b'].join(', ');
+}
+
+/// Verses that are not all neighbours, each on its own line with its number, for Copy and Share.
+String gappedSelectionText(List<Verse> verses, String label, String translation) =>
+    '${verses.map((v) => '${v.verse} ${v.text}').join('\n')}\n$label ($translation)';
+
 class ReaderScreen extends StatefulWidget {
   final AppState state;
 
@@ -207,10 +231,30 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return Ref(book, chapter, sorted.first, sorted.last);
   }
 
+  bool get _gapped => verseRuns(_selected).length > 1;
+
+  String get _selectionLabel => versesLabel(book, chapter, _selected);
+
   String get _selectionText {
     final translation = s.settings.translation;
     final ref = _selection;
-    return selectionText(s.db.passage(ref, translation: translation), ref, translation);
+    final verses = s.db.passage(ref, translation: translation);
+    if (!_gapped) return selectionText(verses, ref, translation);
+    final chosen = verses.where((v) => _selected.contains(v.verse)).toList();
+    return gappedSelectionText(chosen, _selectionLabel, translation);
+  }
+
+  /// Runs [act] for an action that takes one passage; with gaps in the selection it says so
+  /// rather than act on verses that were never chosen.
+  void _onePassage(String action, void Function() act) {
+    if (!_gapped) return act();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$action works on verses next to each other. Choose one verse or a run of verses.',
+        ),
+      ),
+    );
   }
 
   Future<void> _note() async {
@@ -243,7 +287,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _copy() async {
-    final label = _selection.label;
+    final label = _selectionLabel;
     await Clipboard.setData(ClipboardData(text: _selectionText));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Copied $label.')));
@@ -256,7 +300,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _selectionBar({required bool wide}) => SelectionBar(
-    label: _selection.label,
+    label: _selectionLabel,
     count: _selected.length,
     wide: wide,
     onHighlight: () {
@@ -265,15 +309,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
       }
       setState(_selected.clear);
     },
-    onNote: _note,
-    onPray: _pray,
-    onAsk: () {
+    onNote: () => _onePassage('Note', _note),
+    onPray: () => _onePassage('Pray', _pray),
+    onAsk: () => _onePassage('Ask', () {
       s.askAbout(_selection);
       setState(_selected.clear);
-    },
-    onWords: () => showInterlinear(context, s, _selection),
-    onCommentary: () => showCommentary(context, s, _selection),
-    onStudyPage: _studyPage,
+    }),
+    onWords: () => _onePassage('Words', () => showInterlinear(context, s, _selection)),
+    onCommentary: () => _onePassage('Commentary', () => showCommentary(context, s, _selection)),
+    onStudyPage: () => _onePassage('Study page', _studyPage),
     onCopy: _copy,
     onShare: _share,
     onClear: () => setState(_selected.clear),

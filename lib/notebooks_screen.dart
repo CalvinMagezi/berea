@@ -7,12 +7,16 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app_state.dart';
+import 'brand/lamp_mark.dart';
+import 'confirm.dart';
 import 'keep_sheet.dart';
 import 'note_dialog.dart';
 import 'notebook_store.dart';
 import 'study_page_screen.dart';
 import 'study_store.dart';
 import 'theme.dart';
+
+export 'confirm.dart';
 
 /// Wide enough for a paragraph of pasted text without filling a desktop window.
 const _pasteDialogWidth = 520.0;
@@ -21,6 +25,7 @@ const _citedMarkWidth = 3.0;
 const _citedPadding = 12.0;
 const _kindLabelSize = 11.0;
 const _bottomBarPadding = 12.0;
+const _askMarkSize = 18.0;
 
 /// Measured on the room the Notes place has beside the sidebar, not the window; local rather
 /// than the shell's constant, so the Notes screens do not import the shell.
@@ -68,20 +73,6 @@ Future<String?> askNotebookName(BuildContext context, {required String title, St
     ),
   );
 }
-
-Future<bool> confirmAction(BuildContext context, String title, String body, String action) async =>
-    await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(action)),
-        ],
-      ),
-    ) ==
-    true;
 
 /// Asks for a Bible reference as typed; null when cancelled.
 Future<String?> askReference(BuildContext context, String title) {
@@ -148,6 +139,15 @@ String noteKind(Note n) => isKeptWord(n)
 /// The notes, kept words and study pages in notebook [id]: what its Notes view lists.
 int writtenCount(StudyStore study, int id) =>
     study.notebookNotes(id).length + study.studyPages(notebookId: id).length;
+
+/// The readings notebook [id] lists: a note linked from its own notes is listed as the note.
+List<NotebookSource> listedReadings(StudyStore study, NotebookStore notebooks, int id) {
+  final own = {for (final n in study.notebookNotes(id)) n.id};
+  return [
+    for (final r in notebooks.sources(id))
+      if (r.noteId == null || !own.contains(r.noteId)) r,
+  ];
+}
 
 /// Every note in every notebook with its notebook, newest first.
 List<(Note, Notebook)> allNotes(StudyStore study, NotebookStore notebooks) =>
@@ -495,12 +495,7 @@ class _NotebookScreenState extends State<NotebookScreen> {
       }
       final notes = _s.study.notebookNotes(notebookId);
       final pages = _s.study.studyPages(notebookId: notebookId);
-      final own = {for (final n in notes) n.id};
-      // A note linked from this notebook's own notes is already listed as the note.
-      final readings = [
-        for (final r in store.sources(notebookId))
-          if (r.noteId == null || !own.contains(r.noteId)) r,
-      ];
+      final readings = listedReadings(_s.study, store, notebookId);
       final pending = store.pendingFor(notebookId);
       final written = notes.length + pages.length;
       return Scaffold(
@@ -604,7 +599,12 @@ class _NotebookScreenState extends State<NotebookScreen> {
               Expanded(
                 child: FilledButton.icon(
                   onPressed: () => _s.askAboutNotebook(notebookId),
-                  icon: const Icon(Icons.auto_stories_outlined),
+                  icon: Builder(
+                    builder: (context) {
+                      final on = Theme.of(context).colorScheme.onPrimary;
+                      return LampMark(size: _askMarkSize, ink: on, flame: on);
+                    },
+                  ),
                   label: const Text('Ask about this notebook'),
                 ),
               ),
@@ -691,13 +691,29 @@ class _NotebookScreenState extends State<NotebookScreen> {
     onTap: () => _open(context, p),
   );
 
+  /// A passage reading's verses, from its origin "Romans 8:18-39|BSB" (see passageSource).
+  (Ref, String)? _passage(NotebookSource r) {
+    final parts = r.origin.split('|');
+    if (r.kind != SourceKind.passage || parts.length != 2) return null;
+    final ref = RefParser.parse(parts.first).firstOrNull;
+    return ref == null ? null : (ref, parts.last);
+  }
+
+  /// As the notebook board draws a reading: a passage by its translation and verses, a
+  /// commentary by where it came from, the rest by sections.
+  String _readingDetail(NotebookSource r) {
+    if (_passage(r) case (final ref, final translation)) {
+      final verses = _s.db.passage(ref, translation: translation).length;
+      return '$translation · ${plural(verses, 'verse', 'verses')}';
+    }
+    if (r.kind == SourceKind.commentary) return 'From the installed commentaries';
+    return plural(r.chunkCount, 'section', 'sections');
+  }
+
   Widget _readingTile(BuildContext context, NotebookSource r) => LabelledTile(
     label: 'Reading · ${r.kind.label}',
-    title: r.title,
-    detail: [
-      plural(r.chunkCount, 'section', 'sections'),
-      if (r.pinned) 'Always included',
-    ].join(' · '),
+    title: _passage(r)?.$1.label ?? r.title,
+    detail: [_readingDetail(r), if (r.pinned) 'Always included'].join(' · '),
     trailing: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
