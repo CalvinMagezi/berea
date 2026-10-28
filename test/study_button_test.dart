@@ -79,7 +79,10 @@ void main() {
       find.byKey(const ValueKey('study-download-ring')),
     );
     expect(ring.value, 0.42);
-    expect(find.bySemanticsLabel('Study, ask Berea, helper downloading, 42 percent'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('Study, ask Berea, helper downloading, 42 percent'),
+      findsOneWidget,
+    );
     semantics.dispose();
   });
 
@@ -89,6 +92,18 @@ void main() {
     expect(find.byKey(const ValueKey('study-wifi-badge')), findsOneWidget);
     expect(find.byKey(const ValueKey('study-download-ring')), findsNothing);
     expect(find.bySemanticsLabel('Study, ask Berea, helper waiting for Wi-Fi'), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets('a paused download is spoken as paused, not as downloading', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(tester, const HelperDownloading(0.42, total: 1000, paused: true));
+    expect(
+      find.bySemanticsLabel('Study, ask Berea, helper download paused, 42 percent'),
+      findsOneWidget,
+    );
+    await _pump(tester, const HelperDownloading(0, total: 1000, paused: true));
+    expect(find.bySemanticsLabel('Study, ask Berea, helper download paused'), findsOneWidget);
     semantics.dispose();
   });
 

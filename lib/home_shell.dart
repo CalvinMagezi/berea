@@ -7,6 +7,7 @@ import 'app_state.dart';
 import 'brand/lamp_mark.dart';
 import 'brand/prayer_icon.dart';
 import 'chat_screen.dart';
+import 'download_details_sheet.dart';
 import 'notebooks_screen.dart';
 import 'notes_screen.dart';
 import 'plans_screen.dart';
@@ -229,7 +230,10 @@ class _PlaceBar extends StatelessWidget {
                         ? _StudyPlace(
                             state: state,
                             selected: selected == t,
-                            onTap: () => onSelect(t),
+                            // While the helper downloads, the button opens its details.
+                            onTap: () => state.helperState is HelperDownloading
+                                ? showDownloadDetails(context, state)
+                                : onSelect(t),
                           )
                         : _Place(tab: t, selected: selected == t, onTap: () => onSelect(t)),
                   ),

@@ -79,6 +79,7 @@ class _TextTile extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     contentPadding: EdgeInsets.zero,
     title: Text(title),
+    subtitle: const Text('Readable offline'),
     trailing: const Icon(Icons.chevron_right),
     onTap: () => Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => _TextFileScreen(title, asset)),
@@ -119,32 +120,125 @@ class _TextFileScreen extends StatelessWidget {
 /// needs none or the user has already agreed to this version of the terms.
 Future<bool> confirmModelTerms(BuildContext context, AppState state, EdgeModel model) async {
   if (model.notice == null || state.termsAccepted) return true;
-  final agreed = await showDialog<bool>(
-    context: context,
-    builder: (dialog) => AlertDialog(
-      title: const Text('Gemma terms'),
-      content: SingleChildScrollView(
-        child: Text(
-          '${model.notice}.\n\nBy agreeing you accept the Gemma Terms of Use.\n\n'
-          '$gemmaUseRestriction',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(
-            dialog,
-          ).push(MaterialPageRoute<void>(builder: (_) => const TermsScreen())),
-          child: const Text('Read the terms'),
-        ),
-        TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: () => Navigator.pop(dialog, true),
-          child: const Text('Agree and download'),
-        ),
-      ],
+  final agreed = await Navigator.of(context).push<bool>(
+    MaterialPageRoute(
+      builder: (_) => ModelTermsScreen(model: model, wifiOnly: state.wifiOnly),
     ),
   );
   if (agreed != true) return false;
   await state.acceptTerms();
   return true;
+}
+
+const _stepSize = 28.0;
+
+/// Before you download: the three things to know about a model that carries a notice. Pops true
+/// when the reader agrees.
+class ModelTermsScreen extends StatelessWidget {
+  final EdgeModel model;
+  final bool wifiOnly;
+  const ModelTermsScreen({super.key, required this.model, required this.wifiOnly});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final muted = TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Before you download')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: contentMaxWidth),
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  children: [
+                    Text('${model.label} · ${model.sizeGb} GB'.toUpperCase(), style: muted),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Three things to know',
+                      style: scriptureStyle(context)
+                          .copyWith(fontSize: 22, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    _Step(
+                      1,
+                      '${model.label} is a Google model. Berea keeps an unchanged copy on its own '
+                      'release and checks its fingerprint after download.',
+                    ),
+                    const _Step(
+                      2,
+                      'By downloading or using it, you agree to the Gemma Terms of Use.',
+                    ),
+                    const _Step(3, gemmaUseRestriction),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text('${model.notice}', style: muted),
+                    ),
+                    const SizedBox(height: 8),
+                    const _TextTile('Gemma Terms of Use', gemmaTermsAsset),
+                    const _TextTile('Gemma Prohibited Use Policy', gemmaPolicyAsset),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Its answers can be wrong, so check them against the verses they cite.',
+                      style: muted,
+                    ),
+                  ],
+                ),
+              ),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: Text(
+                          wifiOnly ? 'Agree and download on Wi-Fi' : 'Agree and download',
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Step extends StatelessWidget {
+  final int n;
+  final String text;
+  const _Step(this.n, this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: _stepSize / 2,
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Text('$n', style: const TextStyle(fontSize: 13)),
+        ),
+        const SizedBox(width: 14),
+        Expanded(child: Text(text)),
+      ],
+    ),
+  );
 }

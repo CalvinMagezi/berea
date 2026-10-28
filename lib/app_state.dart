@@ -13,6 +13,7 @@ import 'device.dart';
 import 'backup.dart';
 import 'commentary_packs.dart';
 import 'edge_engine.dart';
+import 'helper_download.dart' as net;
 import 'models.dart';
 import 'notebook_chat.dart';
 import 'notebook_store.dart';
@@ -225,12 +226,30 @@ final class HelperDownloading extends HelperState {
   /// The download's size in bytes, or null when the source does not say.
   final int? total;
 
-  /// Always false for now: nothing yet holds a download back for Wi-Fi.
+  /// Held because Wi-Fi only is on and the device is on mobile data.
   final bool waitingForWifi;
-  const HelperDownloading(this.fraction, {this.total, this.waitingForWifi = false});
+
+  /// The reader paused it; it starts again when they resume.
+  final bool paused;
+  const HelperDownloading(
+    this.fraction, {
+    this.total,
+    this.waitingForWifi = false,
+    this.paused = false,
+  });
+
+  /// [received] of [total] bytes, as the download reports them.
+  factory HelperDownloading.at(int received, int total) =>
+      HelperDownloading(total > 0 ? (received / total).clamp(0.0, 1.0) : 0, total: total);
 
   int? get bytes => total == null ? null : (total! * fraction).round();
   int get percent => (fraction * 100).round();
+
+  /// Tenths of a percent: progress finer than this does not redraw the app.
+  int get permille => (fraction * 1000).round();
+
+  /// Arriving now, neither held nor paused.
+  bool get moving => !waitingForWifi && !paused;
 }
 
 /// Looking for the model files before loading them.
@@ -271,6 +290,9 @@ const notesCopyFailed =
 const helperDownloadFailed = 'The download stopped. Check the connection and try again.';
 const helperLoadFailed = 'The helper could not start on this device. Open settings to repair it.';
 const helperNotAvailable = 'The helper is not set up yet, so this question was not answered.';
+
+/// Where the Wi-Fi only choice for helper downloads is kept.
+const wifiOnlyKey = 'helperWifiOnly';
 
 class AppState extends ChangeNotifier {
   late final BibleDb db;
@@ -696,6 +718,11 @@ class AppState extends ChangeNotifier {
     prayers.refresh();
     _keepTranslationValid();
     clear();
+    pendingScope = null;
+    // The restored notebooks may not hold the one Study was answering from.
+    if (studyScope.value case final id? when notebooks.notebook(id) == null) {
+      studyScope.value = null;
+    }
     return skipped;
   }
 
@@ -745,8 +772,34 @@ class AppState extends ChangeNotifier {
 
   /// Ask about this notebook: Study opens scoped to [notebookId].
   void askAboutNotebook(int notebookId) {
-    studyScope.value = notebookId;
+    setStudyScope(notebookId);
     openStudyRequest.value++;
+  }
+
+  /// Whether Study can change what it answers from now: not under an answer or a held question.
+  bool get canChangeScope => !busy && _held == null;
+
+  /// Makes Study answer from notebook [notebookId], or the Bible when null. A study belongs to
+  /// one scope, so changing it starts a new one.
+  void setStudyScope(int? notebookId) {
+    if (!canChangeScope) {
+      // Under an answer, the change waits for it to finish rather than being lost.
+      pendingScope = notebookId == studyScope.value ? null : (id: notebookId);
+      notifyListeners();
+      return;
+    }
+    pendingScope = null;
+    if (notebookId == studyScope.value) return;
+    clear();
+    studyScope.value = notebookId;
+    notifyListeners();
+  }
+
+  /// A scope asked for while an answer was being written; Study moves to it once it finishes.
+  ({int? id})? pendingScope;
+
+  void _applyPendingScope() {
+    if (pendingScope case (:final id) when canChangeScope) setStudyScope(id);
   }
 
   /// Notes and highlights change outside this class; callers poke listeners through here. A
@@ -762,6 +815,7 @@ class AppState extends ChangeNotifier {
     turns.clear();
     harness?.resetConversation();
     conversationId = id;
+    studyScope.value = study.conversation(id)?.notebookId;
     ChatTurn? current;
     for (final m in study.messages(id)) {
       if (m.isUser) {
@@ -772,6 +826,7 @@ class AppState extends ChangeNotifier {
         current
           ..answer = m.text
           ..verified = m.refs
+          ..sources = m.sources
           ..done = true;
         harness?.history.add(ChatMessage.assistant(m.text));
       }
@@ -805,6 +860,7 @@ class AppState extends ChangeNotifier {
       busy = false;
       _modelUse = null;
       notifyListeners();
+      _applyPendingScope();
     }
   }
 
@@ -853,6 +909,8 @@ class AppState extends ChangeNotifier {
   /// Sets [helperState] on the way, except ready, which waits until the harness exists.
   Future<LlmEngine?> _device() async {
     final m = settings.deviceModel;
+    // A settings change during a download must not hide it; the download rebuilds when done.
+    if (_helper is HelperDownloading) return null;
     try {
       helperState = const HelperChecking();
       if (!await EdgeAiEngine.isInstalled(m, modelsDir)) {
@@ -891,31 +949,173 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Hold a helper download until the device is on Wi-Fi. On unless the reader turns it off.
+  bool get wifiOnly => prefs.getBool(wifiOnlyKey) ?? true;
+
+  Future<void> setWifiOnly(bool on) async {
+    await prefs.setBool(wifiOnlyKey, on);
+    notifyListeners();
+    final h = _helper;
+    if (h is! HelperDownloading) return;
+    if (!on && h.waitingForWifi) unawaited(downloadDeviceModel());
+    // Turned back on while arriving over mobile data, the download waits for Wi-Fi again.
+    if (on && h.moving && !_mobileAllowed && await _onMobileData()) {
+      _stop(HelperDownloading(0, total: h.total, waitingForWifi: true));
+    }
+  }
+
+  /// Whether the device is on mobile data alone; replaced in tests, which have no network.
+  @visibleForTesting
+  Future<bool> Function() mobileDataNow = net.mobileDataNow;
+
+  /// Hears true whenever the device moves to mobile data alone, false when it leaves it.
+  @visibleForTesting
+  Stream<bool> Function() mobileDataChanges = net.mobileDataChanges;
+
+  /// The reader chose mobile data for this download; forgotten when it ends.
+  bool _mobileAllowed = false;
+
+  /// Completed to stop the transfer under way; null when none is.
+  Completer<void>? _stopTransfer;
+
+  /// What the helper shows once a stopped transfer has ended: paused, held or not installed.
+  HelperState _afterStop = const HelperNotInstalled();
+  StreamSubscription<bool>? _network;
+
+  /// A transfer is under way, or about to start.
+  bool get _transferring => _stopTransfer != null;
+
   Future<void> downloadDeviceModel() async {
     final m = settings.deviceModel;
     if (m.notice != null && !termsAccepted) return;
-    if (deviceState == DeviceModelState.downloading) return;
+    if (_transferring) return;
     // A model that failed to load may have a damaged file, so its hash is checked again.
     final repair = deviceState == DeviceModelState.failed;
-    // The plugin reports a percent; the size comes from the pinned source when Berea hosts it.
-    final total = m.source?.bytes;
-    helperState = HelperDownloading(0, total: total);
+    final total = m.publishedBytes;
+    final stop = _stopTransfer = Completer<void>();
+    _watchNetwork();
     try {
+      final mobile = await _onMobileData();
+      if (stop.isCompleted) throw const DownloadStopped();
+      if (net.holdForWifi(wifiOnly: wifiOnly, mobileOnly: mobile, mobileAllowed: _mobileAllowed)) {
+        helperState = HelperDownloading(0, total: total, waitingForWifi: true);
+        return;
+      }
+      helperState = HelperDownloading(0, total: total);
       await EdgeAiEngine.download(
         m,
         modelsDir: modelsDir,
         recheck: repair,
-        onProgress: (p) {
-          // The plugin repeats a percent for every chunk; redraw the app only when it moves.
-          if (p == downloadProgress) return;
-          helperState = HelperDownloading(p / 100, total: total);
+        stop: stop.future,
+        onProgress: (received, total) {
+          final next = HelperDownloading.at(received, total);
+          // Bytes arrive in small chunks; redraw the app only when the progress visibly moves.
+          if (_helper case HelperDownloading(:final permille) when permille == next.permille) {
+            return;
+          }
+          helperState = next;
         },
       );
+      _endDownload();
+      helperState = const HelperChecking();
+      _stopTransfer = null;
       await _rebuildHarness();
+    } on DownloadStopped {
+      helperState = _afterStop;
+      // Wi-Fi may have come back while the transfer was ending, so held looks again.
+      if (_afterStop case HelperDownloading(waitingForWifi: true)) {
+        unawaited(Future(downloadDeviceModel));
+      }
     } catch (e) {
       debugPrint('The helper download stopped: $e');
+      _endDownload();
       helperState = HelperFailed(helperDownloadFailed, detail: e.toString());
+    } finally {
+      if (identical(_stopTransfer, stop)) _stopTransfer = null;
     }
+  }
+
+  /// Pauses or holds the download when the device moves on or off mobile data.
+  void _watchNetwork() => _network ??= mobileDataChanges().listen((mobile) {
+    final h = _helper;
+    if (h is! HelperDownloading || h.paused) return;
+    if (_holds(mobile) && h.moving) _settle ??= Timer(mobileSettle, _holdIfStillMobile);
+    if (!_holds(mobile) && h.waitingForWifi && !_transferring) {
+      unawaited(downloadDeviceModel());
+    }
+  }, onError: (Object e) => debugPrint('The connection type could not be read: $e'));
+
+  bool _holds(bool mobile) =>
+      net.holdForWifi(wifiOnly: wifiOnly, mobileOnly: mobile, mobileAllowed: _mobileAllowed);
+
+  /// A Wi-Fi handoff can read as mobile data for a moment; stopping then would throw away the
+  /// download, so it is held only once mobile data has lasted [mobileSettle].
+  @visibleForTesting
+  Duration mobileSettle = const Duration(seconds: 20);
+  Timer? _settle;
+
+  Future<void> _holdIfStillMobile() async {
+    _settle = null;
+    final h = _helper;
+    if (h is! HelperDownloading || !h.moving || !_holds(await _onMobileData())) return;
+    _stop(HelperDownloading(0, total: h.total, waitingForWifi: true));
+  }
+
+  /// A connection type that cannot be read counts as not mobile, so the download goes on.
+  Future<bool> _onMobileData() async {
+    try {
+      return await mobileDataNow();
+    } on Object catch (e) {
+      debugPrint('The connection type could not be read: $e');
+      return false;
+    }
+  }
+
+  void _endDownload() {
+    _settle?.cancel();
+    _settle = null;
+    unawaited(_network?.cancel());
+    _network = null;
+    _mobileAllowed = false;
+  }
+
+  /// Ends the transfer under way, if any, and shows [after] once it has; the partial file goes
+  /// with it, so the next start begins again from nothing.
+  void _stop(HelperState after) {
+    _afterStop = after;
+    final stop = _stopTransfer;
+    if (stop == null) {
+      helperState = after;
+    } else if (!stop.isCompleted) {
+      stop.complete();
+    }
+  }
+
+  /// Use mobile data for this download only, starting it if it was held for Wi-Fi.
+  void useMobileDataOnce() {
+    _mobileAllowed = true;
+    if (_helper case HelperDownloading(:final moving) when !moving && !_transferring) {
+      unawaited(downloadDeviceModel());
+    }
+  }
+
+  void pauseDownload() {
+    if (_helper case HelperDownloading(:final total, paused: false)) {
+      _stop(HelperDownloading(0, total: total, paused: true));
+    }
+  }
+
+  Future<void> resumeDownload() async {
+    if (_helper case HelperDownloading(paused: true)) {
+      _helper = HelperDownloading(0, total: settings.deviceModel.publishedBytes);
+      await downloadDeviceModel();
+    }
+  }
+
+  void cancelDownload() {
+    if (_helper is! HelperDownloading) return;
+    _endDownload();
+    _stop(const HelperNotInstalled());
   }
 
   Future<void> updateSettings(Settings next) async {
@@ -958,7 +1158,9 @@ class AppState extends ChangeNotifier {
   Future<void> send(String question) async {
     final h = harness;
     if (!ready) return;
-    final style = settings.briefFirst ? AnswerStyle.brief : AnswerStyle.full;
+    // A notebook answer cites its sources in one go; brief answers are for the Bible.
+    final brief = settings.briefFirst && studyScope.value == null;
+    final style = brief ? AnswerStyle.brief : AnswerStyle.full;
     final turn = ChatTurn(question, style: style);
     turns.add(turn);
     if (h == null) return _hold(turn);
@@ -999,6 +1201,7 @@ class AppState extends ChangeNotifier {
       };
       notifyListeners();
       done.complete();
+      _applyPendingScope();
       return;
     }
     done.complete(useModel(() => _answer(h, turn)));
@@ -1045,11 +1248,16 @@ class AppState extends ChangeNotifier {
     await h.stop();
   }
 
-  Future<void> _answer(Harness h, ChatTurn turn) async {
+  Future<void> _answer(Harness base, ChatTurn turn) async {
+    final notebookId = studyScope.value;
+    final h = notebookId == null
+        ? base
+        : _notebookHarness(base.engine, notebookId, _historyBefore(turn));
     _answering = h;
     try {
       final result = await h.ask(
         turn.question,
+        sources: notebookId == null ? const [] : _notebookSources(notebookId, turn.question),
         onToken: turn.append,
         onContext: turn.read,
         style: turn.style,
@@ -1058,9 +1266,15 @@ class AppState extends ChangeNotifier {
       turn.take(result.guard);
       // An answer stopped before it wrote anything leaves no empty message in the saved study.
       if (turn.answer.trim().isEmpty) return;
-      conversationId ??= study.createConversation(turn.question);
+      conversationId ??= study.createConversation(turn.question, notebookId: notebookId);
       study.addMessage(conversationId!, 'user', turn.shownQuestion, const []);
-      study.addMessage(conversationId!, 'assistant', turn.answer, turn.verified);
+      study.addMessage(
+        conversationId!,
+        'assistant',
+        turn.answer,
+        turn.verified,
+        sources: turn.sources,
+      );
     } catch (e) {
       turn.error = e.toString();
     } finally {
@@ -1104,24 +1318,39 @@ class AppState extends ChangeNotifier {
     String question,
     List<ChatMessage> history,
     void Function(String token) onToken,
-  ) => runExclusive((base) {
-    final h = Harness(
-      db: db,
-      engine: base.engine,
-      systemPrompt: systemPrompt,
-      tier: settings.tier,
-      translation: settings.translation,
-      notebook: true,
-    )..history.addAll(history);
-    final sources = notebookSources(
-      index: NotebookIndex(notebooks.db, notebookId),
-      question: question,
-      tier: settings.tier,
-      pinned: notebooks.pinnedSources(notebookId),
-      commentary: commentary.library,
-    );
-    return h.ask(question, sources: sources, onToken: onToken);
-  });
+  ) => runExclusive(
+    (base) => _notebookHarness(
+      base.engine,
+      notebookId,
+      history,
+    ).ask(question, sources: _notebookSources(notebookId, question), onToken: onToken),
+  );
+
+  Harness _notebookHarness(LlmEngine engine, int notebookId, List<ChatMessage> history) => Harness(
+    db: db,
+    engine: engine,
+    systemPrompt: systemPrompt,
+    tier: settings.tier,
+    translation: settings.translation,
+    notebook: true,
+  )..history.addAll(history);
+
+  List<SourceChunk> _notebookSources(int notebookId, String question) => notebookSources(
+    index: NotebookIndex(notebooks.db, notebookId),
+    question: question,
+    tier: settings.tier,
+    pinned: notebooks.pinnedSources(notebookId),
+    commentary: commentary.library,
+  );
+
+  /// The finished questions and answers before [turn], for a notebook answer to follow on from.
+  List<ChatMessage> _historyBefore(ChatTurn turn) => [
+    for (final t in turns.takeWhile((t) => t != turn))
+      if (t.done && t.error == null && t.answer.trim().isNotEmpty) ...[
+        ChatMessage.user(t.question),
+        ChatMessage.assistant(t.answer),
+      ],
+  ];
 
   void clear() {
     _dropHeld();
