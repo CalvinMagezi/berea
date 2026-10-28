@@ -347,6 +347,9 @@ void main() {
     store.updateNote(verseNote, 'Fullness of grace.');
     expect(books.sourceText(src), 'Fullness of grace.');
     expect(books.search(sermons, 'fullness').single.text, 'Fullness of grace.');
+    store.updateNote(verseNote, '  ');
+    expect(store.note(verseNote)!.text, '  ');
+    expect(books.sourceText(src), 'Fullness of grace.');
 
     store.saveNote(
       sermon,

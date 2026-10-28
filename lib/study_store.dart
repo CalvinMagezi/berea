@@ -392,7 +392,13 @@ class StudyStore {
     final note = this.note(noteId);
     final linked = db.select('SELECT id FROM notebook_sources WHERE note_id = ?', [noteId]);
     if (note == null || linked.isEmpty) return;
-    final chunked = chunkSections([note.text]);
+    final ChunkedText chunked;
+    try {
+      chunked = chunkSections([note.text]);
+    } on FormatException {
+      // A blank note still saves; its sources keep the last text until it has some again.
+      return;
+    }
     for (final s in linked) {
       final id = s['id'] as int;
       db.execute('UPDATE notebook_sources SET title = ?, origin = ?, text = ? WHERE id = ?', [
