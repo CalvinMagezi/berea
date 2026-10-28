@@ -322,12 +322,55 @@ const notesCopyFailed =
     'Berea could not make a safety copy of your notes before updating them, so nothing was '
     'changed. Free some space on this device and open Berea again.';
 
+const notesOpenFailed =
+    'Berea could not open your notes. They are still on this device. Close Berea and open it '
+    'again, and if this keeps happening, restart the device and try once more.';
+
+const bibleNoSpace =
+    'There is not enough space on this device to set up the Bible. Free about 85 MB and open '
+    'Berea again.';
+
+/// The notes version the merge starts from, which StudyStore keeps private.
+const _beforeNotesMerge = 2;
+
+/// The error code for a full disk on Android, iOS, macOS and Linux.
+const _noSpaceErrno = 28;
+
 const helperDownloadFailed = 'The download stopped. Check the connection and try again.';
 const helperDownloadDamaged =
     'The download did not match the published file, so it was removed. Try again to download it '
     'fresh.';
 const helperLoadFailed = 'The helper could not start on this device. Open settings to repair it.';
 const helperNotAvailable = 'The helper is not set up yet, so this question was not answered.';
+const answerFailed = 'The helper could not answer this question. Try again.';
+const ollamaFailed =
+    'Ollama could not answer. Check that the model named in Settings is installed in Ollama, '
+    'then try again.';
+
+/// Plain words for [e], which a reader sees: the message of a failure Berea words itself,
+/// otherwise [fallback]. The raw error goes to the debug log only.
+String plainFailure(Object e, String fallback) {
+  debugPrint('$fallback ($e)');
+  return switch (e) {
+    BackupException(:final message) || StartupFailure(:final message) => message,
+    FormatException(:final message) => message,
+    _ => fallback,
+  };
+}
+
+/// Plain words for an answer that failed.
+String answerFailure(Object e) {
+  debugPrint('The answer failed: $e');
+  return switch (e) {
+    // The engine words an unreachable Ollama for readers already; other failures carry its reply.
+    OllamaException(:final message) when message.startsWith(ollamaUnreachable) => message,
+    OllamaException() => ollamaFailed,
+    _ => answerFailed,
+  };
+}
+
+/// How the engine begins its own, plain, message for an Ollama it cannot reach.
+const ollamaUnreachable = 'Berea could not reach Ollama';
 
 /// Where the Wi-Fi only choice for helper downloads is kept.
 const wifiOnlyKey = 'helperWifiOnly';
@@ -418,8 +461,9 @@ class AppState extends ChangeNotifier {
     _ => 0,
   };
 
+  /// The failure in plain words; the detail goes to the debug log where it happened.
   String? get deviceError => switch (_helper) {
-    HelperFailed(:final detail, :final reason) => detail ?? reason,
+    HelperFailed(:final reason) => reason,
     _ => null,
   };
 
@@ -457,7 +501,7 @@ class AppState extends ChangeNotifier {
     s.supportDir = supportDir ?? await getApplicationSupportDirectory();
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir, onFirstSetup));
-    s.study = _openStudy('${s.supportDir.path}/study.sqlite');
+    s.study = openStudy('${s.supportDir.path}/study.sqlite');
     s.study.copyNotebookChats();
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
     s.prefs = prefs ?? await SharedPreferences.getInstance();
@@ -492,15 +536,35 @@ class AppState extends ChangeNotifier {
 
   /// Opens the notes database. The notes merge first writes a safety copy beside it; if that
   /// copy cannot be written the store throws before migrating, and Berea stops with [StartupFailure]
-  /// rather than open notes it could not protect.
-  static StudyStore _openStudy(String path) {
-    final raw = sqlite3.open(path);
+  /// rather than open notes it could not protect. Only that failure asks for space.
+  @visibleForTesting
+  static StudyStore openStudy(String path) {
+    final Database raw;
+    try {
+      raw = sqlite3.open(path);
+    } on Object catch (e) {
+      debugPrint('The notes database did not open: $e');
+      throw const StartupFailure(notesOpenFailed);
+    }
     try {
       return StudyStore(raw);
     } on Object catch (e) {
-      raw.dispose();
       debugPrint('The notes database did not open: $e');
-      throw const StartupFailure(notesCopyFailed);
+      final copyFailed = _safetyCopyMissing(raw, path);
+      raw.dispose();
+      throw StartupFailure(copyFailed ? notesCopyFailed : notesOpenFailed);
+    }
+  }
+
+  /// Whether the notes still wait for the merge and its safety copy was not written, which is
+  /// what a full disk leaves.
+  static bool _safetyCopyMissing(Database raw, String path) {
+    try {
+      final version = raw.select('PRAGMA user_version').first.values.first as int;
+      return version <= _beforeNotesMerge &&
+          !File('$path$preNotesMergeSuffix').existsSync();
+    } on Object {
+      return false;
     }
   }
 
@@ -533,8 +597,15 @@ class AppState extends ChangeNotifier {
     if (!file.existsSync() || current != bundled) {
       onFirstSetup?.call();
       final data = await rootBundle.load('assets/berea.sqlite');
-      await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-      await stamp.writeAsString(bundled);
+      try {
+        await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        await stamp.writeAsString(bundled);
+      } on FileSystemException catch (e) {
+        debugPrint('The Bible was not copied into place: $e');
+        // The stamp is written last, so a copy cut short is made again on the next launch.
+        if (e.osError?.errorCode == _noSpaceErrno) throw const StartupFailure(bibleNoSpace);
+        rethrow;
+      }
     }
     return file.path;
   }
@@ -1513,7 +1584,7 @@ class AppState extends ChangeNotifier {
         sources: turn.sources,
       );
     } catch (e) {
-      turn.error = e.toString();
+      turn.error = answerFailure(e);
     } finally {
       _answering = null;
     }

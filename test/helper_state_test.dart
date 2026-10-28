@@ -83,7 +83,7 @@ void main() {
     s.helperState = const HelperFailed(helperLoadFailed, detail: 'PlatformException(boom)');
     await sent;
     expect(s.turns.single.error, helperLoadFailed);
-    expect(s.deviceError, 'PlatformException(boom)');
+    expect(s.deviceError, helperLoadFailed, reason: 'Settings shows words, not the exception');
   });
 
   test('with no helper on the way, nothing is sent', () async {
@@ -114,6 +114,20 @@ void main() {
     await s.startHelper();
     expect(s.helperState, isA<HelperLoading>());
     expect(s.harness, isNull);
+  });
+
+  test('failures reach readers as plain sentences, never raw error text', () {
+    expect(answerFailure(const SocketException('Connection refused')), answerFailed);
+    expect(answerFailure(const OllamaException('Ollama HTTP 500: {"error":"x"}')), ollamaFailed);
+    const unreachable = '$ollamaUnreachable at http://localhost:11434. Install Ollama.';
+    expect(answerFailure(const OllamaException(unreachable)), unreachable);
+    const restoreFailed = 'The backup could not be restored.';
+    expect(plainFailure(StateError('bad'), restoreFailed), restoreFailed);
+    expect(plainFailure(const FormatException('Use 1 to 8 letters.'), 'x'), 'Use 1 to 8 letters.');
+
+    final s = loading();
+    s.helperState = const HelperFailed(helperLoadFailed, detail: 'PlatformException(...)');
+    expect(s.deviceError, helperLoadFailed);
   });
 
   testWidgets('a question from the reader waits in Study and is answered once the helper is ready', (

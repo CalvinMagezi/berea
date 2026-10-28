@@ -96,7 +96,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       setState(() => draft = draft.copyWith(translation: code));
       _say('Imported $code: $n verses');
     } catch (e) {
-      _say('Import failed: $e');
+      _say(plainFailure(e, 'The translation could not be imported.'));
     }
   }
 
@@ -165,7 +165,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       setState(() {});
       _say('Full lexicon installed.');
     } catch (e) {
-      _say('Lexicon install failed: $e');
+      _say(plainFailure(e, 'The lexicon pack could not be installed.'));
     }
   }
 
@@ -193,7 +193,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     try {
       contents = await widget.state.openBackup(bytes, pass);
     } catch (e) {
-      _say('$e');
+      _say(plainFailure(e, 'The backup could not be opened. Nothing changed.'));
       return;
     }
     if (!context.mounted) return;
@@ -243,7 +243,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                   '${skipped.join(', ')}.',
       );
     } catch (e) {
-      _say('$e');
+      _say(plainFailure(e, 'The backup could not be restored.'));
     }
   }
 
