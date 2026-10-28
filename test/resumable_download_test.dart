@@ -435,7 +435,12 @@ void main() {
         KeptDownload.waitingForNetwork.name,
       ]);
 
-      await Future<void>.delayed(_retry * 3);
+      // Waits for the retry itself, not a fixed time: under load a timer can fire late.
+      final deadline = DateTime.now().add(_timeout);
+      while (downloads < 2 && DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      await pumpEventQueue();
       expect(downloads, 2, reason: 'tried again by itself');
       expect(s.networkRetry, _retry * 4, reason: 'each wait twice the last');
 
