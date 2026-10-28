@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +12,9 @@ const _cardRadius = 20.0;
 const _cardPadding = 20.0;
 const _dotSize = 6.0;
 
+/// A second tap this soon after Amen moved on is the same tap, not Amen for the next prayer.
+const _amenSettle = Duration(milliseconds: 500);
+
 /// More than this many prayers and the step dots give way to the count alone.
 const _maxDots = 12;
 
@@ -18,7 +23,9 @@ const _monthNames = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-String dayMonth(DateTime d) => '${d.day} ${_monthNames[d.month - 1]}';
+String monthName(DateTime d) => _monthNames[d.month - 1];
+
+String dayMonth(DateTime d) => '${d.day} ${monthName(d)}';
 
 /// Matthew 6:9-13, read from the Bible in the reader's translation.
 final lordsPrayer = Ref(bookById(40), 6, 9, 13);
@@ -113,7 +120,8 @@ String prayedSummary(Prayer p) => p.daysPrayed == 0
           'since ${dayMonth(p.firstPrayed!)}';
 
 /// One prayer at a time, least recently prayed first. Amen records today and moves on. The order
-/// is fixed when the session starts, so praying does not reshuffle the list underneath.
+/// is fixed when the session starts, so praying does not reshuffle the list underneath; prayers
+/// added meanwhile join at the end.
 class PrayNowView extends StatefulWidget {
   final PrayerStore store;
   final PassageLookup passage;
@@ -128,6 +136,9 @@ class PrayNowView extends StatefulWidget {
 
   /// Shows that the arrow keys move between prayers, for the wide layout.
   final bool keyHint;
+
+  /// Told which prayer is showing, null once the session is through, so a list can mark it.
+  final ValueChanged<int?>? onShow;
   const PrayNowView({
     super.key,
     required this.store,
@@ -136,6 +147,7 @@ class PrayNowView extends StatefulWidget {
     required this.onDone,
     this.startAt,
     this.keyHint = false,
+    this.onShow,
   });
 
   @override
@@ -148,7 +160,23 @@ class _PrayNowViewState extends State<PrayNowView> {
     -1 => 0,
     final i => i,
   };
-  var _prayed = 0;
+  late final _seen = {..._ids};
+
+  /// Distinct, so stepping back and saying Amen again counts the prayer once.
+  final _prayed = <int>{};
+  Timer? _settling;
+
+  @override
+  void dispose() {
+    _settling?.cancel();
+    super.dispose();
+  }
+
+  void _takeNew() {
+    for (final p in widget.store.prayNowQueue()) {
+      if (_seen.add(p.id)) _ids.add(p.id);
+    }
+  }
 
   Prayer? get _current {
     while (_index < _ids.length) {
@@ -171,9 +199,11 @@ class _PrayNowViewState extends State<PrayNowView> {
   }
 
   void _amen(Prayer p) {
+    if (_settling?.isActive ?? false) return;
     widget.store.amen(p.id);
-    _prayed++;
+    _prayed.add(p.id);
     _next();
+    _settling = Timer(_amenSettle, () {});
   }
 
   Future<void> _answered(Prayer p) async {
@@ -196,12 +226,12 @@ class _PrayNowViewState extends State<PrayNowView> {
         children: [
           Text('Amen', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 8),
-          Text(
-            _prayed == 0
-                ? 'Nothing left to pray through right now.'
-                : 'You prayed for ${_prayed == 1 ? 'one request' : '$_prayed requests'} today.',
-            textAlign: TextAlign.center,
-          ),
+          Text(switch (_prayed.length) {
+            0 when _ids.isNotEmpty => 'You skipped them all this time. They stay on the list.',
+            0 => 'Nothing left to pray through right now.',
+            1 => 'You prayed for one request today.',
+            final n => 'You prayed for $n requests today.',
+          }, textAlign: TextAlign.center),
           const SizedBox(height: 20),
           FilledButton(onPressed: widget.onDone, child: const Text('Done')),
         ],
@@ -210,8 +240,21 @@ class _PrayNowViewState extends State<PrayNowView> {
   );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      ListenableBuilder(listenable: widget.store, builder: (context, _) => _build(context));
+
+  void _report(int? id) {
+    final show = widget.onShow;
+    if (show == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) show(id);
+    });
+  }
+
+  Widget _build(BuildContext context) {
+    _takeNew();
     final p = _current;
+    _report(p?.id);
     if (p == null) return _finished(context);
     final muted = Theme.of(context).textTheme.bodySmall
         ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);

@@ -7,12 +7,15 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app_state.dart';
+import 'confirm.dart';
 import 'keep_sheet.dart';
 import 'note_dialog.dart';
 import 'notebook_store.dart';
 import 'study_page_screen.dart';
 import 'study_store.dart';
 import 'theme.dart';
+
+export 'confirm.dart';
 
 /// Wide enough for a paragraph of pasted text without filling a desktop window.
 const _pasteDialogWidth = 520.0;
@@ -68,20 +71,6 @@ Future<String?> askNotebookName(BuildContext context, {required String title, St
     ),
   );
 }
-
-Future<bool> confirmAction(BuildContext context, String title, String body, String action) async =>
-    await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(action)),
-        ],
-      ),
-    ) ==
-    true;
 
 /// Asks for a Bible reference as typed; null when cancelled.
 Future<String?> askReference(BuildContext context, String title) {

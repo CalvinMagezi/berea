@@ -164,6 +164,10 @@ class PrayerStore extends ChangeNotifier {
       _query('p.answered IS NOT NULL AND p.archived = 0')
         ..sort((a, b) => b.answered!.compareTo(a.answered!));
 
+  /// Stopped, kept off the list and out of Pray now until resumed, most recently added first.
+  List<Prayer> stopped() =>
+      _query('p.archived = 1')..sort((a, b) => b.created.compareTo(a.created));
+
   /// The Pray now order: never prayed first, then least recently prayed, oldest added first.
   List<Prayer> prayNowQueue() {
     final ps = _query('p.answered IS NULL AND p.archived = 0');
@@ -206,10 +210,11 @@ class PrayerStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Marks [id] answered today with the person's own line, which may be empty.
-  void markAnswered(int id, String answer) {
+  /// Marks [id] answered [at], or today, with the person's own line, which may be empty. Undo
+  /// of Still praying passes the date it was first answered.
+  void markAnswered(int id, String answer, {DateTime? at}) {
     db.execute('UPDATE prayers SET answered = ?, answer = ? WHERE id = ?', [
-      _nowMs(),
+      at?.millisecondsSinceEpoch ?? _nowMs(),
       _blankToNull(answer),
       id,
     ]);
@@ -292,6 +297,6 @@ String prayersMarkdown(PrayerStore store) {
 
   section('Praying', store.praying());
   section('Answered', store.answered());
-  section('No longer praying', store._query('p.archived = 1'));
+  section('No longer praying', store.stopped());
   return b.toString();
 }

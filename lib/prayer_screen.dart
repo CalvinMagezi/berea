@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'prayer_pray_now.dart';
 import 'prayer_sheet.dart';
 import 'prayer_store.dart';
+import 'setup_screen.dart' show deviceNoun;
 import 'theme.dart';
 
 export 'prayer_pray_now.dart' show PrayNowScreen, LordsPrayerScreen;
@@ -19,6 +20,9 @@ const _daysInTwoWeeks = 14;
 
 /// Lines an answer up under its title, past the check mark.
 const _answerIndent = 72.0;
+
+/// Room for the latest answer beside the Answered row, as "Job interview, today".
+const _answeredDetailWidth = 200.0;
 
 /// The verse the first-time screen opens with.
 final _welcomeVerse = Ref(bookById(52), 5, 16, 18);
@@ -65,6 +69,9 @@ class _PrayerScreenState extends State<PrayerScreen> {
   /// The prayer the wide panel opens on, set by clicking a row.
   int? _startAt;
 
+  /// The prayer the wide panel is showing, marked in the list.
+  int? _shown;
+
   PrayerStore get _store => widget.store;
 
   Future<void> _add() => showPrayerSheet(context, _store, passage: widget.passage);
@@ -77,13 +84,26 @@ class _PrayerScreenState extends State<PrayerScreen> {
     _session++;
   });
 
-  void _prayNow() => Navigator.push(
-    context,
-    MaterialPageRoute<void>(
-      builder: (_) =>
-          PrayNowScreen(store: _store, passage: widget.passage, translation: widget.translation),
-    ),
-  );
+  void _onShow(int? id) {
+    if (id != _shown) setState(() => _shown = id);
+  }
+
+  /// A phone opens Pray now as a page; a wide window starts it over in the panel.
+  void _prayNow({required bool wide}) => wide
+      ? setState(() {
+          _startAt = null;
+          _session++;
+        })
+      : Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => PrayNowScreen(
+              store: _store,
+              passage: widget.passage,
+              translation: widget.translation,
+            ),
+          ),
+        );
 
   void _lordsPrayer() => Navigator.push(
     context,
@@ -97,6 +117,11 @@ class _PrayerScreenState extends State<PrayerScreen> {
     MaterialPageRoute<void>(
       builder: (_) => AnsweredScreen(store: _store, share: widget.share),
     ),
+  );
+
+  void _stopped() => Navigator.push(
+    context,
+    MaterialPageRoute<void>(builder: (_) => StoppedScreen(store: _store)),
   );
 
   void _shareList(BuildContext button) =>
@@ -143,6 +168,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
             translation: widget.translation,
             startAt: _startAt,
             keyHint: true,
+            onShow: _onShow,
             onDone: () => setState(() {
               _startAt = null;
               _session++;
@@ -157,7 +183,9 @@ class _PrayerScreenState extends State<PrayerScreen> {
   Widget _list(BuildContext context, {required bool wide}) {
     final praying = _store.praying();
     final answered = _store.answered();
+    final stopped = _store.stopped();
     final now = _store.now();
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Prayer'),
@@ -174,11 +202,11 @@ class _PrayerScreenState extends State<PrayerScreen> {
       ),
       body: ListView(
         children: [
-          if (!wide && praying.isNotEmpty)
+          if (praying.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(_pagePadding, 4, _pagePadding, 12),
               child: FilledButton.icon(
-                onPressed: _prayNow,
+                onPressed: () => _prayNow(wide: wide),
                 icon: const Icon(Icons.volunteer_activism_outlined),
                 label: Text('Pray now · ${_count(praying.length)}'),
               ),
@@ -188,6 +216,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
             _PrayerRow(
               prayer: p,
               subtitle: lastPrayedLabel(p, now),
+              selected: wide && p.id == _shown,
               onTap: wide ? () => _showInPanel(p) : () => _edit(p),
               onCheck: () => answerPrayer(context, _store, p),
             ),
@@ -201,11 +230,34 @@ class _PrayerScreenState extends State<PrayerScreen> {
               ),
           ] else if (answered.isNotEmpty)
             ListTile(
-              leading: Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
+              leading: Icon(Icons.check_circle, color: scheme.primary),
               title: Text('Answered · ${answered.length}'),
-              subtitle: Text(answered.first.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _answeredDetailWidth),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '${answered.first.title}, ${answeredLabel(answered.first, now)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+              ),
               onTap: _answered,
+            ),
+          if (stopped.isNotEmpty)
+            ListTile(
+              leading: Icon(Icons.pause_circle_outline, color: scheme.onSurfaceVariant),
+              title: Text('No longer praying · ${stopped.length}'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _stopped,
             ),
           TextButton.icon(
             onPressed: _lordsPrayer,
@@ -245,7 +297,16 @@ class _PrayerRow extends StatelessWidget {
 
   /// Marks the prayer answered. Null for one already answered.
   final VoidCallback? onCheck;
-  const _PrayerRow({required this.prayer, required this.subtitle, this.onTap, this.onCheck});
+
+  /// The prayer the wide panel is showing.
+  final bool selected;
+  const _PrayerRow({
+    required this.prayer,
+    required this.subtitle,
+    this.onTap,
+    this.onCheck,
+    this.selected = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -253,6 +314,9 @@ class _PrayerRow extends StatelessWidget {
     final muted = Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
     return ListTile(
       onTap: onTap,
+      selected: selected,
+      selectedTileColor: scheme.surfaceContainerHighest,
+      selectedColor: scheme.onSurface,
       leading: prayer.isAnswered
           ? Icon(Icons.check_circle, color: scheme.primary)
           : IconButton(
@@ -288,7 +352,7 @@ class _PrivacyLine extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Prayers stay on this device. Nothing is sent anywhere, and nothing is shared '
+              'Prayers stay on this $deviceNoun. Nothing is sent anywhere, and nothing is shared '
               'unless you share it.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
             ),
@@ -383,11 +447,36 @@ class _FirstTime extends StatelessWidget {
   }
 }
 
+/// "4 answered since August, newest first.", with the year when it is not this one.
+String answeredSummary(List<Prayer> answered, DateTime now) {
+  if (answered.isEmpty) {
+    return 'Nothing is marked answered yet. When a prayer is answered, tick it on the list and '
+        'write how. It is kept here with the date.';
+  }
+  final first = answered.last.answered!;
+  final month = monthName(first);
+  final since = first.year == now.year ? month : '$month ${first.year}';
+  return '${answered.length} answered since $since, newest first.';
+}
+
 /// Answered prayers, newest first, each with the person's own line and date.
 class AnsweredScreen extends StatelessWidget {
   final PrayerStore store;
   final ShareText share;
   const AnsweredScreen({super.key, required this.store, this.share = shareText});
+
+  /// Back on the list, with Undo bringing back the person's line and the day it was answered.
+  void _stillPraying(BuildContext context, Prayer p) {
+    store.unanswer(p.id);
+    sayPrayer(
+      context,
+      'Back on the list',
+      action: SnackBarAction(
+        label: 'Undo',
+        onPressed: () => store.markAnswered(p.id, p.answer ?? '', at: p.answered),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -416,7 +505,7 @@ class AnsweredScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: _pagePadding),
               child: Text(
-                '${answered.length} answered, newest first.',
+                answeredSummary(answered, now),
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
             ),
@@ -443,7 +532,7 @@ class AnsweredScreen extends StatelessWidget {
                           ),
                         ),
                         TextButton(
-                          onPressed: () => store.unanswer(p.id),
+                          onPressed: () => _stillPraying(context, p),
                           child: const Text('Still praying'),
                         ),
                       ],
@@ -453,6 +542,55 @@ class AnsweredScreen extends StatelessWidget {
               ),
               const Divider(height: 1),
             ],
+          ],
+        ),
+      );
+    },
+  );
+}
+
+/// Prayers the person stopped praying for, each with Resume to put it back on the list.
+class StoppedScreen extends StatelessWidget {
+  final PrayerStore store;
+  const StoppedScreen({super.key, required this.store});
+
+  void _resume(BuildContext context, Prayer p) {
+    store.setArchived(p.id, false);
+    sayPrayer(
+      context,
+      'Back on the list',
+      action: SnackBarAction(label: 'Undo', onPressed: () => store.setArchived(p.id, true)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: store,
+    builder: (context, _) {
+      final stopped = store.stopped();
+      final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+      return Scaffold(
+        appBar: AppBar(title: const Text('No longer praying')),
+        body: ListView(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: _pagePadding),
+              child: Text(
+                stopped.isEmpty
+                    ? 'Nothing here. Prayers you stop praying for wait here until you resume them.'
+                    : 'Kept here, out of the list and Pray now. Resume puts one back.',
+                style: TextStyle(color: muted),
+              ),
+            ),
+            for (final p in stopped)
+              ListTile(
+                title: Text(p.title),
+                subtitle: p.forWhom.isEmpty ? null : Text(p.forWhom),
+                trailing: TextButton(
+                  onPressed: () => _resume(context, p),
+                  child: const Text('Resume'),
+                ),
+              ),
           ],
         ),
       );

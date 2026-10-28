@@ -2,7 +2,9 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'confirm.dart';
 import 'prayer_store.dart';
+import 'setup_screen.dart' show deviceNoun;
 import 'theme.dart';
 
 /// The verses of [ref] in the reader's translation.
@@ -154,7 +156,14 @@ class _PrayerSheetState extends State<_PrayerSheet> {
     Navigator.pop(context);
   }
 
-  void _delete() {
+  Future<void> _delete() async {
+    final ok = await confirmAction(
+      context,
+      'Delete this prayer?',
+      'It and the days you prayed for it will be removed from this $deviceNoun.',
+      'Delete',
+    );
+    if (!ok || !mounted) return;
     widget.store.delete(widget.editing!.id);
     Navigator.pop(context);
   }
@@ -248,7 +257,7 @@ class _PrayerSheetState extends State<_PrayerSheet> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Prayers stay on this device. Nothing is sent.',
+                    'Prayers stay on this $deviceNoun. Nothing is sent.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
                   ),
                 ),
