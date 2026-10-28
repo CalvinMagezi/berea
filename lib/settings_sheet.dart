@@ -289,13 +289,27 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                     for (final m in edgeModels)
                       DropdownMenuItem(value: m.id, child: Text('${m.label} · ${m.sizeGb} GB')),
                   ],
-                  onChanged: (id) => setState(
-                    () => draft = draft.copyWith(
-                      deviceModelId: id,
-                      tier: recommendedTier(edgeModelById(id!), widget.state.deviceGb),
+                  // The model cannot change under a download; its part file belongs to it.
+                  onChanged: widget.state.helperState is HelperDownloading
+                      ? null
+                      : (id) => setState(
+                          () => draft = draft.copyWith(
+                            deviceModelId: id,
+                            tier: recommendedTier(edgeModelById(id!), widget.state.deviceGb),
+                          ),
+                        ),
+                ),
+                if (widget.state.helperState is HelperDownloading)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'A helper is downloading. Cancel it in Study to choose another model.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
                 if (widget.state.deviceGb != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),

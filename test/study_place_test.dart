@@ -12,6 +12,7 @@ import 'package:berea/notebook_store.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/past_questions.dart';
 import 'package:berea/pinned_download.dart';
+import 'package:berea/settings_sheet.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea/voice.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -144,7 +145,7 @@ void main() {
         ..mobileDataChanges = (() => net.stream)
         ..mobileSettle = const Duration(milliseconds: 20);
       await s.downloadDeviceModel();
-      s.helperState = const HelperDownloading(0.9, total: 100);
+      s.helperState = HelperDownloading(0.9, model: edgeModels.first, total: 100);
 
       net.add(true);
       mobile = false;
@@ -159,13 +160,13 @@ void main() {
     });
 
     test('a settings change during a download leaves it showing', () async {
-      final s = await app(helper: const HelperDownloading(0.3, total: 100));
+      final s = await app(helper: HelperDownloading(0.3, model: edgeModels.first, total: 100));
       await s.updateSettings(s.settings);
       expect(s.helperState, isA<HelperDownloading>());
     });
 
     test('turning Wi-Fi only back on over mobile data holds the download', () async {
-      final s = await app(helper: const HelperDownloading(0.3, total: 100))
+      final s = await app(helper: HelperDownloading(0.3, model: edgeModels.first, total: 100))
         ..mobileDataNow = (() async => true);
       await s.setWifiOnly(true);
       expect((s.helperState as HelperDownloading).waitingForWifi, isTrue);
@@ -189,13 +190,21 @@ void main() {
 
   group('download progress', () {
     test('maps received bytes onto the helper state', () {
-      final h = HelperDownloading.at(11 * _gb ~/ 10, 26 * _gb ~/ 10);
+      final h = HelperDownloading.at(11 * _gb ~/ 10, 26 * _gb ~/ 10, model: edgeModels.first);
       expect(h.bytes, 11 * _gb ~/ 10);
       expect(h.total, 26 * _gb ~/ 10);
       expect(h.percent, 42);
       expect(gbOf(h.total! - h.bytes!), '1.5');
-      expect(HelperDownloading.at(5, 0).fraction, 0, reason: 'an unknown size is not progress');
-      expect(HelperDownloading.at(12, 10).fraction, 1, reason: 'never past the end');
+      expect(
+        HelperDownloading.at(5, 0, model: edgeModels.first).fraction,
+        0,
+        reason: 'an unknown size is not progress',
+      );
+      expect(
+        HelperDownloading.at(12, 10, model: edgeModels.first).fraction,
+        1,
+        reason: 'never past the end',
+      );
     });
 
     test('each model reports its pinned size', () {
@@ -253,11 +262,59 @@ void main() {
     expect(edgeModels.where((m) => m.notice != null).map((m) => m.id), ['gemma-3-1b']);
   });
 
+  testWidgets('a download keeps its own model: the details name it and settings cannot swap it', (
+    tester,
+  ) async {
+    final s = await app(
+      helper: HelperDownloading(0.42, model: edgeModelById('gemma-4-e2b'), total: 26 * _gb ~/ 10),
+    );
+    s.settings = s.settings.copyWith(deviceModelId: 'gemma-3-1b');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: DownloadDetails(state: s)),
+      ),
+    );
+    expect(find.text('Gemma 4 E2B · 2.6 GB'), findsOneWidget);
+    expect(find.textContaining('and the file is checked before it is used.'), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showSettingsSheet(context, s),
+            child: const Text('Settings'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    final engine = find.text('Engine');
+    if (engine.evaluate().isNotEmpty) {
+      await tester.ensureVisible(engine.first);
+      await tester.tap(engine.first);
+      await tester.pumpAndSettle();
+    }
+    final picker = tester.widget<DropdownButton<String>>(
+      find.ancestor(
+        of: find.text('Gemma 3 1B · 0.6 GB'),
+        matching: find.byType(DropdownButton<String>),
+      ),
+    );
+    expect(picker.onChanged, isNull);
+    expect(find.textContaining('Cancel it in Study to choose another model'), findsOneWidget);
+  });
+
   testWidgets('download details show what it waits for, the size left, pause and cancel', (
     tester,
   ) async {
     final s = await app(
-      helper: HelperDownloading(0.42, total: 26 * _gb ~/ 10, waitingForWifi: true),
+      helper: HelperDownloading(
+        0.42,
+        model: edgeModels.first,
+        total: 26 * _gb ~/ 10,
+        waitingForWifi: true,
+      ),
     );
     await tester.pumpWidget(
       MaterialApp(

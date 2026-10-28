@@ -37,6 +37,9 @@ const _labelGap = 4.0;
 const _labelBottom = 8.0;
 const _labelSize = 12.0;
 const _sidebarRow = 40.0;
+
+/// Sidebar rows keep a full touch target where a finger, not a pointer, taps them.
+const _sidebarTouchRow = 48.0;
 const _sidebarIcon = 20.0;
 const _sidebarMark = 22.0;
 const _statusDot = 8.0;
@@ -352,7 +355,7 @@ String helperFooter(AppState s) {
     },
     EngineKind.device => s.settings.deviceModel.label,
   };
-  return '$status, $engine';
+  return '$status · $engine';
 }
 
 /// The wide layout: the five places in the same order, notebooks under Notes, the helper below.
@@ -389,18 +392,32 @@ class _Sidebar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (final t in HomeTab.values)
-                  _SidebarRow(
-                    leading: t == HomeTab.study
-                        ? const _SidebarMark()
-                        : _placeIcon(t, selected: selected == t),
-                    label: _placeLabels[t]!,
-                    shortcut: '${Platform.isMacOS ? '⌘' : 'Ctrl+'}${t.index + 1}',
-                    selected: selected == t && (t != HomeTab.notes || openNotebook == null),
-                    onTap: () => onSelect(t),
+                  ListenableBuilder(
+                    listenable: state,
+                    builder: (context, _) => _SidebarRow(
+                      leading: t == HomeTab.study
+                          ? const _SidebarMark()
+                          : _placeIcon(t, selected: selected == t),
+                      label: _placeLabels[t]!,
+                      // Study says what the raised button says: ask Berea, and the helper's state.
+                      semanticsLabel: t == HomeTab.study
+                          ? studySemanticsLabel(state.helperState, writing: state.answering)
+                          : null,
+                      shortcut: '${Platform.isMacOS ? '⌘' : 'Ctrl+'}${t.index + 1}',
+                      selected: selected == t && (t != HomeTab.notes || openNotebook == null),
+                      onTap: () => onSelect(t),
+                    ),
                   ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 20, 12, 6),
-                  child: Text('NOTEBOOKS', style: muted),
+                  // Read as a word, drawn in capitals.
+                  child: Semantics(
+                    container: true,
+                    header: true,
+                    label: _notebooksCaption,
+                    excludeSemantics: true,
+                    child: Text(_notebooksCaption.toUpperCase(), style: muted),
+                  ),
                 ),
                 Expanded(
                   child: ListenableBuilder(
@@ -432,6 +449,8 @@ class _Sidebar extends StatelessWidget {
   }
 }
 
+const _notebooksCaption = 'Notebooks';
+
 class _SidebarMark extends StatelessWidget {
   const _SidebarMark();
 
@@ -455,21 +474,32 @@ class _SidebarRow extends StatelessWidget {
   final String? shortcut;
   final bool selected;
   final VoidCallback onTap;
+
+  /// What a screen reader hears in place of [label], when it needs more.
+  final String? semanticsLabel;
   const _SidebarRow({
     required this.leading,
     required this.label,
     required this.selected,
     required this.onTap,
     this.shortcut,
+    this.semanticsLabel,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final fg = selected ? scheme.surface : scheme.onSurface;
+    final touch = switch (Theme.of(context).platform) {
+      TargetPlatform.android || TargetPlatform.iOS => true,
+      _ => false,
+    };
     return Semantics(
       button: true,
       selected: selected,
+      label: semanticsLabel,
+      excludeSemantics: semanticsLabel != null,
+      onTap: semanticsLabel == null ? null : onTap,
       child: Material(
         color: selected ? scheme.onSurfaceVariant : Colors.transparent,
         borderRadius: BorderRadius.circular(_radius),
@@ -477,7 +507,7 @@ class _SidebarRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(_radius),
           onTap: onTap,
           child: SizedBox(
-            height: _sidebarRow,
+            height: touch ? _sidebarTouchRow : _sidebarRow,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(

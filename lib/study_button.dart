@@ -17,15 +17,19 @@ const _glowBlur = 18.0;
 const _glowSpread = 3.0;
 const _glowPeriod = Duration(seconds: 2);
 
+/// The arc a loading ring shows, unmoving, when Reduce motion is on.
+const _stillArc = 0.25;
+
 /// What a screen reader hears about the helper, such as "helper downloading, 42 percent".
 String helperStatusWords(HelperState helper) => switch (helper) {
   HelperNotInstalled() => 'helper not downloaded',
   HelperDownloading(waitingForWifi: true) => 'helper waiting for Wi-Fi',
+  HelperDownloading(waitingForNetwork: true) => 'helper waiting for a connection',
   // A paused download starts again from the beginning, so it usually has nothing to count.
   HelperDownloading(paused: true, :final percent) =>
     percent == 0 ? 'helper download paused' : 'helper download paused, $percent percent',
   HelperDownloading(:final percent) => 'helper downloading, $percent percent',
-  HelperChecking() => 'helper checking its files',
+  HelperChecking() => 'helper starting',
   HelperLoading() => 'helper loading',
   HelperReady() => 'helper ready',
   HelperFailed() => 'helper needs a look',
@@ -97,16 +101,7 @@ class _StudyButtonState extends State<StudyButton> with SingleTickerProviderStat
           clipBehavior: Clip.none,
           children: [
             Positioned.fill(child: _circle(context)),
-            if (helper is HelperDownloading && !helper.waitingForWifi)
-              Positioned.fill(
-                child: CircularProgressIndicator(
-                  key: const ValueKey('study-download-ring'),
-                  value: helper.fraction,
-                  strokeWidth: _progressStroke,
-                  color: Theme.of(context).colorScheme.primary,
-                  backgroundColor: Colors.transparent,
-                ),
-              ),
+            if (_ring(context) case final ring?) Positioned.fill(child: ring),
             if (_badge(context) case final badge?) Positioned(top: 0, right: 0, child: badge),
           ],
         ),
@@ -160,6 +155,30 @@ class _StudyButtonState extends State<StudyButton> with SingleTickerProviderStat
         ),
       ),
     );
+  }
+
+  /// The ring holds the bytes so far through every download state, held or paused included,
+  /// and turns while the helper checks its files and loads.
+  Widget? _ring(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return switch (widget.helper) {
+      HelperDownloading(:final fraction) => CircularProgressIndicator(
+        key: const ValueKey('study-download-ring'),
+        value: fraction,
+        strokeWidth: _progressStroke,
+        color: color,
+        backgroundColor: Colors.transparent,
+      ),
+      HelperChecking() || HelperLoading() => CircularProgressIndicator(
+        key: const ValueKey('study-loading-ring'),
+        // Reduce motion keeps a still arc rather than a spinning one.
+        value: MediaQuery.disableAnimationsOf(context) ? _stillArc : null,
+        strokeWidth: _progressStroke,
+        color: color,
+        backgroundColor: Colors.transparent,
+      ),
+      _ => null,
+    };
   }
 
   Widget? _badge(BuildContext context) {

@@ -221,6 +221,9 @@ final class HelperNotInstalled extends HelperState {
 }
 
 final class HelperDownloading extends HelperState {
+  /// The model arriving. A settings change part way through does not change it.
+  final EdgeModel model;
+
   /// How much has arrived, from 0 to 1.
   final double fraction;
 
@@ -232,25 +235,44 @@ final class HelperDownloading extends HelperState {
 
   /// The reader paused it; it starts again when they resume.
   final bool paused;
+
+  /// The connection dropped where the download may go on; Berea tries again by itself.
+  final bool waitingForNetwork;
   const HelperDownloading(
     this.fraction, {
+    required this.model,
     this.total,
     this.waitingForWifi = false,
     this.paused = false,
+    this.waitingForNetwork = false,
   });
 
   /// [received] of [total] bytes, as the download reports them.
   factory HelperDownloading.at(
     int received,
     int total, {
+    required EdgeModel model,
     bool waitingForWifi = false,
     bool paused = false,
+    bool waitingForNetwork = false,
   }) => HelperDownloading(
     total > 0 ? (received / total).clamp(0.0, 1.0) : 0,
+    model: model,
     total: total,
     waitingForWifi: waitingForWifi,
     paused: paused,
+    waitingForNetwork: waitingForNetwork,
   );
+
+  /// This download where it stands, held, paused or waiting as given.
+  HelperDownloading stopped({bool waitingForWifi = false, bool paused = false}) =>
+      HelperDownloading(
+        fraction,
+        model: model,
+        total: total,
+        waitingForWifi: waitingForWifi,
+        paused: paused,
+      );
 
   int? get bytes => total == null ? null : (total! * fraction).round();
   int get percent => (fraction * 100).round();
@@ -258,8 +280,8 @@ final class HelperDownloading extends HelperState {
   /// Tenths of a percent: progress finer than this does not redraw the app.
   int get permille => (fraction * 1000).round();
 
-  /// Arriving now, neither held nor paused.
-  bool get moving => !waitingForWifi && !paused;
+  /// Arriving now, neither held, paused nor waiting for the connection.
+  bool get moving => !waitingForWifi && !paused && !waitingForNetwork;
 }
 
 /// Looking for the model files before loading them.
@@ -313,8 +335,12 @@ const wifiOnlyKey = 'helperWifiOnly';
 /// Where a helper download that has not finished is remembered: the model and how it stopped.
 const keptDownloadKey = 'helperDownload';
 
-/// How an unfinished helper download stood when it was last remembered.
-enum KeptDownload { moving, paused, waitingForWifi }
+/// How an unfinished helper download stood when it was last remembered. Stored by name.
+enum KeptDownload { moving, paused, waitingForWifi, waitingForNetwork }
+
+/// A download that lost its connection tries again after this, then twice as long each time.
+const networkRetryFirst = Duration(seconds: 30);
+const networkRetryLongest = Duration(minutes: 15);
 
 class AppState extends ChangeNotifier {
   late final BibleDb db;
@@ -381,7 +407,7 @@ class AppState extends ChangeNotifier {
 
   set deviceState(DeviceModelState next) => helperState = switch (next) {
     DeviceModelState.notInstalled => const HelperNotInstalled(),
-    DeviceModelState.downloading => const HelperDownloading(0),
+    DeviceModelState.downloading => HelperDownloading(0, model: settings.deviceModel),
     DeviceModelState.loading => const HelperLoading(),
     DeviceModelState.ready => const HelperReady(),
     DeviceModelState.failed => const HelperFailed(helperLoadFailed),
@@ -1027,7 +1053,7 @@ class AppState extends ChangeNotifier {
     if (!on && h.waitingForWifi) unawaited(downloadDeviceModel());
     // Turned back on while arriving over mobile data, the download waits for Wi-Fi again.
     if (on && h.moving && !_mobileAllowed && await _onMobileData()) {
-      _stop(HelperDownloading(h.fraction, total: h.total, waitingForWifi: true));
+      _stop(h.stopped(waitingForWifi: true));
     }
   }
 
@@ -1067,10 +1093,17 @@ class AppState extends ChangeNotifier {
   })
   modelDownload = EdgeAiEngine.download;
 
-  /// Downloads the helper model. One Berea starts by [itself], after a restart or when the
-  /// network comes back, waits for the network again if it fails, rather than ask the reader.
+  /// The model of the download under way, held or paused; null when there is none.
+  EdgeModel? get _downloading => switch (_helper) {
+    HelperDownloading(:final model) => model,
+    _ => null,
+  };
+
+  /// Downloads the helper model, going on with the one already under way if there is one. One
+  /// Berea starts by [itself], after a restart or when the network comes back, waits for the
+  /// connection and tries again later if it fails, rather than ask the reader.
   Future<void> downloadDeviceModel({bool itself = false}) async {
-    final m = settings.deviceModel;
+    final m = _downloading ?? settings.deviceModel;
     if (m.notice != null && !termsAccepted) return;
     if (_transferring) return;
     _dropOtherPartial(m);
@@ -1094,7 +1127,8 @@ class AppState extends ChangeNotifier {
         recheck: repair,
         stop: stop.future,
         onProgress: (received, total) {
-          final next = HelperDownloading.at(received, total);
+          networkRetry = networkRetryFirst;
+          final next = HelperDownloading.at(received, total, model: m);
           // Bytes arrive in small chunks; redraw the app only when the progress visibly moves.
           if (_helper case HelperDownloading(:final permille) when permille == next.permille) {
             return;
@@ -1106,6 +1140,11 @@ class AppState extends ChangeNotifier {
       _forgetDownload();
       helperState = const HelperChecking();
       _stopTransfer = null;
+      // The settings may have moved on while it arrived; the model that arrived is the helper.
+      if (settings.deviceModelId != m.id) {
+        settings = settings.copyWith(deviceModelId: m.id, tier: recommendedTier(m, deviceGb));
+        await settings.save(prefs);
+      }
       await _rebuildHarness();
     } on DownloadStopped {
       _settleStopped(_afterStop);
@@ -1119,11 +1158,7 @@ class AppState extends ChangeNotifier {
       helperState = HelperFailed(helperDownloadDamaged, detail: e.message);
     } catch (e) {
       debugPrint('The helper download stopped: $e');
-      if (itself) {
-        helperState = _onDisk(m, waitingForWifi: true);
-        _keepDownload(m, KeptDownload.waitingForWifi);
-        return;
-      }
+      if (itself) return _waitForNetwork(m);
       _endDownload();
       // The bytes here are kept, so trying again, now or after a restart, goes on from them.
       if (EdgeAiEngine.partial(m, modelsDir) == null) {
@@ -1138,20 +1173,55 @@ class AppState extends ChangeNotifier {
   }
 
   /// [m]'s download as far as the bytes on disk go, so size left and the ring survive a stop.
-  HelperDownloading _onDisk(EdgeModel m, {bool waitingForWifi = false, bool paused = false}) {
+  HelperDownloading _onDisk(
+    EdgeModel m, {
+    bool waitingForWifi = false,
+    bool paused = false,
+    bool waitingForNetwork = false,
+  }) {
     final part = EdgeAiEngine.partial(m, modelsDir);
     return HelperDownloading.at(
       part?.bytes ?? 0,
       part?.total ?? m.publishedBytes,
+      model: m,
       waitingForWifi: waitingForWifi,
       paused: paused,
+      waitingForNetwork: waitingForNetwork,
     );
+  }
+
+  /// How long the next try after a lost connection waits; doubles up to [networkRetryLongest].
+  @visibleForTesting
+  Duration networkRetry = networkRetryFirst;
+  Timer? _retry;
+
+  /// The connection failed under a download Berea started by itself: it shows as waiting for
+  /// the connection, keeps its bytes, and tries again later or when the network changes.
+  void _waitForNetwork(EdgeModel m) {
+    helperState = _onDisk(m, waitingForNetwork: true);
+    _keepDownload(m, KeptDownload.waitingForNetwork);
+    _retry?.cancel();
+    final wait = networkRetry;
+    _retry = Timer(wait, _retryNow);
+    final longer = wait * 2;
+    networkRetry = longer > networkRetryLongest ? networkRetryLongest : longer;
+  }
+
+  void _retryNow() {
+    _retry?.cancel();
+    _retry = null;
+    if (_helper case HelperDownloading(waitingForNetwork: true) when !_transferring) {
+      unawaited(downloadDeviceModel(itself: true));
+    }
   }
 
   /// Shows [after] once a transfer has stopped, or at once when none was running. Paused or held
   /// keeps the part and remembers it across restarts; anything else is Cancel, which removes it.
   void _settleStopped(HelperState after) {
-    final m = settings.deviceModel;
+    // The download's own model: the settings may name another by now.
+    final m = _downloading ?? settings.deviceModel;
+    _retry?.cancel();
+    _retry = null;
     if (after is! HelperDownloading) {
       _forgetDownload();
       EdgeAiEngine.dropPartial(m, modelsDir);
@@ -1192,7 +1262,12 @@ class AppState extends ChangeNotifier {
     final kept = _kept;
     if (kept == null) return false;
     final paused = kept.$2 == KeptDownload.paused;
-    helperState = _onDisk(m, waitingForWifi: !paused, paused: paused);
+    helperState = _onDisk(
+      m,
+      waitingForWifi: kept.$2 == KeptDownload.waitingForWifi,
+      paused: paused,
+      waitingForNetwork: kept.$2 == KeptDownload.waitingForNetwork,
+    );
     if (!paused) unawaited(Future(() => downloadDeviceModel(itself: true)));
     return true;
   }
@@ -1202,7 +1277,7 @@ class AppState extends ChangeNotifier {
     final h = _helper;
     if (h is! HelperDownloading || h.paused) return;
     if (_holds(mobile) && h.moving) _settle ??= Timer(mobileSettle, _holdIfStillMobile);
-    if (!_holds(mobile) && h.waitingForWifi && !_transferring) {
+    if (!_holds(mobile) && (h.waitingForWifi || h.waitingForNetwork) && !_transferring) {
       unawaited(downloadDeviceModel(itself: true));
     }
   }, onError: (Object e) => debugPrint('The connection type could not be read: $e'));
@@ -1220,7 +1295,7 @@ class AppState extends ChangeNotifier {
     _settle = null;
     final h = _helper;
     if (h is! HelperDownloading || !h.moving || !_holds(await _onMobileData())) return;
-    _stop(HelperDownloading(h.fraction, total: h.total, waitingForWifi: true));
+    _stop(h.stopped(waitingForWifi: true));
   }
 
   /// A connection type that cannot be read counts as not mobile, so the download goes on.
@@ -1236,6 +1311,9 @@ class AppState extends ChangeNotifier {
   void _endDownload() {
     _settle?.cancel();
     _settle = null;
+    _retry?.cancel();
+    _retry = null;
+    networkRetry = networkRetryFirst;
     unawaited(_network?.cancel());
     _network = null;
     _mobileAllowed = false;
@@ -1261,14 +1339,12 @@ class AppState extends ChangeNotifier {
   }
 
   void pauseDownload() {
-    if (_helper case HelperDownloading(:final fraction, :final total, paused: false)) {
-      _stop(HelperDownloading(fraction, total: total, paused: true));
-    }
+    if (_helper case final HelperDownloading h when !h.paused) _stop(h.stopped(paused: true));
   }
 
   Future<void> resumeDownload() async {
-    if (_helper case HelperDownloading(paused: true)) {
-      _helper = _onDisk(settings.deviceModel);
+    if (_helper case HelperDownloading(paused: true, :final model)) {
+      _helper = _onDisk(model);
       await downloadDeviceModel();
     }
   }

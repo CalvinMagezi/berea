@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:berea/app_state.dart';
 import 'package:berea/chat_screen.dart';
+import 'package:berea/models.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea/voice.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -30,6 +31,8 @@ class _NoRecorder implements AudioRecorder {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
+
+final _model = edgeModels.first;
 
 void main() {
   late Directory dir;
@@ -95,7 +98,7 @@ void main() {
     expect(s.deviceState, DeviceModelState.loading);
     s.helperState = const HelperChecking();
     expect(s.deviceState, DeviceModelState.loading);
-    s.helperState = const HelperDownloading(0.42, total: 1000);
+    s.helperState = HelperDownloading(0.42, model: _model, total: 1000);
     expect(s.deviceState, DeviceModelState.downloading);
     expect(s.downloadProgress, 42);
     expect((s.helperState as HelperDownloading).bytes, 420);
