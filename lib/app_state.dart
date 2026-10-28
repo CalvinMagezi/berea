@@ -309,6 +309,16 @@ final class HelperFailed extends HelperState {
   bool get offersRetry => reason == helperDownloadFailed || reason == helperDownloadDamaged;
 }
 
+/// A failure Berea words for readers itself, so it may be shown as it is. Errors from parsers
+/// and the platform are not, and are told by [plainFailure] in general words.
+class ReaderMessage implements Exception {
+  final String message;
+  const ReaderMessage(this.message);
+
+  @override
+  String toString() => message;
+}
+
 /// A start that cannot go on, told in plain words.
 class StartupFailure implements Exception {
   final String message;
@@ -352,8 +362,9 @@ const ollamaFailed =
 String plainFailure(Object e, String fallback) {
   debugPrint('$fallback ($e)');
   return switch (e) {
-    BackupException(:final message) || StartupFailure(:final message) => message,
-    FormatException(:final message) => message,
+    BackupException(:final message) ||
+    StartupFailure(:final message) ||
+    ReaderMessage(:final message) => message,
     _ => fallback,
   };
 }
@@ -561,8 +572,7 @@ class AppState extends ChangeNotifier {
   static bool _safetyCopyMissing(Database raw, String path) {
     try {
       final version = raw.select('PRAGMA user_version').first.values.first as int;
-      return version <= _beforeNotesMerge &&
-          !File('$path$preNotesMergeSuffix').existsSync();
+      return version <= _beforeNotesMerge && !File('$path$preNotesMergeSuffix').existsSync();
     } on Object {
       return false;
     }
@@ -667,10 +677,10 @@ class AppState extends ChangeNotifier {
   /// translation; a bundled one would otherwise be overwritten and the citation check with it.
   void validateImportCode(String code) {
     if (!translationCode.hasMatch(code)) {
-      throw FormatException('Use 1 to 8 capital letters or digits for the code, not "$code".');
+      throw ReaderMessage('Use 1 to 8 capital letters or digits for the code, not "$code".');
     }
     if (db.bundledTranslations().contains(code)) {
-      throw FormatException('$code is built in. Choose another code.');
+      throw ReaderMessage('$code is built in. Choose another code.');
     }
   }
 
@@ -682,7 +692,7 @@ class AppState extends ChangeNotifier {
     final rows = await Isolate.run(
       () => [for (final f in files) ...parseBibleFile(f.name, f.bytes)],
     );
-    if (rows.isEmpty) throw const FormatException('No verses were found in those files.');
+    if (rows.isEmpty) throw const ReaderMessage('No verses were found in those files.');
     final csv = toCsv([
       ['Book', 'Chapter', 'Verse', 'Text'],
       for (final r in rows) [r.book.name, '${r.chapter}', '${r.verse}', r.text],
@@ -809,7 +819,7 @@ class AppState extends ChangeNotifier {
   /// The file is checked by attaching it before it replaces anything.
   Future<void> installLexiconPack({Uint8List? bytes}) async {
     if (bytes != null && bytes.length > maxLexiconPackBytes) {
-      throw const FormatException('That file is too large to be a Berea lexicon pack.');
+      throw const ReaderMessage('That file is too large to be a Berea lexicon pack.');
     }
     final tmp = File('$lexiconPackPath.part');
     try {
@@ -827,7 +837,7 @@ class AppState extends ChangeNotifier {
       final probe = BibleDb(sqlite3.openInMemory());
       final ok = probe.attachFullLexicon(tmp.path);
       probe.close();
-      if (!ok) throw const FormatException('That file is not a Berea lexicon pack.');
+      if (!ok) throw const ReaderMessage('That file is not a Berea lexicon pack.');
       // The old pack is held open while attached; let go of it before replacing the file.
       db.detachFullLexicon();
       tmp.renameSync(lexiconPackPath);
@@ -1231,6 +1241,7 @@ class AppState extends ChangeNotifier {
         unawaited(Future(() => downloadDeviceModel(itself: true)));
       }
     } on DownloadDamaged catch (e) {
+      debugPrint('The helper download was damaged: ${e.message}');
       _endDownload();
       _forgetDownload();
       helperState = HelperFailed(helperDownloadDamaged, detail: e.message);

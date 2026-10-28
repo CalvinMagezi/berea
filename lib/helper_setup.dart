@@ -238,8 +238,9 @@ class _ModelOption extends StatelessWidget {
 
   /// Size and who it suits, then how soon it answers and what it does; or, without a band, size
   /// and what it does on one line, as the design draws the second choice.
-  List<Widget> _lines(TextStyle muted) {
-    final first = model.firstWords == null ? '' : '${model.firstWords}. ';
+  List<Widget> _lines(BuildContext context, TextStyle muted) {
+    // How soon it answers was measured on a phone, so only a phone says it.
+    final first = model.firstWords == null || !onPhone(context) ? '' : '${model.firstWords}. ';
     final band = this.band;
     if (band == null && first.isEmpty) {
       return [Text('${model.sizeGb} GB · ${_trailing(model.summary)}', style: muted)];
@@ -274,7 +275,7 @@ class _ModelOption extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 2),
-        ..._lines(muted),
+        ..._lines(context, muted),
       ],
     );
   }

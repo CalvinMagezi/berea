@@ -252,6 +252,7 @@ void main() {
 
     test('a tag is never read as a verse reference', () {
       expect(RefParser.parse('[S3 p.14] [C1] (S2 §3) [S12 pp. 4-5]'), isEmpty);
+      expect(RefParser.parse('[N5 §1] (N12) [N3 §2]'), isEmpty);
     });
 
     test('a saved citation reads back with what opens it again', () {

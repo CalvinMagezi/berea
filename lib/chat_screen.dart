@@ -312,7 +312,7 @@ class ScopeBar extends StatelessWidget {
             onPressed: state.canChangeScope ? () => _choose(context) : null,
           ),
           const SizedBox(height: 4),
-          Text(_reads(scope), style: note),
+          Text(_reads(context, scope), style: note),
           if (state.pendingScope case (:final id))
             Text(
               'Study will switch to ${scopeName(state, id)} when this answer is finished.',
@@ -328,7 +328,7 @@ class ScopeBar extends StatelessWidget {
     );
   }
 
-  String _reads(int? scope) {
+  String _reads(BuildContext context, int? scope) {
     if (scope != null) {
       final readings = plural(state.notebookReadings(scope).length, 'reading', 'readings');
       return 'Reads its ${plural(state.answerNoteCount(scope), 'note', 'notes')} and $readings, '
@@ -336,7 +336,9 @@ class ScopeBar extends StatelessWidget {
     }
     return switch (state.settings.engine) {
       EngineKind.device => switch (state.settings.deviceModel) {
-        EdgeModel(:final label, firstWords: final first?) => '$label on this $deviceNoun. $first.',
+        // How soon it answers was measured on a phone, so only a phone says it.
+        EdgeModel(:final label, firstWords: final first?) when onPhone(context) =>
+          '$label on this $deviceNoun. $first.',
         EdgeModel(:final label) => '$label on this $deviceNoun.',
       },
       EngineKind.ollama => switch (state.offDeviceHost) {

@@ -123,7 +123,9 @@ void main() {
     expect(answerFailure(const OllamaException(unreachable)), unreachable);
     const restoreFailed = 'The backup could not be restored.';
     expect(plainFailure(StateError('bad'), restoreFailed), restoreFailed);
-    expect(plainFailure(const FormatException('Use 1 to 8 letters.'), 'x'), 'Use 1 to 8 letters.');
+    expect(plainFailure(const ReaderMessage('Use 1 to 8 letters.'), 'x'), 'Use 1 to 8 letters.');
+    const parser = FormatException('unknown book "Xyz"');
+    expect(plainFailure(parser, 'The translation could not be imported.'), isNot(contains('Xyz')));
 
     final s = loading();
     s.helperState = const HelperFailed(helperLoadFailed, detail: 'PlatformException(...)');

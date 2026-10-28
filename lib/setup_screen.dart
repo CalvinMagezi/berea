@@ -6,6 +6,13 @@ import 'brand/lamp_mark.dart';
 import 'theme.dart';
 
 /// What this device is called in plain words.
+/// Android or iOS, the phones Berea's helper timings were measured on; read from the theme so a
+/// test can choose.
+bool onPhone(BuildContext context) => switch (Theme.of(context).platform) {
+  TargetPlatform.android || TargetPlatform.iOS => true,
+  _ => false,
+};
+
 String get deviceNoun => Platform.isMacOS
     ? 'Mac'
     : Platform.isAndroid || Platform.isIOS
