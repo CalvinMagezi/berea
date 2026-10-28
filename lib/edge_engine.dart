@@ -101,16 +101,31 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
 
   /// Fetches [m] into [modelsDir] when Berea hosts it, else from Hugging Face, and installs it.
   /// A hosted file stays where it was put: the plugin registers its path instead of copying it.
+  /// [onProgress] hears bytes; Hugging Face reports a percent, read against [m]'s published size.
+  /// Once [stop] completes the transfer ends with [DownloadStopped] and nothing is installed.
   static Future<void> download(
     EdgeModel m, {
     required Directory modelsDir,
-    required void Function(int) onProgress,
+    required void Function(int received, int total) onProgress,
+    Future<void>? stop,
     bool recheck = false,
   }) async {
     await ensureEdgeAiInitialized();
     final source = m.source;
     if (source == null) {
-      await _installModel(m).fromHuggingFace(m.repo, file: m.file).withProgress(onProgress).install();
+      final cancel = CancelToken();
+      unawaited(stop?.then((_) => cancel.cancel('Stopped by the reader')));
+      final total = m.publishedBytes;
+      try {
+        await _installModel(m)
+            .fromHuggingFace(m.repo, file: m.file)
+            .withProgress((percent) => onProgress(total * percent ~/ 100, total))
+            .withCancelToken(cancel)
+            .install();
+      } on Object {
+        if (cancel.isCancelled) throw const DownloadStopped();
+        rethrow;
+      }
       return;
     }
     final file = await downloadModelFile(
@@ -120,7 +135,8 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
       sha256: source.sha256,
       bytes: source.bytes,
       timeout: modelDownloadTimeout,
-      onProgress: (fraction) => onProgress((fraction * 100).round()),
+      onProgress: (received, total) => onProgress(received, total ?? source.bytes),
+      stop: stop,
       recheck: recheck,
     );
     await _installModel(m).fromFile(file.path).install();

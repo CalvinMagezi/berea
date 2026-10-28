@@ -488,12 +488,19 @@ class _DeviceModelStatus extends StatelessWidget {
         return const Text('Loading model…');
       case DeviceModelState.ready:
         return Text('Installed and loaded', style: TextStyle(color: scheme.primary));
-      case DeviceModelState.failed:
       case DeviceModelState.notInstalled:
+        // Study is where a helper is chosen and downloaded, with Wi-Fi only and its progress.
+        return Text(
+          sameModel
+              ? 'Not downloaded. Choose and download the helper in Study.'
+              : 'Save, then download ${draft.deviceModel.label} in Study.',
+          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+        );
+      case DeviceModelState.failed:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (state.deviceError != null && sameModel)
+            if (state.deviceError != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
@@ -504,8 +511,8 @@ class _DeviceModelStatus extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.download_outlined),
-                label: Text('Download (${draft.deviceModel.sizeGb} GB)'),
+                icon: const Icon(Icons.build_outlined),
+                label: Text('Repair (${draft.deviceModel.sizeGb} GB)'),
                 onPressed: () async {
                   if (!await confirmModelTerms(context, state, draft.deviceModel)) return;
                   await state.downloadModelFor(draft);

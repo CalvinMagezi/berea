@@ -55,7 +55,7 @@ void main() {
     sha256: sha ?? pin,
     maxBytes: _maxBytes,
     timeout: _timeout,
-    onProgress: progress?.add,
+    onProgress: progress == null ? null : (received, total) => progress.add(received / total!),
   );
 
   test('writes the file when the hash matches, reporting progress up to 1', () async {
