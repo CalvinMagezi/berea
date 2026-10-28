@@ -938,8 +938,13 @@ class AppState extends ChangeNotifier {
   Future<void> setWifiOnly(bool on) async {
     await prefs.setBool(wifiOnlyKey, on);
     notifyListeners();
-    if (on) return;
-    if (_helper case HelperDownloading(waitingForWifi: true)) unawaited(downloadDeviceModel());
+    final h = _helper;
+    if (h is! HelperDownloading) return;
+    if (!on && h.waitingForWifi) unawaited(downloadDeviceModel());
+    // Turned back on while arriving over mobile data, the download waits for Wi-Fi again.
+    if (on && h.moving && !_mobileAllowed && await mobileDataNow()) {
+      _stop(HelperDownloading(0, total: h.total, waitingForWifi: true));
+    }
   }
 
   /// Whether the device is on mobile data alone; replaced in tests, which have no network.

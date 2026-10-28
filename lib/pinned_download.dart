@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -31,19 +30,16 @@ Future<void> downloadPinned(
 }) async {
   final client = http.Client();
   var stopped = false;
-  // Closing the client ends the response stream at once, even mid-stall.
-  unawaited(
-    stop?.then((_) {
-      stopped = true;
-      client.close();
-    }),
-  );
+  // An abort ends the response stream at once, even mid-stall.
+  final abort = stop?.then((_) => stopped = true);
   final sink = dest.openWrite();
   final hash = Sha256().newHashSink();
   Object? failure;
   try {
     if (stopped) throw const DownloadStopped();
-    final r = await client.send(http.Request('GET', url)).timeout(timeout);
+    final r = await client
+        .send(http.AbortableRequest('GET', url, abortTrigger: abort))
+        .timeout(timeout);
     if (r.statusCode != 200) throw HttpException('The download failed (HTTP ${r.statusCode}).');
     final total = r.contentLength;
     if ((total ?? 0) > maxBytes) throw const FormatException('The download is too large.');
