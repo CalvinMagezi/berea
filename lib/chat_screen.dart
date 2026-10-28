@@ -5,11 +5,15 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'commentary_sheet.dart';
 import 'export.dart';
 import 'download_details_sheet.dart';
 import 'helper_setup.dart';
 import 'keep_sheet.dart';
 import 'markdown_lite.dart';
+import 'models.dart';
+import 'note_dialog.dart';
+import 'notebooks_screen.dart';
 import 'past_questions.dart';
 import 'settings_sheet.dart';
 import 'setup_screen.dart';
@@ -239,6 +243,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ? () => s.goDeeper(s.turns[i])
                       : null,
                   onKeep: () => _keep(context, s.turns[i]),
+                  onSource: (cited) => openCitedSource(context, s, cited),
                 ),
               ),
       ),
@@ -307,7 +312,7 @@ class ScopeBar extends StatelessWidget {
             onPressed: state.canChangeScope ? () => _choose(context) : null,
           ),
           const SizedBox(height: 4),
-          Text(_reads(scope), style: note),
+          Text(_reads(context, scope), style: note),
           if (state.pendingScope case (:final id))
             Text(
               'Study will switch to ${scopeName(state, id)} when this answer is finished.',
@@ -323,13 +328,19 @@ class ScopeBar extends StatelessWidget {
     );
   }
 
-  String _reads(int? scope) {
+  String _reads(BuildContext context, int? scope) {
     if (scope != null) {
-      final n = state.notebooks.notebook(scope)?.sourceCount ?? 0;
-      return 'Reads its $n ${n == 1 ? 'source' : 'sources'} and the Bible.';
+      final readings = plural(state.notebookReadings(scope).length, 'reading', 'readings');
+      return 'Reads its ${plural(state.answerNoteCount(scope), 'note', 'notes')} and $readings, '
+          'and the Bible.';
     }
     return switch (state.settings.engine) {
-      EngineKind.device => '${state.settings.deviceModel.label} on this $deviceNoun.',
+      EngineKind.device => switch (state.settings.deviceModel) {
+        // How soon it answers was measured on a phone, so only a phone says it.
+        EdgeModel(:final label, firstWords: final first?) when onPhone(context) =>
+          '$label on this $deviceNoun. $first.',
+        EdgeModel(:final label) => '$label on this $deviceNoun.',
+      },
       EngineKind.ollama => switch (state.offDeviceHost) {
         final host? => 'Ollama at $host.',
         null => 'Ollama on this $deviceNoun.',
@@ -477,13 +488,45 @@ class _Suggestion extends StatelessWidget {
   }
 }
 
+/// Opens what an answer cites: a commentary passage, a note, or a notebook reading at the cited
+/// section. Says so in words when it is no longer there.
+void openCitedSource(BuildContext context, AppState s, ShownSource cited) {
+  void say(String message) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  final c = cited.chunk;
+  if (c.fromPack) {
+    final ref = c.ref;
+    if (ref == null) return say('That commentary passage cannot be found.');
+    unawaited(showCommentary(context, s, ref));
+    return;
+  }
+  if (c.noteId case final id?) {
+    final note = s.study.note(id);
+    if (note == null) return say('That note has been deleted.');
+    unawaited(showNoteEditor(context, s, note: note));
+    return;
+  }
+  final source = c.sourceId == null ? null : s.notebooks.source(c.sourceId!);
+  if (source == null) return say('That reading has been removed from the notebook.');
+  // A restore can give the id to another reading; the saved title tells them apart.
+  if (source.title != c.title) return say('That reading is no longer in this notebook.');
+  unawaited(
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => SourceScreen(store: s.notebooks, source: source, focusOrdinal: c.ordinal),
+      ),
+    ),
+  );
+}
+
 /// A question and its answer, with chips for what the answer cites.
 class TurnView extends StatelessWidget {
   final ChatTurn turn;
   final BibleDb db;
   final String translation;
 
-  /// Opens a cited notebook source or commentary passage; notebook chats set it.
+  /// Opens a cited notebook reading, note or commentary passage.
   final void Function(ShownSource source)? onSource;
 
   /// Asks for the full study after a brief answer; only the Study chat sets it.

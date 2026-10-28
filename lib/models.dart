@@ -37,6 +37,9 @@ class EdgeModel {
 
   /// One line on what the model is like, for the helper choice in Study.
   final String summary;
+
+  /// How soon an answer starts, where it has been measured on a phone Berea is tested on.
+  final String? firstWords;
   const EdgeModel({
     required this.id,
     required this.label,
@@ -48,6 +51,7 @@ class EdgeModel {
     required this.summary,
     required this.source,
     this.notice,
+    this.firstWords,
   });
 
   /// flutter_edge_ai keys installed models by the downloaded filename. Builds up to 0.6.0 let
@@ -77,6 +81,7 @@ const edgeModels = <EdgeModel>[
     type: ModelType.gemma4,
     tier: Tier.mid,
     summary: 'Hears spoken questions.',
+    firstWords: 'First words in about a minute',
     source: PinnedSource(
       url:
           'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/'
@@ -93,7 +98,7 @@ const edgeModels = <EdgeModel>[
     sizeGb: 3.7,
     type: ModelType.gemma4,
     tier: Tier.high,
-    summary: 'Fuller answers for phones with 10 GB or more. Hears spoken questions.',
+    summary: 'Fuller answers. Hears spoken questions.',
     source: PinnedSource(
       url:
           'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/'
@@ -130,6 +135,31 @@ const minGbForE2b = 5.0;
 
 /// At or above this, Gemma 4 E4B is comfortable.
 const minGbForE4b = 10.0;
+
+/// The upper end of the memory band the helper choice names for Gemma 4 E2B, as the design
+/// draws it; above it the band is named from [minGbForE4b].
+const e2bNamedBandGb = 8.0;
+
+/// The memory band [m] is suggested for, such as "for 5 to 7 GB phones like this one", given
+/// the [gb] of this device and what it is called; null when the memory is not known.
+String? memoryBand(EdgeModel m, double? gb, String noun) {
+  if (gb == null) return null;
+  final band = switch (m.id) {
+    'gemma-3-1b' => 'for ${noun}s under ${minGbForE2b.round()} GB',
+    'gemma-4-e4b' => 'for ${minGbForE4b.round()} GB ${noun}s and up',
+    _ when gb < e2bNamedBandGb => 'for ${minGbForE2b.round()} to 7 GB ${noun}s',
+    _ => 'for ${e2bNamedBandGb.round()} to ${minGbForE4b.round() - 1} GB ${noun}s',
+  };
+  return '$band like this one';
+}
+
+/// The two helpers Study offers: the one suggested for [gb], and the quicker small one, or
+/// Gemma 4 E2B when the small one is the suggestion. Settings lists every model.
+List<EdgeModel> helperChoices(double? gb) {
+  final suggested = recommendedModel(gb);
+  final small = edgeModelById('gemma-3-1b');
+  return [suggested, suggested == small ? edgeModelById('gemma-4-e2b') : small];
+}
 
 /// Best model for [gb] of RAM; null [gb] (unknown) picks the default.
 EdgeModel recommendedModel(double? gb) {

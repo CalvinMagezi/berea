@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:berea/app_state.dart';
 import 'package:berea/chat_screen.dart';
 import 'package:berea/home_shell.dart';
+import 'package:berea/models.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/notes_screen.dart';
 import 'package:berea/plans_screen.dart';
@@ -24,6 +25,8 @@ const _mac = Size(1280, 800);
 /// two panes.
 const _narrowMac = Size(900, 800);
 const _places = ['Bible', 'Plans', 'Study', 'Prayer', 'Notes'];
+
+final _model = edgeModels.first;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -48,13 +51,13 @@ void main() {
   /// Whether the helper had not yet started when the shell first built.
   bool? shellBeforeHelper;
 
-  Future<void> pumpShell(WidgetTester tester, Size size) async {
+  Future<void> pumpShell(WidgetTester tester, Size size, {TargetPlatform? platform}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: bereaTheme(Brightness.light),
+        theme: bereaTheme(Brightness.light).copyWith(platform: platform),
         home: Builder(
           builder: (context) {
             shellBeforeHelper ??= state.harness == null && state.helperState is HelperChecking;
@@ -118,7 +121,7 @@ void main() {
     final ys = [for (final p in _places) tester.getCenter(find.text(p).first).dy];
     expect(ys, [...ys]..sort());
     expect(tester.getSize(find.text('NOTEBOOKS')).width, greaterThan(0));
-    expect(find.textContaining('Helper ready, Ollama on this'), findsOneWidget);
+    expect(find.textContaining('Helper ready · Ollama on this'), findsOneWidget);
 
     final modifier = Platform.isMacOS ? LogicalKeyboardKey.meta : LogicalKeyboardKey.control;
     await tester.sendKeyDownEvent(modifier);
@@ -132,6 +135,33 @@ void main() {
     await tester.sendKeyUpEvent(modifier);
     await tester.pump();
     expect(find.byType(ReaderScreen), findsOneWidget);
+  });
+
+  testWidgets('the sidebar speaks Study as the button does, and reads its caption as a word', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await pumpShell(tester, _mac, platform: TargetPlatform.macOS);
+    await tester.pump();
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Study, ask Berea, helper ready')),
+      matchesSemantics(
+        label: 'Study, ask Berea, helper ready',
+        isButton: true,
+        hasSelectedState: true,
+        hasTapAction: true,
+      ),
+    );
+    expect(find.bySemanticsLabel('Notebooks'), findsOneWidget);
+    expect(find.bySemanticsLabel('NOTEBOOKS'), findsNothing);
+    final row = find.ancestor(of: find.text('Plans'), matching: find.byType(SizedBox)).first;
+    expect(tester.getSize(row).height, 40, reason: 'a pointer row on a computer');
+    semantics.dispose();
+
+    await pumpShell(tester, _mac, platform: TargetPlatform.android);
+    await tester.pumpAndSettle();
+    final touch = find.ancestor(of: find.text('Plans'), matching: find.byType(SizedBox)).first;
+    expect(tester.getSize(touch).height, 48, reason: 'a full touch target on a tablet');
   });
 
   testWidgets('a notebook is listed under Notes in the sidebar and opens beside it', (
@@ -262,7 +292,12 @@ void main() {
   ) async {
     await pumpShell(tester, _phone);
     final before = state.helperState;
-    state.helperState = const HelperDownloading(0.42, total: 2600000000, waitingForWifi: true);
+    state.helperState = HelperDownloading(
+      0.42,
+      model: _model,
+      total: 2600000000,
+      waitingForWifi: true,
+    );
     await tester.pump();
     await tester.tap(find.byType(StudyButton));
     await tester.pumpAndSettle();

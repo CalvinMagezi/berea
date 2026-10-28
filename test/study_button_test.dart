@@ -1,4 +1,5 @@
 import 'package:berea/app_state.dart';
+import 'package:berea/models.dart';
 import 'package:berea/study_button.dart';
 import 'package:berea/theme.dart';
 import 'package:flutter/material.dart';
@@ -33,6 +34,8 @@ Future<void> _pump(
 BoxDecoration _circle(WidgetTester tester) =>
     tester.widget<DecoratedBox>(find.byKey(const ValueKey('study-circle'))).decoration
         as BoxDecoration;
+
+final _model = edgeModels.first;
 
 void main() {
   testWidgets('at rest: no ring, no badge, and the reader hears the helper is ready', (
@@ -74,7 +77,7 @@ void main() {
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
-    await _pump(tester, const HelperDownloading(0.42, total: 1000));
+    await _pump(tester, HelperDownloading(0.42, model: _model, total: 1000));
     final ring = tester.widget<CircularProgressIndicator>(
       find.byKey(const ValueKey('study-download-ring')),
     );
@@ -88,21 +91,53 @@ void main() {
 
   testWidgets('waiting for Wi-Fi: the ring holds and a Wi-Fi badge shows', (tester) async {
     final semantics = tester.ensureSemantics();
-    await _pump(tester, const HelperDownloading(0.42, total: 1000, waitingForWifi: true));
+    await _pump(tester, HelperDownloading(0.42, model: _model, total: 1000, waitingForWifi: true));
     expect(find.byKey(const ValueKey('study-wifi-badge')), findsOneWidget);
-    expect(find.byKey(const ValueKey('study-download-ring')), findsNothing);
+    final ring = tester.widget<CircularProgressIndicator>(
+      find.byKey(const ValueKey('study-download-ring')),
+    );
+    expect(ring.value, 0.42, reason: 'the ring holds where the bytes stopped');
     expect(find.bySemanticsLabel('Study, ask Berea, helper waiting for Wi-Fi'), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets('waiting for the connection: the ring holds and it is said in words', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(
+      tester,
+      HelperDownloading(0.3, model: _model, total: 1000, waitingForNetwork: true),
+    );
+    expect(find.byKey(const ValueKey('study-download-ring')), findsOneWidget);
+    expect(find.byKey(const ValueKey('study-wifi-badge')), findsNothing);
+    expect(
+      find.bySemanticsLabel('Study, ask Berea, helper waiting for a connection'),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('checking and loading: a turning ring, still under Reduce motion', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(tester, const HelperChecking());
+    CircularProgressIndicator ring() =>
+        tester.widget(find.byKey(const ValueKey('study-loading-ring')));
+    expect(ring().value, isNull);
+    expect(find.bySemanticsLabel('Study, ask Berea, helper starting'), findsOneWidget);
+    await _pump(tester, const HelperLoading(), reduceMotion: true);
+    expect(ring().value, isNotNull);
+    await _pump(tester, const HelperReady());
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     semantics.dispose();
   });
 
   testWidgets('a paused download is spoken as paused, not as downloading', (tester) async {
     final semantics = tester.ensureSemantics();
-    await _pump(tester, const HelperDownloading(0.42, total: 1000, paused: true));
+    await _pump(tester, HelperDownloading(0.42, model: _model, total: 1000, paused: true));
     expect(
       find.bySemanticsLabel('Study, ask Berea, helper download paused, 42 percent'),
       findsOneWidget,
     );
-    await _pump(tester, const HelperDownloading(0, total: 1000, paused: true));
+    await _pump(tester, HelperDownloading(0, model: _model, total: 1000, paused: true));
     expect(find.bySemanticsLabel('Study, ask Berea, helper download paused'), findsOneWidget);
     semantics.dispose();
   });

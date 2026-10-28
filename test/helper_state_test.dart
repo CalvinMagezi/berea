@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:berea/app_state.dart';
 import 'package:berea/chat_screen.dart';
+import 'package:berea/models.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea/voice.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -30,6 +31,8 @@ class _NoRecorder implements AudioRecorder {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
+
+final _model = edgeModels.first;
 
 void main() {
   late Directory dir;
@@ -80,7 +83,7 @@ void main() {
     s.helperState = const HelperFailed(helperLoadFailed, detail: 'PlatformException(boom)');
     await sent;
     expect(s.turns.single.error, helperLoadFailed);
-    expect(s.deviceError, 'PlatformException(boom)');
+    expect(s.deviceError, helperLoadFailed, reason: 'Settings shows words, not the exception');
   });
 
   test('with no helper on the way, nothing is sent', () async {
@@ -95,7 +98,7 @@ void main() {
     expect(s.deviceState, DeviceModelState.loading);
     s.helperState = const HelperChecking();
     expect(s.deviceState, DeviceModelState.loading);
-    s.helperState = const HelperDownloading(0.42, total: 1000);
+    s.helperState = HelperDownloading(0.42, model: _model, total: 1000);
     expect(s.deviceState, DeviceModelState.downloading);
     expect(s.downloadProgress, 42);
     expect((s.helperState as HelperDownloading).bytes, 420);
@@ -111,6 +114,22 @@ void main() {
     await s.startHelper();
     expect(s.helperState, isA<HelperLoading>());
     expect(s.harness, isNull);
+  });
+
+  test('failures reach readers as plain sentences, never raw error text', () {
+    expect(answerFailure(const SocketException('Connection refused')), answerFailed);
+    expect(answerFailure(const OllamaException('Ollama HTTP 500: {"error":"x"}')), ollamaFailed);
+    const unreachable = '$ollamaUnreachable at http://localhost:11434. Install Ollama.';
+    expect(answerFailure(const OllamaException(unreachable)), unreachable);
+    const restoreFailed = 'The backup could not be restored.';
+    expect(plainFailure(StateError('bad'), restoreFailed), restoreFailed);
+    expect(plainFailure(const ReaderMessage('Use 1 to 8 letters.'), 'x'), 'Use 1 to 8 letters.');
+    const parser = FormatException('unknown book "Xyz"');
+    expect(plainFailure(parser, 'The translation could not be imported.'), isNot(contains('Xyz')));
+
+    final s = loading();
+    s.helperState = const HelperFailed(helperLoadFailed, detail: 'PlatformException(...)');
+    expect(s.deviceError, helperLoadFailed);
   });
 
   testWidgets('a question from the reader waits in Study and is answered once the helper is ready', (

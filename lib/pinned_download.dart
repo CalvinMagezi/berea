@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -166,6 +167,8 @@ Future<File> downloadModelFile(
   bool recheck = false,
 }) async {
   dir.createSync(recursive: true);
+  var stopped = false;
+  unawaited(stop?.then((_) => stopped = true));
   final dest = File('${dir.path}/$name');
   final stamp = File('${dest.path}.sha256');
   if (hostedModelCurrent(dest, sha256: sha256, bytes: bytes)) {
@@ -185,9 +188,11 @@ Future<File> downloadModelFile(
     if (part.lengthSync() != bytes) {
       throw const DownloadDamaged('The download is not the size of the published file.');
     }
-    if (!await _hashMatches(part, sha256)) {
+    if (!await hashCheck(part, sha256)) {
       throw const DownloadDamaged('The download does not match the published file.');
     }
+    // Pause or Cancel while the last bytes were checked still wins: the part stays a part.
+    if (stopped) throw const DownloadStopped();
   } on DownloadDamaged {
     _discard(part);
     rethrow;
@@ -310,6 +315,9 @@ Future<void> _append(
 }
 
 /// Hashes the file away from the UI isolate: a model is hundreds of megabytes.
+/// Whether a file's hash is the pinned one; tests replace it to act while the hash runs.
+Future<bool> Function(File file, String sha256) hashCheck = _hashMatches;
+
 Future<bool> _hashMatches(File file, String sha256) => Isolate.run(() async {
   final hash = Sha256().newHashSink();
   await for (final chunk in file.openRead()) {

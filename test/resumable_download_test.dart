@@ -98,6 +98,9 @@ class _NoRecorder implements AudioRecorder {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// How long a test waits before a download that lost its connection tries again.
+const _retry = Duration(milliseconds: 40);
+
 void main() {
   // The restart cases open the real app, which needs the binding; its stand-in HTTP client would
   // answer the local server with 400s, so the real one is put back.
@@ -237,6 +240,22 @@ void main() {
     expect(partialDownload(models(), _name)?.bytes, greaterThan(0));
   });
 
+  test('Pause or Cancel while the last bytes are checked keeps it a part, not the model', () async {
+    final stop = Completer<void>();
+    final check = hashCheck;
+    addTearDown(() => hashCheck = check);
+    hashCheck = (file, sha) {
+      stop.complete();
+      return check(file, sha);
+    };
+    await expectLater(
+      fetch(stop: stop.future),
+      throwsA(isA<DownloadStopped>()),
+    );
+    expect(File('${models().path}/$_name').existsSync(), isFalse);
+    expect(partialDownload(models(), _name)?.bytes, _size);
+  });
+
   test('a wrong byte is refused and the part removed, so the next try starts fresh', () async {
     server.servedOnce = [...body]..[_size ~/ 2] ^= 0xff;
     await expectLater(fetch(), throwsA(isA<DownloadDamaged>()));
@@ -323,6 +342,7 @@ void main() {
           cacheDir: () async => dir,
         )
         ..modelInstalled = ((_, _) async => false)
+        ..networkRetry = _retry
         ..modelDownload =
             (
               m, {
@@ -397,33 +417,61 @@ void main() {
       await pumpEventQueue();
     });
 
-    test(
-      'opened with no connection, a download waits and goes on once it is back',
-      () async {
-        offline = true;
-        final s = await relaunch(KeptDownload.moving, mobile: false);
-        await pumpEventQueue();
-        expect(downloads, 1);
-        final h = s.helperState as HelperDownloading;
-        expect(
-          h.waitingForWifi,
-          isTrue,
-          reason: 'no failure the reader must answer',
-        );
-        expect(h.bytes, _dropAt);
-        expect(s.prefs.getStringList(keptDownloadKey), [
-          m.id,
-          KeptDownload.waitingForWifi.name,
-        ]);
+    test('opened with no connection, a download waits for it, not for Wi-Fi, and tries again', () async {
+      offline = true;
+      final s = await relaunch(KeptDownload.moving, mobile: false);
+      await pumpEventQueue();
+      expect(downloads, 1);
+      final h = s.helperState as HelperDownloading;
+      expect(
+        h.waitingForNetwork,
+        isTrue,
+        reason: 'no failure the reader must answer',
+      );
+      expect(h.waitingForWifi, isFalse, reason: 'it is on Wi-Fi already');
+      expect(h.bytes, _dropAt);
+      expect(s.prefs.getStringList(keptDownloadKey), [
+        m.id,
+        KeptDownload.waitingForNetwork.name,
+      ]);
 
-        offline = false;
-        network.add(false);
-        await pumpEventQueue();
-        expect(downloads, 2);
-        s.pauseDownload();
-        await pumpEventQueue();
-      },
-    );
+      await Future<void>.delayed(_retry * 3);
+      expect(downloads, 2, reason: 'tried again by itself');
+      expect(s.networkRetry, _retry * 4, reason: 'each wait twice the last');
+
+      offline = false;
+      network.add(false);
+      await pumpEventQueue();
+      expect(downloads, 3);
+      expect((s.helperState as HelperDownloading).moving, isTrue);
+      s.pauseDownload();
+      await pumpEventQueue();
+    });
+
+    test('a model chosen in settings mid-download leaves Pause and Cancel on the download', () async {
+      final s = await relaunch(KeptDownload.paused, mobile: false);
+      final other = edgeModelById('gemma-3-1b');
+      await s.updateSettings(s.settings.copyWith(deviceModelId: other.id));
+      unawaited(s.resumeDownload());
+      await pumpEventQueue();
+      expect(downloads, 1);
+      expect((s.helperState as HelperDownloading).model.id, m.id);
+
+      s.pauseDownload();
+      await pumpEventQueue();
+      expect(s.prefs.getStringList(keptDownloadKey), [
+        m.id,
+        KeptDownload.paused.name,
+      ]);
+      expect((s.helperState as HelperDownloading).bytes, _dropAt);
+
+      s.cancelDownload();
+      expect(
+        partialDownload(models(), m.file),
+        isNull,
+        reason: 'no part left orphaned',
+      );
+    });
 
     test(
       'Cancel after a restart removes the part and forgets the download',

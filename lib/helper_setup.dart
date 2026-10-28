@@ -65,8 +65,8 @@ class _HelperSetupState extends State<HelperSetup> {
 
   EdgeModel get _suggested => recommendedModel(widget.state.deviceGb);
 
-  /// The suggested helper first, then the rest in their usual order.
-  List<EdgeModel> get _options => [_suggested, ...edgeModels.where((m) => m != _suggested)];
+  /// The suggested helper first, then the other the design offers; Settings has every model.
+  List<EdgeModel> get _options => helperChoices(widget.state.deviceGb);
 
   Future<void> _download() async {
     final s = widget.state;
@@ -121,6 +121,7 @@ class _HelperSetupState extends State<HelperSetup> {
             model: m,
             selected: m == _chosen,
             suggested: m == _suggested,
+            band: m == _suggested ? memoryBand(m, s.deviceGb, deviceNoun) : null,
             onTap: () => setState(() => _chosen = m),
           ),
         SwitchListTile(
@@ -169,15 +170,26 @@ class _Point extends StatelessWidget {
   );
 }
 
+/// [text] as the end of a line after a dot: "Quicker, shorter answers." reads "quicker, shorter
+/// answers".
+String _trailing(String text) {
+  final t = text.endsWith('.') ? text.substring(0, text.length - 1) : text;
+  return t.isEmpty ? t : '${t[0].toLowerCase()}${t.substring(1)}';
+}
+
 class _ModelOption extends StatelessWidget {
   final EdgeModel model;
   final bool selected;
   final bool suggested;
+
+  /// Who the suggested helper suits, such as "for 5 to 7 GB phones like this one".
+  final String? band;
   final VoidCallback onTap;
   const _ModelOption({
     required this.model,
     required this.selected,
     required this.suggested,
+    required this.band,
     required this.onTap,
   });
 
@@ -185,38 +197,59 @@ class _ModelOption extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final muted = TextStyle(fontSize: 13, color: scheme.onSurfaceVariant);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: scheme.surfaceContainerHighest,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(_optionRadius),
-          side: selected
-              ? BorderSide(color: scheme.primary, width: _selectedBorder)
-              : BorderSide.none,
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(_optionRadius),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(4, 4, 14, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 10, 0),
-                  child: Icon(
-                    selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
+    // One choice of two: a screen reader hears it as a radio button, checked or not.
+    return Semantics(
+      inMutuallyExclusiveGroup: true,
+      checked: selected,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Material(
+          color: scheme.surfaceContainerHighest,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_optionRadius),
+            side: selected
+                ? BorderSide(color: scheme.primary, width: _selectedBorder)
+                : BorderSide.none,
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(_optionRadius),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 14, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 10, 0),
+                    child: Icon(
+                      selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                      color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                Expanded(child: _details(context, muted)),
-              ],
+                  Expanded(child: _details(context, muted)),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// Size and who it suits, then how soon it answers and what it does; or, without a band, size
+  /// and what it does on one line, as the design draws the second choice.
+  List<Widget> _lines(BuildContext context, TextStyle muted) {
+    // How soon it answers was measured on a phone, so only a phone says it.
+    final first = model.firstWords == null || !onPhone(context) ? '' : '${model.firstWords}. ';
+    final band = this.band;
+    if (band == null && first.isEmpty) {
+      return [Text('${model.sizeGb} GB · ${_trailing(model.summary)}', style: muted)];
+    }
+    return [
+      Text(band == null ? '${model.sizeGb} GB' : '${model.sizeGb} GB · $band', style: muted),
+      const SizedBox(height: 6),
+      Text('$first${model.summary}'),
+    ];
   }
 
   Widget _details(BuildContext context, TextStyle muted) {
@@ -242,7 +275,7 @@ class _ModelOption extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 2),
-        Text('${model.sizeGb} GB · ${model.summary}', style: muted),
+        ..._lines(context, muted),
       ],
     );
   }

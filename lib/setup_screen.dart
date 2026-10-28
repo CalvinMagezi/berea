@@ -6,6 +6,13 @@ import 'brand/lamp_mark.dart';
 import 'theme.dart';
 
 /// What this device is called in plain words.
+/// Android or iOS, the phones Berea's helper timings were measured on; read from the theme so a
+/// test can choose.
+bool onPhone(BuildContext context) => switch (Theme.of(context).platform) {
+  TargetPlatform.android || TargetPlatform.iOS => true,
+  _ => false,
+};
+
 String get deviceNoun => Platform.isMacOS
     ? 'Mac'
     : Platform.isAndroid || Platform.isIOS
@@ -67,8 +74,8 @@ class SetupScreen extends StatelessWidget {
                       const LinearProgressIndicator(),
                       const SizedBox(height: 16),
                       Text(
-                        'This happens once, and again after an update. It is already inside the '
-                        'app: nothing is downloaded.',
+                        'This happens once, and again after an update. About 85 MB, already '
+                        'inside the app: nothing is downloaded.',
                         textAlign: TextAlign.center,
                         style: muted,
                       ),

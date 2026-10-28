@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:berea/app_state.dart';
 import 'package:berea/backup.dart';
 import 'package:berea/export.dart';
 import 'package:berea/notebook_store.dart';
@@ -227,6 +228,21 @@ void main() {
     expect(raw.select('PRAGMA user_version').first.values.first, 2);
     expect(raw.select('SELECT * FROM notebooks'), hasLength(2));
     raw.dispose();
+  });
+
+  test('only a safety copy that could not be written asks the reader to free space', () {
+    final path = _makeFixture(dir);
+    Directory('$path$preNotesMergeSuffix.partial').createSync();
+    expect(
+      () => AppState.openStudy(path),
+      throwsA(isA<StartupFailure>().having((f) => f.message, 'message', notesCopyFailed)),
+    );
+
+    final broken = File('${dir.path}/broken.sqlite')..writeAsStringSync('not a database at all');
+    expect(
+      () => AppState.openStudy(broken.path),
+      throwsA(isA<StartupFailure>().having((f) => f.message, 'message', notesOpenFailed)),
+    );
   });
 
   test('a version 2 backup from 0.6.0 restores in the merged shape', () async {

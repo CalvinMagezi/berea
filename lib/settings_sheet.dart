@@ -96,7 +96,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       setState(() => draft = draft.copyWith(translation: code));
       _say('Imported $code: $n verses');
     } catch (e) {
-      _say('Import failed: $e');
+      _say(plainFailure(e, 'The translation could not be imported.'));
     }
   }
 
@@ -165,7 +165,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       setState(() {});
       _say('Full lexicon installed.');
     } catch (e) {
-      _say('Lexicon install failed: $e');
+      _say(plainFailure(e, 'The lexicon pack could not be installed.'));
     }
   }
 
@@ -193,7 +193,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     try {
       contents = await widget.state.openBackup(bytes, pass);
     } catch (e) {
-      _say('$e');
+      _say(plainFailure(e, 'The backup could not be opened. Nothing changed.'));
       return;
     }
     if (!context.mounted) return;
@@ -243,7 +243,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                   '${skipped.join(', ')}.',
       );
     } catch (e) {
-      _say('$e');
+      _say(plainFailure(e, 'The backup could not be restored.'));
     }
   }
 
@@ -289,13 +289,27 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                     for (final m in edgeModels)
                       DropdownMenuItem(value: m.id, child: Text('${m.label} · ${m.sizeGb} GB')),
                   ],
-                  onChanged: (id) => setState(
-                    () => draft = draft.copyWith(
-                      deviceModelId: id,
-                      tier: recommendedTier(edgeModelById(id!), widget.state.deviceGb),
+                  // The model cannot change under a download; its part file belongs to it.
+                  onChanged: widget.state.helperState is HelperDownloading
+                      ? null
+                      : (id) => setState(
+                          () => draft = draft.copyWith(
+                            deviceModelId: id,
+                            tier: recommendedTier(edgeModelById(id!), widget.state.deviceGb),
+                          ),
+                        ),
+                ),
+                if (widget.state.helperState is HelperDownloading)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'A helper is downloading. Cancel it in Study to choose another model.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
                 if (widget.state.deviceGb != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),

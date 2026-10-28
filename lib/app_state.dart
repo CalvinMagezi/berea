@@ -221,6 +221,9 @@ final class HelperNotInstalled extends HelperState {
 }
 
 final class HelperDownloading extends HelperState {
+  /// The model arriving. A settings change part way through does not change it.
+  final EdgeModel model;
+
   /// How much has arrived, from 0 to 1.
   final double fraction;
 
@@ -232,25 +235,44 @@ final class HelperDownloading extends HelperState {
 
   /// The reader paused it; it starts again when they resume.
   final bool paused;
+
+  /// The connection dropped where the download may go on; Berea tries again by itself.
+  final bool waitingForNetwork;
   const HelperDownloading(
     this.fraction, {
+    required this.model,
     this.total,
     this.waitingForWifi = false,
     this.paused = false,
+    this.waitingForNetwork = false,
   });
 
   /// [received] of [total] bytes, as the download reports them.
   factory HelperDownloading.at(
     int received,
     int total, {
+    required EdgeModel model,
     bool waitingForWifi = false,
     bool paused = false,
+    bool waitingForNetwork = false,
   }) => HelperDownloading(
     total > 0 ? (received / total).clamp(0.0, 1.0) : 0,
+    model: model,
     total: total,
     waitingForWifi: waitingForWifi,
     paused: paused,
+    waitingForNetwork: waitingForNetwork,
   );
+
+  /// This download where it stands, held, paused or waiting as given.
+  HelperDownloading stopped({bool waitingForWifi = false, bool paused = false}) =>
+      HelperDownloading(
+        fraction,
+        model: model,
+        total: total,
+        waitingForWifi: waitingForWifi,
+        paused: paused,
+      );
 
   int? get bytes => total == null ? null : (total! * fraction).round();
   int get percent => (fraction * 100).round();
@@ -258,8 +280,8 @@ final class HelperDownloading extends HelperState {
   /// Tenths of a percent: progress finer than this does not redraw the app.
   int get permille => (fraction * 1000).round();
 
-  /// Arriving now, neither held nor paused.
-  bool get moving => !waitingForWifi && !paused;
+  /// Arriving now, neither held, paused nor waiting for the connection.
+  bool get moving => !waitingForWifi && !paused && !waitingForNetwork;
 }
 
 /// Looking for the model files before loading them.
@@ -287,6 +309,16 @@ final class HelperFailed extends HelperState {
   bool get offersRetry => reason == helperDownloadFailed || reason == helperDownloadDamaged;
 }
 
+/// A failure Berea words for readers itself, so it may be shown as it is. Errors from parsers
+/// and the platform are not, and are told by [plainFailure] in general words.
+class ReaderMessage implements Exception {
+  final String message;
+  const ReaderMessage(this.message);
+
+  @override
+  String toString() => message;
+}
+
 /// A start that cannot go on, told in plain words.
 class StartupFailure implements Exception {
   final String message;
@@ -300,12 +332,56 @@ const notesCopyFailed =
     'Berea could not make a safety copy of your notes before updating them, so nothing was '
     'changed. Free some space on this device and open Berea again.';
 
+const notesOpenFailed =
+    'Berea could not open your notes. They are still on this device. Close Berea and open it '
+    'again, and if this keeps happening, restart the device and try once more.';
+
+const bibleNoSpace =
+    'There is not enough space on this device to set up the Bible. Free about 85 MB and open '
+    'Berea again.';
+
+/// The notes version the merge starts from, which StudyStore keeps private.
+const _beforeNotesMerge = 2;
+
+/// The error code for a full disk on Android, iOS, macOS and Linux.
+const _noSpaceErrno = 28;
+
 const helperDownloadFailed = 'The download stopped. Check the connection and try again.';
 const helperDownloadDamaged =
     'The download did not match the published file, so it was removed. Try again to download it '
     'fresh.';
 const helperLoadFailed = 'The helper could not start on this device. Open settings to repair it.';
 const helperNotAvailable = 'The helper is not set up yet, so this question was not answered.';
+const answerFailed = 'The helper could not answer this question. Try again.';
+const ollamaFailed =
+    'Ollama could not answer. Check that the model named in Settings is installed in Ollama, '
+    'then try again.';
+
+/// Plain words for [e], which a reader sees: the message of a failure Berea words itself,
+/// otherwise [fallback]. The raw error goes to the debug log only.
+String plainFailure(Object e, String fallback) {
+  debugPrint('$fallback ($e)');
+  return switch (e) {
+    BackupException(:final message) ||
+    StartupFailure(:final message) ||
+    ReaderMessage(:final message) => message,
+    _ => fallback,
+  };
+}
+
+/// Plain words for an answer that failed.
+String answerFailure(Object e) {
+  debugPrint('The answer failed: $e');
+  return switch (e) {
+    // The engine words an unreachable Ollama for readers already; other failures carry its reply.
+    OllamaException(:final message) when message.startsWith(ollamaUnreachable) => message,
+    OllamaException() => ollamaFailed,
+    _ => answerFailed,
+  };
+}
+
+/// How the engine begins its own, plain, message for an Ollama it cannot reach.
+const ollamaUnreachable = 'Berea could not reach Ollama';
 
 /// Where the Wi-Fi only choice for helper downloads is kept.
 const wifiOnlyKey = 'helperWifiOnly';
@@ -313,8 +389,12 @@ const wifiOnlyKey = 'helperWifiOnly';
 /// Where a helper download that has not finished is remembered: the model and how it stopped.
 const keptDownloadKey = 'helperDownload';
 
-/// How an unfinished helper download stood when it was last remembered.
-enum KeptDownload { moving, paused, waitingForWifi }
+/// How an unfinished helper download stood when it was last remembered. Stored by name.
+enum KeptDownload { moving, paused, waitingForWifi, waitingForNetwork }
+
+/// A download that lost its connection tries again after this, then twice as long each time.
+const networkRetryFirst = Duration(seconds: 30);
+const networkRetryLongest = Duration(minutes: 15);
 
 class AppState extends ChangeNotifier {
   late final BibleDb db;
@@ -381,7 +461,7 @@ class AppState extends ChangeNotifier {
 
   set deviceState(DeviceModelState next) => helperState = switch (next) {
     DeviceModelState.notInstalled => const HelperNotInstalled(),
-    DeviceModelState.downloading => const HelperDownloading(0),
+    DeviceModelState.downloading => HelperDownloading(0, model: settings.deviceModel),
     DeviceModelState.loading => const HelperLoading(),
     DeviceModelState.ready => const HelperReady(),
     DeviceModelState.failed => const HelperFailed(helperLoadFailed),
@@ -392,8 +472,9 @@ class AppState extends ChangeNotifier {
     _ => 0,
   };
 
+  /// The failure in plain words; the detail goes to the debug log where it happened.
   String? get deviceError => switch (_helper) {
-    HelperFailed(:final detail, :final reason) => detail ?? reason,
+    HelperFailed(:final reason) => reason,
     _ => null,
   };
 
@@ -431,7 +512,7 @@ class AppState extends ChangeNotifier {
     s.supportDir = supportDir ?? await getApplicationSupportDirectory();
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir, onFirstSetup));
-    s.study = _openStudy('${s.supportDir.path}/study.sqlite');
+    s.study = openStudy('${s.supportDir.path}/study.sqlite');
     s.study.copyNotebookChats();
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
     s.prefs = prefs ?? await SharedPreferences.getInstance();
@@ -466,15 +547,34 @@ class AppState extends ChangeNotifier {
 
   /// Opens the notes database. The notes merge first writes a safety copy beside it; if that
   /// copy cannot be written the store throws before migrating, and Berea stops with [StartupFailure]
-  /// rather than open notes it could not protect.
-  static StudyStore _openStudy(String path) {
-    final raw = sqlite3.open(path);
+  /// rather than open notes it could not protect. Only that failure asks for space.
+  @visibleForTesting
+  static StudyStore openStudy(String path) {
+    final Database raw;
+    try {
+      raw = sqlite3.open(path);
+    } on Object catch (e) {
+      debugPrint('The notes database did not open: $e');
+      throw const StartupFailure(notesOpenFailed);
+    }
     try {
       return StudyStore(raw);
     } on Object catch (e) {
-      raw.dispose();
       debugPrint('The notes database did not open: $e');
-      throw const StartupFailure(notesCopyFailed);
+      final copyFailed = _safetyCopyMissing(raw, path);
+      raw.dispose();
+      throw StartupFailure(copyFailed ? notesCopyFailed : notesOpenFailed);
+    }
+  }
+
+  /// Whether the notes still wait for the merge and its safety copy was not written, which is
+  /// what a full disk leaves.
+  static bool _safetyCopyMissing(Database raw, String path) {
+    try {
+      final version = raw.select('PRAGMA user_version').first.values.first as int;
+      return version <= _beforeNotesMerge && !File('$path$preNotesMergeSuffix').existsSync();
+    } on Object {
+      return false;
     }
   }
 
@@ -507,8 +607,15 @@ class AppState extends ChangeNotifier {
     if (!file.existsSync() || current != bundled) {
       onFirstSetup?.call();
       final data = await rootBundle.load('assets/berea.sqlite');
-      await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-      await stamp.writeAsString(bundled);
+      try {
+        await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        await stamp.writeAsString(bundled);
+      } on FileSystemException catch (e) {
+        debugPrint('The Bible was not copied into place: $e');
+        // The stamp is written last, so a copy cut short is made again on the next launch.
+        if (e.osError?.errorCode == _noSpaceErrno) throw const StartupFailure(bibleNoSpace);
+        rethrow;
+      }
     }
     return file.path;
   }
@@ -570,10 +677,10 @@ class AppState extends ChangeNotifier {
   /// translation; a bundled one would otherwise be overwritten and the citation check with it.
   void validateImportCode(String code) {
     if (!translationCode.hasMatch(code)) {
-      throw FormatException('Use 1 to 8 capital letters or digits for the code, not "$code".');
+      throw ReaderMessage('Use 1 to 8 capital letters or digits for the code, not "$code".');
     }
     if (db.bundledTranslations().contains(code)) {
-      throw FormatException('$code is built in. Choose another code.');
+      throw ReaderMessage('$code is built in. Choose another code.');
     }
   }
 
@@ -585,7 +692,7 @@ class AppState extends ChangeNotifier {
     final rows = await Isolate.run(
       () => [for (final f in files) ...parseBibleFile(f.name, f.bytes)],
     );
-    if (rows.isEmpty) throw const FormatException('No verses were found in those files.');
+    if (rows.isEmpty) throw const ReaderMessage('No verses were found in those files.');
     final csv = toCsv([
       ['Book', 'Chapter', 'Verse', 'Text'],
       for (final r in rows) [r.book.name, '${r.chapter}', '${r.verse}', r.text],
@@ -633,6 +740,7 @@ class AppState extends ChangeNotifier {
     if (prefs.getString('todayCardFullOn') == today) return false;
     todayCardFull = true;
     prefs.setString('todayCardFullOn', today);
+    notifyListeners();
     return true;
   }
 
@@ -711,7 +819,7 @@ class AppState extends ChangeNotifier {
   /// The file is checked by attaching it before it replaces anything.
   Future<void> installLexiconPack({Uint8List? bytes}) async {
     if (bytes != null && bytes.length > maxLexiconPackBytes) {
-      throw const FormatException('That file is too large to be a Berea lexicon pack.');
+      throw const ReaderMessage('That file is too large to be a Berea lexicon pack.');
     }
     final tmp = File('$lexiconPackPath.part');
     try {
@@ -729,7 +837,7 @@ class AppState extends ChangeNotifier {
       final probe = BibleDb(sqlite3.openInMemory());
       final ok = probe.attachFullLexicon(tmp.path);
       probe.close();
-      if (!ok) throw const FormatException('That file is not a Berea lexicon pack.');
+      if (!ok) throw const ReaderMessage('That file is not a Berea lexicon pack.');
       // The old pack is held open while attached; let go of it before replacing the file.
       db.detachFullLexicon();
       tmp.renameSync(lexiconPackPath);
@@ -875,6 +983,12 @@ class AppState extends ChangeNotifier {
     notebooks.refresh();
     notifyListeners();
   }
+
+  /// Every saved question, about the Bible and each notebook, newest first.
+  List<Conversation> pastQuestions() => [
+    ...study.conversations(),
+    for (final n in notebooks.notebooks()) ...study.conversations(notebookId: n.id),
+  ]..sort((a, b) => b.updated.compareTo(a.updated));
 
   void openConversation(int id) {
     // Switching studies under an answer being written, or one waiting, would put it in the wrong one.
@@ -1027,7 +1141,7 @@ class AppState extends ChangeNotifier {
     if (!on && h.waitingForWifi) unawaited(downloadDeviceModel());
     // Turned back on while arriving over mobile data, the download waits for Wi-Fi again.
     if (on && h.moving && !_mobileAllowed && await _onMobileData()) {
-      _stop(HelperDownloading(h.fraction, total: h.total, waitingForWifi: true));
+      _stop(h.stopped(waitingForWifi: true));
     }
   }
 
@@ -1067,10 +1181,17 @@ class AppState extends ChangeNotifier {
   })
   modelDownload = EdgeAiEngine.download;
 
-  /// Downloads the helper model. One Berea starts by [itself], after a restart or when the
-  /// network comes back, waits for the network again if it fails, rather than ask the reader.
+  /// The model of the download under way, held or paused; null when there is none.
+  EdgeModel? get _downloading => switch (_helper) {
+    HelperDownloading(:final model) => model,
+    _ => null,
+  };
+
+  /// Downloads the helper model, going on with the one already under way if there is one. One
+  /// Berea starts by [itself], after a restart or when the network comes back, waits for the
+  /// connection and tries again later if it fails, rather than ask the reader.
   Future<void> downloadDeviceModel({bool itself = false}) async {
-    final m = settings.deviceModel;
+    final m = _downloading ?? settings.deviceModel;
     if (m.notice != null && !termsAccepted) return;
     if (_transferring) return;
     _dropOtherPartial(m);
@@ -1094,7 +1215,8 @@ class AppState extends ChangeNotifier {
         recheck: repair,
         stop: stop.future,
         onProgress: (received, total) {
-          final next = HelperDownloading.at(received, total);
+          networkRetry = networkRetryFirst;
+          final next = HelperDownloading.at(received, total, model: m);
           // Bytes arrive in small chunks; redraw the app only when the progress visibly moves.
           if (_helper case HelperDownloading(:final permille) when permille == next.permille) {
             return;
@@ -1106,6 +1228,11 @@ class AppState extends ChangeNotifier {
       _forgetDownload();
       helperState = const HelperChecking();
       _stopTransfer = null;
+      // The settings may have moved on while it arrived; the model that arrived is the helper.
+      if (settings.deviceModelId != m.id) {
+        settings = settings.copyWith(deviceModelId: m.id, tier: recommendedTier(m, deviceGb));
+        await settings.save(prefs);
+      }
       await _rebuildHarness();
     } on DownloadStopped {
       _settleStopped(_afterStop);
@@ -1114,16 +1241,13 @@ class AppState extends ChangeNotifier {
         unawaited(Future(() => downloadDeviceModel(itself: true)));
       }
     } on DownloadDamaged catch (e) {
+      debugPrint('The helper download was damaged: ${e.message}');
       _endDownload();
       _forgetDownload();
       helperState = HelperFailed(helperDownloadDamaged, detail: e.message);
     } catch (e) {
       debugPrint('The helper download stopped: $e');
-      if (itself) {
-        helperState = _onDisk(m, waitingForWifi: true);
-        _keepDownload(m, KeptDownload.waitingForWifi);
-        return;
-      }
+      if (itself) return _waitForNetwork(m);
       _endDownload();
       // The bytes here are kept, so trying again, now or after a restart, goes on from them.
       if (EdgeAiEngine.partial(m, modelsDir) == null) {
@@ -1138,20 +1262,55 @@ class AppState extends ChangeNotifier {
   }
 
   /// [m]'s download as far as the bytes on disk go, so size left and the ring survive a stop.
-  HelperDownloading _onDisk(EdgeModel m, {bool waitingForWifi = false, bool paused = false}) {
+  HelperDownloading _onDisk(
+    EdgeModel m, {
+    bool waitingForWifi = false,
+    bool paused = false,
+    bool waitingForNetwork = false,
+  }) {
     final part = EdgeAiEngine.partial(m, modelsDir);
     return HelperDownloading.at(
       part?.bytes ?? 0,
       part?.total ?? m.publishedBytes,
+      model: m,
       waitingForWifi: waitingForWifi,
       paused: paused,
+      waitingForNetwork: waitingForNetwork,
     );
+  }
+
+  /// How long the next try after a lost connection waits; doubles up to [networkRetryLongest].
+  @visibleForTesting
+  Duration networkRetry = networkRetryFirst;
+  Timer? _retry;
+
+  /// The connection failed under a download Berea started by itself: it shows as waiting for
+  /// the connection, keeps its bytes, and tries again later or when the network changes.
+  void _waitForNetwork(EdgeModel m) {
+    helperState = _onDisk(m, waitingForNetwork: true);
+    _keepDownload(m, KeptDownload.waitingForNetwork);
+    _retry?.cancel();
+    final wait = networkRetry;
+    _retry = Timer(wait, _retryNow);
+    final longer = wait * 2;
+    networkRetry = longer > networkRetryLongest ? networkRetryLongest : longer;
+  }
+
+  void _retryNow() {
+    _retry?.cancel();
+    _retry = null;
+    if (_helper case HelperDownloading(waitingForNetwork: true) when !_transferring) {
+      unawaited(downloadDeviceModel(itself: true));
+    }
   }
 
   /// Shows [after] once a transfer has stopped, or at once when none was running. Paused or held
   /// keeps the part and remembers it across restarts; anything else is Cancel, which removes it.
   void _settleStopped(HelperState after) {
-    final m = settings.deviceModel;
+    // The download's own model: the settings may name another by now.
+    final m = _downloading ?? settings.deviceModel;
+    _retry?.cancel();
+    _retry = null;
     if (after is! HelperDownloading) {
       _forgetDownload();
       EdgeAiEngine.dropPartial(m, modelsDir);
@@ -1192,7 +1351,12 @@ class AppState extends ChangeNotifier {
     final kept = _kept;
     if (kept == null) return false;
     final paused = kept.$2 == KeptDownload.paused;
-    helperState = _onDisk(m, waitingForWifi: !paused, paused: paused);
+    helperState = _onDisk(
+      m,
+      waitingForWifi: kept.$2 == KeptDownload.waitingForWifi,
+      paused: paused,
+      waitingForNetwork: kept.$2 == KeptDownload.waitingForNetwork,
+    );
     if (!paused) unawaited(Future(() => downloadDeviceModel(itself: true)));
     return true;
   }
@@ -1202,7 +1366,7 @@ class AppState extends ChangeNotifier {
     final h = _helper;
     if (h is! HelperDownloading || h.paused) return;
     if (_holds(mobile) && h.moving) _settle ??= Timer(mobileSettle, _holdIfStillMobile);
-    if (!_holds(mobile) && h.waitingForWifi && !_transferring) {
+    if (!_holds(mobile) && (h.waitingForWifi || h.waitingForNetwork) && !_transferring) {
       unawaited(downloadDeviceModel(itself: true));
     }
   }, onError: (Object e) => debugPrint('The connection type could not be read: $e'));
@@ -1220,7 +1384,7 @@ class AppState extends ChangeNotifier {
     _settle = null;
     final h = _helper;
     if (h is! HelperDownloading || !h.moving || !_holds(await _onMobileData())) return;
-    _stop(HelperDownloading(h.fraction, total: h.total, waitingForWifi: true));
+    _stop(h.stopped(waitingForWifi: true));
   }
 
   /// A connection type that cannot be read counts as not mobile, so the download goes on.
@@ -1236,6 +1400,9 @@ class AppState extends ChangeNotifier {
   void _endDownload() {
     _settle?.cancel();
     _settle = null;
+    _retry?.cancel();
+    _retry = null;
+    networkRetry = networkRetryFirst;
     unawaited(_network?.cancel());
     _network = null;
     _mobileAllowed = false;
@@ -1261,14 +1428,12 @@ class AppState extends ChangeNotifier {
   }
 
   void pauseDownload() {
-    if (_helper case HelperDownloading(:final fraction, :final total, paused: false)) {
-      _stop(HelperDownloading(fraction, total: total, paused: true));
-    }
+    if (_helper case final HelperDownloading h when !h.paused) _stop(h.stopped(paused: true));
   }
 
   Future<void> resumeDownload() async {
-    if (_helper case HelperDownloading(paused: true)) {
-      _helper = _onDisk(settings.deviceModel);
+    if (_helper case HelperDownloading(paused: true, :final model)) {
+      _helper = _onDisk(model);
       await downloadDeviceModel();
     }
   }
@@ -1437,7 +1602,7 @@ class AppState extends ChangeNotifier {
         sources: turn.sources,
       );
     } catch (e) {
-      turn.error = e.toString();
+      turn.error = answerFailure(e);
     } finally {
       _answering = null;
     }
@@ -1502,7 +1667,32 @@ class AppState extends ChangeNotifier {
     tier: settings.tier,
     pinned: notebooks.pinnedSources(notebookId),
     commentary: commentary.library,
+    notes: offDeviceHost == null ? _answerNotes(notebookId) : const [],
   );
+
+  /// The readings of notebook [id] as its page lists them: a reading that links one of the
+  /// notebook's own notes is shown, and read, as that note.
+  List<NotebookSource> notebookReadings(int id) {
+    final own = {for (final n in study.notebookNotes(id)) n.id};
+    return [
+      for (final r in notebooks.sources(id))
+        if (r.noteId == null || !own.contains(r.noteId)) r,
+    ];
+  }
+
+  /// The notes and kept words written in notebook [id], for an answer to read. Note text stays
+  /// on this device, so an Ollama host elsewhere never receives it. A note that a reading of
+  /// the notebook links is already searched as that reading.
+  List<NoteText> _answerNotes(int id) {
+    final linked = {for (final r in notebooks.sources(id)) ?r.noteId};
+    return [
+      for (final n in study.notebookNotes(id))
+        if (!linked.contains(n.id)) (id: n.id, title: noteSourceTitle(n), text: n.text),
+    ];
+  }
+
+  /// How many notes an answer in notebook [id] reads, which the scope line reports.
+  int answerNoteCount(int id) => offDeviceHost == null ? study.notebookNotes(id).length : 0;
 
   /// The finished questions and answers before [turn], for a notebook answer to follow on from.
   List<ChatMessage> _historyBefore(ChatTurn turn) => [

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
@@ -11,13 +13,51 @@ const _labelSpacing = 1.4;
 /// Below this the folded card shortens book names.
 const _fullNamesWidth = 560.0;
 
+/// A moment past midnight, so the new day has begun when the card looks again.
+const _pastMidnight = Duration(seconds: 1);
+
 /// Today on the Bible: the verse of the day and today's reading. In full on the first look of
-/// the day, then one line that opens it again.
-class TodayCard extends StatelessWidget {
+/// the day, then one line that opens it again. Left open past midnight, it turns to the new day.
+class TodayCard extends StatefulWidget {
   final AppState state;
   final bool full;
   final ValueChanged<bool> onFull;
   const TodayCard({super.key, required this.state, required this.full, required this.onFull});
+
+  @override
+  State<TodayCard> createState() => _TodayCardState();
+}
+
+class _TodayCardState extends State<TodayCard> {
+  Timer? _midnight;
+
+  AppState get state => widget.state;
+  bool get full => widget.full;
+  ValueChanged<bool> get onFull => widget.onFull;
+
+  @override
+  void initState() {
+    super.initState();
+    _waitForMidnight();
+  }
+
+  @override
+  void dispose() {
+    _midnight?.cancel();
+    super.dispose();
+  }
+
+  void _waitForMidnight() {
+    final now = DateTime.now();
+    final next = DateTime(now.year, now.month, now.day + 1);
+    _midnight = Timer(next.difference(now) + _pastMidnight, () {
+      // A new day unfolds the card again, with the new verse and reading.
+      state.openTodayIfNewDay();
+      if (!mounted) return;
+      setState(() {});
+      _waitForMidnight();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

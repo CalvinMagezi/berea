@@ -33,8 +33,9 @@ class DownloadDetails extends StatelessWidget {
 
   Widget _build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final m = state.settings.deviceModel;
     final h = state.helperState;
+    // The model arriving, which a settings change part way through does not alter.
+    final m = h is HelperDownloading ? h.model : state.settings.deviceModel;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -59,7 +60,8 @@ class DownloadDetails extends StatelessWidget {
         if (h is HelperDownloading) ..._downloading(context, h, m) else _settled(context, h),
         const SizedBox(height: 12),
         Text(
-          'Reading never waits for this. The ring on Study fills as it comes.',
+          'Reading never waits for this. The ring on Study fills as it comes, and the file is '
+          'checked before it is used.',
           style: TextStyle(fontSize: _noteSize, color: scheme.onSurfaceVariant),
         ),
       ],
@@ -115,6 +117,8 @@ class _Progress extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final (icon, title) = h.waitingForWifi
         ? (Icons.wifi, 'Paused, waiting for Wi-Fi')
+        : h.waitingForNetwork
+        ? (Icons.cloud_off_outlined, 'Waiting for a connection. Berea will try again by itself.')
         : h.paused
         ? (Icons.pause, 'Paused')
         : (Icons.download_outlined, 'Downloading');
