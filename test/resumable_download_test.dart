@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
+import 'package:berea/edge_engine.dart';
 import 'package:berea/models.dart';
 import 'package:berea/pinned_download.dart';
 import 'package:berea/voice.dart';
@@ -252,6 +253,25 @@ void main() {
     await dropped();
     discardPartial(models(), _name);
     expect(models().listSync(), isEmpty);
+  });
+
+  test('the older copy goes only once a checked file is there to replace it', () {
+    final copy = File('${dir.path}/plugin/$_name')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(body);
+    final verified = File('${models().path}/$_name');
+    dropPluginCopy(copy, verified: verified);
+    expect(copy.existsSync(), isTrue, reason: 'no replacement yet');
+
+    verified
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(body);
+    dropPluginCopy(verified, verified: verified);
+    expect(verified.existsSync(), isTrue, reason: 'never the file in use');
+
+    dropPluginCopy(copy, verified: verified);
+    expect(copy.existsSync(), isFalse);
+    expect(verified.existsSync(), isTrue);
   });
 
   group('across a restart', () {
