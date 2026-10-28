@@ -6,6 +6,7 @@ import 'package:berea/note_dialog.dart';
 import 'package:berea/notebook_store.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/notes_screen.dart';
+import 'package:berea/voice_composer.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea/theme.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -318,5 +319,53 @@ void main() {
     await openKeep(tester);
     expect(find.textContaining('Last used'), findsNothing);
     expect(find.text('Gone'), findsNothing);
+  });
+
+  Future<void> openEditor(WidgetTester tester, {Ref? verse, Note? note}) async {
+    await pump(
+      tester,
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => showNoteEditor(context, s, verse: verse, note: note),
+          child: const Text('Open'),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Pray this opens the new prayer sheet with the note verse', (tester) async {
+    await openEditor(tester, verse: ref('John 3:16'));
+    await tester.tap(find.text('Pray this'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'John 3:16'), findsOneWidget);
+  });
+
+  testWidgets('Pray this leaves out a verse that is a whole chapter', (tester) async {
+    await openEditor(tester, verse: ref('Romans 8'));
+    await tester.tap(find.text('Pray this'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'Romans 8'), findsNothing);
+  });
+
+  testWidgets('the editor microphone shows only when the device model can hear', (tester) async {
+    await openEditor(tester);
+    expect(canDictate(s), isFalse, reason: 'tests run on Ollama, which cannot transcribe');
+    expect(find.byType(VoiceMicButton), findsNothing);
+
+    await tester.pumpWidget(const SizedBox());
+    await pump(tester, NoteEditor(state: s, dictates: (_) => true));
+    expect(find.byType(VoiceMicButton), findsOneWidget);
+  });
+
+  test('dictation goes in at the cursor, or at the end', () {
+    const typed = TextEditingValue(
+      text: 'Read again.',
+      selection: TextSelection.collapsed(offset: 4),
+    );
+    expect(withDictation(typed, 'Romans 8').text, 'Read Romans 8 again.');
+    expect(withDictation(const TextEditingValue(text: 'Read'), 'it').text, 'Read it');
+    expect(withDictation(TextEditingValue.empty, 'Hope').text, 'Hope');
   });
 }
