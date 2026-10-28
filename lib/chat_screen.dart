@@ -308,6 +308,11 @@ class ScopeBar extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(_reads(scope), style: note),
+          if (state.pendingScope case (:final id))
+            Text(
+              'Study will switch to ${scopeName(state, id)} when this answer is finished.',
+              style: note,
+            ),
           if ((scope, state.offDeviceHost) case (_?, final host?))
             Text(
               'Questions here send sections of your sources to the Ollama server at $host.',

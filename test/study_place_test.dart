@@ -33,6 +33,22 @@ class _Answer implements LlmEngine {
   }
 }
 
+/// Writes its answer only when [finish] is called, as a slow phone would.
+class _Held implements LlmEngine {
+  final _answer = StreamController<String>();
+
+  @override
+  String get name => 'held';
+
+  @override
+  Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) => _answer.stream;
+
+  Future<void> finish() async {
+    _answer.add('Grace is a gift (John 3:16, BSB).');
+    await _answer.close();
+  }
+}
+
 class _NoRecorder implements AudioRecorder {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -343,5 +359,42 @@ void main() {
     expect(note.notebookId, youth);
     expect(note.title, 'What is grace?');
     expect(note.text, contains('Grace is a gift'));
+  });
+
+  testWidgets('Ask about this notebook during an answer switches once the answer is finished', (
+    tester,
+  ) async {
+    final engine = _Held();
+    final s = await app(helper: const HelperReady(), engine: engine);
+    final id = s.notebooks.createNotebook('Romans with the youth');
+    await pumpStudy(tester, s);
+    late Future<void> sent;
+    await tester.runAsync(() async {
+      sent = s.send('What is grace?');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    });
+    expect(s.busy, isTrue);
+
+    s.askAboutNotebook(id);
+    await tester.pump();
+    expect(s.studyScope.value, isNull, reason: 'the answer being written stays in its study');
+    expect(
+      find.text('Study will switch to Romans with the youth when this answer is finished.'),
+      findsOneWidget,
+    );
+
+    await tester.runAsync(() async {
+      await engine.finish();
+      await sent;
+    });
+    await tester.pump();
+    expect(s.studyScope.value, id);
+    expect(s.pendingScope, isNull);
+    expect(
+      s.study.conversations().single.title,
+      'What is grace?',
+      reason: 'kept in Past questions',
+    );
+    expect(find.textContaining('Study will switch'), findsNothing);
   });
 }

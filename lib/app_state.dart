@@ -718,6 +718,7 @@ class AppState extends ChangeNotifier {
     prayers.refresh();
     _keepTranslationValid();
     clear();
+    pendingScope = null;
     // The restored notebooks may not hold the one Study was answering from.
     if (studyScope.value case final id? when notebooks.notebook(id) == null) {
       studyScope.value = null;
@@ -781,10 +782,24 @@ class AppState extends ChangeNotifier {
   /// Makes Study answer from notebook [notebookId], or the Bible when null. A study belongs to
   /// one scope, so changing it starts a new one.
   void setStudyScope(int? notebookId) {
-    if (notebookId == studyScope.value || !canChangeScope) return;
+    if (!canChangeScope) {
+      // Under an answer, the change waits for it to finish rather than being lost.
+      pendingScope = notebookId == studyScope.value ? null : (id: notebookId);
+      notifyListeners();
+      return;
+    }
+    pendingScope = null;
+    if (notebookId == studyScope.value) return;
     clear();
     studyScope.value = notebookId;
     notifyListeners();
+  }
+
+  /// A scope asked for while an answer was being written; Study moves to it once it finishes.
+  ({int? id})? pendingScope;
+
+  void _applyPendingScope() {
+    if (pendingScope case (:final id) when canChangeScope) setStudyScope(id);
   }
 
   /// Notes and highlights change outside this class; callers poke listeners through here. A
@@ -845,6 +860,7 @@ class AppState extends ChangeNotifier {
       busy = false;
       _modelUse = null;
       notifyListeners();
+      _applyPendingScope();
     }
   }
 
@@ -1185,6 +1201,7 @@ class AppState extends ChangeNotifier {
       };
       notifyListeners();
       done.complete();
+      _applyPendingScope();
       return;
     }
     done.complete(useModel(() => _answer(h, turn)));
