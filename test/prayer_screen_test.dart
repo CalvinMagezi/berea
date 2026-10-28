@@ -3,6 +3,7 @@ import 'package:berea/prayer_store.dart';
 import 'package:berea/setup_screen.dart' show deviceNoun;
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -348,9 +349,13 @@ void main() {
   testWidgets('the Answered row shows the latest answer and when', (tester) async {
     phone(tester);
     store.add(title: 'Rain for the harvest');
-    store.markAnswered(store.add(title: 'Job interview at the bank'), '');
+    const long = 'Job interview at the bank on Kampala Road, with the manager and two others';
+    store.markAnswered(store.add(title: long), '');
     await tester.pumpWidget(app());
-    expect(find.text('Job interview at the bank, today'), findsOneWidget);
+    final title = tester.renderObject<RenderParagraph>(find.text(long));
+    expect(title.didExceedMaxLines, isTrue, reason: 'the title gives way');
+    final day = tester.getRect(find.text(', today'));
+    expect(day.right, lessThanOrEqualTo(tester.getRect(find.byIcon(Icons.chevron_right)).left));
   });
 
   testWidgets('Delete asks first, and a stopped prayer can be resumed', (tester) async {
@@ -441,6 +446,7 @@ void main() {
     expect(find.textContaining('Prayers stay on this $deviceNoun.'), findsOneWidget);
     bool selected(String title) =>
         tester.widget<ListTile>(find.widgetWithText(ListTile, title).first).selected;
+    expect(find.textContaining('ANSWERED'), findsNothing, reason: 'no empty Answered header');
     expect(selected('First'), isTrue);
     expect(selected('Second'), isFalse);
 

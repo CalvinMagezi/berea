@@ -186,6 +186,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
     final stopped = _store.stopped();
     final now = _store.now();
     final scheme = Theme.of(context).colorScheme;
+    final muted = Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Prayer'),
@@ -220,7 +221,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
               onTap: wide ? () => _showInPanel(p) : () => _edit(p),
               onCheck: () => answerPrayer(context, _store, p),
             ),
-          if (wide) ...[
+          if (wide && answered.isNotEmpty) ...[
             _section('Answered · ${answered.length}'),
             for (final p in answered)
               _PrayerRow(
@@ -237,15 +238,16 @@ class _PrayerScreenState extends State<PrayerScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // The title gives way first, so the day it was answered always shows.
                     Flexible(
                       child: Text(
-                        '${answered.first.title}, ${answeredLabel(answered.first, now)}',
+                        answered.first.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
+                        style: muted,
                       ),
                     ),
+                    Text(', ${answeredLabel(answered.first, now)}', style: muted),
                     const Icon(Icons.chevron_right),
                   ],
                 ),
