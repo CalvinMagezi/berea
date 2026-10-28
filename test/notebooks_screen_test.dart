@@ -31,6 +31,7 @@ void main() {
   setUp(() {
     s.study.db.execute('DELETE FROM notes');
     s.study.db.execute('DELETE FROM study_pages');
+    s.prefs.remove(lastKeptNotebookKey);
     for (final n in s.notebooks.notebooks()) {
       s.notebooks.deleteNotebook(n.id);
     }
@@ -87,9 +88,7 @@ void main() {
     expect(find.byType(NotebookScreen), findsOneWidget);
   });
 
-  testWidgets('a notebook shows Everything, Notes and Readings, with Add and Ask', (
-    tester,
-  ) async {
+  testWidgets('a notebook shows Everything, Notes and Readings, with Add and Ask', (tester) async {
     final nb = s.notebooks.createNotebook('Romans with the youth');
     s.study.addNotebookNote(nb, 'What we suffer.', title: 'Outline for Thursday');
     await tester.runAsync(
@@ -275,5 +274,49 @@ void main() {
     expect(note.notebookId, youth);
     expect(note.title, 'How does Romans 8:28 fit 8:18?');
     expect(note.verse, isNull);
+  });
+
+  Future<void> openKeep(WidgetTester tester) async {
+    await pump(
+      tester,
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => showKeepSheet(context, s, title: 'agapao', body: 'to love'),
+          child: const Text('Keep'),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Keep'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Keep in a notebook offers the notebook last kept in first', (tester) async {
+    final sermons = s.notebooks.createNotebook('Sunday sermons');
+    s.notebooks.createNotebook('Romans with the youth');
+    await openKeep(tester);
+    expect(find.textContaining('Last used'), findsNothing);
+    await tester.tap(find.text('Sunday sermons'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Keep'));
+    await tester.pumpAndSettle();
+    expect(s.prefs.getInt(lastKeptNotebookKey), sermons);
+
+    await tester.tap(find.text('Keep'));
+    await tester.pumpAndSettle();
+    expect(find.text('Last used · 1 note · 0 readings'), findsOneWidget);
+    final tiles = find.byType(RadioListTile<int>);
+    expect(find.descendant(of: tiles.first, matching: find.text('Sunday sermons')), findsOneWidget);
+    final first = tester.widget<RadioListTile<int>>(tiles.first);
+    expect(first.value, sermons);
+    expect(tester.widget<RadioGroup<int>>(find.byType(RadioGroup<int>)).groupValue, sermons);
+  });
+
+  testWidgets('a deleted last used notebook is not offered', (tester) async {
+    final gone = s.notebooks.createNotebook('Gone');
+    s.notebooks.createNotebook('Sunday sermons');
+    await s.prefs.setInt(lastKeptNotebookKey, gone);
+    s.notebooks.deleteNotebook(gone);
+    await openKeep(tester);
+    expect(find.textContaining('Last used'), findsNothing);
+    expect(find.text('Gone'), findsNothing);
   });
 }

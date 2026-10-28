@@ -15,6 +15,9 @@ final _keptWord = RegExp('^$keptWordMarker [GH]\\d+', multiLine: true);
 
 bool isKeptWord(Note n) => _keptWord.hasMatch(n.text);
 
+/// The notebook something was last kept in, offered first the next time.
+const lastKeptNotebookKey = 'lastKeptNotebook';
+
 /// The body of a kept word: what it means, its number and language, and where it was found.
 String keptWordBody({
   required String code,
@@ -56,9 +59,13 @@ Future<int?> showKeepSheet(
       body: body,
       verse: verse,
       subtitle: subtitle,
+      lastUsed: s.prefs.getInt(lastKeptNotebookKey),
     ),
   );
-  if (id != null) s.touch();
+  if (id == null) return null;
+  // Read back from the note, so the notes on verses notebook made by this keep counts too.
+  if (s.study.note(id)?.notebookId case final nb?) await s.prefs.setInt(lastKeptNotebookKey, nb);
+  s.touch();
   return id;
 }
 
@@ -69,6 +76,9 @@ class KeepSheet extends StatefulWidget {
   final String body;
   final Ref? verse;
   final String? subtitle;
+
+  /// The notebook last kept in, listed first; ignored when it no longer exists.
+  final int? lastUsed;
   const KeepSheet({
     super.key,
     required this.study,
@@ -77,6 +87,7 @@ class KeepSheet extends StatefulWidget {
     required this.body,
     this.verse,
     this.subtitle,
+    this.lastUsed,
   });
 
   @override
@@ -94,11 +105,18 @@ class _KeepSheetState extends State<KeepSheet> {
   late int _chosen = _initial();
   var _beside = true;
 
+  /// The notebook kept for the passage first, then the one last used, then the newest.
   int _initial() {
     final verse = widget.verse;
     final held = verse == null ? null : widget.study.notebookForPassage(verse);
-    return held ?? widget.notebooks.notebooks().firstOrNull?.id ?? notesOnVersesChoice;
+    return held ??
+        _lastUsed?.id ??
+        widget.notebooks.notebooks().firstOrNull?.id ??
+        notesOnVersesChoice;
   }
+
+  Notebook? get _lastUsed =>
+      widget.notebooks.notebooks().where((n) => n.id == widget.lastUsed).firstOrNull;
 
   Future<void> _newNotebook() async {
     final name = await askNotebookName(
@@ -128,7 +146,8 @@ class _KeepSheetState extends State<KeepSheet> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final notebooks = widget.notebooks.notebooks();
+    final last = _lastUsed;
+    final notebooks = [?last, ...widget.notebooks.notebooks().where((n) => n.id != last?.id)];
     final verse = widget.verse;
     final label = TextStyle(fontSize: 12, letterSpacing: 1.2, color: scheme.primary);
     return SafeArea(
@@ -158,7 +177,7 @@ class _KeepSheetState extends State<KeepSheet> {
                       value: n.id,
                       contentPadding: EdgeInsets.zero,
                       title: Text(n.title),
-                      subtitle: Text(_counts(n)),
+                      subtitle: Text(n.id == last?.id ? 'Last used · ${_counts(n)}' : _counts(n)),
                     ),
                   if (!notebooks.any((n) => n.title == notesOnVersesTitle))
                     const RadioListTile<int>(
