@@ -221,21 +221,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     };
     return Scaffold(
       appBar: AppBar(
-        // One line on a phone: a long book name gives way, the chapter number never does.
         title: TextButton(
           onPressed: _pickChapter,
-          child: DefaultTextStyle.merge(
-            style: const TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 22),
-            maxLines: 1,
-            softWrap: false,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(child: Text(book.name, overflow: TextOverflow.ellipsis)),
-                Text(' $chapter'),
-              ],
-            ),
-          ),
+          child: _ReaderTitle(name: book.name, chapter: chapter),
         ),
         actions: [
           IconButton(
@@ -431,6 +419,55 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _goLastChapter(Book b) => _go(b, s.db.chapterCount(b, translation: s.settings.translation));
+}
+
+const _titleSize = 22.0;
+
+/// How far the title shrinks to fit before the book name is cut short.
+const _titleFloor = 0.8;
+
+/// Scaled text measured to the exact width can round over it and be cut; a pixel spare avoids it.
+const _titleSlack = 1.0;
+
+/// One line on a phone: the whole title scales down to [_titleFloor] first, then only the book
+/// name gives way; the chapter number is never cut.
+class _ReaderTitle extends StatelessWidget {
+  final String name;
+  final int chapter;
+  const _ReaderTitle({required this.name, required this.chapter});
+
+  @override
+  Widget build(BuildContext context) {
+    final base = DefaultTextStyle.of(context).style
+        .merge(const TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: _titleSize));
+    final label = '$name $chapter';
+    return LayoutBuilder(
+      builder: (context, c) {
+        final painter = TextPainter(
+          text: TextSpan(text: label, style: base),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        final width = painter.width;
+        painter.dispose();
+        final room = c.maxWidth - _titleSlack;
+        final scale = width <= room ? 1.0 : (room / width).clamp(_titleFloor, 1.0);
+        return DefaultTextStyle.merge(
+          style: base.copyWith(fontSize: _titleSize * scale),
+          maxLines: 1,
+          softWrap: false,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: Text(name, overflow: TextOverflow.ellipsis)),
+              Text(' $chapter'),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// A quiet line above the verse the reader stopped at last time.

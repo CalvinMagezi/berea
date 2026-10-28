@@ -7,6 +7,7 @@ import 'package:berea/today.dart';
 import 'package:berea/today_card.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -76,6 +77,30 @@ void main() {
     expect(tester.getRect(name).right, lessThanOrEqualTo(number.left));
     final search = tester.getRect(find.byTooltip('Search'));
     expect(number.right, lessThanOrEqualTo(search.left), reason: 'clear of the actions');
+    expect(number.height, greaterThan(0));
+
+    // The whole title shrinks to its floor before the name is cut, and only below the floor.
+    const full = 22.0;
+    const floor = full * 0.8;
+    RenderParagraph paragraph(String text) =>
+        tester.renderObject(find.descendant(of: find.byType(AppBar), matching: find.text(text)));
+    final long = paragraph('1 Thessalonians');
+    expect(long.text.style!.fontSize, closeTo(floor, 0.01));
+    expect(paragraph(' 5').text.style!.fontSize, closeTo(floor, 0.01), reason: 'scaled together');
+    var scaledWhole = 0;
+    var fullSize = 0;
+    for (final b in books) {
+      state.setReader(b, 1);
+      await tester.pump();
+      final p = paragraph(b.name);
+      final size = p.text.style!.fontSize!;
+      expect(size, inInclusiveRange(floor - 0.01, full), reason: b.name);
+      if (p.didExceedMaxLines) expect(size, closeTo(floor, 0.01), reason: '${b.name} cut early');
+      if (size > floor + 0.01 && size < full) scaledWhole++;
+      if (size == full) fullSize++;
+    }
+    expect(scaledWhole, greaterThan(0), reason: 'some names fit by scaling alone');
+    expect(fullSize, greaterThan(0), reason: 'short names keep the full size');
   });
 
   testWidgets('the first ever open lands on John 1 with today\'s card and tip T14', (tester) async {
