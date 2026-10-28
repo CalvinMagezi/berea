@@ -7,6 +7,8 @@ class MainFlutterWindow: NSWindow {
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
+    // The bundle is named berea; the window carries the product's name.
+    self.title = "Berea"
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 

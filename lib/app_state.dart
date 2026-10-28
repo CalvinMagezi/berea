@@ -208,6 +208,69 @@ class ChatTurn extends ChangeNotifier {
 
 enum DeviceModelState { notInstalled, downloading, loading, ready, failed }
 
+/// Where the helper (the model that answers in Study) stands. The Bible never waits for it.
+sealed class HelperState {
+  const HelperState();
+}
+
+final class HelperNotInstalled extends HelperState {
+  const HelperNotInstalled();
+}
+
+final class HelperDownloading extends HelperState {
+  /// How much has arrived, from 0 to 1.
+  final double fraction;
+
+  /// The download's size in bytes, or null when the source does not say.
+  final int? total;
+
+  /// Always false for now: nothing yet holds a download back for Wi-Fi.
+  final bool waitingForWifi;
+  const HelperDownloading(this.fraction, {this.total, this.waitingForWifi = false});
+
+  int? get bytes => total == null ? null : (total! * fraction).round();
+  int get percent => (fraction * 100).round();
+}
+
+/// Looking for the model files before loading them.
+final class HelperChecking extends HelperState {
+  const HelperChecking();
+}
+
+final class HelperLoading extends HelperState {
+  const HelperLoading();
+}
+
+final class HelperReady extends HelperState {
+  const HelperReady();
+}
+
+final class HelperFailed extends HelperState {
+  /// Plain words for the reader.
+  final String reason;
+
+  /// The underlying error, for settings and bug reports.
+  final String? detail;
+  const HelperFailed(this.reason, {this.detail});
+}
+
+/// A start that cannot go on, told in plain words.
+class StartupFailure implements Exception {
+  final String message;
+  const StartupFailure(this.message);
+
+  @override
+  String toString() => message;
+}
+
+const notesCopyFailed =
+    'Berea could not make a safety copy of your notes before updating them, so nothing was '
+    'changed. Free some space on this device and open Berea again.';
+
+const helperDownloadFailed = 'The download stopped. Check the connection and try again.';
+const helperLoadFailed = 'The helper could not start on this device. Open settings to repair it.';
+const helperNotAvailable = 'The helper is not set up yet, so this question was not answered.';
+
 class AppState extends ChangeNotifier {
   late final BibleDb db;
   late final String systemPrompt;
@@ -216,7 +279,7 @@ class AppState extends ChangeNotifier {
   late final StudyStore study;
 
   /// Notebooks share study.sqlite, so they are backed up and restored with the notes.
-  late final NotebookStore notebooks;
+  late final NotebookStore notebooks = NotebookStore(study.db);
   late final Directory supportDir;
 
   /// Optional public domain commentaries the user has downloaded.
@@ -243,9 +306,49 @@ class AppState extends ChangeNotifier {
   /// Device RAM in GB, or null when the platform does not say.
   double? deviceGb;
 
-  DeviceModelState deviceState = DeviceModelState.notInstalled;
-  int downloadProgress = 0;
-  String? deviceError;
+  HelperState _helper = const HelperNotInstalled();
+
+  /// Whether the helper was last built on this device rather than Ollama.
+  bool _helperOnDevice = false;
+
+  HelperState get helperState => _helper;
+
+  set helperState(HelperState next) {
+    _helper = next;
+    notifyListeners();
+    _releaseHeld();
+  }
+
+  /// The helper is checking or loading, so a question can wait for it.
+  bool get helperComing => _helper is HelperChecking || _helper is HelperLoading;
+
+  /// The older view of [helperState] that settings and the composer still read.
+  DeviceModelState get deviceState => switch (_helper) {
+    HelperNotInstalled() => DeviceModelState.notInstalled,
+    HelperDownloading() => DeviceModelState.downloading,
+    HelperChecking() || HelperLoading() => DeviceModelState.loading,
+    HelperReady() => _helperOnDevice ? DeviceModelState.ready : DeviceModelState.notInstalled,
+    HelperFailed() => DeviceModelState.failed,
+  };
+
+  set deviceState(DeviceModelState next) => helperState = switch (next) {
+    DeviceModelState.notInstalled => const HelperNotInstalled(),
+    DeviceModelState.downloading => const HelperDownloading(0),
+    DeviceModelState.loading => const HelperLoading(),
+    DeviceModelState.ready => const HelperReady(),
+    DeviceModelState.failed => const HelperFailed(helperLoadFailed),
+  };
+
+  int get downloadProgress => switch (_helper) {
+    HelperDownloading(:final percent) => percent,
+    _ => 0,
+  };
+
+  String? get deviceError => switch (_helper) {
+    HelperFailed(:final detail, :final reason) => detail ?? reason,
+    _ => null,
+  };
+
   EdgeAiEngine? _edge;
 
   /// The single voice session, shared by every composer so only one recorder runs.
@@ -260,14 +363,27 @@ class AppState extends ChangeNotifier {
   /// The loaded Gemma 4 model came up with its audio encoder.
   bool get deviceHearsAudio => _edge?.hearsAudio ?? false;
 
-  /// Overrides let a test run the real app without opening the user's data.
-  static Future<AppState> bootstrap({Directory? supportDir, SharedPreferences? prefs}) async {
+  /// Set once bootstrap has opened everything [startHelper] needs.
+  bool _canStartHelper = false;
+  bool _helperStarted = false;
+
+  /// Debug autorun reads the user's own data, so a test's bootstrap never runs it.
+  bool _autorunAllowed = false;
+
+  /// Opens the Bible, notes and settings: everything the first frame needs. The helper loads
+  /// later, from [startHelper]. [onFirstSetup] hears when the Bible is being copied into place,
+  /// on first launch and after an update. Overrides let a test run the real app without opening
+  /// the user's data.
+  static Future<AppState> bootstrap({
+    Directory? supportDir,
+    SharedPreferences? prefs,
+    VoidCallback? onFirstSetup,
+  }) async {
     final s = AppState();
     s.supportDir = supportDir ?? await getApplicationSupportDirectory();
     await excludeFromBackup(s.supportDir);
-    s.db = BibleDb.open(await _ensureDb(s.supportDir));
-    s.study = StudyStore.open('${s.supportDir.path}/study.sqlite');
-    s.notebooks = NotebookStore(s.study.db);
+    s.db = BibleDb.open(await _ensureDb(s.supportDir, onFirstSetup));
+    s.study = _openStudy('${s.supportDir.path}/study.sqlite');
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
     s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
@@ -276,10 +392,7 @@ class AppState extends ChangeNotifier {
     s.settings = Settings.load(s.prefs);
     if (!s.prefs.containsKey('deviceModelId')) {
       final m = recommendedModel(s.deviceGb);
-      s.settings = s.settings.copyWith(
-        deviceModelId: m.id,
-        tier: recommendedTier(m, s.deviceGb),
-      );
+      s.settings = s.settings.copyWith(deviceModelId: m.id, tier: recommendedTier(m, s.deviceGb));
     }
     s.readerBook = s.prefs.getInt('readerBook') ?? 1;
     s.readerChapter = s.prefs.getInt('readerChapter') ?? 1;
@@ -288,9 +401,33 @@ class AppState extends ChangeNotifier {
     s._keepTranslationValid();
     s.db.attachFullLexicon(s.lexiconPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
-    await s._rebuildHarness();
-    if (kDebugMode && supportDir == null) unawaited(s._autorun());
+    s._canStartHelper = true;
+    s._autorunAllowed = kDebugMode && supportDir == null;
+    // A question asked before the shell starts the helper waits for it.
+    s._helper = const HelperChecking();
     return s;
+  }
+
+  /// Loads the helper once, after the first frame, so the Bible never waits for the model.
+  Future<void> startHelper() async {
+    if (!_canStartHelper || _helperStarted) return;
+    _helperStarted = true;
+    await _rebuildHarness();
+    if (_autorunAllowed) unawaited(_autorun());
+  }
+
+  /// Opens the notes database. The notes merge first writes a safety copy beside it; if that
+  /// copy cannot be written the store throws before migrating, and Berea stops with [StartupFailure]
+  /// rather than open notes it could not protect.
+  static StudyStore _openStudy(String path) {
+    final raw = sqlite3.open(path);
+    try {
+      return StudyStore(raw);
+    } on Object catch (e) {
+      raw.dispose();
+      debugPrint('The notes database did not open: $e');
+      throw const StartupFailure(notesCopyFailed);
+    }
   }
 
   /// Debug builds only: questions in `BEREA_AUTORUN` or `autorun.txt` (one per line) under the
@@ -314,12 +451,13 @@ class AppState extends ChangeNotifier {
 
   /// Copies the bundled database next to the app when the bundled build changes. The build
   /// stamp is a separate tiny asset, so a normal launch never loads the 67 MB database.
-  static Future<String> _ensureDb(Directory dir) async {
+  static Future<String> _ensureDb(Directory dir, VoidCallback? onFirstSetup) async {
     final file = File('${dir.path}/berea.sqlite');
     final stamp = File('${dir.path}/berea.sqlite.asset');
     final bundled = (await rootBundle.loadString('assets/berea.sqlite.version')).trim();
     final current = stamp.existsSync() ? stamp.readAsStringSync() : null;
     if (!file.existsSync() || current != bundled) {
+      onFirstSetup?.call();
       final data = await rootBundle.load('assets/berea.sqlite');
       await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
       await stamp.writeAsString(bundled);
@@ -548,6 +686,8 @@ class AppState extends ChangeNotifier {
     study.importTables(contents.tables);
     // A source still being read belongs to a notebook id the backup may have reused.
     if (contents.hasNotebooks) notebooks.cancelAll();
+    // Restoring an older backup merges its notes into notebooks, which may add one.
+    notebooks.refresh();
     _keepTranslationValid();
     clear();
     return skipped;
@@ -591,12 +731,16 @@ class AppState extends ChangeNotifier {
   /// Sends a word study's question (see [wordStudyQuestion]) to the Study tab.
   void askAboutWord(String question) => pendingQuestion.value = question;
 
-  /// Notes and highlights change outside this class; callers poke listeners through here.
-  void touch() => notifyListeners();
+  /// Notes and highlights change outside this class; callers poke listeners through here. A
+  /// first note on a verse or a saved study page can create the notes on verses notebook.
+  void touch() {
+    notebooks.refresh();
+    notifyListeners();
+  }
 
   void openConversation(int id) {
-    // Switching studies under an answer being written would put it in the wrong one.
-    if (busy) return;
+    // Switching studies under an answer being written, or one waiting, would put it in the wrong one.
+    if (busy || _held != null) return;
     turns.clear();
     harness?.resetConversation();
     conversationId = id;
@@ -618,7 +762,7 @@ class AppState extends ChangeNotifier {
   }
 
   void deleteConversation(int id) {
-    if (busy && conversationId == id) return;
+    if ((busy || _held != null) && conversationId == id) return;
     study.deleteConversation(id);
     if (conversationId == id) clear();
     notifyListeners();
@@ -626,7 +770,9 @@ class AppState extends ChangeNotifier {
 
   String get engineLabel => harness?.engine.name ?? 'no engine';
 
-  bool get ready => harness != null && !busy && !voice.inUse;
+  /// Whether a question can be sent now. While the helper loads one question may be sent; it
+  /// waits and is answered once the helper is ready.
+  bool get ready => (harness != null || (helperComing && _held == null)) && !busy && !voice.inUse;
 
   /// Runs [work] as the only user of the model, holding [busy] until it settles.
   Future<T> useModel<T>(Future<T> Function() work) async {
@@ -644,7 +790,18 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> _rebuildHarness() async {
+  Future<void>? _rebuilding;
+
+  /// Rebuilds run one at a time: with the shell live during a load, a settings change or a
+  /// download could otherwise start a second load that finishes first and is then replaced.
+  Future<void> _rebuildHarness() {
+    final previous = _rebuilding ?? Future<void>.value();
+    final next = previous.then((_) {}, onError: (_) {}).then((_) => _buildHarness());
+    _rebuilding = next;
+    return next;
+  }
+
+  Future<void> _buildHarness() async {
     final old = _edge;
     _edge = null;
     harness = null;
@@ -652,17 +809,21 @@ class AppState extends ChangeNotifier {
     // Never close the model under an answer or a transcription.
     await _modelUse;
     await old?.close();
-    final engine = settings.engine == EngineKind.ollama ? _ollama() : await _device();
-    if (engine != null) {
-      harness = Harness(
-        db: db,
-        engine: engine,
-        systemPrompt: systemPrompt,
-        tier: settings.tier,
-        translation: settings.translation,
-      );
+    _helperOnDevice = settings.engine == EngineKind.device;
+    final engine = _helperOnDevice ? await _device() : _ollama();
+    if (engine == null) {
+      notifyListeners();
+      _releaseHeld();
+      return;
     }
-    notifyListeners();
+    harness = Harness(
+      db: db,
+      engine: engine,
+      systemPrompt: systemPrompt,
+      tier: settings.tier,
+      translation: settings.translation,
+    );
+    helperState = const HelperReady();
   }
 
   LlmEngine _ollama() => OllamaEngine(
@@ -671,22 +832,20 @@ class AppState extends ChangeNotifier {
     numCtx: settings.tier.contextWindow,
   );
 
+  /// Sets [helperState] on the way, except ready, which waits until the harness exists.
   Future<LlmEngine?> _device() async {
     final m = settings.deviceModel;
-    deviceError = null;
     try {
+      helperState = const HelperChecking();
       if (!await EdgeAiEngine.isInstalled(m, modelsDir)) {
-        deviceState = DeviceModelState.notInstalled;
+        helperState = const HelperNotInstalled();
         return null;
       }
-      deviceState = DeviceModelState.loading;
-      notifyListeners();
-      _edge = await EdgeAiEngine.load(m, settings.tier);
-      deviceState = DeviceModelState.ready;
-      return _edge;
+      helperState = const HelperLoading();
+      return _edge = await EdgeAiEngine.load(m, settings.tier);
     } catch (e) {
-      deviceState = DeviceModelState.failed;
-      deviceError = e.toString();
+      debugPrint('The helper did not load: $e');
+      helperState = HelperFailed(helperLoadFailed, detail: e.toString());
       return null;
     }
   }
@@ -720,10 +879,9 @@ class AppState extends ChangeNotifier {
     if (deviceState == DeviceModelState.downloading) return;
     // A model that failed to load may have a damaged file, so its hash is checked again.
     final repair = deviceState == DeviceModelState.failed;
-    deviceState = DeviceModelState.downloading;
-    downloadProgress = 0;
-    deviceError = null;
-    notifyListeners();
+    // The plugin reports a percent; the size comes from the pinned source when Berea hosts it.
+    final total = m.source?.bytes;
+    helperState = HelperDownloading(0, total: total);
     try {
       await EdgeAiEngine.download(
         m,
@@ -732,15 +890,13 @@ class AppState extends ChangeNotifier {
         onProgress: (p) {
           // The plugin repeats a percent for every chunk; redraw the app only when it moves.
           if (p == downloadProgress) return;
-          downloadProgress = p;
-          notifyListeners();
+          helperState = HelperDownloading(p / 100, total: total);
         },
       );
       await _rebuildHarness();
     } catch (e) {
-      deviceState = DeviceModelState.failed;
-      deviceError = e.toString();
-      notifyListeners();
+      debugPrint('The helper download stopped: $e');
+      helperState = HelperFailed(helperDownloadFailed, detail: e.toString());
     }
   }
 
@@ -783,20 +939,58 @@ class AppState extends ChangeNotifier {
 
   Future<void> send(String question) async {
     final h = harness;
-    if (h == null || !ready) return;
+    if (!ready) return;
     final style = settings.briefFirst ? AnswerStyle.brief : AnswerStyle.full;
     final turn = ChatTurn(question, style: style);
     turns.add(turn);
+    if (h == null) return _hold(turn);
     await useModel(() => _answer(h, turn));
+  }
+
+  /// A question sent while the helper loads, and what completes once it is answered or dropped.
+  ChatTurn? _held;
+  Completer<void>? _heldDone;
+
+  Future<void> _hold(ChatTurn turn) {
+    _held = turn;
+    _heldDone = Completer<void>();
+    notifyListeners();
+    return _heldDone!.future;
+  }
+
+  /// Forgets a held question whose study was cleared away.
+  void _dropHeld() {
+    final done = _heldDone;
+    _held = null;
+    _heldDone = null;
+    done?.complete();
+  }
+
+  /// Answers the held question once the helper settles, or says in plain words why it cannot.
+  void _releaseHeld() {
+    final turn = _held;
+    final done = _heldDone;
+    if (turn == null || done == null || helperComing) return;
+    _held = null;
+    _heldDone = null;
+    final h = harness;
+    if (h == null || busy) {
+      turn.error = switch (_helper) {
+        HelperFailed(:final reason) => reason,
+        _ => helperNotAvailable,
+      };
+      notifyListeners();
+      done.complete();
+      return;
+    }
+    done.complete(useModel(() => _answer(h, turn)));
   }
 
   /// Whether [turn] is the newest answer, so the full study can follow it. A full study that
   /// failed does not count; it is removed when the reader tries again.
   bool canGoDeeperFrom(ChatTurn turn) {
     final at = turns.indexOf(turn);
-    return at >= 0 &&
-        turn.canGoDeeper &&
-        turns.skip(at + 1).every((later) => later.failedDeeper);
+    return at >= 0 && turn.canGoDeeper && turns.skip(at + 1).every((later) => later.failedDeeper);
   }
 
   /// Writes the full study for [brief], which stays above it. The brief answer leaves the
@@ -815,8 +1009,7 @@ class AppState extends ChangeNotifier {
   Harness? _answering;
 
   /// True while a question is being answered, which the Stop button can end.
-  bool get answering =>
-      busy && turns.isNotEmpty && !turns.last.done && turns.last.error == null;
+  bool get answering => busy && turns.isNotEmpty && !turns.last.done && turns.last.error == null;
 
   /// Whether the answer being written can be stopped, and has not been asked to stop yet.
   bool get canStopAnswer {
@@ -913,6 +1106,7 @@ class AppState extends ChangeNotifier {
   });
 
   void clear() {
+    _dropHeld();
     turns.clear();
     harness?.resetConversation();
     conversationId = null;
