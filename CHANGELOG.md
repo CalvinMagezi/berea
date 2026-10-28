@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+Word study
+- Long-pressing "Jesus" (or Christ, God, LORD or any name) no longer opens a different word. In
+  about 550 of the BSB's 1,430 "Jesus" the Greek has a pronoun or only a verb ("Jesus replied" is one
+  Greek verb), and Berea opened that verb as if it were the name. Now it says the BSB wrote the
+  name there, names the word it stands on, and lets you choose from the verse. A name that the
+  Greek does have still opens exactly.
+- Berea marks the word under your finger after a moment, names it above the finger ("Jesus ·
+  Ἰησοῦς · G2424"), fills over the rest of the long press, then opens the study. Moving to another
+  word moves the mark; lifting or scrolling cancels. A press on the verse number or between words
+  marks the verse and opens its Hebrew or Greek words as before. With reduce motion on there is no
+  sweep. On the Mac, press and hold does the same, and right-click offers "Study the word ..." and
+  "All words in this verse".
+- The study's top line now reads "Jesus, John 11:35 · BSB" above the original word.
+- Words are matched to the BSB translation tables by content rather than by position, and repeats
+  of a word follow the Hebrew or Greek order. The Bible database format for this changed, so the
+  first launch after updating copies the Bible again.
+
 ## 0.7.0
 
 Opens on the Bible

@@ -53,7 +53,15 @@ BibleDb wordBible() {
     ['תָּ֧ם', 'tam', 'blameless', 'H8535', 'HAamsa'],
     ['וְ/יָשָׁ֛ר', 've./ya.Shar', 'and/ upright', 'H9002 H3477G', 'HC/Aamsa'],
   ]);
+  verse(43, 21, 15, 'Jesus replied, “Feed My lambs.”', [
+    ['λέγει', 'legei', 'He says', 'G3004', 'V-PAI-3S'],
+    ['βόσκε', 'boske', 'Feed', 'G1006', 'V-PAM-2S'],
+    ['ἀρνία', 'arnia', 'lambs', 'G0721', 'N-APN'],
+  ]);
   for (final l in [
+    ['G3004', 'G3004', 'λέγω', 'legō', 'G:V', 'to say', 'to speak'],
+    ['G1006', 'G1006', 'βόσκω', 'boskō', 'G:V', 'to feed', 'to graze'],
+    ['G2424G', 'G2424', 'Ἰησοῦς', 'Iēsous', 'N:N-M-P', 'Jesus', 'Jesus, the Lord'],
     ['G5046', 'G5046', 'τέλειος', 'teleios', 'G:A', 'perfect', 'having reached its end, mature'],
     ['G5048', 'G5048', 'τελειόω', 'teleioō', 'G:V', 'to perfect', 'to bring to an end'],
     ['G3962', 'G3962', 'πατήρ', 'patēr', 'G:N-M', 'father', 'a father'],
@@ -66,24 +74,29 @@ BibleDb wordBible() {
   // Job 1:1 "And this" has none.
   return BibleDb(raw)..importBsbAlignment({
     RefParser.parse('Matthew 5:48').first: const [
-      ('Be', 'G1510'),
-      ('perfect', 'G5046'),
-      (', therefore,', 'G3767'),
-      ('as', 'G5613'),
-      ('your', 'G4771'),
-      ('heavenly', 'G3770'),
-      ('Father', 'G3962'),
-      ('is', 'G1510'),
-      ('perfect', 'G5046'),
+      BsbRow('Be', 'G1510'),
+      BsbRow('perfect', 'G5046'),
+      BsbRow(', therefore,', 'G3767'),
+      BsbRow('as', 'G5613'),
+      BsbRow('your', 'G4771'),
+      BsbRow('heavenly', 'G3770'),
+      BsbRow('Father', 'G3962'),
+      BsbRow('is', 'G1510'),
+      BsbRow('perfect', 'G5046', 1),
     ],
     RefParser.parse('Job 1:1').first: const [
-      ('And this', ''),
-      ('man', 'H376'),
-      ('was', 'H1961'),
-      ('blameless', 'H8535'),
-      ('and upright', 'H3477'),
-      ('fearing', 'H3373'),
-      ('God', 'H430'),
+      BsbRow('And this', ''),
+      BsbRow('man', 'H0376'),
+      BsbRow('was', 'H1961'),
+      BsbRow('blameless', 'H8535'),
+      BsbRow('and upright', 'H3477'),
+      BsbRow('fearing', 'H3373'),
+      BsbRow('God', 'H0430'),
+    ],
+    RefParser.parse('John 21:15').first: const [
+      BsbRow('Jesus replied', 'G3004'),
+      BsbRow('Feed', 'G1006'),
+      BsbRow('My lambs', 'G0721'),
     ],
   });
 }
@@ -259,6 +272,25 @@ void main() {
     expect(find.textContaining('The translators supplied "this" here'), findsOneWidget);
     expect(find.textContaining('no Hebrew word stands behind it'), findsOneWidget);
     expect(find.text('MEANING'), findsNothing);
+  });
+
+  testWidgets('a name the BSB wrote onto a verb asks which word instead of opening the verb', (
+    tester,
+  ) async {
+    // "Jesus replied" is one Greek verb in the tables; there is no Greek word for the name here.
+    await open(tester, 'John 21:15', english: 'Jesus', wordIndex: 0);
+    expect(find.textContaining('Jesus, John 21:15', findRichText: true), findsOneWidget);
+    expect(find.textContaining('The BSB writes "Jesus" here'), findsOneWidget);
+    expect(find.textContaining('stands on λέγω ("to say")'), findsOneWidget);
+    expect(find.text('MEANING'), findsNothing);
+    expect(find.text('Words in John 21:15'), findsOneWidget);
+  });
+
+  testWidgets('the other word of that phrase still opens the verb', (tester) async {
+    await open(tester, 'John 21:15', english: 'replied', wordIndex: 1);
+    expect(find.text('λέγω'), findsOneWidget);
+    expect(find.textContaining('Jesus, John 21:15', findRichText: true), findsNothing);
+    expect(find.textContaining('replied, John 21:15', findRichText: true), findsOneWidget);
   });
 
   testWidgets('a word the tables number but STEP does not tag is still studied', (tester) async {
