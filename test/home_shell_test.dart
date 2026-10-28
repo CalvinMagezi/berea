@@ -150,6 +150,42 @@ void main() {
     state.notebooks.deleteNotebook(id);
   });
 
+  testWidgets('the sidebar lights the open notebook in place of Notes', (tester) async {
+    final id = state.notebooks.createNotebook('Sunday sermons');
+    await pumpShell(tester, _mac);
+    bool lit(String label) => tester
+        .widget<Semantics>(
+          find
+              .ancestor(
+                of: find.text(label).first,
+                matching: find.byWidgetPredicate(
+                  (w) => w is Semantics && w.properties.selected != null,
+                ),
+              )
+              .first,
+        )
+        .properties
+        .selected!;
+
+    await tester.tap(find.text('Sunday sermons'));
+    await tester.pumpAndSettle();
+    expect(lit('Sunday sermons'), isTrue);
+    expect(lit('Notes'), isFalse);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(lit('Notes'), isTrue);
+    expect(lit('Sunday sermons'), isFalse);
+
+    // Only while Notes is in front.
+    await tester.tap(find.text('Sunday sermons').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bible'));
+    await tester.pumpAndSettle();
+    expect(lit('Sunday sermons'), isFalse);
+    state.notebooks.deleteNotebook(id);
+  });
+
   testWidgets('the Notes place shows the notebooks row and Recent under the bar', (tester) async {
     final id = state.notebooks.createNotebook('Romans with the youth');
     await pumpShell(tester, _phone);

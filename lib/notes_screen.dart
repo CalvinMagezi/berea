@@ -17,11 +17,57 @@ const _cardHeight = 116.0;
 const _cardRadius = 14.0;
 const _refsShown = 2;
 
-/// Opens notebook [id] where the Notes place keeps its pages.
-void openNotebook(BuildContext context, AppState s, int id) => Navigator.push(
-  context,
-  MaterialPageRoute<void>(builder: (_) => NotebookScreen(state: s, notebookId: id)),
+/// Notebook [id]'s page, carrying its id so the sidebar can tell which notebook is open.
+Route<void> notebookRoute(AppState s, int id) => MaterialPageRoute<void>(
+  settings: RouteSettings(name: notebookRouteName, arguments: id),
+  builder: (_) => NotebookScreen(state: s, notebookId: id),
 );
+
+const notebookRouteName = 'notebook';
+
+/// Opens notebook [id] where the Notes place keeps its pages.
+void openNotebook(BuildContext context, AppState s, int id) =>
+    Navigator.push(context, notebookRoute(s, id));
+
+/// Follows the Notes place's pages and tells which notebook is open under whatever is on top.
+class OpenNotebookObserver extends NavigatorObserver {
+  final open = ValueNotifier<int?>(null);
+  final _stack = <Route<dynamic>>[];
+
+  void _sync() => open.value =
+      _stack.reversed
+              .where((r) => r.settings.name == notebookRouteName)
+              .firstOrNull
+              ?.settings
+              .arguments
+          as int?;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _stack.add(route);
+    _sync();
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _stack.remove(route);
+    _sync();
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _stack.remove(route);
+    _sync();
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    final at = _stack.indexOf(oldRoute!);
+    if (at < 0 || newRoute == null) return;
+    _stack[at] = newRoute;
+    _sync();
+  }
+}
 
 /// Notes: the notebooks in a row, with New, and Recent: notes, kept words, study pages and
 /// readings, newest first, each labelled with its notebook.

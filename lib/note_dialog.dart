@@ -301,7 +301,11 @@ class _NoteEditorState extends State<NoteEditor> {
       },
       child: Scaffold(
         appBar: AppBar(
-          leading: IconButton(tooltip: 'Close', icon: const Icon(Icons.close), onPressed: _close),
+          leading: IconButton(
+            tooltip: 'Close',
+            icon: const Icon(Icons.close),
+            onPressed: _close,
+          ),
           actions: [
             if (widget.note != null)
               IconButton(
@@ -402,8 +406,7 @@ class _NoteEditorState extends State<NoteEditor> {
                   keyboardType: TextInputType.multiline,
                   style: const TextStyle(fontSize: 17, height: 1.5),
                   decoration: const InputDecoration(
-                    hintText:
-                        'Write your note. Verses you type, such as Romans 8:28, become links.',
+                    hintText: 'Write your note. Verses you type, such as Romans 8:28, become links.',
                     filled: false,
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
@@ -450,10 +453,7 @@ class _NoteEditorState extends State<NoteEditor> {
               TextSpan(
                 text: 'In ',
                 children: [
-                  TextSpan(
-                    text: name,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                  TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
@@ -504,8 +504,10 @@ class _VersePreview extends StatelessWidget {
                   verses.map((v) => v.text).join(' '),
                   maxLines: _previewLines,
                   overflow: TextOverflow.ellipsis,
-                  style: scriptureStyle(context)
-                      .copyWith(fontStyle: FontStyle.italic, color: scheme.onSurfaceVariant),
+                  style: scriptureStyle(context).copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ],

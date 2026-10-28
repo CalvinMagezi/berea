@@ -7,7 +7,6 @@ import 'app_state.dart';
 import 'brand/lamp_mark.dart';
 import 'brand/prayer_icon.dart';
 import 'chat_screen.dart';
-import 'notebooks_screen.dart';
 import 'notes_screen.dart';
 import 'plans_screen.dart';
 import 'prayer_screen.dart';
@@ -79,6 +78,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.pendingQuestion.removeListener(_jumpToStudy);
     widget.state.openReaderRequest.removeListener(_jumpToBible);
     widget.state.openStudyRequest.removeListener(_openStudy);
+    _notesRoutes.open.dispose();
     super.dispose();
   }
 
@@ -95,17 +95,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// The Notes place keeps its own pages, so a notebook opens under the bar or beside the
   /// sidebar, as the other places do.
   final _notesNav = GlobalKey<NavigatorState>();
+  final _notesRoutes = OpenNotebookObserver();
 
   void _openNotebook(BuildContext context, int id) {
     _select(HomeTab.notes);
     final nav = _notesNav.currentState;
     if (nav == null) return;
     nav.popUntil((r) => r.isFirst);
-    nav.push(
-      MaterialPageRoute<void>(
-        builder: (_) => NotebookScreen(state: widget.state, notebookId: id),
-      ),
-    );
+    nav.push(notebookRoute(widget.state, id));
   }
 
   /// Cmd 1 to Cmd 5 on a Mac, Ctrl elsewhere, in the order of the places.
@@ -143,6 +140,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           onPopWithResult: (_) => _notesNav.currentState?.maybePop(),
           child: Navigator(
             key: _notesNav,
+            observers: [_notesRoutes],
             // Taking focus while hidden would leave the place shortcuts with nothing focused.
             requestFocus: false,
             onGenerateRoute: (_) =>
@@ -161,11 +159,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               return Scaffold(
                 body: Row(
                   children: [
-                    _Sidebar(
-                      state: s,
-                      selected: _tab,
-                      onSelect: _select,
-                      onOpenNotebook: _openNotebook,
+                    ValueListenableBuilder(
+                      valueListenable: _notesRoutes.open,
+                      builder: (context, open, _) => _Sidebar(
+                        state: s,
+                        selected: _tab,
+                        openNotebook: _tab == HomeTab.notes ? open : null,
+                        onSelect: _select,
+                        onOpenNotebook: _openNotebook,
+                      ),
                     ),
                     const VerticalDivider(width: 1),
                     Expanded(child: body),
@@ -350,11 +352,15 @@ String helperFooter(AppState s) {
 class _Sidebar extends StatelessWidget {
   final AppState state;
   final HomeTab selected;
+
+  /// The notebook open in Notes; it is lit in place of the Notes row.
+  final int? openNotebook;
   final ValueChanged<HomeTab> onSelect;
   final void Function(BuildContext context, int id) onOpenNotebook;
   const _Sidebar({
     required this.state,
     required this.selected,
+    required this.openNotebook,
     required this.onSelect,
     required this.onOpenNotebook,
   });
@@ -382,7 +388,7 @@ class _Sidebar extends StatelessWidget {
                         : _placeIcon(t, selected: selected == t),
                     label: _placeLabels[t]!,
                     shortcut: '${Platform.isMacOS ? '⌘' : 'Ctrl+'}${t.index + 1}',
-                    selected: selected == t,
+                    selected: selected == t && (t != HomeTab.notes || openNotebook == null),
                     onTap: () => onSelect(t),
                   ),
                 Padding(
@@ -398,7 +404,7 @@ class _Sidebar extends StatelessWidget {
                           _SidebarRow(
                             leading: const Icon(Icons.class_outlined),
                             label: n.title,
-                            selected: false,
+                            selected: n.id == openNotebook,
                             onTap: () => onOpenNotebook(context, n.id),
                           ),
                       ],

@@ -89,7 +89,9 @@ void main() {
     expect(find.byType(NotebookScreen), findsOneWidget);
   });
 
-  testWidgets('a notebook shows Everything, Notes and Readings, with Add and Ask', (tester) async {
+  testWidgets('a notebook shows Everything, Notes and Readings, with Add and Ask', (
+    tester,
+  ) async {
     final nb = s.notebooks.createNotebook('Romans with the youth');
     s.study.addNotebookNote(nb, 'What we suffer.', title: 'Outline for Thursday');
     await tester.runAsync(
