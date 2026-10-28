@@ -79,4 +79,32 @@ void main() {
     final id = store.addNotebookNote(nb, 'to love', title: 'ἀγαπάω', kind: keptWordKind);
     expect(store.note(id)!.isKeptWord, isTrue);
   });
+
+  test('a plain note that mentions a Strong number stays a note', () {
+    final source = StudyStore(sqlite3.openInMemory());
+    final nb = NotebookStore(source.db).createNotebook('Sermons');
+    source.addNotebookNote(nb, "Pastor said:\nStrong's G25 is the word for love here.");
+    source.addNotebookNote(nb, "Strong's H7965 · shalom", title: 'kept by an older build');
+    final legacy = source.exportTables();
+    for (final row in legacy['notes']!) {
+      row.remove('kind');
+    }
+
+    final target = StudyStore(sqlite3.openInMemory());
+    target.importTables(legacy);
+
+    final words = target.notebookNotes(nb).where((n) => n.isKeptWord).map((n) => n.title);
+    expect(words, ['kept by an older build']);
+  });
+
+  test('restoring a backup that has kinds keeps them as they are', () {
+    final source = StudyStore(sqlite3.openInMemory());
+    final nb = NotebookStore(source.db).createNotebook('Words');
+    source.addNotebookNote(nb, "to love\nStrong's G0025 · agapaō · Greek", title: 'plain');
+
+    final target = StudyStore(sqlite3.openInMemory());
+    target.importTables(source.exportTables());
+
+    expect(target.notebookNotes(nb).single.isKeptWord, isFalse);
+  });
 }

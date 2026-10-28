@@ -16,7 +16,6 @@ import 'setup_screen.dart';
 import 'study_button.dart';
 import 'theme.dart';
 
-const wideLayoutBreakpoint = 760.0;
 const sidebarWidth = 232.0;
 
 /// The five places, in the order they appear on the bar and in the sidebar.

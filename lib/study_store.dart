@@ -98,8 +98,9 @@ const notebookKeySchema = '''
   ALTER TABLE notes ADD COLUMN kind TEXT NOT NULL DEFAULT 'note';
 ''';
 
-/// How word study bodies marked a kept word before notes had a kind.
-final _legacyKeptWord = RegExp("^Strong's [GH]\\d+", multiLine: true);
+/// How word study bodies marked a kept word before notes had a kind: an optional meaning line,
+/// then the Strong's line that keptWordBody writes.
+final _legacyKeptWord = RegExp("^(?:[^\\n]*\\n)?Strong's [GH]\\d+(?: · |\$|\\n)");
 
 /// Study store migration 2: notes and study pages belong to notebooks, a note need not be on a
 /// verse, a note source links to its note, and conversations are scoped to the Bible (null) or
@@ -287,6 +288,11 @@ class StudyStore {
   /// Keys the notes on verses notebook made before keys existed (by migration 5, or restored
   /// from an older backup), and marks kept words saved before notes had a kind.
   void keyNotebooksAndWords() {
+    _keyNotesOnVerses();
+    _markLegacyKeptWords();
+  }
+
+  void _keyNotesOnVerses() {
     if (notesOnVersesId(db) == null) {
       db.execute(
         'UPDATE notebooks SET system_key = ? WHERE id = '
@@ -294,6 +300,9 @@ class StudyStore {
         [notesOnVersesKey, notesOnVersesTitle],
       );
     }
+  }
+
+  void _markLegacyKeptWords() {
     for (final r in db.select("SELECT id, text FROM notes WHERE kind = 'note'")) {
       if (_legacyKeptWord.hasMatch(r['text'] as String)) {
         db.execute('UPDATE notes SET kind = ? WHERE id = ?', [keptWordKind, r['id']]);
@@ -1011,7 +1020,11 @@ class StudyStore {
       if (!hasNotebooks) db.execute('UPDATE notebook_sources SET note_id = NULL');
       // An older backup's notes on verses notebook has no key yet; key it before the merge
       // looks for it, or the merge would make a second one.
-      keyNotebooksAndWords();
+      _keyNotesOnVerses();
+      // Only notes saved before notes had a kind are guessed from their text.
+      if (!(tables['notes'] ?? const []).any((r) => r.containsKey('kind'))) {
+        _markLegacyKeptWords();
+      }
       mergeNotes();
       // A backup from before chapter ticks brings day ticks; they come back as chapters.
       carryPlanDays();

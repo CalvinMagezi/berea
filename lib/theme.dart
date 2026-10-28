@@ -21,6 +21,9 @@ abstract final class BereaColors {
 const scriptureFontFallback = ['Georgia', 'Times New Roman', 'serif'];
 const contentMaxWidth = 760.0;
 
+/// From this width the shell shows the sidebar and places may show two panes.
+const wideLayoutBreakpoint = 760.0;
+
 ThemeData bereaTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final scheme = ColorScheme(

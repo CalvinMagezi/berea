@@ -268,7 +268,7 @@ class _TodayPortion extends StatelessWidget {
               else
                 Text('Today\'s chapters are read.', style: TextStyle(color: scheme.primary)),
               if (next != null && minutes != null)
-                Text('About $minutes minutes', style: _muted(context)),
+                Text(minutes == 1 ? 'About 1 minute' : 'About $minutes minutes', style: _muted(context)),
             ],
           ),
           const SizedBox(height: 16),

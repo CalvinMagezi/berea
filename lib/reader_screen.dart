@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 
 import 'app_state.dart';
 import 'commentary_sheet.dart';
-import 'home_shell.dart' show wideLayoutBreakpoint;
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
 import 'prayer_screen.dart';
