@@ -84,7 +84,9 @@ class CommentaryShelf {
         sha256: pin.sha256,
         maxBytes: pin.bytes,
         timeout: commentaryDownloadTimeout,
-        onProgress: (f) {
+        onProgress: (received, total) {
+          if (total == null || total <= 0) return;
+          final f = received / total;
           progress[spec.id] = f;
           final step = (f * _progressSteps).floor();
           if (step == shownStep) return;

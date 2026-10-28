@@ -5,6 +5,7 @@ import 'package:berea/chat_screen.dart';
 import 'package:berea/home_shell.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/notes_screen.dart';
+import 'package:berea/plans_screen.dart';
 import 'package:berea/prayer_screen.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/study_button.dart';
@@ -81,9 +82,7 @@ void main() {
     expect(state.harness, isNotNull);
   });
 
-  testWidgets('the phone bar has five places in order, Study raised in the middle', (
-    tester,
-  ) async {
+  testWidgets('the phone bar has five places in order, Study raised in the middle', (tester) async {
     await pumpShell(tester, _phone);
     final xs = [for (final p in _places) tester.getCenter(find.text(p).last).dx];
     expect(xs, [...xs]..sort());
@@ -210,6 +209,15 @@ void main() {
     expect(find.byType(PrayerScreen), findsOneWidget);
   });
 
+  testWidgets('today\'s card on the Bible opens the Plans place', (tester) async {
+    state.todayCardFull = true;
+    await pumpShell(tester, _phone);
+    expect(find.byType(PlansScreen), findsNothing);
+    await tester.tap(find.text('Start a reading plan'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PlansScreen), findsOneWidget);
+  });
+
   testWidgets('Ask about this notebook opens Study scoped to it', (tester) async {
     final id = state.notebooks.createNotebook('Romans with the youth');
     await pumpShell(tester, _phone);
@@ -219,5 +227,20 @@ void main() {
     expect(state.studyScope.value, id);
     state.studyScope.value = null;
     state.notebooks.deleteNotebook(id);
+  });
+
+  testWidgets('while the helper downloads, the Study button opens the download details', (
+    tester,
+  ) async {
+    await pumpShell(tester, _phone);
+    final before = state.helperState;
+    state.helperState = const HelperDownloading(0.42, total: 2600000000, waitingForWifi: true);
+    await tester.pump();
+    await tester.tap(find.byType(StudyButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Paused, waiting for Wi-Fi'), findsOneWidget);
+    expect(find.text('Use mobile data for the 1.5 GB left'), findsOneWidget);
+    expect(find.byType(ReaderScreen), findsOneWidget, reason: 'the Bible stays the place');
+    state.helperState = before;
   });
 }

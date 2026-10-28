@@ -39,14 +39,14 @@ void main() {
   testWidgets('a model with no notice needs no agreement', (tester) async {
     final results = await ask(tester, _e2b);
     expect(results, [true]);
-    expect(find.text('Gemma terms'), findsNothing);
+    expect(find.text('Before you download'), findsNothing);
   });
 
   testWidgets('cancelling leaves the terms unaccepted and the download unstarted', (tester) async {
     final results = await ask(tester, _gemma3);
-    expect(find.text('Gemma terms'), findsOneWidget);
+    expect(find.text('Before you download'), findsOneWidget);
     expect(find.textContaining(gemmaUseRestriction), findsOneWidget);
-    expect(find.textContaining('you accept the Gemma Terms of Use'), findsOneWidget);
+    expect(find.textContaining('you agree to the Gemma Terms of Use'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(results, [false]);
@@ -55,21 +55,21 @@ void main() {
 
   testWidgets('agreeing is remembered, so the next download is not asked again', (tester) async {
     var results = await ask(tester, _gemma3);
-    await tester.tap(find.text('Agree and download'));
+    await tester.tap(find.textContaining('Agree and download'));
     await tester.pumpAndSettle();
     expect(results, [true]);
     expect(state.termsAccepted, isTrue);
 
     results = await ask(tester, _gemma3);
     expect(results, [true]);
-    expect(find.text('Gemma terms'), findsNothing);
+    expect(find.text('Before you download'), findsNothing);
   });
 
   testWidgets('reworded terms ask again', (tester) async {
     await state.prefs.setInt('termsAccepted', termsVersion - 1);
     expect(state.termsAccepted, isFalse);
     await ask(tester, _gemma3);
-    expect(find.text('Gemma terms'), findsOneWidget);
+    expect(find.text('Before you download'), findsOneWidget);
   });
 
   test('a Gemma download does not start without agreement', () async {
@@ -82,7 +82,7 @@ void main() {
   testWidgets('the terms screen states the restriction and opens the full policy', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: TermsScreen()));
     expect(find.text(gemmaUseRestriction), findsOneWidget);
-    await tester.ensureVisible(find.text('Gemma Prohibited Use Policy'));
+    await tester.scrollUntilVisible(find.text('Gemma Prohibited Use Policy'), 100);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Gemma Prohibited Use Policy'));
     await tester.pumpAndSettle();

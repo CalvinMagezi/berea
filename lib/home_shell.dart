@@ -7,6 +7,7 @@ import 'app_state.dart';
 import 'brand/lamp_mark.dart';
 import 'brand/prayer_icon.dart';
 import 'chat_screen.dart';
+import 'download_details_sheet.dart';
 import 'notes_screen.dart';
 import 'plans_screen.dart';
 import 'prayer_screen.dart';
@@ -60,6 +61,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.pendingQuestion.addListener(_jumpToStudy);
     widget.state.openReaderRequest.addListener(_jumpToBible);
     widget.state.openStudyRequest.addListener(_openStudy);
+    widget.state.openPlansRequest.addListener(_openPlans);
     // The Bible is on screen first; the helper loads behind it.
     WidgetsBinding.instance.addPostFrameCallback((_) => widget.state.startHelper());
   }
@@ -67,6 +69,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void _jumpToBible() => _select(HomeTab.bible);
 
   void _openStudy() => _select(HomeTab.study);
+
+  void _openPlans() => _select(HomeTab.plans);
 
   /// The microphone stops listening as soon as Berea is not in front.
   @override
@@ -78,6 +82,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.pendingQuestion.removeListener(_jumpToStudy);
     widget.state.openReaderRequest.removeListener(_jumpToBible);
     widget.state.openStudyRequest.removeListener(_openStudy);
+    widget.state.openPlansRequest.removeListener(_openPlans);
     _notesRoutes.open.dispose();
     super.dispose();
   }
@@ -231,7 +236,10 @@ class _PlaceBar extends StatelessWidget {
                         ? _StudyPlace(
                             state: state,
                             selected: selected == t,
-                            onTap: () => onSelect(t),
+                            // While the helper downloads, the button opens its details.
+                            onTap: () => state.helperState is HelperDownloading
+                                ? showDownloadDetails(context, state)
+                                : onSelect(t),
                           )
                         : _Place(tab: t, selected: selected == t, onTap: () => onSelect(t)),
                   ),
