@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'plans.dart';
+import 'setup_screen.dart' show deviceNoun;
 import 'theme.dart';
 import 'today.dart';
 
@@ -87,7 +88,22 @@ class _PlansScreenState extends State<PlansScreen> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: _running(progress)),
         ),
         const SizedBox(width: 24),
-        Expanded(child: _card(Column(children: _others(progress.plan)))),
+        Expanded(
+          child: _card(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ..._others(progress.plan, wide: true),
+                const Divider(),
+                Text(
+                  'Progress stays on this $deviceNoun. Plans are whole chapters spread evenly '
+                  'over the days.',
+                  style: _muted(context),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     ),
   );
@@ -103,9 +119,9 @@ class _PlansScreenState extends State<PlansScreen> {
     ),
   ];
 
-  List<Widget> _others(ReadingPlan current) => [
+  List<Widget> _others(ReadingPlan current, {bool wide = false}) => [
     _section('Start another'),
-    ..._planTiles(readingPlans.where((p) => p.id != current.id)),
+    ..._planTiles(readingPlans.where((p) => p.id != current.id), wide: wide),
   ];
 
   void _tick(Ref chapter, bool done) {
@@ -153,14 +169,18 @@ class _PlansScreenState extends State<PlansScreen> {
     );
   }
 
-  Iterable<Widget> _planTiles(Iterable<ReadingPlan> plans) => [
+  /// A wide window offers Start on each row, as the Mac board draws it; a phone row is a
+  /// chevron, the whole row being the button.
+  Iterable<Widget> _planTiles(Iterable<ReadingPlan> plans, {bool wide = false}) => [
     for (final p in plans)
       ListTile(
         contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.menu_book_outlined),
         title: Text(p.name),
         subtitle: Text('${p.chapters} chapters · about ${p.dailyLoad} a day'),
-        trailing: TextButton(onPressed: () => _start(p), child: const Text('Start')),
+        trailing: wide
+            ? TextButton(onPressed: () => _start(p), child: const Text('Start'))
+            : const Icon(Icons.chevron_right),
         onTap: () => _start(p),
       ),
   ];

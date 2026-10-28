@@ -140,4 +140,19 @@ void main() {
     await tester.pumpAndSettle();
     expect((state.readerBook, state.readerChapter), (days[0][1].book.id, days[0][1].chapter));
   });
+
+  testWidgets('a phone lists plans with a chevron; a wide window offers Start', (tester) async {
+    final state = (await tester.runAsync(
+      () => open({'activePlan': nt.id, 'activePlanStart': DateTime.now().toIso8601String()}),
+    ))!;
+    await pump(tester, PlansScreen(state: state));
+    final gospels = find.widgetWithText(ListTile, 'The Gospels in 30 days');
+    expect(find.descendant(of: gospels, matching: find.byIcon(Icons.chevron_right)), findsOne);
+    expect(find.descendant(of: gospels, matching: find.text('Start')), findsNothing);
+
+    tester.view.physicalSize = const Size(1400, 900);
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: gospels, matching: find.text('Start')), findsOne);
+    expect(find.textContaining('Plans are whole chapters spread evenly'), findsOne);
+  });
 }

@@ -109,6 +109,7 @@ void main() {
     expectTitle('John', 1);
     expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
     expect(find.text('Start a reading plan'), findsOneWidget);
+    expect(find.text('Four to choose from, 30 to 365 days'), findsOneWidget);
     expect(find.textContaining('Where you stopped'), findsNothing);
     expect(find.byTooltip('Reading plans'), findsNothing);
     expect(state.prefs.getInt('readerBook'), 43, reason: 'a first open is remembered');
