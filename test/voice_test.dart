@@ -768,6 +768,8 @@ void main() {
         ..db = BibleDb(sqlite3.openInMemory())
         ..settings = Settings(engine: EngineKind.device)
         ..voice = voice
+        // With no helper at all Study shows the helper choice, which has no composer.
+        ..helperState = const HelperLoading()
         ..turns.add(
           ChatTurn('Earlier question')
             ..answer = 'Earlier answer'

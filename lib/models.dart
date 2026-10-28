@@ -34,6 +34,9 @@ class EdgeModel {
 
   /// A licence notice to show before the download, for models that ask for one.
   final String? notice;
+
+  /// One line on what the model is like, for the helper choice in Study.
+  final String summary;
   const EdgeModel({
     required this.id,
     required this.label,
@@ -42,6 +45,7 @@ class EdgeModel {
     required this.sizeGb,
     required this.type,
     required this.tier,
+    required this.summary,
     this.source,
     this.notice,
   });
@@ -51,7 +55,16 @@ class EdgeModel {
 
   /// Gemma 4 takes spoken audio directly, so voice questions need no separate speech model.
   bool get hearsAudio => type == ModelType.gemma4;
+
+  /// The download's size in bytes: exact when Berea hosts the file, else from [sizeGb].
+  int get publishedBytes => source?.bytes ?? (sizeGb * bytesPerDownloadGb).round();
 }
+
+/// Download sizes are labelled in decimal gigabytes, as model sizes are published.
+const bytesPerDownloadGb = 1000 * 1000 * 1000;
+
+/// [bytes] in decimal gigabytes to one place, such as "1.1".
+String gbOf(int bytes) => (bytes / bytesPerDownloadGb).toStringAsFixed(1);
 
 const edgeModels = <EdgeModel>[
   EdgeModel(
@@ -62,6 +75,7 @@ const edgeModels = <EdgeModel>[
     sizeGb: 2.6,
     type: ModelType.gemma4,
     tier: Tier.mid,
+    summary: 'Hears spoken questions.',
   ),
   EdgeModel(
     id: 'gemma-4-e4b',
@@ -71,6 +85,7 @@ const edgeModels = <EdgeModel>[
     sizeGb: 4.3,
     type: ModelType.gemma4,
     tier: Tier.high,
+    summary: 'Fuller answers for phones with 10 GB or more. Hears spoken questions.',
   ),
   EdgeModel(
     id: 'gemma-3-1b',
@@ -80,6 +95,7 @@ const edgeModels = <EdgeModel>[
     sizeGb: 0.6,
     type: ModelType.gemmaIt,
     tier: Tier.low,
+    summary: 'Quicker, shorter answers.',
     source: PinnedSource(
       url:
           'https://github.com/CalvinMagezi/berea/releases/download/model-gemma3-1b-1/'

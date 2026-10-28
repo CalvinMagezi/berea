@@ -4,23 +4,42 @@ import 'dart:isolate';
 import 'package:cryptography/cryptography.dart';
 import 'package:http/http.dart' as http;
 
+/// Hears the bytes received so far and the size the server gave, if it gave one.
+typedef ByteProgress = void Function(int received, int? total);
+
+/// Thrown when a download ends because [downloadPinned]'s `stop` completed.
+class DownloadStopped implements Exception {
+  const DownloadStopped();
+
+  @override
+  String toString() => 'The download was stopped.';
+}
+
 /// Streams [url] into [dest] and checks it against the published SHA-256, so what arrives is
 /// exactly what was released. Stops past [maxBytes], so a wrong or hostile response can never
-/// fill the disk. [dest] is left behind on failure; the caller owns cleaning it up.
+/// fill the disk, and throws [DownloadStopped] once [stop] completes. [dest] is left behind on
+/// failure; the caller owns cleaning it up.
 Future<void> downloadPinned(
   Uri url,
   File dest, {
   required String sha256,
   required int maxBytes,
   required Duration timeout,
-  void Function(double fraction)? onProgress,
+  ByteProgress? onProgress,
+  Future<void>? stop,
 }) async {
   final client = http.Client();
+  var stopped = false;
+  // An abort ends the response stream at once, even mid-stall.
+  final abort = stop?.then((_) => stopped = true);
   final sink = dest.openWrite();
   final hash = Sha256().newHashSink();
   Object? failure;
   try {
-    final r = await client.send(http.Request('GET', url)).timeout(timeout);
+    if (stopped) throw const DownloadStopped();
+    final r = await client
+        .send(http.AbortableRequest('GET', url, abortTrigger: abort))
+        .timeout(timeout);
     if (r.statusCode != 200) throw HttpException('The download failed (HTTP ${r.statusCode}).');
     final total = r.contentLength;
     if ((total ?? 0) > maxBytes) throw const FormatException('The download is too large.');
@@ -30,14 +49,16 @@ Future<void> downloadPinned(
       if (received > maxBytes) throw const FormatException('The download is too large.');
       hash.add(chunk);
       sink.add(chunk);
-      if (total != null && total > 0) onProgress?.call(received / total);
+      onProgress?.call(received, total);
     }
+    if (stopped) throw const DownloadStopped();
     hash.close();
     if (hexOf((await hash.hash()).bytes) != sha256) {
       throw const FormatException('The download does not match the published file.');
     }
   } catch (e) {
     failure = e;
+    if (stopped) throw const DownloadStopped();
     rethrow;
   } finally {
     client.close();
@@ -74,7 +95,8 @@ Future<File> downloadModelFile(
   required String sha256,
   required int bytes,
   required Duration timeout,
-  void Function(double fraction)? onProgress,
+  ByteProgress? onProgress,
+  Future<void>? stop,
   bool recheck = false,
 }) async {
   dir.createSync(recursive: true);
@@ -93,6 +115,7 @@ Future<File> downloadModelFile(
       maxBytes: bytes + modelSizeMargin,
       timeout: timeout,
       onProgress: onProgress,
+      stop: stop,
     );
     await part.rename(dest.path);
     stamp.writeAsStringSync(sha256);

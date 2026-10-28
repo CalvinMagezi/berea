@@ -21,6 +21,9 @@ const _glowPeriod = Duration(seconds: 2);
 String helperStatusWords(HelperState helper) => switch (helper) {
   HelperNotInstalled() => 'helper not downloaded',
   HelperDownloading(waitingForWifi: true) => 'helper waiting for Wi-Fi',
+  // A paused download starts again from the beginning, so it usually has nothing to count.
+  HelperDownloading(paused: true, :final percent) =>
+    percent == 0 ? 'helper download paused' : 'helper download paused, $percent percent',
   HelperDownloading(:final percent) => 'helper downloading, $percent percent',
   HelperChecking() => 'helper checking its files',
   HelperLoading() => 'helper loading',

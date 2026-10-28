@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:berea/pinned_download.dart';
@@ -26,6 +27,11 @@ void main() {
           case '/ok':
             res.contentLength = body.length;
             res.add(body);
+          case '/stalls':
+            res.bufferOutput = false;
+            res.add(body.sublist(0, 8));
+            await res.flush();
+            await Future<void>.delayed(_timeout);
           case '/declared-too-big':
             res.contentLength = _maxBytes + 1;
             res.add(List.filled(_maxBytes + 1, 0));
@@ -55,7 +61,7 @@ void main() {
     sha256: sha ?? pin,
     maxBytes: _maxBytes,
     timeout: _timeout,
-    onProgress: progress?.add,
+    onProgress: progress == null ? null : (received, total) => progress.add(received / total!),
   );
 
   test('writes the file when the hash matches, reporting progress up to 1', () async {
@@ -98,6 +104,27 @@ void main() {
       expect(file.readAsBytesSync(), body);
       expect(file.path, '${dir.path}/models/m.litertlm');
       expect(File('${file.path}.part').existsSync(), isFalse);
+    });
+
+    test('a stopped download ends at once and leaves neither file behind', () async {
+      final stop = Completer<void>();
+      final bytes = <int>[];
+      final fetching = downloadModelFile(
+        url('/stalls'),
+        Directory('${dir.path}/models'),
+        'm.litertlm',
+        sha256: pin,
+        bytes: body.length,
+        timeout: _timeout,
+        stop: stop.future,
+        onProgress: (received, total) {
+          bytes.add(received);
+          if (!stop.isCompleted) stop.complete();
+        },
+      );
+      await expectLater(fetching, throwsA(isA<DownloadStopped>()));
+      expect(bytes, [8], reason: 'progress is in bytes received');
+      expect(Directory('${dir.path}/models').listSync(), isEmpty);
     });
 
     test('a failed check leaves neither the file nor the partial one', () async {
