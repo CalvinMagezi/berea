@@ -49,10 +49,14 @@ const notebookSchema = '''
   END;
 ''';
 
-/// A passage of a notebook source, or of an installed commentary, that an answer may draw on.
+/// A passage of a notebook source, a note written in the notebook, or an installed commentary,
+/// that an answer may draw on.
 class SourceChunk {
-  /// The notebook source; null for a passage of an installed commentary pack.
+  /// The notebook source; null for a note or a passage of an installed commentary pack.
   final int? sourceId;
+
+  /// The note written in the notebook; null for anything else.
+  final int? noteId;
   final String title;
   final SourceKind kind;
 
@@ -67,6 +71,7 @@ class SourceChunk {
   final Ref? ref;
   const SourceChunk({
     this.sourceId,
+    this.noteId,
     required this.title,
     required this.kind,
     required this.ordinal,
@@ -75,11 +80,14 @@ class SourceChunk {
     this.ref,
   });
 
-  bool get fromPack => sourceId == null;
+  bool get fromPack => sourceId == null && noteId == null;
+
+  bool get fromNote => noteId != null;
 
   /// The same chunk with other text, used for what was actually shown to the model.
   SourceChunk withText(String t) => SourceChunk(
     sourceId: sourceId,
+    noteId: noteId,
     title: title,
     kind: kind,
     ordinal: ordinal,
@@ -88,16 +96,24 @@ class SourceChunk {
     ref: ref,
   );
 
-  /// Identity across turns: a notebook chunk by source and section, a pack passage by place.
-  String get key => fromPack ? 'C|${ref?.label}|$title|$ordinal' : 'S|$sourceId|$ordinal';
+  /// Identity across turns: a notebook chunk by source and section, a note by note and section,
+  /// a pack passage by place.
+  String get key => fromPack
+      ? 'C|${ref?.label}|$title|$ordinal'
+      : fromNote
+      ? 'N|$noteId|$ordinal'
+      : 'S|$sourceId|$ordinal';
 
-  /// True when [o] is part of the same source: the same notebook source, or the same comment.
-  bool sameSource(SourceChunk o) =>
-      fromPack ? o.fromPack && o.title == title && o.ref == ref : o.sourceId == sourceId;
+  /// True when [o] is part of the same source: the same notebook source, note, or comment.
+  bool sameSource(SourceChunk o) => fromPack
+      ? o.fromPack && o.title == title && o.ref == ref
+      : fromNote
+      ? o.noteId == noteId
+      : o.sourceId == sourceId;
 }
 
 /// A chunk as the model was shown it, with the tag it is cited by: "S3 p.14" for a PDF page,
-/// "S3 §2" for a section of any other source, "C1" for commentary from a pack.
+/// "S3 §2" for a section of any other source, "N5 §1" for a note, "C1" for commentary from a pack.
 class ShownSource {
   final String tag;
   final SourceChunk chunk;
@@ -108,6 +124,7 @@ class ShownSource {
   Map<String, Object?> toJson() => {
     'tag': tag,
     'source': chunk.sourceId,
+    if (chunk.noteId != null) 'note': chunk.noteId,
     'title': chunk.title,
     'kind': chunk.kind.name,
     'ordinal': chunk.ordinal,
@@ -120,10 +137,12 @@ class ShownSource {
     if (json is! Map) return null;
     final (tag, title, kind, ordinal) = (json['tag'], json['title'], json['kind'], json['ordinal']);
     if (tag is! String || title is! String || kind is! String || ordinal is! int) return null;
-    final (source, page, ref) = (json['source'], json['page'], json['ref']);
+    final (source, note, page, ref) = (json['source'], json['note'], json['page'], json['ref']);
     if ((source != null && source is! int) || (page != null && page is! int)) return null;
+    if (note != null && note is! int) return null;
     final chunk = SourceChunk(
       sourceId: source as int?,
+      noteId: note as int?,
       title: title,
       kind: SourceKind.byName(kind) ?? SourceKind.text,
       ordinal: ordinal,
@@ -149,8 +168,11 @@ List<ShownSource> tagSources(Iterable<SourceChunk> chunks) {
   return out;
 }
 
-String notebookTag(SourceChunk c) =>
-    c.page != null ? 'S${c.sourceId} p.${c.page}' : 'S${c.sourceId} §${c.ordinal + 1}';
+String notebookTag(SourceChunk c) => c.fromNote
+    ? 'N${c.noteId} §${c.ordinal + 1}'
+    : c.page != null
+    ? 'S${c.sourceId} p.${c.page}'
+    : 'S${c.sourceId} §${c.ordinal + 1}';
 
 /// Pack commentary tags run from C1000 to C9999.
 const _packTagFirst = 1000;
@@ -176,9 +198,9 @@ String packTag(SourceChunk c, Set<String> used) {
 /// One tag: the source, then optionally a page ("p.14", "pp. 14-15", "page 14") or a section
 /// ("§3", "section 3"), possibly a range.
 const _tagShape =
-    r'[SC]\d{1,9}(?:,?\s*(?:pp?\.?|pages?|§|sec\.?|sections?)\s*\d{1,5}(?:\s*[-–]\s*\d{1,5})?)?';
+    r'[SCN]\d{1,9}(?:,?\s*(?:pp?\.?|pages?|§|sec\.?|sections?)\s*\d{1,5}(?:\s*[-–]\s*\d{1,5})?)?';
 final _tag = RegExp(
-  r'([SC])(\d{1,9})(?:,?\s*(pp?\.?|pages?|§|sec\.?|sections?)\s*(\d{1,5})(?:\s*[-–]\s*(\d{1,5}))?)?',
+  r'([SCN])(\d{1,9})(?:,?\s*(pp?\.?|pages?|§|sec\.?|sections?)\s*(\d{1,5})(?:\s*[-–]\s*(\d{1,5}))?)?',
   caseSensitive: false,
 );
 
@@ -196,16 +218,19 @@ final _bracket = RegExp(r'[\[(][^\[\]()\n]{1,160}[\])]');
 /// What a model writes when it means a source but not in the tag form: "[S 9]", "[Source 9]",
 /// "[S3 and S9]", "[S9 §2-§4]", or a number too long to be a source. Square brackets only:
 /// "(Source 9 of the list)" in prose is left alone.
-final _looseTag = RegExp(r'^\[\s*(?:S|C|sources?)\s*#?\s*\d', caseSensitive: false);
+final _looseTag = RegExp(r'^\[\s*(?:S|C|N|sources?)\s*#?\s*\d', caseSensitive: false);
 
 /// The shown chunk [t] cites, or null when the source, page or section was not shown.
 ShownSource? _resolve(Match t, List<ShownSource> shown) {
   final n = int.parse(t[2]!);
   final locator = t[3]?.toLowerCase();
-  if (t[1]!.toUpperCase() == 'C') {
+  final letter = t[1]!.toUpperCase();
+  if (letter == 'C') {
     return locator == null ? shown.where((s) => s.tag == 'C$n').firstOrNull : null;
   }
-  final mine = shown.where((s) => s.chunk.sourceId == n).toList();
+  final mine = shown
+      .where((s) => letter == 'N' ? s.chunk.noteId == n : s.chunk.sourceId == n)
+      .toList();
   if (locator == null) return mine.firstOrNull;
   final byPage = locator.startsWith('p');
   bool at(ShownSource s, int k) => byPage ? s.chunk.page == k : s.chunk.ordinal == k - 1;
@@ -366,7 +391,12 @@ List<SourceChunk> commentaryChunks(
       }
     }
   }
-  // Stable: equal scores keep catalog and verse order.
+  return _bestFirst(scored, limit);
+}
+
+/// The chunks of [scored] by score, best first, at most [limit]. Stable: equal scores keep
+/// the order given.
+List<SourceChunk> _bestFirst(List<(int, SourceChunk)> scored, int limit) {
   final ranked = [for (var i = 0; i < scored.length; i++) (i, scored[i])]
     ..sort((a, b) {
       final byScore = b.$2.$1.compareTo(a.$2.$1);
@@ -374,6 +404,37 @@ List<SourceChunk> commentaryChunks(
     });
   return [for (final r in ranked.take(limit)) r.$2.$2];
 }
+
+/// A note written in a notebook, as an answer reads it.
+typedef NoteText = ({int id, String title, String text});
+
+List<SourceChunk> _noteChunks(NoteText n) => [
+  for (final piece in _pieces(n.text))
+    SourceChunk(
+      noteId: n.id,
+      title: n.title,
+      kind: SourceKind.note,
+      ordinal: piece.ordinal,
+      text: piece.text,
+    ),
+];
+
+/// Sections of [notes] that share a word with [question], best first, at most [limit]. Notes
+/// have no search index, so they are ranked here as commentary is.
+List<SourceChunk> noteMatches(Iterable<NoteText> notes, String question, int limit) {
+  if (limit <= 0) return const [];
+  final words = _queryWords(question);
+  final scored = [
+    for (final n in notes)
+      for (final c in _noteChunks(n)) (_overlap(words, c.text), c),
+  ].where((s) => s.$1 > 0).toList();
+  return _bestFirst(scored, limit);
+}
+
+/// The first section of each of [notes], in the order given, at most [limit].
+List<SourceChunk> noteOpenings(Iterable<NoteText> notes, int limit) => [
+  for (final n in notes.take(limit)) ..._noteChunks(n).take(1),
+];
 
 /// Questions rarely name more passages than this; each costs a query per pack.
 const _maxCommentaryRefs = 3;
@@ -413,14 +474,15 @@ List<Ref> commentaryAnchors(String question, List<Ref> notebookPassages) {
 
 /// What a notebook answer may draw on, best first and each chunk once: sections of pinned
 /// sources that match, then their starts (half the candidates at most), search hits across the
-/// notebook, commentary on the passages in view, then the start of every source. The prompt
-/// builder keeps as many as the tier's source budget allows.
+/// notebook and its [notes], commentary on the passages in view, then the start of every source
+/// and note. The prompt builder keeps as many as the tier's source budget allows.
 List<SourceChunk> notebookSources({
   required NotebookIndex index,
   required String question,
   required Tier tier,
   Iterable<int> pinned = const [],
   CommentaryLibrary? commentary,
+  Iterable<NoteText> notes = const [],
 }) {
   final pins = pinned.toList();
   // Pins take at most half the candidates, so matches elsewhere in the notebook still arrive.
@@ -433,7 +495,11 @@ List<SourceChunk> notebookSources({
         ]).take(pinnedShare);
   final candidates = [
     ...pinnedChunks,
-    ...index.search(question, limit: tier.sourceK),
+    // Search ranks and note ranks do not compare, so the two take turns.
+    ..._alternate(
+      index.search(question, limit: tier.sourceK),
+      noteMatches(notes, question, tier.sourceK),
+    ),
     if (commentary != null)
       ...commentaryChunks(
         commentary,
@@ -442,9 +508,17 @@ List<SourceChunk> notebookSources({
         tier.commentaryK,
       ),
     ...index.openings(limit: tier.sourceK),
+    ...noteOpenings(notes, tier.sourceK),
   ];
   return _unique(candidates);
 }
+
+List<SourceChunk> _alternate(List<SourceChunk> a, List<SourceChunk> b) => [
+  for (var i = 0; i < a.length || i < b.length; i++) ...[
+    if (i < a.length) a[i],
+    if (i < b.length) b[i],
+  ],
+];
 
 List<SourceChunk> _unique(Iterable<SourceChunk> chunks) {
   final seen = <String>{};

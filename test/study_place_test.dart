@@ -7,6 +7,9 @@ import 'package:berea/commentary_packs.dart';
 import 'package:berea/download_details_sheet.dart';
 import 'package:berea/helper_download.dart';
 import 'package:berea/models.dart';
+import 'package:berea/note_dialog.dart';
+import 'package:berea/notebook_store.dart';
+import 'package:berea/notebooks_screen.dart';
 import 'package:berea/past_questions.dart';
 import 'package:berea/pinned_download.dart';
 import 'package:berea/study_store.dart';
@@ -23,6 +26,7 @@ import 'support/bible.dart';
 
 class _Answer implements LlmEngine {
   final asked = <List<ChatMessage>>[];
+  String reply = 'Grace is a gift (John 3:16, BSB).';
 
   @override
   String get name => 'answer';
@@ -30,7 +34,7 @@ class _Answer implements LlmEngine {
   @override
   Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) {
     asked.add(messages);
-    return Stream.value('Grace is a gift (John 3:16, BSB).');
+    return Stream.value(reply);
   }
 }
 
@@ -312,7 +316,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(s.studyScope.value, id);
     expect(find.text('Ask about this notebook'), findsOneWidget);
-    expect(find.textContaining('Reads its 0 sources'), findsOneWidget);
+    expect(find.text('Reads its 0 notes and 0 readings, and the Bible.'), findsOneWidget);
 
     await tester.runAsync(() async {
       await s.send('What is grace?');
@@ -330,6 +334,61 @@ void main() {
     await tester.pumpAndSettle();
     expect(s.studyScope.value, isNull);
     expect(s.turns, isEmpty, reason: 'a study belongs to one scope');
+  });
+
+  testWidgets('a notebook answer reads, counts and opens the notes written in the notebook', (
+    tester,
+  ) async {
+    final engine = _Answer();
+    final s = await app(helper: const HelperReady(), engine: engine);
+    final id = s.notebooks.createNotebook('Romans with the youth');
+    final outline = s.study.addNotebookNote(
+      id,
+      'Thursday: open with the Bereans, who searched the Scriptures daily.',
+      title: 'Outline for Thursday',
+    );
+    s.study.addNotebookNote(id, 'Agape, love', kind: keptWordKind);
+    final source = (await tester.runAsync(
+      () => s.notebooks.addSource(
+        id,
+        const SourceRequest(
+          SourceKind.text,
+          'Study notes',
+          text: 'Romans 8 on suffering and glory.',
+        ),
+      ),
+    ))!;
+    s.setStudyScope(id);
+    await pumpStudy(tester, s);
+    expect(find.text('Reads its 2 notes and 1 reading, and the Bible.'), findsOneWidget);
+
+    engine.reply = 'Open with the Bereans [N$outline §1] and glory [S$source §1].';
+    await tester.runAsync(() => s.send('What is the outline for Thursday?'));
+    await tester.pumpAndSettle();
+    expect(engine.asked.single.last.content, contains('searched the Scriptures daily'));
+    expect(s.turns.single.unverifiedSources, isEmpty);
+
+    await tester.tap(find.text('N$outline §1 · Outline for Thursday'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NoteEditor), findsOneWidget);
+    await Navigator.of(tester.element(find.byType(NoteEditor))).maybePop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('S$source §1 · Study notes'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SourceScreen), findsOneWidget);
+    expect(find.text('Romans 8 on suffering and glory.'), findsOneWidget);
+  });
+
+  test('note text never goes to an Ollama server on another computer', () async {
+    final engine = _Answer();
+    final s = await app(helper: const HelperReady(), engine: engine);
+    s.settings = Settings(engine: EngineKind.ollama, ollamaUrl: 'http://192.168.1.9:11434');
+    final id = s.notebooks.createNotebook('Romans');
+    s.study.addNotebookNote(id, 'Private thoughts on Thursday.', title: 'Thursday');
+    s.setStudyScope(id);
+    await s.send('What about Thursday?');
+    expect(engine.asked.single.last.content, isNot(contains('Private thoughts')));
+    expect(s.answerNoteCount(id), 0);
   });
 
   testWidgets('past questions list the saved studies and open one', (tester) async {

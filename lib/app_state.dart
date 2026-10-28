@@ -1502,7 +1502,32 @@ class AppState extends ChangeNotifier {
     tier: settings.tier,
     pinned: notebooks.pinnedSources(notebookId),
     commentary: commentary.library,
+    notes: offDeviceHost == null ? _answerNotes(notebookId) : const [],
   );
+
+  /// The readings of notebook [id] as its page lists them: a reading that links one of the
+  /// notebook's own notes is shown, and read, as that note.
+  List<NotebookSource> notebookReadings(int id) {
+    final own = {for (final n in study.notebookNotes(id)) n.id};
+    return [
+      for (final r in notebooks.sources(id))
+        if (r.noteId == null || !own.contains(r.noteId)) r,
+    ];
+  }
+
+  /// The notes and kept words written in notebook [id], for an answer to read. Note text stays
+  /// on this device, so an Ollama host elsewhere never receives it. A note that a reading of
+  /// the notebook links is already searched as that reading.
+  List<NoteText> _answerNotes(int id) {
+    final linked = {for (final r in notebooks.sources(id)) ?r.noteId};
+    return [
+      for (final n in study.notebookNotes(id))
+        if (!linked.contains(n.id)) (id: n.id, title: noteSourceTitle(n), text: n.text),
+    ];
+  }
+
+  /// How many notes an answer in notebook [id] reads, which the scope line reports.
+  int answerNoteCount(int id) => offDeviceHost == null ? study.notebookNotes(id).length : 0;
 
   /// The finished questions and answers before [turn], for a notebook answer to follow on from.
   List<ChatMessage> _historyBefore(ChatTurn turn) => [

@@ -306,6 +306,42 @@ void main() {
       expect(check('A list [1] and [see above] stay.').text, 'A list [1] and [see above] stay.');
     });
 
+    test('a note written in the notebook is shown, cited and saved by its own tag', () {
+      const outline = SourceChunk(
+        noteId: 5,
+        title: 'Outline for Thursday',
+        kind: SourceKind.note,
+        ordinal: 0,
+        text: 'Open with Acts 17:11 and the Bereans who searched daily.',
+      );
+      final built = PromptBuilder('SYS').build(
+        _ctx(db, 'John 3:16', sources: [guide, outline]),
+        const [],
+        'Q',
+        Tier.mid,
+        notebook: true,
+      );
+      expect(built.messages.last.content, contains('[N5 §1] (Outline for Thursday, Your note)'));
+      final r = guard.apply(
+        'Start with the Bereans [N5 §1], not the guide [S5 §1].',
+        built.shown,
+        checkSources: true,
+      );
+      expect(r.sources.map((s) => s.tag), ['N5 §1']);
+      expect(r.unverifiedSources, ['S5 §1']);
+      final back = ShownSource.fromJson(r.sources.single.toJson())!;
+      expect((back.chunk.noteId, back.chunk.sourceId, back.chunk.fromPack), (5, null, false));
+      // A citation saved before notes could be cited still reads back as a source.
+      final old = ShownSource.fromJson({
+        'tag': 'S3 §1',
+        'source': 3,
+        'title': 'T',
+        'kind': 'text',
+        'ordinal': 0,
+      })!;
+      expect((old.chunk.sourceId, old.chunk.noteId), (3, null));
+    });
+
     test('a Study answer leaves tags alone, as the site check does', () {
       final r = guard.apply('See [S9 p.4].', shown);
       expect(r.text, 'See [S9 p.4].');
@@ -450,6 +486,25 @@ void main() {
       ]);
       expect(index.passages().single.label, 'John 3:16');
       expect(index.search('prayer', limit: 5, within: const []), isEmpty);
+    });
+
+    test('notes in the notebook are searched beside its sources and open it when broad', () {
+      final book = addSource('text', 'Book', ['Chapter one on prayer.']);
+      const notes = [
+        (id: 9, title: 'Outline for Thursday', text: 'Thursday: prayer and the Bereans.'),
+        (id: 4, title: 'Shopping', text: 'Bread and milk.'),
+      ];
+      final hits = notebookSources(
+        index: index,
+        question: 'What is the outline for Thursday?',
+        tier: Tier.mid,
+        notes: notes,
+      );
+      expect(hits.first.noteId, 9);
+      expect(hits.where((c) => c.noteId == 4).single.ordinal, 0);
+      final broad = notebookSources(index: index, question: 'Sum up', tier: Tier.mid, notes: notes);
+      expect(broad.map((c) => c.sourceId ?? -c.noteId!).toList(), [book, -9, -4]);
+      expect(noteMatches(notes, 'unrelated words', 5), isEmpty);
     });
 
     test('commentary on the passages in view is cut to chunk size, best match first', () {
