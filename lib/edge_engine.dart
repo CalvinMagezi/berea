@@ -5,6 +5,7 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'models.dart';
 import 'pinned_download.dart';
@@ -42,6 +43,13 @@ Future<void> ensureEdgeAiInitialized() =>
       },
     );
 
+/// Deletes [copy], an older copy of a model, but only while [verified] is present and is
+/// another file, so the model in use is never left without a checked replacement.
+void dropPluginCopy(File copy, {required File verified}) {
+  if (!verified.existsSync() || copy.absolute.path == verified.absolute.path) return;
+  if (copy.existsSync()) copy.deleteSync();
+}
+
 /// Harness engine backed by a LiteRT-LM model loaded through flutter_edge_ai. Each turn opens a
 /// fresh conversation; keeping one open measured slower overall on a phone-sized context.
 class EdgeAiEngine implements LlmEngine, StoppableEngine {
@@ -72,25 +80,27 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
   static Future<bool> isInstalled(EdgeModel m, Directory modelsDir) async {
     await ensureEdgeAiInitialized();
     final source = m.source;
-    if (source == null) {
-      if (!await FlutterEdgeAi.isModelInstalled(m.installedName)) return false;
-      await _installModel(m).fromHuggingFace(m.repo, file: m.file).install();
-      return true;
-    }
     final file = File('${modelsDir.path}/${m.file}');
     if (hostedModelCurrent(file, sha256: source.sha256, bytes: source.bytes)) {
       await _installModel(m).fromFile(file.path).install();
       _writeNotice(m, modelsDir);
       return true;
     }
-    // Berea 0.4.0 downloaded Gemma 3 1B from Hugging Face into the plugin's own folder. With no
-    // hosted file at all, that copy is still good and does not need fetching again.
+    // Builds up to 0.6.0 let the plugin download from Hugging Face into its own folder. With no
+    // file of Berea's own, that copy is still good and does not need fetching again.
     if (!file.existsSync() && await FlutterEdgeAi.isModelInstalled(m.installedName)) {
       await _installModel(m).fromHuggingFace(m.repo, file: m.file).install();
       return true;
     }
     return false;
   }
+
+  /// The bytes of [m] a stopped download left in [modelsDir], and the size it is heading for.
+  static ({int bytes, int? total})? partial(EdgeModel m, Directory modelsDir) =>
+      partialDownload(modelsDir, m.file);
+
+  /// Removes what a stopped download of [m] left behind.
+  static void dropPartial(EdgeModel m, Directory modelsDir) => discardPartial(modelsDir, m.file);
 
   static void _writeNotice(EdgeModel m, Directory modelsDir) {
     if (m.notice case final notice?) writeModelNotice(modelsDir, notice);
@@ -99,10 +109,9 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
   static InferenceInstallationBuilder _installModel(EdgeModel m) =>
       FlutterEdgeAi.installModel(modelType: m.type, fileType: ModelFileType.litertlm);
 
-  /// Fetches [m] into [modelsDir] when Berea hosts it, else from Hugging Face, and installs it.
-  /// A hosted file stays where it was put: the plugin registers its path instead of copying it.
-  /// [onProgress] hears bytes; Hugging Face reports a percent, read against [m]'s published size.
-  /// Once [stop] completes the transfer ends with [DownloadStopped] and nothing is installed.
+  /// Fetches [m] into [modelsDir], continuing a stopped download, and installs it. The file stays
+  /// where it was put: the plugin registers its path instead of copying it. Once [stop] completes
+  /// the transfer ends with [DownloadStopped], the part kept, and nothing is installed.
   static Future<void> download(
     EdgeModel m, {
     required Directory modelsDir,
@@ -112,22 +121,6 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
   }) async {
     await ensureEdgeAiInitialized();
     final source = m.source;
-    if (source == null) {
-      final cancel = CancelToken();
-      unawaited(stop?.then((_) => cancel.cancel('Stopped by the reader')));
-      final total = m.publishedBytes;
-      try {
-        await _installModel(m)
-            .fromHuggingFace(m.repo, file: m.file)
-            .withProgress((percent) => onProgress(total * percent ~/ 100, total))
-            .withCancelToken(cancel)
-            .install();
-      } on Object {
-        if (cancel.isCancelled) throw const DownloadStopped();
-        rethrow;
-      }
-      return;
-    }
     final file = await downloadModelFile(
       Uri.parse(source.url),
       modelsDir,
@@ -139,8 +132,33 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
       stop: stop,
       recheck: recheck,
     );
+    await _dropOlderCopy(m, file);
     await _installModel(m).fromFile(file.path).install();
     _writeNotice(m, modelsDir);
+  }
+
+  /// Removes the copy of [m] the plugin downloaded itself in builds up to 0.6.0, now that
+  /// [verified] has passed its size and hash checks, so the device never holds two. A record of a
+  /// network download makes the plugin delete its file; a record of [verified] deletes nothing.
+  static Future<void> _dropOlderCopy(EdgeModel m, File verified) async {
+    try {
+      if (await FlutterEdgeAi.isModelInstalled(m.installedName)) {
+        await FlutterEdgeAi.uninstallModel(m.installedName);
+      }
+      // Once Berea's file was registered the record no longer names the older one, so it is
+      // also removed where the plugin keeps its downloads.
+      dropPluginCopy(await _pluginCopy(m), verified: verified);
+    } catch (e) {
+      debugPrint('The older copy of ${m.label} could not be removed: ${e.runtimeType}');
+    }
+  }
+
+  /// Where flutter_edge_ai 2.1.3 puts a model it downloads (PlatformFileSystemService).
+  static Future<File> _pluginCopy(EdgeModel m) async {
+    final dir = Platform.isAndroid || Platform.isIOS
+        ? await getApplicationDocumentsDirectory()
+        : Directory('${(await getApplicationSupportDirectory()).path}/flutter_gemma');
+    return File('${dir.path}/${m.file}');
   }
 
   /// Loads the model for [tier]; if its audio encoder fails, text still loads and voice is off.

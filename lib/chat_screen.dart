@@ -105,7 +105,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ? null
       : switch (s.helperState) {
           HelperNotInstalled() => HelperSetup(state: s, onKeepReading: _keepReading),
-          HelperFailed(:final reason) when reason == helperDownloadFailed => HelperSetup(
+          HelperFailed(:final offersRetry) when offersRetry => HelperSetup(
             state: s,
             onKeepReading: _keepReading,
           ),
