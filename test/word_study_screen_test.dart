@@ -306,6 +306,7 @@ void main() {
                 body: body,
                 subtitle: subtitle,
                 verse: verse,
+                kind: keptWordKind,
               ),
             );
           },

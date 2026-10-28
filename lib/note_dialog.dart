@@ -166,8 +166,7 @@ class _NoteEditorState extends State<NoteEditor> {
     if (widget.note?.notebookId ?? widget.notebookId case final id?) return id;
     final notebooks = _s.notebooks.notebooks();
     if (_verse != null) {
-      return notebooks.where((n) => n.title == notesOnVersesTitle).firstOrNull?.id ??
-          notesOnVersesChoice;
+      return StudyStore.notesOnVersesId(_s.study.db) ?? notesOnVersesChoice;
     }
     return notebooks.firstOrNull?.id ?? notesOnVersesChoice;
   }
@@ -449,7 +448,7 @@ class _NoteEditorState extends State<NoteEditor> {
       onSelected: _pickNotebook,
       itemBuilder: (_) => [
         for (final n in notebooks) PopupMenuItem(value: n.id, child: Text(n.title)),
-        if (!notebooks.any((n) => n.title == notesOnVersesTitle))
+        if (StudyStore.notesOnVersesId(_s.study.db) == null)
           const PopupMenuItem(value: notesOnVersesChoice, child: Text(notesOnVersesTitle)),
         const PopupMenuItem(value: _newNotebook, child: Text('New notebook')),
       ],

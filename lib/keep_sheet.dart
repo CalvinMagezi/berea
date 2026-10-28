@@ -7,13 +7,10 @@ import 'notebooks_screen.dart';
 import 'study_store.dart';
 import 'theme.dart';
 
-/// A kept word's body names its Strong's number on a line of its own; this is how Notes tells a
-/// kept word from a note, since both are notes.
+/// A kept word's body names its Strong's number on a line of its own, for the reader.
 const keptWordMarker = "Strong's";
 
-final _keptWord = RegExp('^$keptWordMarker [GH]\\d+', multiLine: true);
-
-bool isKeptWord(Note n) => _keptWord.hasMatch(n.text);
+bool isKeptWord(Note n) => n.isKeptWord;
 
 /// The notebook something was last kept in, offered first the next time.
 const lastKeptNotebookKey = 'lastKeptNotebook';
@@ -46,6 +43,7 @@ Future<int?> showKeepSheet(
   required String body,
   Ref? verse,
   String? subtitle,
+  String kind = plainNoteKind,
 }) async {
   final id = await showModalBottomSheet<int>(
     context: context,
@@ -59,6 +57,7 @@ Future<int?> showKeepSheet(
       body: body,
       verse: verse,
       subtitle: subtitle,
+      kind: kind,
       lastUsed: s.prefs.getInt(lastKeptNotebookKey),
     ),
   );
@@ -77,6 +76,9 @@ class KeepSheet extends StatefulWidget {
   final Ref? verse;
   final String? subtitle;
 
+  /// [keptWordKind] when a word study keeps a word, else [plainNoteKind].
+  final String kind;
+
   /// The notebook last kept in, listed first; ignored when it no longer exists.
   final int? lastUsed;
   const KeepSheet({
@@ -87,6 +89,7 @@ class KeepSheet extends StatefulWidget {
     required this.body,
     this.verse,
     this.subtitle,
+    this.kind = plainNoteKind,
     this.lastUsed,
   });
 
@@ -139,6 +142,7 @@ class _KeepSheetState extends State<KeepSheet> {
       widget.body,
       title: widget.title,
       verse: _beside ? widget.verse : null,
+      kind: widget.kind,
     );
     Navigator.pop(context, id);
   }
@@ -179,7 +183,7 @@ class _KeepSheetState extends State<KeepSheet> {
                       title: Text(n.title),
                       subtitle: Text(n.id == last?.id ? 'Last used · ${_counts(n)}' : _counts(n)),
                     ),
-                  if (!notebooks.any((n) => n.title == notesOnVersesTitle))
+                  if (StudyStore.notesOnVersesId(widget.study.db) == null)
                     const RadioListTile<int>(
                       value: notesOnVersesChoice,
                       contentPadding: EdgeInsets.zero,

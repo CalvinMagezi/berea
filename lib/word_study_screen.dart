@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 
 import 'app_state.dart';
 import 'keep_sheet.dart';
+import 'study_store.dart' show keptWordKind;
 import 'theme.dart';
 
 /// Verses of a word's use loaded at a time; "Show more" loads the next page.
@@ -45,7 +46,15 @@ Future<void> showWordStudy(
           s.openInReader(verse);
         },
         onKeep: ({required title, required body, required subtitle, verse}) =>
-            showKeepSheet(ctx, s, title: title, body: body, subtitle: subtitle, verse: verse),
+            showKeepSheet(
+              ctx,
+              s,
+              title: title,
+              body: body,
+              subtitle: subtitle,
+              verse: verse,
+              kind: keptWordKind,
+            ),
       ),
     ),
   );

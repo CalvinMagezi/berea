@@ -58,6 +58,7 @@ void main() {
       sermons,
       keptWordBody(code: 'G25', meaning: 'to love', from: ref('John 3:16')),
       title: 'ἀγαπάω, to love',
+      kind: keptWordKind,
     );
     s.study.saveStudyPage(ref('Romans 8:28-30'), 'Paul moves', '', '', notebookId: sermons);
     await tester.runAsync(
