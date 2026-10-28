@@ -1,0 +1,13 @@
+{
+  "name": "Berea",
+  "short_name": "Berea",
+  "description": "A free, open-source study Bible that runs on your own phone and checks every answer against the Bible text.",
+  "start_url": "./",
+  "display": "browser",
+  "theme_color": "#161310",
+  "background_color": "#161310",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
