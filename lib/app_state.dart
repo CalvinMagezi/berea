@@ -942,7 +942,7 @@ class AppState extends ChangeNotifier {
     if (h is! HelperDownloading) return;
     if (!on && h.waitingForWifi) unawaited(downloadDeviceModel());
     // Turned back on while arriving over mobile data, the download waits for Wi-Fi again.
-    if (on && h.moving && !_mobileAllowed && await mobileDataNow()) {
+    if (on && h.moving && !_mobileAllowed && await _onMobileData()) {
       _stop(HelperDownloading(0, total: h.total, waitingForWifi: true));
     }
   }
@@ -978,7 +978,7 @@ class AppState extends ChangeNotifier {
     final stop = _stopTransfer = Completer<void>();
     _watchNetwork();
     try {
-      final mobile = await mobileDataNow();
+      final mobile = await _onMobileData();
       if (stop.isCompleted) throw const DownloadStopped();
       if (net.holdForWifi(wifiOnly: wifiOnly, mobileOnly: mobile, mobileAllowed: _mobileAllowed)) {
         helperState = HelperDownloading(0, total: total, waitingForWifi: true);
@@ -1022,16 +1022,41 @@ class AppState extends ChangeNotifier {
   void _watchNetwork() => _network ??= mobileDataChanges().listen((mobile) {
     final h = _helper;
     if (h is! HelperDownloading || h.paused) return;
-    final hold = net.holdForWifi(
-      wifiOnly: wifiOnly,
-      mobileOnly: mobile,
-      mobileAllowed: _mobileAllowed,
-    );
-    if (hold && h.moving) _stop(HelperDownloading(0, total: h.total, waitingForWifi: true));
-    if (!hold && h.waitingForWifi && !_transferring) unawaited(downloadDeviceModel());
-  });
+    if (_holds(mobile) && h.moving) _settle ??= Timer(mobileSettle, _holdIfStillMobile);
+    if (!_holds(mobile) && h.waitingForWifi && !_transferring) {
+      unawaited(downloadDeviceModel());
+    }
+  }, onError: (Object e) => debugPrint('The connection type could not be read: $e'));
+
+  bool _holds(bool mobile) =>
+      net.holdForWifi(wifiOnly: wifiOnly, mobileOnly: mobile, mobileAllowed: _mobileAllowed);
+
+  /// A Wi-Fi handoff can read as mobile data for a moment; stopping then would throw away the
+  /// download, so it is held only once mobile data has lasted [mobileSettle].
+  @visibleForTesting
+  Duration mobileSettle = const Duration(seconds: 20);
+  Timer? _settle;
+
+  Future<void> _holdIfStillMobile() async {
+    _settle = null;
+    final h = _helper;
+    if (h is! HelperDownloading || !h.moving || !_holds(await _onMobileData())) return;
+    _stop(HelperDownloading(0, total: h.total, waitingForWifi: true));
+  }
+
+  /// A connection type that cannot be read counts as not mobile, so the download goes on.
+  Future<bool> _onMobileData() async {
+    try {
+      return await mobileDataNow();
+    } on Object catch (e) {
+      debugPrint('The connection type could not be read: $e');
+      return false;
+    }
+  }
 
   void _endDownload() {
+    _settle?.cancel();
+    _settle = null;
     unawaited(_network?.cancel());
     _network = null;
     _mobileAllowed = false;

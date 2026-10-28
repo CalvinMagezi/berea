@@ -81,9 +81,9 @@ class _TextTile extends StatelessWidget {
     title: Text(title),
     subtitle: const Text('Readable offline'),
     trailing: const Icon(Icons.chevron_right),
-    onTap: () =>
-        Navigator.of(context)
-            .push(MaterialPageRoute<void>(builder: (_) => _TextFileScreen(title, asset))),
+    onTap: () => Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => _TextFileScreen(title, asset)),
+    ),
   );
 }
 

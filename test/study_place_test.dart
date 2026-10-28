@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
@@ -98,6 +99,34 @@ void main() {
       await s.setWifiOnly(false);
       expect(s.wifiOnly, isFalse);
       expect(s.prefs.getBool(wifiOnlyKey), isFalse);
+    });
+
+    test('a moment on mobile data does not stop the download; lasting mobile data does', () async {
+      var mobile = true;
+      final net = StreamController<bool>();
+      final s = await app()
+        ..mobileDataNow = (() async => mobile)
+        ..mobileDataChanges = (() => net.stream)
+        ..mobileSettle = const Duration(milliseconds: 20);
+      await s.downloadDeviceModel();
+      s.helperState = const HelperDownloading(0.9, total: 100);
+
+      net.add(true);
+      mobile = false;
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect((s.helperState as HelperDownloading).moving, isTrue, reason: 'a Wi-Fi handoff');
+
+      mobile = true;
+      net.add(true);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect((s.helperState as HelperDownloading).waitingForWifi, isTrue);
+      await net.close();
+    });
+
+    test('a settings change during a download leaves it showing', () async {
+      final s = await app(helper: const HelperDownloading(0.3, total: 100));
+      await s.updateSettings(s.settings);
+      expect(s.helperState, isA<HelperDownloading>());
     });
 
     test('turning Wi-Fi only back on over mobile data holds the download', () async {
@@ -248,6 +277,7 @@ void main() {
     expect(scoped.single.title, 'What is grace?');
     expect(scoped.single.notebookId, id);
     expect(s.study.conversations(), isEmpty, reason: 'nothing joined the Bible questions');
+    expect(s.harness!.history, isEmpty, reason: 'the notebook answered, not the Bible harness');
 
     await tester.tap(find.textContaining('Asking about'));
     await tester.pumpAndSettle();
