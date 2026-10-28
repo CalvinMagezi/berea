@@ -78,8 +78,8 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
       _writeNotice(m, modelsDir);
       return true;
     }
-    // Berea 0.6 and before let the plugin download from Hugging Face into its own folder. With
-    // no file of Berea's own, that copy is still good and does not need fetching again.
+    // Builds up to 0.6.0 let the plugin download from Hugging Face into its own folder. With no
+    // file of Berea's own, that copy is still good and does not need fetching again.
     if (!file.existsSync() && await FlutterEdgeAi.isModelInstalled(m.installedName)) {
       await _installModel(m).fromHuggingFace(m.repo, file: m.file).install();
       return true;

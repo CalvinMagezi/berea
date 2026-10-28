@@ -1064,7 +1064,9 @@ class AppState extends ChangeNotifier {
   })
   modelDownload = EdgeAiEngine.download;
 
-  Future<void> downloadDeviceModel() async {
+  /// Downloads the helper model. One Berea starts by [itself], after a restart or when the
+  /// network comes back, waits for the network again if it fails, rather than ask the reader.
+  Future<void> downloadDeviceModel({bool itself = false}) async {
     final m = settings.deviceModel;
     if (m.notice != null && !termsAccepted) return;
     if (_transferring) return;
@@ -1106,7 +1108,7 @@ class AppState extends ChangeNotifier {
       _settleStopped(_afterStop);
       // Wi-Fi may have come back while the transfer was ending, so held looks again.
       if (_afterStop case HelperDownloading(waitingForWifi: true)) {
-        unawaited(Future(downloadDeviceModel));
+        unawaited(Future(() => downloadDeviceModel(itself: true)));
       }
     } on DownloadDamaged catch (e) {
       _endDownload();
@@ -1114,6 +1116,11 @@ class AppState extends ChangeNotifier {
       helperState = HelperFailed(helperDownloadDamaged, detail: e.message);
     } catch (e) {
       debugPrint('The helper download stopped: $e');
+      if (itself) {
+        helperState = _onDisk(m, waitingForWifi: true);
+        _keepDownload(m, KeptDownload.waitingForWifi);
+        return;
+      }
       _endDownload();
       // The bytes here are kept, so trying again, now or after a restart, goes on from them.
       if (EdgeAiEngine.partial(m, modelsDir) == null) {
@@ -1183,7 +1190,7 @@ class AppState extends ChangeNotifier {
     if (kept == null) return false;
     final paused = kept.$2 == KeptDownload.paused;
     helperState = _onDisk(m, waitingForWifi: !paused, paused: paused);
-    if (!paused) unawaited(Future(downloadDeviceModel));
+    if (!paused) unawaited(Future(() => downloadDeviceModel(itself: true)));
     return true;
   }
 
@@ -1193,7 +1200,7 @@ class AppState extends ChangeNotifier {
     if (h is! HelperDownloading || h.paused) return;
     if (_holds(mobile) && h.moving) _settle ??= Timer(mobileSettle, _holdIfStillMobile);
     if (!_holds(mobile) && h.waitingForWifi && !_transferring) {
-      unawaited(downloadDeviceModel());
+      unawaited(downloadDeviceModel(itself: true));
     }
   }, onError: (Object e) => debugPrint('The connection type could not be read: $e'));
 

@@ -50,8 +50,8 @@ class EdgeModel {
     this.notice,
   });
 
-  /// flutter_edge_ai keys installed models by the downloaded filename. Berea 0.4 to 0.6 let the
-  /// plugin fetch from [repo] into its own folder, and such a copy is still used.
+  /// flutter_edge_ai keys installed models by the downloaded filename. Builds up to 0.6.0 let
+  /// the plugin fetch from [repo] into its own folder, and such a copy is still used.
   String get installedName => file;
 
   /// Gemma 4 takes spoken audio directly, so voice questions need no separate speech model.

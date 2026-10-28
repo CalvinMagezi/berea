@@ -232,11 +232,12 @@ Future<void> _fetchResumable(
       }
       if (refused && meta != null && from == meta.total) {
         // The app closed after the last byte and before the file was checked.
-        await r.stream.drain<void>();
+        await r.stream.listen(null).cancel();
         return;
       }
       if (!whole && (refused || meta == null || !_continues(r, from, meta))) {
-        await r.stream.drain<void>();
+        // Cancelled, not drained: the refused body can be the whole file.
+        await r.stream.listen(null).cancel();
         if (fresh) throw const HttpException('The download could not continue.');
         continue;
       }

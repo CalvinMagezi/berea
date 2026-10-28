@@ -259,6 +259,9 @@ void main() {
     late StreamController<bool> network;
     late int downloads;
 
+    /// The device has no connection at all, so a download fails at once.
+    var offline = false;
+
     /// Leaves a part of [_dropAt] bytes of [model] on disk, as a dropped connection does.
     Future<void> partOf(EdgeModel model) async {
       server.dropAfter = _dropAt;
@@ -309,6 +312,7 @@ void main() {
               recheck = false,
             }) async {
               downloads++;
+              if (offline) throw const SocketException('No connection');
               await stop;
               throw const DownloadStopped();
             };
@@ -316,6 +320,8 @@ void main() {
       await pumpEventQueue();
       return s;
     }
+
+    setUp(() => offline = false);
 
     // Nothing listens to the network in a paused download, so its close is not awaited.
     tearDown(() => unawaited(network.close()));
@@ -370,6 +376,34 @@ void main() {
       s.pauseDownload();
       await pumpEventQueue();
     });
+
+    test(
+      'opened with no connection, a download waits and goes on once it is back',
+      () async {
+        offline = true;
+        final s = await relaunch(KeptDownload.moving, mobile: false);
+        await pumpEventQueue();
+        expect(downloads, 1);
+        final h = s.helperState as HelperDownloading;
+        expect(
+          h.waitingForWifi,
+          isTrue,
+          reason: 'no failure the reader must answer',
+        );
+        expect(h.bytes, _dropAt);
+        expect(s.prefs.getStringList(keptDownloadKey), [
+          m.id,
+          KeptDownload.waitingForWifi.name,
+        ]);
+
+        offline = false;
+        network.add(false);
+        await pumpEventQueue();
+        expect(downloads, 2);
+        s.pauseDownload();
+        await pumpEventQueue();
+      },
+    );
 
     test(
       'Cancel after a restart removes the part and forgets the download',
