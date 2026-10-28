@@ -1,10 +1,15 @@
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_state.dart';
 import 'commentary_sheet.dart';
+import 'home_shell.dart' show wideLayoutBreakpoint;
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
+import 'prayer_screen.dart';
+import 'prayer_sheet.dart' show passageText, shareOrigin, shareText;
+import 'selection_bar.dart';
 import 'study_page_screen.dart';
 import 'search_screen.dart';
 import 'theme.dart';
@@ -22,6 +27,15 @@ const parallelSideBySideWidth = 560.0;
 const _tipKey = 'tipT14Done';
 const tipsOffKey = 'tipsOff';
 const tipT14 = 'Tap a verse to highlight it, write a note, pray it or ask about it.';
+
+/// Where the tip sits above the chapter bar, with no selection card under it.
+const _tipGap = 16.0;
+const _tipCardGap = 8.0;
+const _toolbarTop = 8.0;
+
+/// The verses of [ref] as plain text with the reference and translation, for Copy and Share.
+String selectionText(List<Verse> verses, Ref ref, String translation) =>
+    '${passageText(verses)}\n${ref.label} ($translation)';
 
 class ReaderScreen extends StatefulWidget {
   final AppState state;
@@ -193,6 +207,77 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return Ref(book, chapter, sorted.first, sorted.last);
   }
 
+  String get _selectionText {
+    final translation = s.settings.translation;
+    final ref = _selection;
+    return selectionText(s.db.passage(ref, translation: translation), ref, translation);
+  }
+
+  Future<void> _note() async {
+    final ref = _selection;
+    final existing = s.study
+        .notes(book: book, chapter: chapter)
+        .where((n) => n.ref == ref)
+        .firstOrNull;
+    await showNoteDialog(context, s, ref: ref, note: existing);
+    setState(_selected.clear);
+  }
+
+  Future<void> _pray() async {
+    await showPrayerSheet(
+      context,
+      s.prayers,
+      verse: _selection.label,
+      passage: passageLookupFor(s.db, () => s.settings.translation),
+    );
+    if (mounted) setState(_selected.clear);
+  }
+
+  void _studyPage() {
+    final ref = _selection;
+    setState(_selected.clear);
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(builder: (_) => StudyPageScreen(state: s, ref: ref)),
+    );
+  }
+
+  Future<void> _copy() async {
+    final label = _selection.label;
+    await Clipboard.setData(ClipboardData(text: _selectionText));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Copied $label.')));
+    setState(_selected.clear);
+  }
+
+  void _share(BuildContext button) {
+    shareText(_selectionText, shareOrigin(button));
+    setState(_selected.clear);
+  }
+
+  Widget _selectionBar({required bool wide}) => SelectionBar(
+    label: _selection.label,
+    wide: wide,
+    onHighlight: () {
+      for (final v in _selected) {
+        s.study.toggleHighlight(book, chapter, v);
+      }
+      setState(_selected.clear);
+    },
+    onNote: _note,
+    onPray: _pray,
+    onAsk: () {
+      s.askAbout(_selection);
+      setState(_selected.clear);
+    },
+    onWords: () => showInterlinear(context, s, _selection),
+    onCommentary: () => showCommentary(context, s, _selection),
+    onStudyPage: _studyPage,
+    onCopy: _copy,
+    onShare: _share,
+    onClear: () => setState(_selected.clear),
+  );
+
   Future<void> _pickChapter() async {
     final picked = await showDialog<(Book, int)>(
       context: context,
@@ -215,6 +300,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
           };
     final chapters = s.db.chapterCount(book, translation: translation);
     final highlights = s.study.highlights(book, chapter);
+    final wide = MediaQuery.sizeOf(context).width >= wideLayoutBreakpoint;
+    final card = _selected.isEmpty || wide ? null : _selectionBar(wide: false);
+    final tip = _tip && verses.isNotEmpty;
     final noted = {
       for (final n in s.study.notes(book: book, chapter: chapter))
         for (var v = n.ref.verseStart!; v <= n.ref.verseEnd!; v++) v,
@@ -362,16 +450,36 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
             ),
           ),
-          if (_tip && verses.isNotEmpty)
+          if (tip || card != null)
             Positioned(
               left: 16,
               right: 16,
-              bottom: 16,
-              child: _Tip(onGotIt: _dismissTip, onTurnOff: () => _dismissTip(allTips: true)),
+              bottom: card == null
+                  ? _tipGap
+                  : selectionBarGap + MediaQuery.paddingOf(context).bottom,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (tip)
+                    _Tip(onGotIt: _dismissTip, onTurnOff: () => _dismissTip(allTips: true)),
+                  if (tip && card != null) const SizedBox(height: _tipCardGap),
+                  ?card,
+                ],
+              ),
+            ),
+          if (wide && _selected.isNotEmpty)
+            Positioned(
+              top: _toolbarTop,
+              left: _toolbarTop,
+              right: _toolbarTop,
+              // A narrow Mac window leaves the reader less room than the toolbar's full width.
+              child: Center(
+                child: FittedBox(fit: BoxFit.scaleDown, child: _selectionBar(wide: true)),
+              ),
             ),
         ],
       ),
-      bottomNavigationBar: _selected.isEmpty
+      bottomNavigationBar: card == null
           ? _ChapterNav(
               onQuickChat: widget.onQuickChat,
               canPrev: chapter > 1 || book.id > 1,
@@ -381,40 +489,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               onNext: () =>
                   chapter < chapters ? _go(book, chapter + 1) : _go(bookById(book.id + 1), 1),
             )
-          : _SelectionBar(
-              label: _selection.label,
-              onAsk: () {
-                s.askAbout(_selection);
-                setState(_selected.clear);
-              },
-              onCommentary: () => showCommentary(context, s, _selection),
-              onNote: () async {
-                final ref = _selection;
-                final existing = s.study
-                    .notes(book: book, chapter: chapter)
-                    .where((n) => n.ref == ref)
-                    .firstOrNull;
-                await showNoteDialog(context, s, ref: ref, note: existing);
-                setState(_selected.clear);
-              },
-              onStudyPage: () {
-                final ref = _selection;
-                setState(_selected.clear);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => StudyPageScreen(state: s, ref: ref),
-                  ),
-                );
-              },
-              onHighlight: () {
-                for (final v in _selected) {
-                  s.study.toggleHighlight(book, chapter, v);
-                }
-                setState(_selected.clear);
-              },
-              onClear: () => setState(_selected.clear),
-            ),
+          : null,
     );
   }
 
@@ -622,78 +697,6 @@ class _ChapterNav extends StatelessWidget {
               iconAlignment: IconAlignment.end,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SelectionBar extends StatelessWidget {
-  final String label;
-  final VoidCallback onAsk;
-  final VoidCallback onCommentary;
-  final VoidCallback onNote;
-  final VoidCallback onStudyPage;
-  final VoidCallback onHighlight;
-  final VoidCallback onClear;
-  const _SelectionBar({
-    required this.onStudyPage,
-    required this.label,
-    required this.onAsk,
-    required this.onCommentary,
-    required this.onNote,
-    required this.onHighlight,
-    required this.onClear,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHighest,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(fontWeight: FontWeight.w600, color: scheme.onSurface),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Ask Berea',
-                icon: const Icon(Icons.auto_stories_outlined),
-                onPressed: onAsk,
-              ),
-              IconButton(
-                tooltip: 'Commentary',
-                icon: const Icon(Icons.library_books_outlined),
-                onPressed: onCommentary,
-              ),
-              IconButton(
-                tooltip: 'Note',
-                icon: const Icon(Icons.sticky_note_2_outlined),
-                onPressed: onNote,
-              ),
-              IconButton(
-                tooltip: 'Study page',
-                icon: const Icon(Icons.article_outlined),
-                onPressed: onStudyPage,
-              ),
-              IconButton(
-                tooltip: 'Highlight',
-                icon: const Icon(Icons.border_color_outlined),
-                onPressed: onHighlight,
-              ),
-              IconButton(
-                tooltip: 'Clear selection',
-                icon: const Icon(Icons.close),
-                onPressed: onClear,
-              ),
-            ],
-          ),
         ),
       ),
     );
