@@ -2,6 +2,7 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'keep_sheet.dart';
 import 'theme.dart';
 
 /// Longer comments show this much, with the rest a tap away, so a whole-book preface never
@@ -19,15 +20,26 @@ Future<void> showCommentary(BuildContext context, AppState s, Ref ref) {
     showDragHandle: true,
     builder: (ctx) => FractionallySizedBox(
       heightFactor: _sheetHeight,
-      child: CommentaryPanel(library: s.commentary.library, passage: ref),
+      child: CommentaryPanel(
+        library: s.commentary.library,
+        passage: ref,
+        onKeep: (title, body, verse) =>
+            showKeepSheet(ctx, s, title: title, body: body, verse: verse),
+      ),
     ),
   );
 }
 
+/// Files a comment, titled and attributed, in a notebook.
+typedef KeepComment = void Function(String title, String body, Ref verse);
+
 class CommentaryPanel extends StatelessWidget {
   final CommentaryLibrary library;
   final Ref passage;
-  const CommentaryPanel({super.key, required this.library, required this.passage});
+
+  /// Null hides Keep on each comment.
+  final KeepComment? onKeep;
+  const CommentaryPanel({super.key, required this.library, required this.passage, this.onKeep});
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +82,12 @@ class CommentaryPanel extends StatelessWidget {
                 else if (entries.isEmpty)
                   _Muted('The installed commentaries have nothing on this passage.'),
                 for (final e in byModule.entries)
-                  _ModuleComments(module: modules[e.key], moduleId: e.key, entries: e.value),
+                  _ModuleComments(
+                    module: modules[e.key],
+                    moduleId: e.key,
+                    entries: e.value,
+                    onKeep: onKeep,
+                  ),
                 if (intros.isNotEmpty)
                   ExpansionTile(
                     tilePadding: EdgeInsets.zero,
@@ -101,7 +118,13 @@ class _ModuleComments extends StatelessWidget {
   final CommentaryModule? module;
   final String moduleId;
   final List<CommentaryEntry> entries;
-  const _ModuleComments({required this.module, required this.moduleId, required this.entries});
+  final KeepComment? onKeep;
+  const _ModuleComments({
+    required this.module,
+    required this.moduleId,
+    required this.entries,
+    this.onKeep,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -122,6 +145,20 @@ class _ModuleComments extends StatelessWidget {
           for (final e in entries) ...[
             _Label(_rangeLabel(e)),
             _CommentText(text: e.text, title: '${m?.title ?? moduleId}, ${_rangeLabel(e)}'),
+            if (onKeep case final keep?)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                  icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+                  label: const Text('Keep in a notebook'),
+                  onPressed: () => keep(
+                    '${m?.title ?? moduleId} on ${_rangeLabel(e)}',
+                    [e.text, if (m != null) '${m.author} · ${m.licence}'].join('\n\n'),
+                    _range(e),
+                  ),
+                ),
+              ),
             const SizedBox(height: 10),
           ],
         ],
@@ -129,8 +166,9 @@ class _ModuleComments extends StatelessWidget {
     );
   }
 
-  String _rangeLabel(CommentaryEntry e) =>
-      Ref(bookById(e.book), e.chapter, e.verseStart, e.verseEnd).label;
+  static Ref _range(CommentaryEntry e) => Ref(bookById(e.book), e.chapter, e.verseStart, e.verseEnd);
+
+  String _rangeLabel(CommentaryEntry e) => _range(e).label;
 }
 
 class _Label extends StatelessWidget {
