@@ -67,34 +67,38 @@ class VerseChip extends StatelessWidget {
 }
 
 /// The new prayer sheet, or the edit sheet when [editing] is given. [verse] prefills the verse,
-/// for adding a prayer from a selection in the Bible. Returns the prayer id when saved.
+/// for adding a prayer from a selection in the Bible; [title] prefills what is prayed for, as
+/// from a note. Returns the prayer id when saved.
 Future<int?> showPrayerSheet(
   BuildContext context,
   PrayerStore store, {
   Prayer? editing,
   String? verse,
+  String? title,
   PassageLookup? passage,
 }) => showModalBottomSheet<int>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
   showDragHandle: true,
-  builder: (_) => _PrayerSheet(store: store, editing: editing, verse: verse, passage: passage),
+  builder: (_) =>
+      _PrayerSheet(store: store, editing: editing, verse: verse, title: title, passage: passage),
 );
 
 class _PrayerSheet extends StatefulWidget {
   final PrayerStore store;
   final Prayer? editing;
   final String? verse;
+  final String? title;
   final PassageLookup? passage;
-  const _PrayerSheet({required this.store, this.editing, this.verse, this.passage});
+  const _PrayerSheet({required this.store, this.editing, this.verse, this.title, this.passage});
 
   @override
   State<_PrayerSheet> createState() => _PrayerSheetState();
 }
 
 class _PrayerSheetState extends State<_PrayerSheet> {
-  late final _title = TextEditingController(text: widget.editing?.title);
+  late final _title = TextEditingController(text: widget.editing?.title ?? widget.title);
   late final _forWhom = TextEditingController(text: widget.editing?.forWhom);
   late final _note = TextEditingController(text: widget.editing?.note);
   late final _verse = TextEditingController(text: widget.editing?.verse ?? widget.verse);

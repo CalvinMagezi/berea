@@ -7,7 +7,7 @@ import 'app_state.dart';
 import 'brand/prayer_icon.dart';
 import 'keep_sheet.dart';
 import 'notebooks_screen.dart';
-import 'prayer_screen.dart';
+import 'prayer_sheet.dart';
 import 'settings_sheet.dart';
 import 'study_store.dart';
 import 'theme.dart';
@@ -249,16 +249,25 @@ class _NoteEditorState extends State<NoteEditor> {
     _changed();
   }
 
-  /// Opens the new prayer sheet with the note's verse; a chapter alone is not a prayer's verse.
+  /// Opens the new prayer sheet from the note: its title, else its first words, and its verse.
+  /// A chapter alone is not a prayer's verse, so it is left out.
   Future<void> _prayThis() {
     final verse = _verse;
+    final title = _title.text.trim();
+    final words = firstWords(_body.text);
     return showPrayerSheet(
       context,
       _s.prayers,
+      title: _clip(title.isNotEmpty ? title : words),
       verse: verse?.verseStart == null ? null : verse!.label,
       passage: passageLookupFor(_s.db, () => _s.settings.translation),
     );
   }
+
+  /// A prayer's title has a limit a note's title does not; empty means no prefill.
+  static String? _clip(String title) => title.isEmpty
+      ? null
+      : title.substring(0, title.length.clamp(0, prayerTitleMaxChars));
 
   /// The reference under the cursor, else the first one typed, else the note's verse.
   Ref? get _previewRef {

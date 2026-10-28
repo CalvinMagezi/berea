@@ -340,16 +340,21 @@ void main() {
 
   testWidgets('Pray this opens the new prayer sheet with the note verse', (tester) async {
     await openEditor(tester, verse: ref('John 3:16'));
+    await tester.enterText(find.widgetWithText(TextField, 'Title'), 'Love that gives');
     await tester.tap(find.text('Pray this'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextField, 'John 3:16'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Love that gives'), findsNWidgets(2));
   });
 
   testWidgets('Pray this leaves out a verse that is a whole chapter', (tester) async {
     await openEditor(tester, verse: ref('Romans 8'));
+    await tester.enterText(find.byType(TextField).last, 'For those who suffer this week.');
     await tester.tap(find.text('Pray this'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextField, 'Romans 8'), findsNothing);
+    // With no title, the note's first words are what is prayed for.
+    expect(find.widgetWithText(TextField, 'For those who suffer this week.'), findsNWidgets(2));
   });
 
   testWidgets('the editor microphone shows only when the device model can hear', (tester) async {
