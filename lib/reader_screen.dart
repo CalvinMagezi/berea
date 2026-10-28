@@ -32,6 +32,7 @@ const tipT14 = 'Tap a verse to highlight it, write a note, pray it or ask about 
 const _tipGap = 16.0;
 const _tipCardGap = 8.0;
 const _toolbarTop = 8.0;
+const _toolbarInset = 8.0;
 
 /// The verses of [ref] as plain text with the reference and translation, for Copy and Share.
 String selectionText(List<Verse> verses, Ref ref, String translation) =>
@@ -257,6 +258,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Widget _selectionBar({required bool wide}) => SelectionBar(
     label: _selection.label,
+    count: _selected.length,
     wide: wide,
     onHighlight: () {
       for (final v in _selected) {
@@ -470,8 +472,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
           if (wide && _selected.isNotEmpty)
             Positioned(
               top: _toolbarTop,
-              left: _toolbarTop,
-              right: _toolbarTop,
+              left: _toolbarInset,
+              right: _toolbarInset,
               // A narrow Mac window leaves the reader less room than the toolbar's full width.
               child: Center(
                 child: FittedBox(fit: BoxFit.scaleDown, child: _selectionBar(wide: true)),

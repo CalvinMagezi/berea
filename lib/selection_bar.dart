@@ -19,6 +19,9 @@ enum _More { words, commentary, studyPage, copy, share }
 /// wide screen a toolbar with Words and Commentary out of More.
 class SelectionBar extends StatelessWidget {
   final String label;
+
+  /// How many verses are selected, shown beside the label when more than one.
+  final int count;
   final bool wide;
   final VoidCallback onHighlight;
   final VoidCallback onNote;
@@ -35,6 +38,7 @@ class SelectionBar extends StatelessWidget {
   const SelectionBar({
     super.key,
     required this.label,
+    required this.count,
     required this.wide,
     required this.onHighlight,
     required this.onNote,
@@ -103,6 +107,11 @@ class SelectionBar extends StatelessWidget {
                             style: TextStyle(fontWeight: FontWeight.w600, color: scheme.onSurface),
                           ),
                         ),
+                        if (count > 1)
+                          Text(
+                            '$count verses',
+                            style: TextStyle(fontSize: _labelSize, color: scheme.onSurfaceVariant),
+                          ),
                         clear,
                       ],
                     ),

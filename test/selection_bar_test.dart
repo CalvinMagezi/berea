@@ -108,6 +108,7 @@ void main() {
   testWidgets('Pray opens the prayer sheet with the selected verses filled in', (tester) async {
     await pumpSelected(tester, _roomyPhone, [1, 2]);
     expect(find.text('John 3:1-2'), findsOneWidget);
+    expect(find.text('2 verses'), findsOneWidget);
     await tester.tap(action('Pray'));
     await tester.pumpAndSettle();
     expect(find.text('What are you praying for?'), findsOneWidget);
