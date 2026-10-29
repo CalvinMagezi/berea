@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'plans.dart';
+import 'prayer_points.dart';
+import 'prayer_words.dart';
 import 'theme.dart';
 import 'today.dart';
 
@@ -168,10 +171,39 @@ class _TodayCardState extends State<TodayCard> {
             ],
           ),
           Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
+          ..._prayerRow(context, scheme, daily),
           _planRow(scheme),
         ],
       ),
     );
+  }
+
+  /// The verse of the day's own prayer line, prayed with one tap. Nothing when it has no line.
+  List<Widget> _prayerRow(BuildContext context, ColorScheme scheme, Ref daily) {
+    final line = state.prayerContent.dailyLine(daily);
+    if (line == null) return const [];
+    return [
+      ListTile(
+        contentPadding: const EdgeInsets.only(right: 8),
+        leading: Icon(Icons.volunteer_activism_outlined, color: scheme.primary),
+        title: Text(line),
+        subtitle: const Text("A prayer from today's verse"),
+        trailing: TextButton(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => LinesPrayerScreen(
+                env: state.prayerEnv,
+                title: "Today's prayer",
+                points: [PrayerPoint(line, Ref(daily.book, daily.chapter, daily.verseStart).label)],
+              ),
+            ),
+          ),
+          child: const Text('Pray'),
+        ),
+      ),
+      Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
+    ];
   }
 
   Widget _planRow(ColorScheme scheme) {

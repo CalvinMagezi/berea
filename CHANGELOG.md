@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+Prayers from the Word
+- Prayer gains words to pray. 24 topics of everyday need (work, farming and rain, exams, sickness
+  and healing, grief, marriage and more) have 5 to 8 numbered prayer points each, and every point
+  stands on one Bible verse and says no more than that verse. The points are written for Berea from
+  the Berean Standard Bible. Nothing is generated and no helper is needed.
+- Prayers of the Bible (the Lord's Prayer, Psalm 23, Hannah, Paul for wisdom and more) are prayed a
+  verse at a time from the Bible text you have installed.
+- Today's prayer shows in Prayer and on the Bible's today card: a line from the chapters of your
+  reading plan, else a line for the verse of the day. Pray now opens with praise, confession and
+  thanks, asks through your list (a prayer can carry a topic and shows two of its lines), and closes
+  with others. Ask only skips the frame.
+- Verse ties. A mark in the reader's margin shows where words are written for a verse; it is filled
+  where one of your prayers stands, with "Your prayer" under the verse. Pray, on the selection bar
+  or the mark, opens the points for the verse. A new prayer suggests verses from its own words on the
+  phone, with a switch to pray the topic's points with it. An answered prayer shares as a testimony
+  that carries the verse it stood on, with switches to include the verse and to leave out who it was for.
+- Plans. After you tick a day's chapters, Pray what you read offers two or three lines from them, and
+  Amen ticks the day. Six prayer plans sit beside the reading plans (7 days for your work, Exam week,
+  21 days for your family, 40 days in the Psalms, The prayers of Paul, For our country and its
+  leaders). There are no streaks. Fasting is off unless you turn it on, never without water, and
+  shows a health note.
+- Settings gains Daily prayer: an optional notification each morning with the verse of the day and
+  today's prayer, at a time you choose, or the reference only on the lock screen. It is scheduled on
+  the phone, asks for permission only when you turn it on, and never shows your own prayers.
+- New tables in your notes file hold prayer topics, plan runs and days; they are backed up, restored
+  and exported with the rest. Nothing is removed.
+
 Word study
 - Long-pressing "Jesus" (or Christ, God, LORD or any name) no longer opens a different word. In
   about 550 of the BSB's 1,430 "Jesus" the Greek has a pronoun or only a verb ("Jesus replied" is one

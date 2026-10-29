@@ -1,0 +1,195 @@
+id: family-21
+title: "21 days for your family"
+summary: "Marriage, children, peace at home"
+fasting: true
+reviewed: false
+days:
+  - title: "Made for company"
+    ref: Genesis 2:18-25
+    points:
+      - text: "You said it is not good to be alone. Give me good companions, and make me a helper to others."
+        ref: Genesis 2:18
+      - text: "Let every husband and wife be united, and help me honor the marriages You have put around me."
+        ref: Genesis 2:24
+      - text: "Let husbands and wives be at ease with each other, open and not ashamed."
+        ref: Genesis 2:25
+  - title: "Love and respect"
+    ref: Ephesians 5:21-33
+    points:
+      - text: "Teach us to submit to one another out of reverence for Christ."
+        ref: Ephesians 5:21
+      - text: "Teach me to nourish and cherish those You have given me, as Christ does the church."
+        ref: Ephesians 5:29
+      - text: "Let each husband love his wife as himself, and each wife respect her husband."
+        ref: Ephesians 5:33
+  - title: "A home that fears the Lord"
+    ref: Psalm 128
+    points:
+      - text: "Teach me to fear You and walk in Your ways, for blessed are those who do."
+        ref: Psalm 128:1
+      - text: "Let me eat the fruit of my own labor, and let Your blessing be on it."
+        ref: Psalm 128:2
+      - text: "Let Your blessing come to every person and home that fears You."
+        ref: Psalm 128:4
+  - title: "Consideration and honor"
+    ref: 1 Peter 3:7-9
+    points:
+      - text: "Teach husbands to treat their wives with consideration and honor, as fellow heirs of Your gift of life."
+        ref: 1 Peter 3:7
+      - text: "Make us like-minded and sympathetic, tenderhearted and humble with one another."
+        ref: 1 Peter 3:8
+      - text: "When I am insulted, keep me from answering insult with insult. Help me to bless instead."
+        ref: 1 Peter 3:9
+  - title: "A heart that can be trusted"
+    ref: Proverbs 31:10-31
+    points:
+      - text: "Let a husband's heart trust in his wife, in every marriage I know."
+        ref: Proverbs 31:11
+      - text: "Let me open my mouth with wisdom, with faithful instruction on my tongue."
+        ref: Proverbs 31:26
+      - text: "Charm is deceptive and beauty is fleeting. Let me be known for fearing You."
+        ref: Proverbs 31:30
+  - title: "Honored and faithful"
+    ref: Hebrews 13:1-4
+    points:
+      - text: "Keep us continuing in brotherly love, in our homes and in Your church."
+        ref: Hebrews 13:1
+      - text: "Teach me to show hospitality to strangers, and open my door to those who need a welcome."
+        ref: Hebrews 13:2
+      - text: "Let marriage be honored by all, and let the marriage bed be kept pure."
+        ref: Hebrews 13:4
+  - title: "Better together"
+    ref: Ecclesiastes 4:9-12
+    points:
+      - text: "Thank You that two are better than one. Give couples and friends a good return for their shared labor."
+        ref: Ecclesiastes 4:9
+      - text: "When I fall, send a companion to lift me up, and make me one who lifts up others."
+        ref: Ecclesiastes 4:10
+      - text: "Let husbands and wives keep each other warm, and be near all who are alone."
+        ref: Ecclesiastes 4:11
+  - title: "Tell the next generation"
+    ref: Psalm 78:1-8
+    points:
+      - text: "Help us not to hide Your might and wonders from the children, but to declare Your praise to them."
+        ref: Psalm 78:4
+      - text: "Let the coming generation know what You have commanded, and rise up to tell their own children."
+        ref: Psalm 78:6
+      - text: "Let the children in my life put their confidence in You, not forgetting Your works, but keeping Your commands."
+        ref: Psalm 78:7
+  - title: "Love the Lord first"
+    ref: Deuteronomy 6:4-9
+    points:
+      - text: "Let my family hear and know that the LORD our God, the LORD, is One."
+        ref: Deuteronomy 6:4
+      - text: "Teach me to love You with all my heart, all my soul and all my strength."
+        ref: Deuteronomy 6:5
+      - text: "Help me write Your words on the doorposts of my house and on my gates."
+        ref: Deuteronomy 6:9
+  - title: "Honor and gentleness"
+    ref: Ephesians 6:1-4
+    points:
+      - text: "Teach children to obey their parents in the Lord, for this is right."
+        ref: Ephesians 6:1
+      - text: "Teach me to honor my father and mother, as You have commanded."
+        ref: Ephesians 6:2
+      - text: "Keep fathers from provoking their children to wrath. Help them raise children in Your discipline and instruction."
+        ref: Ephesians 6:4
+  - title: "Let the children come"
+    ref: Mark 10:13-16
+    points:
+      - text: "Lord Jesus, let the little children come to You, and keep me from hindering them."
+        ref: Mark 10:14
+      - text: "Teach me to receive the kingdom of God like a little child."
+        ref: Mark 10:15
+      - text: "Take the children I love into Your arms, place Your hands on them and bless them."
+        ref: Mark 10:16
+  - title: "Growing in wisdom"
+    ref: Luke 2:40-52
+    points:
+      - text: "Let the children in my family and church grow strong, be filled with wisdom, and have Your grace upon them."
+        ref: Luke 2:40
+      - text: "Give the young people I know good teachers, and a heart to listen and to ask questions."
+        ref: Luke 2:46
+      - text: "Let me keep growing in wisdom, and in favor with You and with people."
+        ref: Luke 2:52
+  - title: "Mercy for children's children"
+    ref: Psalm 103:13-18
+    points:
+      - text: "Have compassion on me, Lord, as a father has compassion on his children."
+        ref: Psalm 103:13
+      - text: "Thank You that You know our frame and remember that we are dust."
+        ref: Psalm 103:14
+      - text: "Let Your loving devotion rest on those who fear You, and Your righteousness on their children's children."
+        ref: Psalm 103:17
+  - title: "A father to the fatherless"
+    ref: Psalm 68:4-6
+    points:
+      - text: "I sing praises to Your name. I exalt You, whose name is the LORD, and rejoice before You."
+        ref: Psalm 68:4
+      - text: "Thank You that You are a father to the fatherless and a defender of widows."
+        ref: Psalm 68:5
+      - text: "Settle the lonely in families, and show me who I can welcome in."
+        ref: Psalm 68:6
+  - title: "Clothed in kindness"
+    ref: Colossians 3:12-17
+    points:
+      - text: "Clothe me with compassion, kindness, humility, gentleness and patience."
+        ref: Colossians 3:12
+      - text: "Let the peace of Christ rule in our hearts, and make us thankful."
+        ref: Colossians 3:15
+      - text: "Let the word of Christ dwell richly in us, and let us sing to You with gratitude."
+        ref: Colossians 3:16
+  - title: "Honor one another"
+    ref: Romans 12:9-18
+    points:
+      - text: "Make us devoted to one another in love, each eager to honor the other."
+        ref: Romans 12:10
+      - text: "Help us live in harmony. Keep me from pride and conceit, and help me keep company with the lowly."
+        ref: Romans 12:16
+      - text: "When I am wronged, keep me from repaying evil for evil. Help me think carefully about what is right."
+        ref: Romans 12:17
+  - title: "Words and anger"
+    ref: Ephesians 4:25-32
+    points:
+      - text: "When I am angry, keep me from sin, and do not let my anger outlast the day."
+        ref: Ephesians 4:26
+      - text: "Let no unwholesome talk come from my mouth, only what is helpful for building others up."
+        ref: Ephesians 4:29
+      - text: "Take all bitterness, rage and anger, outcry and slander, and every form of malice away from me."
+        ref: Ephesians 4:31
+  - title: "Wisdom that makes peace"
+    ref: James 3:13-18
+    points:
+      - text: "Keep jealousy and selfish ambition out of our home, for where they exist there is disorder."
+        ref: James 3:16
+      - text: "Give me wisdom from above: pure, peace-loving, gentle, full of mercy and good fruit, impartial and sincere."
+        ref: James 3:17
+      - text: "Make me a peacemaker who sows in peace, and let us reap the fruit of righteousness."
+        ref: James 3:18
+  - title: "The mind of Christ"
+    ref: Philippians 2:1-8
+    points:
+      - text: "Keep me from empty pride. In humility, teach me to consider others more important than myself."
+        ref: Philippians 2:3
+      - text: "Help me look not only to my own interests, but also to the interests of others."
+        ref: Philippians 2:4
+      - text: "Let the same mind be in me that was in Christ Jesus."
+        ref: Philippians 2:5
+  - title: "Forgive and be forgiven"
+    ref: Matthew 6:12-15
+    points:
+      - text: "Forgive us our debts, as we also forgive our debtors. Help me mean it."
+        ref: Matthew 6:12
+      - text: "Father, help me forgive others their trespasses, for then You will also forgive me."
+        ref: Matthew 6:14
+      - text: "Do not let me refuse to forgive others their trespasses, for I need Your forgiveness."
+        ref: Matthew 6:15
+  - title: "Unless the Lord builds it"
+    ref: Psalm 127:1-2
+    points:
+      - text: "Build our house, Lord, for without You its builders labor in vain."
+        ref: Psalm 127:1
+      - text: "Protect our home and our town, for without You the watchmen stand guard in vain."
+        ref: Psalm 127:1
+      - text: "Let me rest in You and not toil anxiously, for You give sleep to Your beloved."
+        ref: Psalm 127:2

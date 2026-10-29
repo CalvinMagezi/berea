@@ -1,0 +1,10 @@
+book: 2 John
+reviewed: false
+chapters:
+  1:
+    - text: "Let grace, mercy and peace from God the Father and Jesus Christ be with us in truth and love."
+      ref: 2 John 1:3
+    - text: "Teach us that love means walking according to Your commandments, and help us walk in love."
+      ref: 2 John 1:6
+    - text: "Keep me from running ahead, and help me remain in the teaching of Christ."
+      ref: 2 John 1:9

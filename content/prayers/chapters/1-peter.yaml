@@ -1,0 +1,38 @@
+book: 1 Peter
+reviewed: false
+chapters:
+  1:
+    - text: "Blessed be You, God and Father, who by great mercy gave us new birth into a living hope."
+      ref: 1 Peter 1:3
+    - text: "Let my faith, proven in trials, result in praise, glory and honor when Jesus Christ is revealed."
+      ref: 1 Peter 1:6-7
+    - text: "Just as You who called me are holy, make me holy in all I do."
+      ref: 1 Peter 1:15
+  2:
+    - text: "Thank You for calling us out of darkness into Your marvelous light. Help us proclaim Your virtues."
+      ref: 1 Peter 2:9
+    - text: "When I am insulted, help me, like Jesus, not to retaliate, but to entrust myself to Him who judges justly."
+      ref: 1 Peter 2:23
+    - text: "Jesus, You bore our sins in Your body on the tree. Help me die to sin and live to righteousness."
+      ref: 1 Peter 2:24
+  3:
+    - text: "Help me not repay evil with evil or insult with insult, but with blessing."
+      ref: 1 Peter 3:9
+    - text: "Let Christ be Lord in my heart. Help me always be ready to explain my hope with gentleness and respect."
+      ref: 1 Peter 3:15
+    - text: "Thank You that Christ suffered for sins once for all, the righteous for the unrighteous, to bring me to God."
+      ref: 1 Peter 3:18
+  4:
+    - text: "Above all, help me love others deeply, because love covers over a multitude of sins."
+      ref: 1 Peter 4:8
+    - text: "Help me use whatever gift I have received to serve others, as a good steward of Your grace."
+      ref: 1 Peter 4:10
+    - text: "I entrust my soul to You, who made me and are faithful, and I will keep doing good."
+      ref: 1 Peter 4:19
+  5:
+    - text: "I humble myself under Your mighty hand, so that in due time You may exalt me."
+      ref: 1 Peter 5:6
+    - text: "I give You every worry, because You care for me."
+      ref: 1 Peter 5:7
+    - text: "God of all grace, who called us to Your eternal glory, restore me, secure me, strengthen me and establish me."
+      ref: 1 Peter 5:10

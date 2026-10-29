@@ -1,3 +1,4 @@
+import 'package:berea/prayer_plan_store.dart';
 import 'package:berea/prayer_store.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,7 +10,9 @@ void main() {
   late PrayerStore store;
 
   setUp(() {
-    db = sqlite3.openInMemory()..execute(prayerSchema);
+    db = sqlite3.openInMemory()
+      ..execute(prayerSchema)
+      ..execute(prayerPlanSchema);
     clock = DateTime(2026, 10, 2, 9);
     store = PrayerStore(db, now: () => clock);
   });

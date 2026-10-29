@@ -2,7 +2,12 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'prayer_plan_store.dart';
 import 'plans.dart';
+import 'prayer_plan_screen.dart';
+import 'prayer_points.dart';
+import 'prayer_today.dart';
+import 'prayer_words.dart';
 import 'setup_screen.dart' show deviceNoun;
 import 'theme.dart';
 import 'today.dart';
@@ -33,11 +38,13 @@ class _PlansScreenState extends State<PlansScreen> {
   void initState() {
     super.initState();
     s.addListener(_refresh);
+    s.prayerPlans.addListener(_refresh);
   }
 
   @override
   void dispose() {
     s.removeListener(_refresh);
+    s.prayerPlans.removeListener(_refresh);
     super.dispose();
   }
 
@@ -63,11 +70,11 @@ class _PlansScreenState extends State<PlansScreen> {
         ],
       ),
       body: progress == null
-          ? _list([_section('Choose a plan'), ..._planTiles(readingPlans)])
+          ? _list([_section('Choose a plan'), ..._planTiles(readingPlans), ..._prayerSection()])
           : LayoutBuilder(
               builder: (_, c) => c.maxWidth >= _twoColumnWidth
                   ? _wide(progress)
-                  : _list([..._running(progress), ..._others(progress.plan)]),
+                  : _list([..._running(progress), ..._prayerSection(), ..._others(progress.plan)]),
             ),
     );
   }
@@ -93,6 +100,7 @@ class _PlansScreenState extends State<PlansScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                ..._prayerSection(wide: true),
                 ..._others(progress.plan, wide: true),
                 const Divider(),
                 Text(
@@ -110,6 +118,7 @@ class _PlansScreenState extends State<PlansScreen> {
 
   List<Widget> _running(PlanProgress p) => [
     _TodayPortion(state: s, progress: p, onTick: _tick, minutes: _minutes(p)),
+    ..._prayWhatYouRead(p),
     if (p.missed.isNotEmpty) _catchUp(p),
     _section('This week'),
     _Week(state: s, progress: p),
@@ -118,6 +127,136 @@ class _PlansScreenState extends State<PlansScreen> {
       child: Text(plansCaption, style: _muted(context)),
     ),
   ];
+
+  /// Two or three lines from the chapters ticked today, to pray what was read. Amen ticks the day.
+  List<Widget> _prayWhatYouRead(PlanProgress p) {
+    final ticked = [
+      for (final r in p.portion)
+        if (p.done.contains(r)) r,
+    ];
+    final lines = prayWhatYouRead(s.prayerContent, ticked);
+    if (lines.isEmpty) return const [];
+    final prayed = s.prayerPlans.readingPrayed(p.plan.id).contains(p.today);
+    return [
+      Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: _card(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'PRAY WHAT YOU READ',
+                style: TextStyle(
+                  fontSize: 11,
+                  letterSpacing: _labelSpacing,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              for (var i = 0; i < lines.length; i++)
+                Transform.translate(
+                  offset: const Offset(-16, 0),
+                  child: PointTile(number: i + 1, point: lines[i]),
+                ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => LinesPrayerScreen(
+                          env: s.prayerEnv,
+                          title: 'Pray what you read',
+                          points: lines,
+                          onAmen: () => s.prayerPlans.prayReading(p.plan.id, p.today),
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.volunteer_activism_outlined),
+                    label: const Text('Pray these'),
+                  ),
+                  Text(
+                    prayed ? 'Day ${p.today} prayed' : 'Amen ticks day ${p.today}',
+                    style: _muted(context),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// Prayer plans beside the reading plans: those being prayed with their day, and the rest to
+  /// start. Two can run at once.
+  List<Widget> _prayerSection({bool wide = false}) {
+    final plans = s.prayerContent.plans;
+    if (plans.isEmpty) return const [];
+    final running = {for (final r in s.prayerPlans.running()) r.planId: r};
+    return [
+      _section('Prayer plans'),
+      for (final plan in plans) _prayerTile(plan, running[plan.id], wide: wide),
+    ];
+  }
+
+  Widget _prayerTile(PrayerPlan plan, PlanRun? run, {required bool wide}) {
+    final day = run == null ? null : s.prayerPlans.currentDay(plan.id, plan.days.length);
+    final finished = s.prayerPlans.run(plan.id)?.finished;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.volunteer_activism_outlined),
+      title: Text(plan.title),
+      subtitle: Text(
+        finished != null
+            ? 'Finished ${shortDate(finished)}. ${plan.summary}'
+            : day == null
+            ? plan.summary
+            : '${planDayLabel(day, plan.days.length)} \u00B7 ${plan.days[day - 1].title}',
+      ),
+      trailing: run != null
+          ? TextButton(onPressed: () => _openPrayerPlan(plan), child: const Text('Pray'))
+          : wide
+          ? TextButton(onPressed: () => _startPrayerPlan(plan), child: const Text('Start'))
+          : const Icon(Icons.chevron_right),
+      onTap: () => run == null ? _startPrayerPlan(plan) : _openPrayerPlan(plan),
+    );
+  }
+
+  void _openPrayerPlan(PrayerPlan plan) => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      builder: (_) => PrayerPlanScreen(state: s, plan: plan),
+    ),
+  );
+
+  /// Starting a plan that was finished begins it again with no days, so it asks first.
+  Future<void> _startPrayerPlan(PrayerPlan plan) async {
+    if (s.prayerPlans.run(plan.id) != null) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Start ${plan.title} again?'),
+          content: const Text(
+            'The days you prayed, the prayer you linked and fasting are cleared. Your prayers stay.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Start again'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    s.prayerPlans.start(plan.id);
+    _openPrayerPlan(plan);
+  }
 
   List<Widget> _others(ReadingPlan current, {bool wide = false}) => [
     _section('Start another'),
@@ -288,7 +427,10 @@ class _TodayPortion extends StatelessWidget {
               else
                 Text('Today\'s chapters are read.', style: TextStyle(color: scheme.primary)),
               if (next != null && minutes != null)
-                Text(minutes == 1 ? 'About 1 minute' : 'About $minutes minutes', style: _muted(context)),
+                Text(
+                  minutes == 1 ? 'About 1 minute' : 'About $minutes minutes',
+                  style: _muted(context),
+                ),
             ],
           ),
           const SizedBox(height: 16),

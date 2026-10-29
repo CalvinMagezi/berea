@@ -2,6 +2,8 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'prayer_plan_store.dart';
+
 /// Study store migration for Prayer. Dates are epoch milliseconds. [verse] is a reference label
 /// such as "Philippians 4:6-7". A prayed day is a local yyyymmdd number, one row per day, so
 /// Amen twice in a day counts once and last prayed is the latest day. [reminder] is minutes
@@ -44,6 +46,7 @@ void validatePrayerTables(Map<String, List<Map<String, Object?>>> tables) {
     _nullableOf<int>(r, 'answered');
     _nullableOf<int>(r, 'reminder');
     _nullableOf<String>(r, 'answer');
+    _nullableOf<String>(r, 'topic');
     final verse = r['verse'];
     if (verse != null && (verse is! String || RefParser.parse(verse).isEmpty)) {
       throw FormatException('prayer ${r['id']} has a bad verse');
@@ -93,6 +96,9 @@ class Prayer {
 
   /// Minutes after midnight. Stored but not offered until reminders exist.
   final int? reminder;
+
+  /// The id of the topic this prayer is prayed with, so Pray now shows that topic's lines.
+  final String? topic;
   const Prayer({
     required this.id,
     required this.title,
@@ -107,6 +113,7 @@ class Prayer {
     this.answer,
     this.archived = false,
     this.reminder,
+    this.topic,
   });
 
   bool get isAnswered => answered != null;
@@ -146,6 +153,7 @@ class PrayerStore extends ChangeNotifier {
       answer: r['answer'] as String?,
       archived: r['archived'] == 1,
       reminder: r['reminder'] as int?,
+      topic: r['topic'] as String?,
     );
   }
 
@@ -180,24 +188,34 @@ class PrayerStore extends ChangeNotifier {
 
   bool get isEmpty => db.select('SELECT 1 FROM prayers LIMIT 1').isEmpty;
 
-  int add({required String title, String forWhom = '', String? verse, String note = ''}) {
+  int add({
+    required String title,
+    String forWhom = '',
+    String? verse,
+    String note = '',
+    String? topic,
+  }) {
     db.execute(
-      'INSERT INTO prayers(title, for_whom, verse, note, created) VALUES (?, ?, ?, ?, ?)',
-      [title.trim(), forWhom.trim(), verseLabel(verse), note.trim(), _nowMs()],
+      'INSERT INTO prayers(title, for_whom, verse, note, created, topic) VALUES (?, ?, ?, ?, ?, ?)',
+      [title.trim(), forWhom.trim(), verseLabel(verse), note.trim(), _nowMs(), topic],
     );
     final id = db.lastInsertRowId;
     notifyListeners();
     return id;
   }
 
-  void edit(int id, {required String title, String forWhom = '', String? verse, String note = ''}) {
-    db.execute('UPDATE prayers SET title = ?, for_whom = ?, verse = ?, note = ? WHERE id = ?', [
-      title.trim(),
-      forWhom.trim(),
-      verseLabel(verse),
-      note.trim(),
-      id,
-    ]);
+  void edit(
+    int id, {
+    required String title,
+    String forWhom = '',
+    String? verse,
+    String note = '',
+    String? topic,
+  }) {
+    db.execute(
+      'UPDATE prayers SET title = ?, for_whom = ?, verse = ?, note = ?, topic = ? WHERE id = ?',
+      [title.trim(), forWhom.trim(), verseLabel(verse), note.trim(), topic, id],
+    );
     notifyListeners();
   }
 
@@ -237,6 +255,7 @@ class PrayerStore extends ChangeNotifier {
     db.execute('BEGIN');
     try {
       db.execute('DELETE FROM prayer_days WHERE prayer_id = ?', [id]);
+      db.execute('UPDATE prayer_plan_runs SET prayer_id = NULL WHERE prayer_id = ?', [id]);
       db.execute('DELETE FROM prayers WHERE id = ?', [id]);
       db.execute('COMMIT');
     } catch (_) {
@@ -274,8 +293,14 @@ String prayerListText(List<Prayer> praying) => [
   for (final p in praying) '- ${prayerShareText(p).replaceAll('\n', ' · ')}',
 ].join('\n');
 
-/// Every prayer as Markdown for export, praying first, then answered, then stopped.
-String prayersMarkdown(PrayerStore store) {
+/// Every prayer as Markdown for export, praying first, then answered, then stopped, then the
+/// prayer plans and the reading plan days prayed. [planTitles] names plans by id; an id
+/// stands in for a plan this build does not have.
+String prayersMarkdown(
+  PrayerStore store, {
+  PrayerPlanStore? plans,
+  Map<String, String> planTitles = const {},
+}) {
   final b = StringBuffer('# Prayer\n\n');
   void section(String title, List<Prayer> ps) {
     if (ps.isEmpty) return;
@@ -298,5 +323,28 @@ String prayersMarkdown(PrayerStore store) {
   section('Praying', store.praying());
   section('Answered', store.answered());
   section('No longer praying', store.stopped());
+  if (plans != null) _planSection(b, plans, planTitles);
   return b.toString();
+}
+
+void _planSection(StringBuffer b, PrayerPlanStore plans, Map<String, String> titles) {
+  final runs = plans.all();
+  final reading = plans.readingCounts();
+  if (runs.isEmpty && reading.isEmpty) return;
+  b.writeln('## Prayer plans\n');
+  String name(String id) => titles[id] ?? id;
+  for (final r in runs) {
+    final days = plans.daysPrayed(r.planId).length;
+    final parts = [
+      'started ${_ymd(r.started)}',
+      days == 1 ? 'prayed on 1 day' : 'prayed on $days days',
+      if (r.finished != null) 'finished ${_ymd(r.finished!)}',
+      if (r.fasting) 'fasting on',
+    ];
+    b.writeln('- ${name(r.planId)}: ${parts.join(', ')}');
+  }
+  for (final e in reading.entries) {
+    b.writeln('- Pray what you read, ${name(e.key)}: ${e.value} ${e.value == 1 ? 'day' : 'days'}');
+  }
+  b.writeln();
 }

@@ -1,0 +1,38 @@
+book: 1 John
+reviewed: false
+chapters:
+  1:
+    - text: "God, You are light, and in You there is no darkness at all."
+      ref: 1 John 1:5
+    - text: "Help me walk in the light. Thank You that the blood of Jesus Your Son cleanses us from all sin."
+      ref: 1 John 1:7
+    - text: "Keep me from saying I have no sin, for then I deceive myself."
+      ref: 1 John 1:8
+  2:
+    - text: "Thank You that if I sin, I have an advocate before the Father, Jesus Christ."
+      ref: 1 John 2:1
+    - text: "Help me abide in You, and walk as Jesus walked."
+      ref: 1 John 2:6
+    - text: "Help me not to love the world or anything in it, but to keep the Father's love in me."
+      ref: 1 John 2:15
+  3:
+    - text: "Father, what love You have given us, that we should be called Your children. Thank You."
+      ref: 1 John 3:1
+    - text: "Help me to love not only in word and speech, but in action and truth."
+      ref: 1 John 3:18
+    - text: "Even when my heart condemns me, You are greater than my heart, and You know all things."
+      ref: 1 John 3:20
+  4:
+    - text: "Help us love one another, because love comes from You."
+      ref: 1 John 4:7
+    - text: "Thank You that You loved us, and sent Your Son as the atoning sacrifice for our sins."
+      ref: 1 John 4:10
+    - text: "Let Your perfect love drive out fear in me, for there is no fear in love."
+      ref: 1 John 4:18
+  5:
+    - text: "Thank You that our faith is the victory that overcomes the world."
+      ref: 1 John 5:4
+    - text: "Thank You that I can know I have eternal life, as I believe in the name of Your Son."
+      ref: 1 John 5:13
+    - text: "Teach me to ask according to Your will, for You hear us when we do."
+      ref: 1 John 5:14

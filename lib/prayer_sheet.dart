@@ -1,9 +1,11 @@
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'confirm.dart';
 import 'prayer_store.dart';
+import 'prayer_verse.dart';
 import 'setup_screen.dart' show deviceNoun;
 import 'theme.dart';
 
@@ -70,21 +72,31 @@ class VerseChip extends StatelessWidget {
 
 /// The new prayer sheet, or the edit sheet when [editing] is given. [verse] prefills the verse,
 /// for adding a prayer from a selection in the Bible; [title] prefills what is prayed for, as
-/// from a note. Returns the prayer id when saved.
+/// from a note; [topic] starts the prayer on a From the Word topic. With [content] the sheet
+/// suggests verses to stand on from the prayer's own words. Returns the prayer id when saved.
 Future<int?> showPrayerSheet(
   BuildContext context,
   PrayerStore store, {
   Prayer? editing,
   String? verse,
   String? title,
+  String? topic,
   PassageLookup? passage,
+  PrayerContent? content,
 }) => showModalBottomSheet<int>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
   showDragHandle: true,
-  builder: (_) =>
-      _PrayerSheet(store: store, editing: editing, verse: verse, title: title, passage: passage),
+  builder: (_) => _PrayerSheet(
+    store: store,
+    editing: editing,
+    verse: verse,
+    title: title,
+    topic: topic,
+    passage: passage,
+    content: content,
+  ),
 );
 
 class _PrayerSheet extends StatefulWidget {
@@ -92,8 +104,18 @@ class _PrayerSheet extends StatefulWidget {
   final Prayer? editing;
   final String? verse;
   final String? title;
+  final String? topic;
   final PassageLookup? passage;
-  const _PrayerSheet({required this.store, this.editing, this.verse, this.title, this.passage});
+  final PrayerContent? content;
+  const _PrayerSheet({
+    required this.store,
+    this.editing,
+    this.verse,
+    this.title,
+    this.topic,
+    this.passage,
+    this.content,
+  });
 
   @override
   State<_PrayerSheet> createState() => _PrayerSheetState();
@@ -104,6 +126,7 @@ class _PrayerSheetState extends State<_PrayerSheet> {
   late final _forWhom = TextEditingController(text: widget.editing?.forWhom);
   late final _note = TextEditingController(text: widget.editing?.note);
   late final _verse = TextEditingController(text: widget.editing?.verse ?? widget.verse);
+  late String? _topicId = widget.editing?.topic ?? widget.topic;
   String? _error;
 
   @override
@@ -137,6 +160,7 @@ class _PrayerSheetState extends State<_PrayerSheet> {
         forWhom: _forWhom.text,
         verse: typedVerse,
         note: _note.text,
+        topic: _topicId,
       );
       Navigator.pop(context, id);
       return;
@@ -147,6 +171,7 @@ class _PrayerSheetState extends State<_PrayerSheet> {
       forWhom: _forWhom.text,
       verse: typedVerse,
       note: _note.text,
+      topic: _topicId,
     );
     Navigator.pop(context, editing.id);
   }
@@ -188,6 +213,53 @@ class _PrayerSheetState extends State<_PrayerSheet> {
     );
   }
 
+  /// Verses to stand on, matched on the device from the words of the prayer, and the switch
+  /// that prays the matched topic's points with it. Nothing leaves the device.
+  Widget _suggestions(BuildContext context) {
+    final content = widget.content;
+    final typed = _title.text.trim();
+    if (content == null || content.topics.isEmpty || typed.isEmpty) return const SizedBox.shrink();
+    final suggestion = suggestVerses(content, typed);
+    final topic = content.topic(_topicId) ?? suggestion.topic;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            topic == null
+                ? 'Verses many people stand on'
+                : 'A verse to stand on \u00B7 from ${topic.title}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final r in suggestion.verses)
+                ChoiceChip(
+                  avatar: const Icon(Icons.menu_book_outlined, size: 16),
+                  label: Text(r.label),
+                  selected: _verse.text.trim() == r.label,
+                  onSelected: (on) => setState(() => _verse.text = on ? r.label : ''),
+                ),
+            ],
+          ),
+          if (topic != null)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text("Pray the topic's points with it"),
+              subtitle: Text('${topic.points.length} from ${topic.title}, in Pray now'),
+              value: _topicId == topic.id,
+              onChanged: (on) => setState(() => _topicId = on ? topic.id : null),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final editing = widget.editing;
@@ -211,6 +283,7 @@ class _PrayerSheetState extends State<_PrayerSheet> {
             const SizedBox(height: 16),
             TextField(
               controller: _title,
+              onChanged: (_) => setState(() {}),
               autofocus: editing == null,
               maxLength: prayerTitleMaxChars,
               textCapitalization: TextCapitalization.sentences,
@@ -237,6 +310,7 @@ class _PrayerSheetState extends State<_PrayerSheet> {
               ),
             ),
             _versePreview(context),
+            _suggestions(context),
             const SizedBox(height: 12),
             TextField(
               controller: _note,
@@ -353,5 +427,92 @@ Future<String?> askExtraLine(BuildContext context) {
         ),
       ],
     ),
+  );
+}
+
+/// Shows exactly what a testimony will say, with switches for the verse and for who the prayer
+/// was for, then copies or shares it. Who it was for is left out by default when there is one.
+Future<void> shareTestimony(
+  BuildContext context,
+  Prayer p, {
+  required ShareText share,
+  PassageLookup? passage,
+  Rect? origin,
+}) {
+  final ref = p.ref;
+  final verseText = ref == null || passage == null ? null : passageText(passage(ref));
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      var includeVerse = true;
+      var leaveOutWho = p.forWhom.isNotEmpty;
+      return StatefulBuilder(
+        builder: (ctx, setState) {
+          final text = testimonyShareText(
+            p,
+            verseText: verseText,
+            includeVerse: includeVerse,
+            includeWho: !leaveOutWho,
+          );
+          return AlertDialog(
+            title: const Text('Share a testimony'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This exact text is shared. Nothing else.',
+                    style: Theme.of(ctx).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: SelectableText(text),
+                  ),
+                  if (p.verse != null)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Include the verse'),
+                      subtitle: const Text('The one you stood on'),
+                      value: includeVerse,
+                      onChanged: (v) => setState(() => includeVerse = v),
+                    ),
+                  if (p.forWhom.isNotEmpty)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Leave out who it was for'),
+                      subtitle: const Text('On by default for prayers for others'),
+                      value: leaveOutWho,
+                      onChanged: (v) => setState(() => leaveOutWho = v),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: text));
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                child: const Text('Copy'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  share(text, origin);
+                },
+                child: const Text('Share'),
+              ),
+            ],
+          );
+        },
+      );
+    },
   );
 }

@@ -1,0 +1,337 @@
+book: Psalms
+reviewed: false
+chapters:
+  101:
+    - text: "I will sing of Your loving devotion and justice, Lord. To You I will sing praises."
+      ref: Psalm 101:1
+    - text: "Help me to walk in my own house with integrity of heart."
+      ref: Psalm 101:2
+    - text: "Help me set no worthless thing before my eyes."
+      ref: Psalm 101:3
+  102:
+    - text: "Do not hide Your face from me in my day of distress. Incline Your ear and answer me quickly."
+      ref: Psalm 102:2
+    - text: "Lord, You are enthroned forever, and Your renown lasts to all generations. I put my trust in You."
+      ref: Psalm 102:12
+    - text: "Thank You that You turn toward the prayer of the destitute and do not despise their prayer."
+      ref: Psalm 102:17
+  103:
+    - text: "You are compassionate and gracious, Lord, slow to anger and rich in loving devotion. Thank You."
+      ref: Psalm 103:8
+    - text: "Thank You, Lord, that You have not dealt with me as my sins deserve."
+      ref: Psalm 103:10
+    - text: "Thank You that You have removed my sins from me as far as the east is from the west."
+      ref: Psalm 103:12
+  104:
+    - text: "How many are Your works, Lord! You made them all in wisdom, and Your creatures fill the earth."
+      ref: Psalm 104:24
+    - text: "Thank You, Lord, that when You open Your hand, Your creatures are satisfied with good things."
+      ref: Psalm 104:28
+    - text: "May my thoughts of You please You, Lord, for I rejoice in You."
+      ref: Psalm 104:34
+  105:
+    - text: "I give thanks to You, Lord, and call on Your name. Help me to make Your deeds known."
+      ref: Psalm 105:1
+    - text: "I seek You and Your strength, Lord. Help me to seek Your face always."
+      ref: Psalm 105:4
+    - text: "Thank You, Lord, that You remember Your covenant forever, for a thousand generations."
+      ref: Psalm 105:8
+  106:
+    - text: "Remember me, Lord, when You show favor to Your people, and visit me with Your salvation."
+      ref: Psalm 106:4
+    - text: "Lord, we have sinned, as our fathers did. We have done wrong and acted wickedly."
+      ref: Psalm 106:6
+    - text: "Thank You that You hear our cry and take note of our distress, Lord."
+      ref: Psalm 106:44
+  107:
+    - text: "When I am in trouble I cry out to You, Lord. Deliver me from my distress."
+      ref: Psalm 107:6
+    - text: "You satisfy the thirsty and fill the hungry with good things. Satisfy and fill me, Lord."
+      ref: Psalm 107:9
+    - text: "Make me wise to pay attention to these things and to consider Your loving devotion, Lord."
+      ref: Psalm 107:43
+  108:
+    - text: "Keep my heart steady, God, and I will sing and make music to You with all my being."
+      ref: Psalm 108:1
+    - text: "Your loving devotion reaches higher than the heavens, and Your faithfulness to the clouds. Thank You, God."
+      ref: Psalm 108:4
+    - text: "Answer and save us with Your right hand, God, so that those You love may be delivered."
+      ref: Psalm 108:6
+  109:
+    - text: "I am poor and needy, Lord, and my heart is wounded within me."
+      ref: Psalm 109:22
+    - text: "Help me, Lord my God, and save me according to Your loving devotion."
+      ref: Psalm 109:26
+    - text: "Thank You that You stand at the right hand of the needy to save them."
+      ref: Psalm 109:31
+  110:
+    - text: "Father, You told my Lord to sit at Your right hand. Help me honor Him."
+      ref: Psalm 110:1
+    - text: "Lord, You have sworn and will not change Your mind. I rest in what You have sworn."
+      ref: Psalm 110:4
+  111:
+    - text: "I give thanks to You, Lord, with all my heart, in the company of the upright."
+      ref: Psalm 111:1
+    - text: "You provide food for those who fear You, Lord. Thank You for remembering Your covenant forever."
+      ref: Psalm 111:5
+    - text: "Teach me to fear You, Lord, for that is the beginning of wisdom."
+      ref: Psalm 111:10
+  112:
+    - text: "Teach me to fear You, Lord, and to delight greatly in Your commands."
+      ref: Psalm 112:1
+    - text: "Thank You that light dawns in the darkness for the upright. Make me gracious, compassionate and righteous."
+      ref: Psalm 112:4
+    - text: "Let me not fear bad news. Make my heart steady, trusting in You, Lord."
+      ref: Psalm 112:7
+  113:
+    - text: "From sunrise to sunset Your name is praised, Lord. I praise You today."
+      ref: Psalm 113:3
+    - text: "Who is like You, Lord our God? You humble Yourself to behold the heavens and the earth."
+      ref: Psalm 113:5-6
+    - text: "Thank You that You raise the poor from the dust and lift the needy from the dump."
+      ref: Psalm 113:7
+  114:
+    - text: "Let the whole earth tremble before You, Lord, and let me stand in awe of Your presence."
+      ref: Psalm 114:7
+    - text: "Thank You, Lord, that You turned rock into a pool and flint into a fountain of water."
+      ref: Psalm 114:8
+  115:
+    - text: "Let the glory be Yours, Lord, and not mine, because of Your loving devotion and faithfulness."
+      ref: Psalm 115:1
+    - text: "I trust in You, Lord. You are my help and my shield."
+      ref: Psalm 115:11
+    - text: "We will bless You, Lord, both now and forevermore."
+      ref: Psalm 115:18
+  116:
+    - text: "Because You bend Your ear to me, Lord, I will call on You as long as I live."
+      ref: Psalm 116:2
+    - text: "Thank You for delivering my soul from death, my eyes from tears and my feet from stumbling."
+      ref: Psalm 116:8
+    - text: "What can I give back to You, Lord, for all Your goodness to me?"
+      ref: Psalm 116:12
+  117:
+    - text: "Let every nation praise You, Lord, and let all peoples extol You."
+      ref: Psalm 117:1
+    - text: "Great is Your loving devotion toward us, Lord, and Your faithfulness endures forever."
+      ref: Psalm 117:2
+  118:
+    - text: "You are on my side, Lord, so I will not be afraid."
+      ref: Psalm 118:6
+    - text: "You are my strength and my song, Lord. You have become my salvation."
+      ref: Psalm 118:14
+    - text: "This is the day You have made, Lord. Help me to rejoice and be glad in it."
+      ref: Psalm 118:24
+  119:
+    - text: "I hide Your word in my heart, Lord, so that I might not sin against You."
+      ref: Psalm 119:11
+    - text: "In my trouble Your promise is my comfort. Thank You that it has given me life."
+      ref: Psalm 119:50
+    - text: "I have strayed like a lost sheep. Seek me, Lord, for I have not forgotten Your commands."
+      ref: Psalm 119:176
+  120:
+    - text: "In my distress I cried to You, Lord, and You answered me. Thank You."
+      ref: Psalm 120:1
+    - text: "Save me, Lord, from lying lips and from a deceitful tongue."
+      ref: Psalm 120:2
+    - text: "Make me a person of peace, Lord, even when others want war."
+      ref: Psalm 120:7
+  121:
+    - text: "My help comes from You, Lord, the maker of heaven and earth."
+      ref: Psalm 121:2
+    - text: "Do not let my foot slip, Lord. Thank You that You never slumber."
+      ref: Psalm 121:3
+    - text: "Lord, be my keeper and the shade at my right hand."
+      ref: Psalm 121:5
+  122:
+    - text: "Lord, make me glad whenever it is time to go to Your house."
+      ref: Psalm 122:1
+    - text: "Lord, for the sake of my brothers and friends, I pray for peace."
+      ref: Psalm 122:8
+  123:
+    - text: "I lift up my eyes to You, Lord, who sit enthroned in heaven."
+      ref: Psalm 123:1
+    - text: "Our eyes are on You, Lord, as servants watch their master's hand, until You show us mercy."
+      ref: Psalm 123:2
+    - text: "Have mercy on us, Lord, for we have endured much contempt."
+      ref: Psalm 123:3
+  124:
+    - text: "Blessed are You, Lord, for You have not given us up as prey."
+      ref: Psalm 124:6
+    - text: "Thank You that we escaped like a bird from the snare. The net is torn and we have slipped away."
+      ref: Psalm 124:7
+    - text: "Our help is in Your name, Lord, the maker of heaven and earth."
+      ref: Psalm 124:8
+  125:
+    - text: "Make me one who trusts in You, Lord, firm like a mountain that cannot be moved."
+      ref: Psalm 125:1
+    - text: "Thank You, Lord, that You surround Your people as mountains surround a city, now and forevermore."
+      ref: Psalm 125:2
+    - text: "Do good, Lord, to the upright in heart, and make my heart upright."
+      ref: Psalm 125:4
+  126:
+    - text: "You have done great things for us, Lord, and we are filled with joy."
+      ref: Psalm 126:3
+    - text: "Restore us, Lord, like streams in a dry land."
+      ref: Psalm 126:4
+    - text: "When I sow in tears, Lord, let me reap with shouts of joy."
+      ref: Psalm 126:5
+  127:
+    - text: "Unless You build the house, Lord, its builders labor in vain. Build my home and my work."
+      ref: Psalm 127:1
+    - text: "I rise early and stay up late. Teach me to rest, for You give sleep to Your beloved."
+      ref: Psalm 127:2
+  128:
+    - text: "Thank You that those who fear You and walk in Your ways are blessed. Teach me to do both."
+      ref: Psalm 128:1
+    - text: "Bless the work of my hands, Lord, so that I may eat the fruit of my labor."
+      ref: Psalm 128:2
+    - text: "Bless us, Lord, all the days of our lives, and let us see the generations that come after us."
+      ref: Psalm 128:5-6
+  129:
+    - text: "Thank You, Lord, that though I have been persecuted since my youth, I have not been overcome."
+      ref: Psalm 129:2
+    - text: "You are righteous, Lord. Thank You for cutting me free from the cords of the wicked."
+      ref: Psalm 129:4
+  130:
+    - text: "Out of the depths I cry to You, Lord. Hear my voice and listen to my plea for mercy."
+      ref: Psalm 130:1-2
+    - text: "If You kept a record of sins, no one could stand. Thank You that with You there is forgiveness."
+      ref: Psalm 130:3-4
+    - text: "I wait for You, Lord. My soul waits, and in Your word I put my hope."
+      ref: Psalm 130:5
+  131:
+    - text: "Keep my heart humble and my eyes from pride, Lord. Keep me from things too lofty for me."
+      ref: Psalm 131:1
+    - text: "Still and quiet my soul, Lord, like a weaned child with its mother."
+      ref: Psalm 131:2
+    - text: "Teach me to put my hope in You, Lord, now and forevermore."
+      ref: Psalm 131:3
+  132:
+    - text: "Let us go to Your dwelling place, Lord, and worship at Your footstool."
+      ref: Psalm 132:7
+    - text: "Clothe those who serve You with righteousness, Lord, and let Your saints shout for joy."
+      ref: Psalm 132:9
+    - text: "Lord, satisfy the poor among Your people with bread."
+      ref: Psalm 132:15
+  133:
+    - text: "Help us to live together in harmony, Lord, for it is good and pleasant."
+      ref: Psalm 133:1
+    - text: "Let Your blessing of life fall on us, Lord, like dew on the mountains."
+      ref: Psalm 133:3
+  134:
+    - text: "I bless You, Lord, with all who serve You in Your house, even by night."
+      ref: Psalm 134:1
+    - text: "I lift up my hands to You and bless Your name, Lord."
+      ref: Psalm 134:2
+    - text: "Lord, maker of heaven and earth, bless us."
+      ref: Psalm 134:3
+  135:
+    - text: "You are good, Lord, and Your name is lovely. I sing praises to You."
+      ref: Psalm 135:3
+    - text: "You do all that pleases You in heaven, on earth and in the seas. I trust You, Lord."
+      ref: Psalm 135:6
+    - text: "Thank You that You will stand up for Your people and have compassion on Your servants."
+      ref: Psalm 135:14
+  136:
+    - text: "Thank You, Lord, for You are good. Your loving devotion never ends."
+      ref: Psalm 136:1
+    - text: "Thank You for remembering us when we were brought low. Your loving devotion endures forever."
+      ref: Psalm 136:23
+    - text: "Thank You for giving food to every living creature, Lord."
+      ref: Psalm 136:25
+  137:
+    - text: "Lord, there are days I sit and weep when I remember home. Hear my sorrow."
+      ref: Psalm 137:1
+    - text: "In a land that is not mine, help me still to sing a song of the Lord."
+      ref: Psalm 137:4
+  138:
+    - text: "Thank You that on the day I called, You answered me and strengthened my soul."
+      ref: Psalm 138:3
+    - text: "Thank You that though You are on high, You attend to the lowly."
+      ref: Psalm 138:6
+    - text: "Fulfill Your purpose for me, Lord, and do not abandon the work of Your hands."
+      ref: Psalm 138:8
+  139:
+    - text: "Thank You that even in the farthest place Your hand will guide me and Your right hand will hold me."
+      ref: Psalm 139:9-10
+    - text: "I praise You, Lord, for I am fearfully and wonderfully made. Your works are marvelous."
+      ref: Psalm 139:14
+    - text: "Show me any way in me that offends You, Lord, and lead me in the way everlasting."
+      ref: Psalm 139:24
+  140:
+    - text: "Rescue me, Lord, from evil, and protect me from violence."
+      ref: Psalm 140:1
+    - text: "You are the strength of my salvation, Lord, and You shield my head in the day of battle."
+      ref: Psalm 140:7
+    - text: "Thank You, Lord, that You uphold justice for the poor and defend the cause of the needy."
+      ref: Psalm 140:12
+  141:
+    - text: "Let my prayer be set before You like incense, Lord, and my lifted hands like the evening offering."
+      ref: Psalm 141:2
+    - text: "Set a guard over my mouth, Lord, and keep watch at the door of my lips."
+      ref: Psalm 141:3
+    - text: "My eyes are fixed on You, Lord. In You I take refuge, so do not leave me defenseless."
+      ref: Psalm 141:8
+  142:
+    - text: "I pour out my complaint before You, Lord, and tell You all my trouble."
+      ref: Psalm 142:2
+    - text: "My spirit grows faint within me, but You know my way, Lord."
+      ref: Psalm 142:3
+    - text: "You are my refuge, Lord, my portion in the land of the living."
+      ref: Psalm 142:5
+  143:
+    - text: "Do not bring me into judgment, Lord, for no one alive is righteous before You."
+      ref: Psalm 143:2
+    - text: "I stretch out my hands to You, and my soul thirsts for You like dry ground."
+      ref: Psalm 143:6
+    - text: "Let me hear Your loving devotion in the morning, for I trust You. Teach me the way to walk."
+      ref: Psalm 143:8
+  144:
+    - text: "You are my fortress, my stronghold, my deliverer and my shield, Lord. In You I take refuge."
+      ref: Psalm 144:2
+    - text: "Lord, what is man, that You regard him? Yet You think of me. Thank You."
+      ref: Psalm 144:3
+    - text: "Thank You that the people whose God is the Lord are blessed. You are my God."
+      ref: Psalm 144:15
+  145:
+    - text: "Every day I will bless You, Lord, and praise Your name forever and ever."
+      ref: Psalm 145:2
+    - text: "Thank You, Lord, that You uphold all who fall and lift up all who are bowed down."
+      ref: Psalm 145:14
+    - text: "You are near to all who call on You, Lord. I call on You in truth."
+      ref: Psalm 145:18
+  146:
+    - text: "I will praise You all my life, Lord, and sing to You while I have my being."
+      ref: Psalm 146:2
+    - text: "You are my help and my hope, Lord my God. Blessed is the one who trusts in You."
+      ref: Psalm 146:5
+    - text: "Lord, You lift up those who are weighed down. I bring You my burdens."
+      ref: Psalm 146:8
+  147:
+    - text: "You heal the brokenhearted and bind up their wounds, Lord. Heal my heart."
+      ref: Psalm 147:3
+    - text: "Great are You, Lord, and mighty in power. Your understanding has no limit, so I trust You."
+      ref: Psalm 147:5
+    - text: "You are pleased with those who fear You and hope in Your loving devotion, Lord. Let me be one."
+      ref: Psalm 147:11
+  148:
+    - text: "Let all You have made praise Your name, Lord, for You commanded and they were created."
+      ref: Psalm 148:5
+    - text: "Let young and old praise You together, Lord, and let me join them."
+      ref: Psalm 148:12
+    - text: "Your name alone is exalted, Lord. Your splendor is above the earth and the heavens."
+      ref: Psalm 148:13
+  149:
+    - text: "Lord, I join Your people to sing You a new song of praise."
+      ref: Psalm 149:1
+    - text: "Let us praise Your name with dancing, and make music to You with tambourine and harp."
+      ref: Psalm 149:3
+    - text: "Thank You, Lord, that You take pleasure in Your people and adorn the afflicted with salvation."
+      ref: Psalm 149:4
+  150:
+    - text: "I praise You, God, for Your mighty acts and for Your excellent greatness."
+      ref: Psalm 150:2
+    - text: "Let me praise You with tambourine and dancing, with strings and flute."
+      ref: Psalm 150:4
+    - text: "Let everything that has breath praise You, Lord, and let me be one of them."
+      ref: Psalm 150:6

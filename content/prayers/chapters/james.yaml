@@ -1,0 +1,38 @@
+book: James
+reviewed: false
+chapters:
+  1:
+    - text: "Let perseverance finish its work in me, so that I may be mature and complete, lacking nothing."
+      ref: James 1:4
+    - text: "I lack wisdom, so I ask You, who give generously to all without finding fault."
+      ref: James 1:5
+    - text: "Make me a doer of Your word and not a hearer only."
+      ref: James 1:22
+  2:
+    - text: "Keep me from favoritism as I hold out my faith in our glorious Lord Jesus Christ."
+      ref: James 2:1
+    - text: "Make me merciful, for mercy triumphs over judgment."
+      ref: James 2:13
+    - text: "Let my faith result in action, for faith by itself, without action, is dead."
+      ref: James 2:17
+  3:
+    - text: "Lord, do not let both blessing and cursing come out of my mouth."
+      ref: James 3:10
+    - text: "Let me show wisdom by my good conduct, by deeds done in the humility that comes from wisdom."
+      ref: James 3:13
+    - text: "Give me the wisdom from above: pure, peace-loving, gentle, full of mercy and good fruit, impartial and sincere."
+      ref: James 3:17
+  4:
+    - text: "You give more grace. Keep me humble, for You oppose the proud but give grace to the humble."
+      ref: James 4:6
+    - text: "I submit myself to You, God. Help me resist the devil, and let me draw near to You."
+      ref: James 4:7-8
+    - text: "Teach me to say, if the Lord is willing, we will live and do this or that."
+      ref: James 4:15
+  5:
+    - text: "Make me patient until the Lord's coming, and strengthen my heart, because His coming is near."
+      ref: James 5:7-8
+    - text: "When I suffer, help me pray. When I am cheerful, help me sing praises."
+      ref: James 5:13
+    - text: "Help us confess our sins to each other and pray for each other, so that we may be healed."
+      ref: James 5:16

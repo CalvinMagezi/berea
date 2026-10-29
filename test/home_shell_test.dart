@@ -12,6 +12,7 @@ import 'package:berea/prayer_screen.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/study_button.dart';
 import 'package:berea/theme.dart';
+import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,6 +50,7 @@ void main() {
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
       onFirstSetup: () => setUpCalls++,
+      prayerContent: PrayerContent.empty,
     );
     launch.stop();
   });

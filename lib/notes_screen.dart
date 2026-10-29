@@ -125,7 +125,7 @@ class _NotesScreenState extends State<NotesScreen> {
             icon: const Icon(Icons.ios_share),
             onPressed: () => saveMarkdown(
               'berea-notes.md',
-              allNotesMarkdown(_s.study, _s.db, _s.settings.translation),
+              allNotesMarkdown(_s.study, _s.db, _s.settings.translation, content: _s.prayerContent),
             ),
           ),
           const SizedBox(width: 8),
@@ -217,8 +217,7 @@ class _NotesScreenState extends State<NotesScreen> {
           (n.updated, n, _noteTile(n, nb)),
       for (final p in _s.study.studyPages())
         if (byId[p.notebookId] case final nb?)
-          if (_matches([p.ref.label, p.observation, nb.title]))
-            (p.updated, p, _pageTile(p, nb)),
+          if (_matches([p.ref.label, p.observation, nb.title])) (p.updated, p, _pageTile(p, nb)),
       for (final nb in notebooks)
         for (final r in _s.notebooks.sources(nb.id))
           if (r.kind != SourceKind.note && _matches([r.title, nb.title]))
@@ -228,9 +227,8 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   /// A wide screen shows the entry beside the list; otherwise it opens on its own.
-  void _open(Object entry) => _wide
-      ? setState(() => _selected = entryKey(entry))
-      : openEntryPage(context, _s, entry);
+  void _open(Object entry) =>
+      _wide ? setState(() => _selected = entryKey(entry)) : openEntryPage(context, _s, entry);
 
   bool _isSelected(Object entry) => _wide && entryKey(entry) == _selected;
 

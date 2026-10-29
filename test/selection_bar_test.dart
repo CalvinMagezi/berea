@@ -55,7 +55,11 @@ void main() {
       'readerChapter': 3,
       'tipT14Done': true,
     });
-    return AppState.bootstrap(supportDir: dir, prefs: await SharedPreferences.getInstance());
+    return AppState.bootstrap(
+      supportDir: dir,
+      prefs: await SharedPreferences.getInstance(),
+      prayerContent: PrayerContent.empty,
+    );
   }
 
   /// Opens the shell at [size] with verses [verses] of John 3 selected. The verses are tapped at

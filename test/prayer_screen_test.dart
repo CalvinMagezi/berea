@@ -1,4 +1,5 @@
 import 'package:berea/prayer_screen.dart';
+import 'package:berea/prayer_plan_store.dart';
 import 'package:berea/prayer_store.dart';
 import 'package:berea/setup_screen.dart' show deviceNoun;
 import 'package:berea_harness/berea_harness.dart';
@@ -34,7 +35,7 @@ void main() {
   late List<Rect?> origins;
 
   setUp(() {
-    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema));
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema)..execute(prayerPlanSchema));
     shared = [];
     origins = [];
   });
@@ -162,7 +163,10 @@ void main() {
     expect(find.text('I got the job.'), findsOneWidget);
     expect(find.text('answered today'), findsOneWidget);
     await tester.tap(find.text('Share a testimony'));
-    expect(shared.last, startsWith('Job interview at the bank\nI got the job.\nAnswered '));
+    await tester.pumpAndSettle();
+    expect(find.text('This exact text is shared. Nothing else.'), findsOneWidget);
+    await tester.tap(find.text('Share'));
+    expect(shared.last, 'Answered prayer: Job interview at the bank\nI got the job.');
   });
 
   testWidgets('marking a prayer answered keeps the line and offers Undo', (tester) async {
@@ -249,7 +253,9 @@ void main() {
     await tester.tap(find.text('Job interview'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Share a testimony'));
-    expect(shared.single, startsWith('Job interview\nAnswered '));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share'));
+    expect(shared.single, 'Answered prayer: Job interview');
     expect(origins.single, isNotNull);
   });
 
@@ -260,7 +266,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     var clock = DateTime(2026, 10, 2, 9);
-    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema), now: () => clock);
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema)..execute(prayerPlanSchema), now: () => clock);
     for (final title in ['First', 'Second', 'Third']) {
       store.add(title: title);
       clock = clock.add(const Duration(minutes: 1));
@@ -327,7 +333,7 @@ void main() {
   testWidgets('Still praying offers Undo that brings back the line and the date', (tester) async {
     phone(tester);
     var clock = DateTime(2026, 8, 3, 9);
-    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema), now: () => clock);
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema)..execute(prayerPlanSchema), now: () => clock);
     final job = store.add(title: 'Job interview at the bank');
     store.markAnswered(job, 'I got the job.');
     clock = DateTime(2026, 10, 28, 9);
@@ -435,7 +441,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     var clock = DateTime(2026, 10, 2, 9);
-    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema), now: () => clock);
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema)..execute(prayerPlanSchema), now: () => clock);
     for (final title in ['First', 'Second']) {
       store.add(title: title);
       clock = clock.add(const Duration(minutes: 1));

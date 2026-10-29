@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   flutter_edge_ai
+  flutter_timezone
   record_linux
   sqlite3_flutter_libs
   url_launcher_linux

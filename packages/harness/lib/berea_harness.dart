@@ -8,6 +8,8 @@ export 'src/harness.dart';
 export 'src/importers.dart';
 export 'src/notebook_text.dart';
 export 'src/ollama_engine.dart';
+export 'src/prayer_check.dart';
+export 'src/prayer_content.dart';
 export 'src/prompt_builder.dart';
 export 'src/ref_parser.dart';
 export 'src/retriever.dart';
