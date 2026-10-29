@@ -871,46 +871,60 @@ class AppState extends ChangeNotifier {
 
   /// Turns the daily notification on at [minutes], asking to allow notifications first. False
   /// when the person says no or there is nothing to schedule with; nothing is changed then.
-  Future<bool> turnOnReminder(int minutes, {required bool referenceOnly}) async {
+  Future<bool> turnOnReminder(int minutes, {required bool referenceOnly}) => _reminderRun(() async {
     final platform = reminderPlatform;
     if (platform == null) return false;
+    final chosen = ReminderSettings(on: true, minutes: minutes, referenceOnly: referenceOnly);
     try {
       if (!await platform.requestPermission()) return false;
+      // Scheduled before saved, so a failure leaves the earlier choice as it was.
+      await _scheduleReminder(platform, chosen);
       await prefs.setBool('reminderOn', true);
       await prefs.setInt('reminderMinutes', minutes);
       await prefs.setBool('reminderReferenceOnly', referenceOnly);
-      await _scheduleReminder(platform);
     } on Object catch (e) {
-      // Nothing was scheduled, so it must not read as on.
       debugPrint('The daily notification could not be turned on: $e');
-      await prefs.setBool('reminderOn', false);
       return false;
     } finally {
       notifyListeners();
     }
     return true;
-  }
+  });
 
-  Future<void> turnOffReminder() async {
+  Future<void> turnOffReminder() => _reminderRun(() async {
     await prefs.setBool('reminderOn', false);
-    await reminderPlatform?.replaceAll(const []);
-    notifyListeners();
-  }
+    try {
+      await reminderPlatform?.replaceAll(const []);
+    } on Object catch (e) {
+      debugPrint('The daily notification could not be cleared: $e');
+    } finally {
+      notifyListeners();
+    }
+  });
 
   /// Schedules the next days of notifications again, as when Berea opens or the time changes.
   /// If the person has since turned notifications off in the system, the schedule is dropped.
-  Future<void> syncReminder() async {
+  Future<void> syncReminder() => _reminderRun(() async {
     final platform = reminderPlatform;
     if (platform == null) return;
     try {
-      await _scheduleReminder(platform);
+      await _scheduleReminder(platform, reminder);
     } on Object catch (e) {
       debugPrint('The daily notification could not be scheduled: $e');
     }
+  });
+
+  /// Reminder work runs one job at a time, each reading the settings when it starts, so a sync
+  /// that began before Turn off cannot schedule from a copy that was on.
+  Future<void>? _reminderQueue;
+
+  Future<T> _reminderRun<T>(Future<T> Function() job) {
+    final run = (_reminderQueue ?? Future<void>.value()).then((_) => job());
+    _reminderQueue = run.then<void>((_) {}, onError: (Object _) {});
+    return run;
   }
 
-  Future<void> _scheduleReminder(ReminderPlatform platform) async {
-    final settings = reminder;
+  Future<void> _scheduleReminder(ReminderPlatform platform, ReminderSettings settings) async {
     // Off schedules nothing: turning it off already cancelled, and the plugin is not loaded for
     // readers who never turned it on.
     if (!settings.on) return;

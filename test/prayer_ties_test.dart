@@ -6,6 +6,7 @@ import 'package:berea/plans.dart';
 import 'package:berea/plans_screen.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/theme.dart';
+import 'package:berea/word_press.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -119,6 +120,12 @@ void main() {
       // Verse 2 has prayer points in this content; verse 1 has none.
       expect(tester.getTopLeft(verse(2)).dx, tester.getTopLeft(verse(1)).dx);
       expect(tester.getSize(verse(2)).width, tester.getSize(verse(1)).width);
+      // A mark must not make the verse row taller than its text.
+      Finder region(int index) => find.byType(WordPressRegion).at(index);
+      Size row(int index) =>
+          tester.getSize(find.ancestor(of: region(index), matching: find.byType(Row)).first);
+      expect(row(1).height, tester.getSize(region(1)).height);
+      expect(row(0).height, tester.getSize(region(0)).height);
     });
 
     testWidgets('the mark is a button for a screen reader and names its verse', (tester) async {

@@ -30,6 +30,9 @@ void validatePrayerPlanTables(Map<String, List<Map<String, Object?>>> tables) {
   final runs = tables['prayer_plan_runs'] ?? const <Map<String, Object?>>[];
   final planIds = {for (final r in runs) r['plan_id']};
   for (final r in runs) {
+    for (final column in ['started', 'finished']) {
+      if (r[column] != null) _checkMs(r[column], 'prayer plan ${r['plan_id']} $column');
+    }
     if (r['fasting'] != 0 && r['fasting'] != 1) {
       throw FormatException('prayer plan ${r['plan_id']} has a bad fasting flag');
     }
@@ -42,11 +45,21 @@ void validatePrayerPlanTables(Map<String, List<Map<String, Object?>>> tables) {
       throw FormatException('prayer plan ${r['plan_id']} has a bad finished date');
     }
   }
-  for (final r in tables['prayer_plan_days'] ?? const <Map<String, Object?>>[]) {
-    if (!planIds.contains(r['plan_id'])) {
-      throw FormatException('prayer plan day ${r['day']} has no plan');
+  for (final table in const ['prayer_plan_days', 'plan_prayed']) {
+    for (final r in tables[table] ?? const <Map<String, Object?>>[]) {
+      if (table == 'prayer_plan_days' && !planIds.contains(r['plan_id'])) {
+        throw FormatException('prayer plan day ${r['day']} has no plan');
+      }
+      _checkMs(r['done_at'], '$table ${r['plan_id']} ${r['day']}');
     }
   }
+}
+
+/// The latest instant a [DateTime] can hold, in milliseconds.
+const _maxEpochMs = 8640000000000000;
+
+void _checkMs(Object? v, String what) {
+  if (v is! int || v < 0 || v > _maxEpochMs) throw FormatException('$what has a bad date');
 }
 
 /// A prayer plan the reader has started.

@@ -240,10 +240,15 @@ class _PlansScreenState extends State<PlansScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text('Start ${plan.title} again?'),
-          content: const Text('The days you prayed are cleared. Your prayers stay.'),
+          content: const Text(
+            'The days you prayed, the prayer you linked and fasting are cleared. Your prayers stay.',
+          ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Start again')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Start again'),
+            ),
           ],
         ),
       );

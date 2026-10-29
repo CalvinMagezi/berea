@@ -916,5 +916,5 @@ class _YourPrayer extends StatelessWidget {
 }
 
 const _markGutter = 20.0;
-const _markTap = 48.0;
+const _markTap = 36.0;
 const _markIcon = 14.0;

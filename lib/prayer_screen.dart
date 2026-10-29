@@ -308,7 +308,10 @@ class _PrayerScreenState extends State<PrayerScreen> {
             TodayPrayerCard(prayer: today, onPray: () => _prayToday(today)),
             const SizedBox(height: 8),
           ],
-          if (_content.topics.isNotEmpty) _fromTheWord(context, praying, wide: wide),
+          if (_content.topics.isNotEmpty)
+            LayoutBuilder(
+              builder: (context, c) => _fromTheWord(context, praying, wide: wide, room: c.maxWidth),
+            ),
           _section('Praying · ${praying.length}'),
           for (final p in praying)
             _PrayerRow(
@@ -374,15 +377,17 @@ class _PrayerScreenState extends State<PrayerScreen> {
   );
 
   /// Topic cards, those that match the reader's own prayers first.
-  Widget _fromTheWord(BuildContext context, List<Prayer> praying, {required bool wide}) {
+  Widget _fromTheWord(
+    BuildContext context,
+    List<Prayer> praying, {
+    required bool wide,
+    required double room,
+  }) {
     final topics = topicsForList(_content, praying);
     final scheme = Theme.of(context).colorScheme;
-    // Cards grow with the text size, up to most of the screen, so a large size reads whole.
+    // Cards grow with the text size, up to most of the room the list has, so a large size reads whole.
     final scaler = MediaQuery.textScalerOf(context);
-    final topicCardWidth = min(
-      scaler.scale(_topicCardWidth),
-      MediaQuery.sizeOf(context).width * _topicCardMaxShare,
-    );
+    final topicCardWidth = min(scaler.scale(_topicCardWidth), room * _topicCardMaxShare);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

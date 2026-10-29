@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
@@ -15,13 +16,18 @@ import 'support/bible.dart';
 
 class FakePlatform implements ReminderPlatform {
   var granted = true;
+  var slowAllowed = false;
+  final release = Completer<void>();
   var failToSchedule = false;
   var enabled = true;
   var asked = 0;
   List<ReminderMessage> scheduled = [];
 
   @override
-  Future<bool> allowed() async => enabled;
+  Future<bool> allowed() async {
+    if (slowAllowed) await release.future;
+    return enabled;
+  }
 
   @override
   Future<bool> requestPermission() async {
@@ -71,9 +77,22 @@ void main() {
       expect({for (final m in out) m.id}.length, reminderDaysAhead);
     });
 
-    test('every day is at the clock time chosen, never shifted by an hour', () {
-      final out = build(morning, const ReminderSettings(on: true));
-      expect(out.every((m) => m.when.hour == 6 && m.when.minute == 30), isTrue);
+    test('every day is built from its clock time, never from midnight plus minutes', () {
+      final asked = <(int, int, int, int, int)>[];
+      final out = buildReminders(
+        now: morning,
+        settings: const ReminderSettings(on: true),
+        verseOn: _verse,
+        textOf: (v) => '',
+        prayerOn: (d) => null,
+        clockTime: (y, m, d, h, min) {
+          asked.add((y, m, d, h, min));
+          return DateTime(y, m, d, h, min);
+        },
+      );
+      expect(out.length, reminderDaysAhead);
+      expect(asked.every((t) => t.$4 == 6 && t.$5 == 30), isTrue);
+      expect(asked.first, (2026, 10, 29, 6, 30));
     });
 
     test('a time already past today starts tomorrow', () {
@@ -190,6 +209,41 @@ void main() {
       expect(await s.turnOnReminder(390, referenceOnly: false), isFalse);
       expect(s.reminder.on, isFalse);
       await s.syncReminder();
+    });
+
+    test('a failed change keeps the earlier time and the schedule that was on', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p);
+      await s.turnOnReminder(390, referenceOnly: false);
+      final before = p.scheduled;
+      p.failToSchedule = true;
+      expect(await s.turnOnReminder(420, referenceOnly: true), isFalse);
+      expect(s.reminder.on, isTrue);
+      expect(s.reminder.minutes, 390);
+      expect(s.reminder.referenceOnly, isFalse);
+      expect(p.scheduled, same(before));
+    });
+
+    test('Turn off that fails to cancel still reads off', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p);
+      await s.turnOnReminder(390, referenceOnly: false);
+      p.failToSchedule = true;
+      await s.turnOffReminder();
+      expect(s.reminder.on, isFalse);
+    });
+
+    test('a sync that began before Turn off cannot schedule again after it', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p);
+      await s.turnOnReminder(390, referenceOnly: false);
+      p.slowAllowed = true;
+      final sync = s.syncReminder();
+      final off = s.turnOffReminder();
+      p.release.complete();
+      await Future.wait([sync, off]);
+      expect(s.reminder.on, isFalse);
+      expect(p.scheduled, isEmpty);
     });
 
     test(

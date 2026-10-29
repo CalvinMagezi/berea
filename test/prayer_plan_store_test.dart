@@ -168,6 +168,44 @@ void main() {
     expect(plans.run('work-7')!.prayerId, isNull);
   });
 
+  test('plan runs restored without the prayers lose their links', () {
+    final id = prayers.add(title: 'Wisdom');
+    plans.start('work-7');
+    final tables = study.exportTables()
+      ..remove('prayers')
+      ..remove('prayer_days');
+    tables['prayer_plan_runs'] = [
+      {'plan_id': 'work-7', 'started': 1, 'fasting': 0, 'prayer_id': id, 'finished': null},
+    ];
+    study.importTables(tables);
+    expect(plans.run('work-7')!.prayerId, isNull);
+    expect(prayers.praying().single.title, 'Wisdom');
+  });
+
+  test('a plan date out of range is refused before anything changes', () {
+    plans.start('work-7');
+    final base = study.exportTables();
+    expect(
+      () => study.importTables({
+        ...base,
+        'prayer_plan_runs': [
+          {'plan_id': 'work-7', 'started': 9223372036854775807, 'fasting': 0, 'prayer_id': null},
+        ],
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => study.importTables({
+        ...base,
+        'plan_prayed': [
+          {'plan_id': 'nt-90', 'day': 1, 'done_at': -5},
+        ],
+      }),
+      throwsFormatException,
+    );
+    expect(plans.running().single.planId, 'work-7');
+  });
+
   test('a plan day with no plan is refused, and a link to a missing prayer is dropped', () {
     plans.start('work-7');
     final base = study.exportTables();

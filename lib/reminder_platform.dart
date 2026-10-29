@@ -13,6 +13,9 @@ const _channelName = 'Verse of the day and prayer';
 const _channelDescription = 'One notification a day at the time you choose.';
 const _androidIcon = 'ic_stat_berea';
 
+/// A platform call that never answers must not hold every later update behind it.
+const _updateTimeout = Duration(seconds: 30);
+
 /// Notifications on the platforms that have them. Everything is scheduled on this device; the
 /// plugin sends nothing anywhere.
 class LocalNotificationsPlatform implements ReminderPlatform {
@@ -23,11 +26,20 @@ class LocalNotificationsPlatform implements ReminderPlatform {
   static bool get supported =>
       !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
 
-  Future<void> _init() async {
-    if (_ready) return;
+  var _zoneReady = false;
+
+  /// The time zone is needed to schedule, not to cancel, so a zone the package does not know
+  /// cannot stop Turn off.
+  Future<void> _initZone() async {
+    if (_zoneReady) return;
     tzdata.initializeTimeZones();
     final zone = await FlutterTimezone.getLocalTimezone();
     tz.setLocalLocation(tz.getLocation(zone.identifier));
+    _zoneReady = true;
+  }
+
+  Future<void> _init() async {
+    if (_ready) return;
     // Permission is asked when the reader turns notifications on, never at launch.
     const darwin = DarwinInitializationSettings(
       requestAlertPermission: false,
@@ -86,7 +98,7 @@ class LocalNotificationsPlatform implements ReminderPlatform {
 
   @override
   Future<void> replaceAll(List<ReminderMessage> messages) {
-    final run = _queue.then((_) => _replace(messages));
+    final run = _queue.then((_) => _replace(messages).timeout(_updateTimeout));
     _queue = run.catchError((Object _) {});
     return run;
   }
@@ -94,7 +106,11 @@ class LocalNotificationsPlatform implements ReminderPlatform {
   Future<void> _replace(List<ReminderMessage> messages) async {
     await _init();
     await _plugin.cancelAll();
-    for (final m in messages) {
+    if (messages.isNotEmpty) await _initZone();
+    // Time has passed since the messages were built: a time that is now behind is skipped, since
+    // the plugin refuses a date that is not in the future.
+    final now = DateTime.now();
+    for (final m in messages.where((m) => m.when.isAfter(now))) {
       await _plugin.zonedSchedule(
         id: m.id,
         title: m.title,

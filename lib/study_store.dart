@@ -1033,10 +1033,9 @@ class StudyStore {
           );
         }
       }
-      // A restore that replaced the prayers without the plan tables leaves ids that mean other
-      // prayers now, so every link goes; with the plan tables, only links to a missing prayer.
-      final replacedPrayers = tables.containsKey('prayers');
-      final brokeLinks = replacedPrayers && !tables.containsKey('prayer_plan_runs');
+      // Prayers and plan runs that do not arrive together leave ids that mean other prayers, so
+      // every link goes; when both arrive, only links to a prayer the backup lacks.
+      final brokeLinks = tables.containsKey('prayers') != tables.containsKey('prayer_plan_runs');
       db.execute(
         brokeLinks
             ? 'UPDATE prayer_plan_runs SET prayer_id = NULL'

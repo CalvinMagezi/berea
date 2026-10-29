@@ -67,13 +67,14 @@ List<ReminderMessage> buildReminders({
   required String Function(Ref verse) textOf,
   required TodayPrayer? Function(DateTime day) prayerOn,
   int days = reminderDaysAhead,
+  DateTime Function(int year, int month, int day, int hour, int minute) clockTime = _local,
 }) {
   if (!settings.on) return const [];
   final out = <ReminderMessage>[];
   for (var i = 0; out.length < days; i++) {
     final day = DateTime(now.year, now.month, now.day + i);
     // Clock time, so a daylight saving change does not move it an hour.
-    final at = DateTime(
+    final at = clockTime(
       day.year,
       day.month,
       day.day,
@@ -104,3 +105,6 @@ List<ReminderMessage> buildReminders({
 /// A number for [day] that is the same each time it is scheduled, so a new schedule replaces the
 /// old one rather than adding to it.
 int reminderId(DateTime day) => day.year * 10000 + day.month * 100 + day.day;
+
+DateTime _local(int year, int month, int day, int hour, int minute) =>
+    DateTime(year, month, day, hour, minute);

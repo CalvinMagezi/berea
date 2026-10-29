@@ -254,7 +254,10 @@ class _PrayNowViewState extends State<PrayNowView> {
 
   /// Amen on a frame step records nothing, but moves on with the same guard as a prayer's Amen,
   /// so a quick second tap is not read as Amen for the first prayer.
-  void _amenFrame() {
+  void _amenFrame() => _skip();
+
+  /// Moves on without recording anything, with the guard a quick second tap needs.
+  void _skip() {
     if (_settling?.isActive ?? false) return;
     _next();
     _settling = Timer(_amenSettle, () {});
@@ -420,7 +423,7 @@ class _PrayNowViewState extends State<PrayNowView> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            TextButton(onPressed: _next, child: const Text('Skip')),
+            TextButton(onPressed: _skip, child: const Text('Skip')),
             if (!_askOnly && _index < _lead)
               TextButton(onPressed: _askOnlyNow, child: const Text('Ask only')),
           ],
@@ -484,7 +487,7 @@ class _PrayNowViewState extends State<PrayNowView> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            TextButton(onPressed: _next, child: const Text('Skip')),
+            TextButton(onPressed: _skip, child: const Text('Skip')),
             TextButton.icon(
               onPressed: () => _addLine(p),
               icon: const Icon(Icons.edit_outlined, size: 18),
