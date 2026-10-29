@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'bible_db.dart';
 import 'ref_parser.dart';
 
@@ -136,8 +138,32 @@ String cleanGloss(String gloss, {String strongs = ''}) {
 
 /// What Hebrew prefixes and suffixes are glossed as.
 const _affixes = {
-  'and', 'the', 'in', 'on', 'to', 'for', 'from', 'with', 'like', 'as', 'of', 'that', 'who', //
-  'my', 'your', 'his', 'her', 'its', 'our', 'their', 'me', 'you', 'him', 'it', 'us', 'them',
+  'and',
+  'the',
+  'in',
+  'on',
+  'to',
+  'for',
+  'from',
+  'with',
+  'like',
+  'as',
+  'of',
+  'that',
+  'who', //
+  'my',
+  'your',
+  'his',
+  'her',
+  'its',
+  'our',
+  'their',
+  'me',
+  'you',
+  'him',
+  'it',
+  'us',
+  'them',
 };
 
 /// The original word as printed in a verse, without STEP's morpheme marks and pilcrows, and
@@ -171,36 +197,86 @@ final verseWordPattern = RegExp(r"[A-Za-zÀ-ɏ]+(?:['’][A-Za-zÀ-ɏ]+)*");
   return (word: hit[0]!, start: hit.start, index: index, occurrence: occurrence);
 }
 
-/// Base Strong's numbers for each word of a BSB verse, from the BSB translation tables, in the
-/// order of [verseWordPattern]: '' for a word the translators supplied with no original behind
-/// it. [phrases] are the table's (English, Strong's) rows for the verse in English order. Words
-/// are matched in order within a short window, so a phrase the table words a little differently
-/// from the verse text leaves only its own words empty.
-List<String> alignBsbWords(String verse, List<(String, String)> phrases) {
-  String norm(String w) => w.toLowerCase().replaceAll('’', "'");
-  final words = [for (final m in verseWordPattern.allMatches(verse)) norm(m[0]!)];
-  final codes = List.filled(words.length, '');
-  var next = 0;
-  for (final (english, code) in phrases) {
-    final base = code.isEmpty ? '' : strongsBase(code);
-    for (final m in verseWordPattern.allMatches(english)) {
-      final w = norm(m[0]!);
-      for (var j = next; j < words.length && j < next + _alignWindow; j++) {
-        if (words[j] == w) {
-          codes[j] = base;
-          next = j + 1;
-          break;
-        }
-      }
-    }
-  }
-  return codes;
+/// One row of the BSB translation tables: the English the translators gave one original word,
+/// that word's base Strong's number ('' for English they supplied), and which use of that number
+/// it is in the original's word order ([repeat], from 0), to pick among a verse's repeats.
+class BsbRow {
+  final String english;
+  final String code;
+  final int repeat;
+  const BsbRow(this.english, this.code, [this.repeat = 0]);
 }
 
-/// The BSB translation tables (bsb_tables.tsv from bereanbible.com) as (English, Strong's) rows
-/// per verse, in English order. Rows the BSB leaves untranslated ("-") are dropped; a row with
-/// English and no number is a word the translators supplied.
-Map<Ref, List<(String, String)>> parseBsbTables(String tsv) {
+/// A word of a BSB verse as the tables place it. [rowStart] to [rowEnd] (exclusive) are the verse
+/// word indexes of the whole table row the word belongs to: more than one word means the
+/// translators gave a phrase ("and said", "Jesus replied") for one original word.
+class BsbWord {
+  /// Base Strong's number of the original word, '' when none stands behind the English.
+  final String code;
+  final int repeat;
+  final int rowStart;
+  final int rowEnd;
+  const BsbWord(this.code, this.repeat, this.rowStart, this.rowEnd);
+
+  bool get inPhrase => rowEnd - rowStart > 1;
+}
+
+/// The BSB words of a verse placed on the table rows. The verse's words and the rows' English are
+/// aligned by content (longest common subsequence), so a row the reader's text lacks, a word the
+/// tables lack, or words in a different order leave only those words unplaced and never shift a
+/// neighbour. A word the tables supply no original for has the empty code.
+List<BsbWord> alignBsbWords(String verse, List<BsbRow> rows) {
+  String norm(String w) => w.toLowerCase().replaceAll('’', "'");
+  final words = [for (final m in verseWordPattern.allMatches(verse)) norm(m[0]!)];
+  final table = <String>[];
+  final rowOf = <int>[];
+  for (var r = 0; r < rows.length; r++) {
+    for (final m in verseWordPattern.allMatches(rows[r].english)) {
+      table.add(norm(m[0]!));
+      rowOf.add(r);
+    }
+  }
+  final n = words.length, m = table.length;
+  final best = List.generate(n + 1, (_) => List.filled(m + 1, 0));
+  for (var i = n - 1; i >= 0; i--) {
+    for (var j = m - 1; j >= 0; j--) {
+      best[i][j] = words[i] == table[j]
+          ? best[i + 1][j + 1] + 1
+          : max(best[i + 1][j], best[i][j + 1]);
+    }
+  }
+  final row = List.filled(n, -1);
+  for (var i = 0, j = 0; i < n && j < m;) {
+    if (words[i] == table[j] && best[i][j] == best[i + 1][j + 1] + 1) {
+      row[i++] = rowOf[j++];
+    } else if (best[i + 1][j] >= best[i][j + 1]) {
+      i++;
+    } else {
+      j++;
+    }
+  }
+  final placed = <BsbWord>[];
+  for (var i = 0; i < n; i++) {
+    var start = i, end = i + 1;
+    if (row[i] >= 0) {
+      while (start > 0 && row[start - 1] == row[i]) {
+        start--;
+      }
+      while (end < n && row[end] == row[i]) {
+        end++;
+      }
+    }
+    final r = row[i] < 0 ? null : rows[row[i]];
+    placed.add(BsbWord(r?.code ?? '', r?.repeat ?? 0, start, end));
+  }
+  return placed;
+}
+
+/// The BSB translation tables (bsb_tables.tsv from bereanbible.com) as rows per verse, in
+/// English order. Rows the BSB leaves untranslated ("-" or blank) are dropped after they have been
+/// counted in each number's [BsbRow.repeat]; a row with English and no number is a word the
+/// translators supplied.
+Map<Ref, List<BsbRow>> parseBsbTables(String tsv) {
   final lines = tsv.split('\n');
   final header = lines.first.split('\t').map((h) => h.trim()).toList();
   int col(String name) {
@@ -210,9 +286,10 @@ Map<Ref, List<(String, String)>> parseBsbTables(String tsv) {
   }
 
   final sortCol = col('BSB Sort'), verseCol = col('Verse'), idCol = col('VerseId');
+  final hebSortCol = col('Heb Sort'), grkSortCol = col('Greek Sort');
   final hebCol = col('Str Heb'), grkCol = col('Str Grk'), englishCol = col('BSB version');
   final refs = <String, Ref>{};
-  final rows = <String, List<(int, String, String)>>{};
+  final rows = <String, List<_TableRow>>{};
   for (final line in lines.skip(1)) {
     final c = line.replaceAll('\r', '').split('\t');
     if (c.length <= englishCol) continue;
@@ -223,21 +300,50 @@ Map<Ref, List<(String, String)>> parseBsbTables(String tsv) {
       refs[verse] = ref;
     }
     final english = c[englishCol].trim();
-    if (english.isEmpty || english == '-') continue;
-    final code = c[hebCol].isNotEmpty
-        ? 'H${c[hebCol]}'
-        : (c[grkCol].isNotEmpty ? 'G${c[grkCol]}' : '');
-    rows.putIfAbsent(verse, () => []).add((int.tryParse(c[sortCol]) ?? 0, english, code));
+    final hebrew = c[hebCol].isNotEmpty;
+    final code = hebrew ? 'H${c[hebCol]}' : (c[grkCol].isNotEmpty ? 'G${c[grkCol]}' : '');
+    // A row with no English and no number is padding; one with a number and no English is an
+    // original word the BSB leaves out, and still counts as a use of that word.
+    if (english.isEmpty && code.isEmpty) continue;
+    rows
+        .putIfAbsent(verse, () => [])
+        .add(
+          _TableRow(
+            int.tryParse(c[sortCol]) ?? 0,
+            int.tryParse(c[hebrew ? hebSortCol : grkSortCol]) ?? 0,
+            english,
+            code,
+          ),
+        );
   }
   return {
     for (final e in rows.entries)
-      if (refs[e.key] case final ref?)
-        ref: [for (final r in e.value..sort((a, b) => a.$1.compareTo(b.$1))) (r.$2, r.$3)],
+      if (refs[e.key] case final ref?) ref: _bsbRows(e.value),
   };
 }
 
-/// How far ahead of the last matched word the next table word is looked for.
-const _alignWindow = 4;
+class _TableRow {
+  final int sort, original;
+  final String english, code;
+  _TableRow(this.sort, this.original, this.english, this.code);
+}
+
+/// The translated rows of a verse in English order, each numbered by its place among the verse's
+/// rows with the same number in the original's order (untranslated rows count, as the original
+/// text has the word).
+List<BsbRow> _bsbRows(List<_TableRow> all) {
+  final byOriginal = [...all]..sort((a, b) => a.original.compareTo(b.original));
+  final seen = <String, int>{};
+  final repeat = <_TableRow, int>{};
+  for (final r in byOriginal) {
+    if (r.code.isNotEmpty) repeat[r] = seen.update(r.code, (n) => n + 1, ifAbsent: () => 0) + 1;
+  }
+  return [
+    for (final r in [...all]..sort((a, b) => a.sort.compareTo(b.sort)))
+      if (r.english != '-' && r.english.isNotEmpty)
+        BsbRow(r.english, r.code.isEmpty ? '' : strongsBase(r.code), (repeat[r] ?? 1) - 1),
+  ];
+}
 
 /// How well each original word in a verse stands behind [english], best first. STEP's glosses are
 /// not aligned to any one translation, so this matches on meaning: the word's own gloss, then its
@@ -282,6 +388,117 @@ List<int> matchOriginal(
     ..sort((a, b) => scores[b]!.compareTo(scores[a]!));
   return [pick, ...rest];
 }
+
+/// What a press on an English word leads to.
+enum PressKind {
+  /// The BSB translation tables place the word on an original word.
+  exact,
+
+  /// Berea matched the word to one of the verse's original words by meaning, so the reader is
+  /// asked to check it.
+  byMeaning,
+
+  /// The translators added the word; no original word stands behind it.
+  supplied,
+
+  /// Berea cannot tell which original word is meant, so the reader chooses from the verse.
+  unknown,
+}
+
+/// The original word behind a pressed English word: [code] and [tag] when known, and where the
+/// BSB tables put the word ([bsb]) when they were used. An [PressKind.unknown] press still names
+/// the original word the tables put the English on, for the "Which word?" view.
+class PressedWord {
+  final PressKind kind;
+  final String? code;
+  final WordTag? tag;
+  final BsbWord? bsb;
+  const PressedWord(this.kind, {this.code, this.tag, this.bsb});
+}
+
+/// English words that stand for God where the original has none, in the BSB's "the LORD said".
+const _divineTitles = {'god', 'lord'};
+
+/// Words that are also the lexicon's names (the king "So", the city "On") but are far more often
+/// plain English at the start of a sentence.
+final _commonWords = {..._glue, ..._affixes, 'so', 'on', 'no', 'man'};
+
+/// The original word behind [english], the pressed word (its [occurrence] by stem in the verse and
+/// its [wordIndex] among the verse's words). In the BSB the translation tables decide, except
+/// where they put a name or a title of God on a pronoun or a verb ("Jesus replied" is one Greek
+/// verb): that is the BSB's supplied name, not the word, so the press falls back to a match by
+/// meaning, or to [PressKind.unknown], and never opens that other word as if it were the name.
+PressedWord resolvePress({
+  required String english,
+  required String translation,
+  required List<WordTag> tags,
+  required LexEntry? Function(String code) lexicon,
+  required bool Function(String word) isName,
+  List<BsbWord>? bsb,
+  int occurrence = 0,
+  int? wordIndex,
+}) {
+  PressedWord byMeaning(BsbWord? placed) {
+    final ranked = matchOriginal(tags, english, occurrence: occurrence, lexicon: lexicon);
+    if (ranked.isEmpty) return PressedWord(PressKind.unknown, bsb: placed);
+    final tag = tags[ranked.first];
+    return PressedWord(PressKind.byMeaning, code: studyCode(tag), tag: tag, bsb: placed);
+  }
+
+  final at = wordIndex;
+  if (translation != defaultTranslation || bsb == null || at == null || at >= bsb.length) {
+    return byMeaning(null);
+  }
+  final placed = bsb[at];
+  if (placed.code.isEmpty) return PressedWord(PressKind.supplied, bsb: placed);
+  if (_nameOnOtherWord(english, placed.code, lexicon, isName)) return byMeaning(placed);
+  final same = [
+    for (final w in tags)
+      if (studyCode(w) == placed.code) w,
+  ];
+  final tag = same.isEmpty ? null : same[placed.repeat.clamp(0, same.length - 1)];
+  return PressedWord(PressKind.exact, code: placed.code, tag: tag, bsb: placed);
+}
+
+/// True when [english] is a name or a title of God and [code] is a pronoun, verb or the like,
+/// which can carry the name only because the BSB wrote it in.
+bool _nameOnOtherWord(
+  String english,
+  String code,
+  LexEntry? Function(String code) lexicon,
+  bool Function(String word) isName,
+) {
+  final word = english.replaceFirst(RegExp(r"['’]s$"), '');
+  // Names are capitalised; this keeps the lexicon query off every other word.
+  if (word.isEmpty || word[0] == word[0].toLowerCase()) return false;
+  if (_commonWords.contains(word.toLowerCase())) return false;
+  if (!isName(word) && !_divineTitles.contains(word.toLowerCase())) return false;
+  final entry = lexicon(code);
+  if (entry == null) return false;
+  final pos = partOfSpeech(entry.pos);
+  return !(pos.startsWith('noun') || pos.startsWith('name') || pos.startsWith('adjective'));
+}
+
+/// [resolvePress] for the word pressed in [ref], reading the verse's original words (or [tags], to
+/// get the caller's own word objects back), the lexicon and the BSB alignment from [db].
+PressedWord pressedStudy(
+  BibleDb db,
+  Ref ref, {
+  required String english,
+  required String translation,
+  List<WordTag>? tags,
+  int occurrence = 0,
+  int? wordIndex,
+}) => resolvePress(
+  english: english,
+  translation: translation,
+  tags: tags ?? db.words(ref),
+  lexicon: db.lexicon,
+  isName: db.isName,
+  bsb: translation == defaultTranslation ? db.bsbWords(ref) : null,
+  occurrence: occurrence,
+  wordIndex: wordIndex,
+);
 
 /// The first senses of a definition, before its long tail of cross references.
 String _opening(String definition) =>

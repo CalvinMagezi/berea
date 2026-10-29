@@ -399,7 +399,7 @@ class BibleDb {
 
   /// Stores each BSB verse's words aligned to the BSB translation tables (see [alignBsbWords]),
   /// replacing any earlier alignment. Returns the number of verses aligned.
-  int importBsbAlignment(Map<Ref, List<(String, String)>> tables) {
+  int importBsbAlignment(Map<Ref, List<BsbRow>> tables) {
     db.execute('''
       DROP TABLE IF EXISTS bsb_words;
       CREATE TABLE bsb_words(book INTEGER, chapter INTEGER, verse INTEGER, codes TEXT,
@@ -412,12 +412,12 @@ class BibleDb {
       for (final e in tables.entries) {
         final text = passage(e.key).firstOrNull?.text;
         if (text == null) continue;
-        // Stored as bare numbers: the book says Hebrew or Greek, and the padding only adds bytes.
-        final codes = alignBsbWords(
-          text,
-          e.value,
-        ).map((c) => c.isEmpty ? '-' : '${int.parse(c.substring(1))}').join(' ');
-        insert.execute([e.key.book.id, e.key.chapter, e.key.verseStart, codes]);
+        insert.execute([
+          e.key.book.id,
+          e.key.chapter,
+          e.key.verseStart,
+          _encodeBsbWords(alignBsbWords(text, e.value)),
+        ]);
         n++;
       }
       db.execute('COMMIT');
@@ -431,12 +431,23 @@ class BibleDb {
     return n;
   }
 
+  /// One token per word: '-' or the bare number (the book says Hebrew or Greek), then '/n' for the
+  /// nth use of that number in the original's order when n is above 0, then '+' when the word
+  /// continues the table row of the word before it.
+  static String _encodeBsbWords(List<BsbWord> words) => [
+    for (var i = 0; i < words.length; i++)
+      '${words[i].code.isEmpty ? '-' : int.parse(words[i].code.substring(1))}'
+          '${words[i].repeat > 0 ? '/${words[i].repeat}' : ''}'
+          '${words[i].rowStart < i ? '+' : ''}',
+  ].join(' ');
+
+  static final _bsbToken = RegExp(r'^(-|\d+)(?:/(\d+))?(\+)?$');
+
   bool? _hasBsbWords;
 
-  /// The base Strong's number behind each word of [ref] in the BSB ('' where the translators
-  /// supplied the word), in [verseWordPattern] order. Null when the database has no alignment
-  /// for the verse.
-  List<String>? bsbCodes(Ref ref) {
+  /// Each word of [ref] as the BSB translation tables place it, in [verseWordPattern] order. Null
+  /// when the database has no alignment for the verse.
+  List<BsbWord>? bsbWords(Ref ref) {
     _hasBsbWords ??= db
         .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'bsb_words'")
         .isNotEmpty;
@@ -447,11 +458,41 @@ class BibleDb {
     );
     if (rows.isEmpty) return null;
     final lang = ref.book.id < 40 ? 'H' : 'G';
-    return [
-      for (final c in (rows.first['codes'] as String).split(' '))
-        c == '-' ? '' : strongsBase('$lang$c'),
-    ];
+    final tokens = (rows.first['codes'] as String).split(' ');
+    final starts = <int>[];
+    for (var i = 0; i < tokens.length; i++) {
+      starts.add(tokens[i].endsWith('+') && i > 0 ? starts[i - 1] : i);
+    }
+    final words = <BsbWord>[];
+    for (var i = 0; i < tokens.length; i++) {
+      final m = _bsbToken.firstMatch(tokens[i]);
+      var end = i + 1;
+      while (end < tokens.length && starts[end] == starts[i]) {
+        end++;
+      }
+      words.add(
+        BsbWord(
+          m == null || m[1] == '-' ? '' : strongsBase('$lang${m[1]}'),
+          int.tryParse(m?[2] ?? '') ?? 0,
+          starts[i],
+          end,
+        ),
+      );
+    }
+    return words;
   }
+
+  /// The base Strong's number behind each word of [ref] in the BSB ('' where the translators
+  /// supplied the word), in [verseWordPattern] order. Null when the database has no alignment
+  /// for the verse.
+  List<String>? bsbCodes(Ref ref) => bsbWords(ref)?.map((w) => w.code).toList();
+
+  /// True when [word] is the English of a name in the original-language lexicon ("Jesus", "Noah",
+  /// "Christ"), whatever its case.
+  bool isName(String word) => db.select(
+    "SELECT 1 FROM lexicon WHERE pos LIKE 'N:%' AND gloss = ? COLLATE NOCASE LIMIT 1",
+    [word],
+  ).isNotEmpty;
 
   /// How often the word with base Strong's number [code] is used, and in how many verses.
   ({int uses, int verses}) wordCount(String code) {

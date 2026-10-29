@@ -147,29 +147,85 @@ void main() {
 
   test('BSB table phrases are aligned to the words of the verse', () {
     const verse = 'God blessed them and said to them, “Be fruitful and multiply.”';
-    final codes = alignBsbWords(verse, const [
-      ('God', 'H430'),
-      ('blessed', 'H1288'),
-      ('them', ''),
-      ('and said', 'H559'),
-      ('to them', ''),
-      ('Be fruitful', 'H6509'),
-      ('and multiply', 'H7235'),
+    final words = alignBsbWords(verse, const [
+      BsbRow('God', 'H0430'),
+      BsbRow('blessed', 'H1288'),
+      BsbRow('them', ''),
+      BsbRow('and said', 'H0559'),
+      BsbRow('to them', ''),
+      BsbRow('Be fruitful', 'H6509'),
+      BsbRow('and multiply', 'H7235'),
     ]);
-    expect(codes, [
-      'H0430', 'H1288', '', 'H0559', 'H0559', '', '', 'H6509', 'H6509', 'H7235', 'H7235', //
-    ]);
-    // A table word missing from the verse text leaves the rest aligned.
     expect(
-      alignBsbWords('In the beginning God', const [
-        ('In the very beginning', 'H7225'),
-        ('God', 'H430'),
-      ]),
+      [for (final w in words) w.code],
       [
-        'H7225', 'H7225', 'H7225', 'H0430', //
+        'H0430',
+        'H1288',
+        '',
+        'H0559',
+        'H0559',
+        '',
+        '',
+        'H6509',
+        'H6509',
+        'H7235',
+        'H7235', //
       ],
     );
-    expect(alignBsbWords('', const [('God', 'H430')]), isEmpty);
+    // A phrase is one row: its words share the row's span, and a single word is its own row.
+    expect(
+      [for (final w in words) (w.rowStart, w.rowEnd)],
+      [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 5),
+        (3, 5),
+        (5, 7),
+        (5, 7),
+        (7, 9),
+        (7, 9),
+        (9, 11),
+        (9, 11), //
+      ],
+    );
+    expect(words[3].inPhrase, isTrue);
+    expect(words[0].inPhrase, isFalse);
+    // A table word missing from the verse text leaves the rest aligned.
+    expect(
+      [
+        for (final w in alignBsbWords('In the beginning God', const [
+          BsbRow('In the very beginning', 'H7225'),
+          BsbRow('God', 'H0430'),
+        ]))
+          w.code,
+      ],
+      ['H7225', 'H7225', 'H7225', 'H0430'],
+    );
+    expect(alignBsbWords('', const [BsbRow('God', 'H0430')]), isEmpty);
+  });
+
+  test('alignment follows the content, so extra table words do not shift later codes', () {
+    // The table carries a variant reading ("and the") the reader text lacks. Placing words in a
+    // short window used to hand the verse's own "the" to the variant's row.
+    const verse = 'Then she tightened it with a pin and called to him.';
+    final words = alignBsbWords(verse, const [
+      BsbRow('Then', 'H0000'),
+      BsbRow('she tightened', 'H8628'),
+      BsbRow('it', ''),
+      BsbRow('with the', 'H0111'),
+      BsbRow('a pin', 'H3489'),
+      BsbRow('and called', 'H0559'),
+      BsbRow('to him', 'H0413'),
+    ]);
+    final byWord = {
+      for (var i = 0; i < words.length; i++)
+        verseWordPattern.allMatches(verse).elementAt(i)[0]!: words[i].code,
+    };
+    expect(byWord['pin'], 'H3489');
+    expect(byWord['called'], 'H0559');
+    expect(byWord['him'], 'H0413');
+    expect(byWord['tightened'], 'H8628');
   });
 
   test('glosses are cleaned and marked in a verse', () {
@@ -312,24 +368,149 @@ void main() {
       ].join('\r\n'),
     );
     final gen11 = RefParser.parse('Genesis 1:1').first;
-    expect(tables[gen11], [('In the beginning', 'H7225'), ('God', 'H430'), ('created', 'H1254')]);
-    expect(tables[RefParser.parse('Genesis 1:2').first], [('Now', '')]);
+    List<(String, String, int)> rows(Ref ref) => [
+      for (final r in tables[ref]!) (r.english, r.code, r.repeat),
+    ];
+    expect(rows(gen11), [
+      ('In the beginning', 'H7225', 0),
+      ('God', 'H0430', 0),
+      ('created', 'H1254', 0),
+    ]);
+    expect(rows(RefParser.parse('Genesis 1:2').first), [('Now', '', 0)]);
     expect(() => parseBsbTables('Verse\tVerseId\n'), throwsFormatException);
   });
 
-  test('the BSB alignment is stored per verse and read back as base numbers', () {
+  test('the BSB alignment is stored per verse and read back with its phrases and repeats', () {
     final db = wordBible();
     final matt = RefParser.parse('Matthew 5:48').first;
     expect(db.bsbCodes(matt), isNull);
     expect(
       db.importBsbAlignment({
-        matt: const [('Be', 'G1510'), ('perfect', 'G5046'), (', therefore,', '')],
-        RefParser.parse('Genesis 1:1').first: const [('In the beginning', 'H7225')],
+        matt: const [
+          BsbRow('Be', 'G1510'),
+          BsbRow('perfect', 'G5046'),
+          BsbRow(', therefore,', ''),
+          BsbRow('as your heavenly', 'G3770'),
+          BsbRow('Father', 'G3962'),
+          BsbRow('is perfect', 'G5046', 1),
+        ],
+        RefParser.parse('Genesis 1:1').first: const [BsbRow('In the beginning', 'H7225')],
       }),
       1,
     );
-    expect(db.bsbCodes(matt)!.take(3), ['G1510', 'G5046', '']);
+    expect(db.bsbCodes(matt)!.take(4), ['G1510', 'G5046', '', 'G3770']);
     expect(db.bsbCodes(matt)!.length, 9);
+    final words = db.bsbWords(matt)!;
+    expect((words[3].rowStart, words[3].rowEnd), (3, 6));
+    expect(words[5].inPhrase, isTrue);
+    expect(words[7].code, 'G5046');
+    expect(words[7].repeat, 1);
+    expect(words[1].repeat, 0);
     expect(db.bsbCodes(RefParser.parse('Job 1:1').first), isNull);
+  });
+
+  test('table rows number repeats of a word in the original order', () {
+    String row(int sort, int original, String grk, String english) =>
+        '$sort\t$original\t$sort\t7\tGreek\tx\tx\tx\tx\tx\t\t$grk\tJohn 1:1\t\t\t\t\t\t $english \t\t\t\t';
+    final header = [
+      'Heb Sort',
+      'Greek Sort',
+      'BSB Sort',
+      'Verse',
+      'Language',
+      'a',
+      'b',
+      'c',
+      'd',
+      'e', //
+      'Str Heb',
+      'Str Grk',
+      'VerseId',
+      'Hdg',
+      'Crossref',
+      'Par',
+      'Space',
+      'begQ',
+      'BSB version', 'pnc', 'endQ', 'footnotes', 'End text',
+    ].join('\t');
+    // English order: the second article-led word comes first, but is later in the Greek. A word
+    // the BSB leaves out (blank English) still comes before them in the Greek.
+    final tables = parseBsbTables(
+      [
+        header,
+        row(1, 30, '3588', 'the one'),
+        row(2, 10, '3588', '-'),
+        row(3, 20, '3588', 'the other'),
+        row(4, 5, '3588', ''),
+        '',
+      ].join('\n'),
+    );
+    final rows = tables[RefParser.parse('John 1:1').first]!;
+    expect([for (final r in rows) (r.english, r.repeat)], [('the one', 3), ('the other', 2)]);
+  });
+
+  group('a pressed word leads to the original word behind it', () {
+    LexEntry? lex(String c) => switch (c) {
+      'G2424' => const LexEntry('G2424G', 'Ἰησοῦς', 'Iēsous', 'N:N-M-P', 'Jesus', 'Jesus'),
+      'G2036' => const LexEntry('G2036', 'εἶπον', 'eipon', 'G:V', 'to say', 'to say'),
+      'G1145' => const LexEntry('G1145', 'δακρύω', 'dakruō', 'G:V', 'to weep', 'to weep'),
+      _ => null,
+    };
+    WordTag tag(int pos, String gloss, String code) => WordTag('', '', gloss, code, '', pos: pos);
+    PressedWord press(String english, List<WordTag> tags, List<BsbWord> bsb, int at) =>
+        resolvePress(
+          english: english,
+          translation: defaultTranslation,
+          tags: tags,
+          lexicon: lex,
+          isName: (w) => w.toLowerCase() == 'jesus',
+          bsb: bsb,
+          wordIndex: at,
+        );
+
+    test('the tables decide, and the verse repeats pick by original order', () {
+      final tags = [tag(1, 'Wept', 'G1145'), tag(2, '<the> Jesus', 'G2424G')];
+      final bsb = [const BsbWord('G2424', 0, 0, 1), const BsbWord('G1145', 0, 1, 2)];
+      final jesus = press('Jesus', tags, bsb, 0);
+      expect(jesus.kind, PressKind.exact);
+      expect(jesus.code, 'G2424');
+      expect(jesus.tag, tags[1]);
+      expect(press('wept', tags, bsb, 1).code, 'G1145');
+    });
+
+    test('a name the BSB wrote onto a verb is not opened as that verb', () {
+      // "Jesus replied" is one Greek verb; the Greek has no name here.
+      final tags = [tag(1, 'He said', 'G2036')];
+      final bsb = [const BsbWord('G2036', 0, 0, 2), const BsbWord('G2036', 0, 0, 2)];
+      final p = press('Jesus', tags, bsb, 0);
+      expect(p.kind, PressKind.unknown);
+      expect(p.code, isNull);
+      expect(p.bsb?.code, 'G2036');
+      // The verb's other English word still opens the verb.
+      expect(press('replied', tags, bsb, 1).kind, PressKind.exact);
+    });
+
+    test('a name on a verb falls back to the verse\'s own name when it has one', () {
+      final tags = [tag(1, 'He said', 'G2036'), tag(2, 'Jesus', 'G2424G')];
+      final bsb = [const BsbWord('G2036', 0, 0, 2), const BsbWord('G2036', 0, 0, 2)];
+      final p = press('Jesus', tags, bsb, 0);
+      expect(p.kind, PressKind.byMeaning);
+      expect(p.code, 'G2424');
+    });
+
+    test('words the translators supplied, and other translations, are told apart', () {
+      expect(press('this', const [], [const BsbWord('', 0, 0, 1)], 0).kind, PressKind.supplied);
+      final kjv = resolvePress(
+        english: 'Jesus',
+        translation: 'KJV',
+        tags: [tag(1, 'Jesus', 'G2424G')],
+        lexicon: lex,
+        isName: (_) => true,
+        wordIndex: 0,
+      );
+      expect(kjv.kind, PressKind.byMeaning);
+      expect(kjv.code, 'G2424');
+      expect(press('Jesus', const [], const [], 5).kind, PressKind.unknown);
+    });
   });
 }

@@ -87,6 +87,24 @@ typedef KeepWord =
   return hit == null ? null : (word: hit.word, index: hit.index, occurrence: hit.occurrence);
 }
 
+/// The boxes, in global coordinates, that characters [start] to [end] of the verse text occupy in
+/// the laid-out verse at [textContext], whose first [prefixLength] characters (the verse number)
+/// come before the text. Empty until the text has been laid out.
+List<Rect> verseBoxes(BuildContext textContext, int start, int end, int prefixLength) {
+  final paragraph = _paragraphIn(textContext.findRenderObject());
+  if (paragraph == null || !paragraph.hasSize) return const [];
+  final boxes = paragraph.getBoxesForSelection(
+    TextSelection(baseOffset: prefixLength + start, extentOffset: prefixLength + end),
+  );
+  return [for (final b in boxes) b.toRect().shift(paragraph.localToGlobal(Offset.zero))];
+}
+
+/// The characters of [text] that make up its [index]th word, as [pressedWord] counts them.
+(int, int) wordRange(String text, int index) {
+  final m = verseWordPattern.allMatches(text).elementAt(index);
+  return (m.start, m.end);
+}
+
 RenderParagraph? _paragraphIn(RenderObject? o) {
   if (o == null || o is RenderParagraph) return o as RenderParagraph?;
   RenderParagraph? found;
@@ -158,55 +176,33 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   /// True when the BSB tables say the translators supplied the pressed word.
   var _supplied = false;
 
+  /// What the pressed English word leads to; null when the study opened from an original word.
+  PressedWord? _press;
+
   @override
   void initState() {
     super.initState();
     WordTag? start;
+    final english = widget.english;
     if (widget.pos != null) {
       start = _verseWords.where((w) => w.pos == widget.pos).firstOrNull;
-    } else if (_exactCode() case final exact?) {
-      if (exact.code.isEmpty) {
-        _supplied = true;
-      } else {
-        final same = [
-          for (final w in _verseWords)
-            if (studyCode(w) == exact.code) w,
-        ];
-        if (same.isEmpty) {
-          // STEP numbers this verse's word differently; the word itself is still known.
-          _study(exact.code);
-        } else {
-          start = same[exact.repeat.clamp(0, same.length - 1)];
-        }
-      }
-    } else if (widget.english != null) {
-      final ranked = matchOriginal(
-        _verseWords,
-        widget.english!,
+    } else if (english != null) {
+      final press = _press = pressedStudy(
+        widget.db,
+        widget.ref,
+        english: english,
+        translation: widget.translation,
+        tags: _verseWords,
         occurrence: widget.occurrence,
-        lexicon: widget.db.lexicon,
+        wordIndex: widget.wordIndex,
       );
-      if (ranked.isNotEmpty) start = _verseWords[ranked.first];
-      _guessed = start != null;
+      _supplied = press.kind == PressKind.supplied;
+      _guessed = press.kind == PressKind.byMeaning;
+      start = press.tag;
+      // STEP numbers this verse's word differently; the word itself is still known.
+      if (start == null && press.kind == PressKind.exact) _study(press.code!);
     }
     if (start != null) _studyTag(start);
-  }
-
-  /// In the BSB, the pressed word's Strong's number from the translation tables ('' for a word the
-  /// translators supplied), and how many times the same word came earlier in the English, to pick
-  /// among repeats. Null in other translations or where the tables do not cover the verse.
-  ({String code, int repeat})? _exactCode() {
-    final at = widget.wordIndex;
-    if (at == null || widget.translation != defaultTranslation) return null;
-    final codes = widget.db.bsbCodes(widget.ref);
-    if (codes == null || at >= codes.length) return null;
-    final code = codes[at];
-    var repeat = 0;
-    for (var j = 0; j < at; j++) {
-      // A phrase ("and multiply") gives its number to each of its words; count phrases.
-      if (codes[j] == code && (j == 0 || codes[j - 1] != code)) repeat++;
-    }
-    return (code: code, repeat: repeat);
   }
 
   void _studyTag(WordTag w) {
@@ -274,12 +270,20 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
             children: [
-              Text(
-                [
-                  if (english != null) '"$english"',
-                  widget.ref.label,
-                  widget.translation,
-                ].join(' · '),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: [?english, widget.ref.label].join(', '),
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    TextSpan(text: ' · ${widget.translation}'),
+                  ],
+                ),
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
               ),
               const SizedBox(height: 12),
@@ -290,19 +294,38 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
                       : _supplied
                       ? 'The translators supplied "$english" here so the English reads well; no '
                             '$_verseLanguage word stands behind it. Choose a word from the verse:'
-                      : 'Berea could not tell which $_verseLanguage word is behind "$english" '
-                            'here. It may be a word the translators added. Choose one:',
+                      : _unknown(english),
                   style: const TextStyle(height: 1.45),
                 )
               else
                 ..._header(scheme),
               if (_verseWords.isNotEmpty) ..._verseRow(scheme),
+              if (_code == null && english != null && _glossed.isNotEmpty)
+                ..._otherWords(
+                  scheme,
+                  _sectionHeading(scheme),
+                  english,
+                  _glossed.take(glossedWordsShown).toList(),
+                  'WORDS GLOSSED',
+                ),
               if (_code != null) ..._body(scheme),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// Why no word was opened, when the BSB tables put the pressed word on a word that is not it.
+  String _unknown(String english) {
+    final placed = _press?.bsb;
+    final entry = placed == null || placed.code.isEmpty ? null : widget.db.lexicon(placed.code);
+    if (entry == null) {
+      return 'Berea could not tell which $_verseLanguage word is behind "$english" here. '
+          'It may be a word the translators added. Choose one:';
+    }
+    return 'The BSB writes "$english" here, but the $_verseLanguage has no word for it. '
+        'It stands on ${entry.lemma} ("${entry.gloss}"). Choose a word from the verse:';
   }
 
   List<Widget> _header(ColorScheme scheme) {
@@ -432,14 +455,16 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     ),
   ];
 
+  TextStyle _sectionHeading(ColorScheme scheme) => TextStyle(
+    fontSize: 12,
+    letterSpacing: 0.8,
+    fontWeight: FontWeight.w700,
+    color: scheme.onSurfaceVariant,
+  );
+
   List<Widget> _body(ColorScheme scheme) {
     final e = _entry;
-    final heading = TextStyle(
-      fontSize: 12,
-      letterSpacing: 0.8,
-      fontWeight: FontWeight.w700,
-      color: scheme.onSurfaceVariant,
-    );
+    final heading = _sectionHeading(scheme);
     final full = _code!.startsWith('G') ? widget.db.fullLexicon(e?.key ?? _code!) : null;
     final others = [
       for (final g in _glossed)
@@ -503,29 +528,8 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
           ],
         ),
       ],
-      if (english != null && others.isNotEmpty) ...[
-        const SizedBox(height: 24),
-        Text('OTHER WORDS GLOSSED "${english.toUpperCase()}"', style: heading),
-        const SizedBox(height: 2),
-        Text(
-          'One English word can stand for several Hebrew and Greek words.',
-          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-        ),
-        for (final g in others)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              '${g.entry?.lemma ?? g.code}  ${g.entry?.translit ?? ''}',
-              style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 17),
-            ),
-            subtitle: Text(
-              '${languageOf(g.code)} · ${g.code} · "${g.entry?.gloss ?? ''}" · glossed '
-              '"$english" ${_times(g.glossed)} of ${g.uses}',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _switchTo(g),
-          ),
-      ],
+      if (english != null && others.isNotEmpty)
+        ..._otherWords(scheme, heading, english, others, 'OTHER WORDS GLOSSED'),
       const SizedBox(height: 24),
       Text(_book == null ? 'EVERY VERSE' : 'IN ${_book!.name.toUpperCase()}', style: heading),
       for (final u in _uses) _UseTile(use: u, onTap: () => widget.onOpen(u.ref)),
@@ -536,6 +540,37 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
         ),
     ];
   }
+
+  /// The original words English [english] also stands for, each one tap from its own study.
+  List<Widget> _otherWords(
+    ColorScheme scheme,
+    TextStyle heading,
+    String english,
+    List<GlossedWord> others,
+    String title,
+  ) => [
+    const SizedBox(height: 24),
+    Text('$title "${english.toUpperCase()}"', style: heading),
+    const SizedBox(height: 2),
+    Text(
+      'One English word can stand for several Hebrew and Greek words.',
+      style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+    ),
+    for (final g in others)
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(
+          '${g.entry?.lemma ?? g.code}  ${g.entry?.translit ?? ''}',
+          style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 17),
+        ),
+        subtitle: Text(
+          '${languageOf(g.code)} · ${g.code} · "${g.entry?.gloss ?? ''}" · glossed '
+          '"$english" ${_times(g.glossed)} of ${g.uses}',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _switchTo(g),
+      ),
+  ];
 
   static String _times(int n) => n == 1 ? 'once' : (n == 2 ? 'twice' : '$n times');
   static String _plural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
