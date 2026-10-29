@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -65,7 +66,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.openStudyRequest.addListener(_openStudy);
     widget.state.openPlansRequest.addListener(_openPlans);
     // The Bible is on screen first; the helper loads behind it.
-    WidgetsBinding.instance.addPostFrameCallback((_) => widget.state.startHelper());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.state.startHelper();
+      unawaited(widget.state.syncReminder());
+    });
   }
 
   void _jumpToBible() => _select(HomeTab.bible);
@@ -76,7 +80,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   /// The microphone stops listening as soon as Berea is not in front.
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) => widget.state.voice.onLifecycle(state);
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    widget.state.voice.onLifecycle(state);
+    // A day or more may have passed: schedule the next days of notifications again.
+    if (state == AppLifecycleState.resumed) unawaited(widget.state.syncReminder());
+  }
 
   @override
   void dispose() {
@@ -141,6 +149,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           store: s.prayers,
           passage: passageLookupFor(s.db, () => s.settings.translation),
           translation: () => s.settings.translation,
+          content: s.prayerContent,
+          todayPrayer: () => s.prayerOfTheDay,
+          refresh: s,
         ),
         NavigatorPopHandler(
           enabled: _tab == HomeTab.notes,
@@ -150,8 +161,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             observers: [_notesRoutes],
             // Taking focus while hidden would leave the place shortcuts with nothing focused.
             requestFocus: false,
-            onGenerateRoute: (_) =>
-                MaterialPageRoute<void>(builder: (_) => NotesScreen(state: s)),
+            onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => NotesScreen(state: s)),
           ),
         ),
       ],

@@ -8,6 +8,7 @@ import 'app_state.dart';
 import 'backup.dart';
 import 'commentary_settings.dart';
 import 'models.dart';
+import 'reminder_settings.dart';
 import 'terms.dart';
 
 const minPassphraseLength = 8;
@@ -337,9 +338,8 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () => Navigator.of(
-                            context,
-                          ).push(MaterialPageRoute<void>(builder: (_) => const TermsScreen())),
+                          onPressed: () => Navigator.of(context)
+                              .push(MaterialPageRoute<void>(builder: (_) => const TermsScreen())),
                           child: const Text('Read the terms'),
                         ),
                       ],
@@ -419,6 +419,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 ),
               const Divider(height: 24),
               CommentarySettings(state: widget.state, onMessage: _say),
+              ReminderSettingsSection(state: widget.state, onMessage: _say),
               const Divider(height: 24),
               Text('Your data', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),

@@ -33,7 +33,11 @@ void main() {
     final dir = Directory.systemTemp.createTempSync('berea-bible-home');
     dirs.add(dir);
     SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name, ...prefs});
-    return AppState.bootstrap(supportDir: dir, prefs: await SharedPreferences.getInstance());
+    return AppState.bootstrap(
+      supportDir: dir,
+      prefs: await SharedPreferences.getInstance(),
+      prayerContent: PrayerContent.empty,
+    );
   }
 
   Future<void> pumpReader(WidgetTester tester, AppState state) async {

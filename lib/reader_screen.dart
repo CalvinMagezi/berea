@@ -6,7 +6,11 @@ import 'app_state.dart';
 import 'commentary_sheet.dart';
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
+import 'pray_verse_sheet.dart';
 import 'prayer_screen.dart';
+import 'prayer_points.dart';
+import 'prayer_store.dart' show Prayer;
+import 'brand/prayer_icon.dart';
 import 'prayer_sheet.dart' show passageText, shareOrigin, shareText;
 import 'selection_bar.dart';
 import 'study_page_screen.dart';
@@ -88,6 +92,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void initState() {
     super.initState();
     s.addListener(_refresh);
+    s.prayers.addListener(_refresh);
     _lifecycle = AppLifecycleListener(onResume: _newDay);
     _shown = (book.id, chapter);
     final resume = _resume;
@@ -142,6 +147,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void dispose() {
     s.removeListener(_refresh);
+    s.prayers.removeListener(_refresh);
     _lifecycle.dispose();
     _scroll.dispose();
     super.dispose();
@@ -271,14 +277,36 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(_selected.clear);
   }
 
+  /// The reader's own prayers that stand on a verse of this chapter, by verse number. Read once
+  /// per build, not once per verse.
+  Map<int, List<Prayer>> _ownPrayers() {
+    final out = <int, List<Prayer>>{};
+    for (final p in [...s.prayers.praying(), ...s.prayers.answered()]) {
+      final r = p.ref;
+      final start = r?.verseStart;
+      if (r == null || start == null || r.book.id != book.id || r.chapter != chapter) continue;
+      for (var v = start; v <= (r.verseEnd ?? start); v++) {
+        (out[v] ??= []).add(p);
+      }
+    }
+    return out;
+  }
+
+  /// Pray this verse: the points written for the selection, else the verse as it is. Without the
+  /// bundled lines, the plain new prayer sheet.
   Future<void> _pray() async {
-    await showPrayerSheet(
-      context,
-      s.prayers,
-      verse: _selection.label,
-      passage: passageLookupFor(s.db, () => s.settings.translation),
-    );
-    if (mounted) setState(_selected.clear);
+    final ref = _selection;
+    setState(_selected.clear);
+    if (s.prayerContent.topics.isEmpty) {
+      await showPrayerSheet(
+        context,
+        s.prayers,
+        verse: ref.label,
+        passage: passageLookupFor(s.db, () => s.settings.translation),
+      );
+      return;
+    }
+    await showPrayVerseSheet(context, s.prayerEnv, ref);
   }
 
   void _studyPage() {
@@ -286,7 +314,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(_selected.clear);
     Navigator.push(
       context,
-      MaterialPageRoute<void>(builder: (_) => StudyPageScreen(state: s, ref: ref)),
+      MaterialPageRoute<void>(
+        builder: (_) => StudyPageScreen(state: s, ref: ref),
+      ),
     );
   }
 
@@ -356,6 +386,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       for (final n in s.study.notes(book: book, chapter: chapter))
         for (var v = n.ref.verseStart!; v <= n.ref.verseEnd!; v++) v,
     };
+    final wordsFor = s.prayerContent.pointsInChapter(Ref(book, chapter));
+    final ownFor = _ownPrayers();
     return Scaffold(
       appBar: AppBar(
         title: TextButton(
@@ -419,7 +451,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             onNotification: _onScroll,
                             child: ListView.builder(
                               controller: _scroll,
-                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
+                              padding: const EdgeInsets.fromLTRB(20 - _markGutter, 12, 20, 160),
                               itemCount: verses.length,
                               itemBuilder: (_, i) {
                                 final v = verses[i];
@@ -433,15 +465,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                   textKey: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
                                   labelFor: (hit) => _pressLabel(v, hit),
                                   onWord: (hit) => _studyWord(v, hit),
-                                  onVerse: () => showInterlinear(context, s, Ref(book, chapter, v.verse)),
+                                  onVerse: () =>
+                                      showInterlinear(context, s, Ref(book, chapter, v.verse)),
                                   onTap: () => setState(
                                     () => on ? _selected.remove(v.verse) : _selected.add(v.verse),
                                   ),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 6,
-                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                                     decoration: BoxDecoration(
                                       color: highlights.contains(v.verse)
                                           ? scheme.primary.withValues(alpha: 0.18)
@@ -490,7 +520,29 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                     ),
                                   ),
                                 );
-                                return stopped ? _StoppedMarker(at: s.resumeAt, child: item) : item;
+                                final verse = Ref(book, chapter, v.verse);
+                                final mine = ownFor[v.verse] ?? const <Prayer>[];
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _PrayerMark(
+                                      own: mine,
+                                      hasWords: wordsFor.containsKey(v.verse),
+                                      onTap: () => showPrayVerseSheet(context, s.prayerEnv, verse),
+                                    ),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          stopped
+                                              ? _StoppedMarker(at: s.resumeAt, child: item)
+                                              : item,
+                                          if (mine.isNotEmpty) _YourPrayer(mine.first),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
                               },
                             ),
                           ),
@@ -509,8 +561,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (tip)
-                    _Tip(onGotIt: _dismissTip, onTurnOff: () => _dismissTip(allTips: true)),
+                  if (tip) _Tip(onGotIt: _dismissTip, onTurnOff: () => _dismissTip(allTips: true)),
                   if (tip && card != null) const SizedBox(height: _tipCardGap),
                   ?card,
                 ],
@@ -801,3 +852,61 @@ class _ChapterPickerState extends State<_ChapterPicker> {
     );
   }
 }
+
+/// The margin beside a verse: a mark when words are written for it, filled when one of the
+/// reader's own prayers stands on it. It is a column of its own beside the verse, never part of
+/// the verse's text, so a long press still finds the word under the finger. Every verse has the
+/// column, marked or not, so the text keeps its place.
+class _PrayerMark extends StatelessWidget {
+  final List<Prayer> own;
+  final bool hasWords;
+  final VoidCallback onTap;
+  const _PrayerMark({required this.own, required this.hasWords, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    if (own.isEmpty && !hasWords) return const SizedBox(width: _markGutter);
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: own.isEmpty ? 'Pray this verse' : 'Your prayer stands on this verse',
+      excludeSemantics: true,
+      child: InkResponse(
+        onTap: onTap,
+        radius: _markGutter,
+        child: SizedBox(
+          width: _markGutter,
+          height: _markTap,
+          child: IconTheme(
+            data: IconThemeData(
+              size: _markIcon,
+              color: own.isEmpty ? scheme.onSurfaceVariant : scheme.primary,
+            ),
+            child: const Center(child: PrayerIcon()),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Your prayer" under a verse one of the reader's prayers stands on, "Answered" once it was.
+class _YourPrayer extends StatelessWidget {
+  final Prayer prayer;
+  const _YourPrayer(this.prayer);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(8, 0, 0, 4),
+    child: Text(
+      '${prayer.isAnswered ? 'Answered' : 'Your prayer'} \u00B7 ${prayer.title}',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary),
+    ),
+  );
+}
+
+const _markGutter = 18.0;
+const _markTap = 36.0;
+const _markIcon = 14.0;

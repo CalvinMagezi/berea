@@ -163,7 +163,10 @@ void main() {
     expect(find.text('I got the job.'), findsOneWidget);
     expect(find.text('answered today'), findsOneWidget);
     await tester.tap(find.text('Share a testimony'));
-    expect(shared.last, startsWith('Job interview at the bank\nI got the job.\nAnswered '));
+    await tester.pumpAndSettle();
+    expect(find.text('This exact text is shared. Nothing else.'), findsOneWidget);
+    await tester.tap(find.text('Share'));
+    expect(shared.last, 'Answered prayer: Job interview at the bank\nI got the job.');
   });
 
   testWidgets('marking a prayer answered keeps the line and offers Undo', (tester) async {
@@ -250,7 +253,9 @@ void main() {
     await tester.tap(find.text('Job interview'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Share a testimony'));
-    expect(shared.single, startsWith('Job interview\nAnswered '));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share'));
+    expect(shared.single, 'Answered prayer: Job interview');
     expect(origins.single, isNotNull);
   });
 

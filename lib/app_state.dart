@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'daily_reminder.dart';
 import 'device.dart';
 import 'backup.dart';
 import 'commentary_packs.dart';
@@ -19,9 +20,12 @@ import 'models.dart';
 import 'notebook_chat.dart';
 import 'notebook_store.dart';
 import 'pinned_download.dart';
+import 'reminder_platform.dart';
 import 'plans.dart';
 import 'prayer_plan_store.dart';
+import 'prayer_sheet.dart' show passageText;
 import 'prayer_store.dart';
+import 'prayer_today.dart';
 import 'study_store.dart';
 import 'today.dart';
 import 'voice.dart';
@@ -514,6 +518,7 @@ class AppState extends ChangeNotifier {
     Directory? supportDir,
     SharedPreferences? prefs,
     VoidCallback? onFirstSetup,
+    PrayerContent? prayerContent,
   }) async {
     final s = AppState();
     s.supportDir = supportDir ?? await getApplicationSupportDirectory();
@@ -522,7 +527,11 @@ class AppState extends ChangeNotifier {
     s.study = openStudy('${s.supportDir.path}/study.sqlite');
     s.study.copyNotebookChats();
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
-    s.prayerContent = await _loadPrayerContent();
+    s.prayerContent = prayerContent ?? await _loadPrayerContent();
+    // Tests give their own support folder and never touch the notification plugin.
+    if (supportDir == null && LocalNotificationsPlatform.supported) {
+      s.reminderPlatform = LocalNotificationsPlatform();
+    }
     s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
     s.deviceGb = bytes == null ? null : bytes / bytesPerGb;
@@ -813,7 +822,8 @@ class AppState extends ChangeNotifier {
       DateTime.tryParse(prefs.getString('activePlanStart') ?? '') ?? DateTime.now();
 
   /// Day of [plan] for today, counting the start day as day 1 and stopping at the last day.
-  int planDay(ReadingPlan plan) => (daysBetween(planStart, DateTime.now()) + 1).clamp(1, plan.days);
+  int planDay(ReadingPlan plan, {DateTime? on}) =>
+      (daysBetween(planStart, on ?? DateTime.now()) + 1).clamp(1, plan.days);
 
   /// The running plan's ticks against its days, or null when no plan runs.
   PlanProgress? get planProgress {
@@ -825,6 +835,74 @@ class AppState extends ChangeNotifier {
   List<Ref>? get todaysReading {
     final plan = activePlan;
     return plan == null ? null : planSchedule(plan)[planDay(plan) - 1];
+  }
+
+  /// Today's prayer: a line from today's plan chapters, else the verse of the day's own line.
+  TodayPrayer? get prayerOfTheDay => prayerOn(DateTime.now());
+
+  /// The prayer for [date]: the reading plan's chapters that day, else the verse of the day's line.
+  TodayPrayer? prayerOn(DateTime date) {
+    final plan = activePlan;
+    final day = plan == null ? 0 : planDay(plan, on: date);
+    return todaysPrayer(
+      prayerContent,
+      verseOfDay: verseOfTheDay(db, date),
+      reading: plan == null ? null : planSchedule(plan)[day - 1],
+      day: day,
+    );
+  }
+
+  /// The daily notification the reader chose, kept on this device. Off until turned on.
+  ReminderSettings get reminder => ReminderSettings(
+    on: prefs.getBool('reminderOn') ?? false,
+    minutes: prefs.getInt('reminderMinutes') ?? defaultReminderMinutes,
+    referenceOnly: prefs.getBool('reminderReferenceOnly') ?? false,
+  );
+
+  /// How notifications are scheduled here; null where they are not offered, and in tests.
+  ReminderPlatform? reminderPlatform;
+
+  /// Turns the daily notification on at [minutes], asking to allow notifications first. False
+  /// when the person says no or there is nothing to schedule with; nothing is changed then.
+  Future<bool> turnOnReminder(int minutes, {required bool referenceOnly}) async {
+    final platform = reminderPlatform;
+    if (platform == null || !await platform.requestPermission()) return false;
+    await prefs.setBool('reminderOn', true);
+    await prefs.setInt('reminderMinutes', minutes);
+    await prefs.setBool('reminderReferenceOnly', referenceOnly);
+    await syncReminder();
+    notifyListeners();
+    return true;
+  }
+
+  Future<void> turnOffReminder() async {
+    await prefs.setBool('reminderOn', false);
+    await reminderPlatform?.replaceAll(const []);
+    notifyListeners();
+  }
+
+  /// Schedules the next days of notifications again, as when Berea opens or the time changes.
+  /// If the person has since turned notifications off in the system, the schedule is dropped.
+  Future<void> syncReminder() async {
+    final platform = reminderPlatform;
+    if (platform == null) return;
+    final settings = reminder;
+    // Off schedules nothing: turning it off already cancelled, and the plugin is not loaded for
+    // readers who never turned it on.
+    if (!settings.on) return;
+    if (!await platform.allowed()) {
+      await platform.replaceAll(const []);
+      return;
+    }
+    await platform.replaceAll(
+      buildReminders(
+        now: DateTime.now(),
+        settings: settings,
+        verseOn: (d) => verseOfTheDay(db, d),
+        textOf: (v) => passageText(db.passage(v, translation: this.settings.translation)),
+        prayerOn: prayerOn,
+      ),
+    );
   }
 
   static const maxLexiconPackBytes = 64 * 1024 * 1024;

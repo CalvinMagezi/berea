@@ -4,6 +4,7 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'prayer_points.dart';
 import 'prayer_sheet.dart';
 import 'prayer_store.dart';
 import 'theme.dart';
@@ -17,6 +18,9 @@ const _amenSettle = Duration(milliseconds: 500);
 
 /// More than this many prayers and the step dots give way to the count alone.
 const _maxDots = 12;
+
+/// Lines from a prayer's topic shown under it in Pray now.
+const _wordLines = 2;
 
 const _monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June', //
@@ -139,6 +143,10 @@ class PrayNowView extends StatefulWidget {
 
   /// Told which prayer is showing, null once the session is through, so a list can mark it.
   final ValueChanged<int?>? onShow;
+
+  /// The prayer lines bundled with the app. With them Pray now opens with praise, confession and
+  /// thanks, asks through the list, and closes with others, one line from the Word at each.
+  final PrayerContent? content;
   const PrayNowView({
     super.key,
     required this.store,
@@ -148,17 +156,49 @@ class PrayNowView extends StatefulWidget {
     this.startAt,
     this.keyHint = false,
     this.onShow,
+    this.content,
   });
 
   @override
   State<PrayNowView> createState() => _PrayNowViewState();
 }
 
+/// One step of the frame around the list: a label and the line from the Word to pray.
+class _FrameStep {
+  final String label;
+  final PrayerPoint point;
+  const _FrameStep(this.label, this.point);
+}
+
 class _PrayNowViewState extends State<PrayNowView> {
   late final _ids = [for (final p in widget.store.prayNowQueue()) p.id];
+
+  /// The frame, a different line each day. Empty without the bundled lines.
+  late final _before = _frame(const [
+    ('Praise', 'praise'),
+    ('Confess', 'confession'),
+    ('Thank', 'thanksgiving'),
+  ]);
+  late final _after = _frame(const [('Others', 'others')]);
+
+  /// Short of time: Ask only skips the frame.
+  var _askOnly = false;
+
+  int get _lead => _askOnly ? 0 : _before.length;
+  List<_FrameStep> get _tail => _askOnly ? const [] : _after;
+
+  List<_FrameStep> _frame(List<(String, String)> steps) {
+    final day = prayerDay(widget.store.now());
+    return [
+      for (final (label, id) in steps)
+        if (widget.content?.topic(id)?.points case final points? when points.isNotEmpty)
+          _FrameStep(label, points[day % points.length]),
+    ];
+  }
+
   late var _index = switch (_ids.indexOf(widget.startAt ?? -1)) {
     -1 => 0,
-    final i => i,
+    final i => i + _before.length,
   };
   late final _seen = {..._ids};
 
@@ -178,20 +218,41 @@ class _PrayNowViewState extends State<PrayNowView> {
     }
   }
 
+  /// The prayer at the current step, or null on a frame step or once the list is through.
   Prayer? get _current {
-    while (_index < _ids.length) {
-      final p = widget.store.prayer(_ids[_index]);
+    final at = _index - _lead;
+    while (at >= 0 && at < _ids.length) {
+      final p = widget.store.prayer(_ids[at]);
       if (p != null && !p.isAnswered && !p.archived) return p;
-      _ids.removeAt(_index);
+      _ids.removeAt(at);
     }
     return null;
   }
+
+  /// The frame step showing, or null when a prayer is.
+  _FrameStep? get _frameStep {
+    final at = _index - _lead;
+    if (at < 0) return _before[_index];
+    final after = at - _ids.length;
+    return after >= 0 && after < _tail.length ? _tail[after] : null;
+  }
+
+  int get _steps => _lead + _ids.length + _tail.length;
+
+  bool get _hasFrame => !_askOnly && (_before.isNotEmpty || _after.isNotEmpty);
+
+  void _askOnlyNow() => setState(() {
+    _askOnly = true;
+    _index = 0;
+  });
 
   void _next() => setState(() => _index++);
 
   void _back() {
     if (_index > 0) setState(() => _index--);
   }
+
+  void _amenFrame() => _next();
 
   Future<void> _edit(Prayer p) async {
     await showPrayerSheet(context, widget.store, editing: p, passage: widget.passage);
@@ -214,7 +275,14 @@ class _PrayNowViewState extends State<PrayNowView> {
     final line = (await askExtraLine(context))?.trim();
     if (line == null || line.isEmpty) return;
     final note = p.note.isEmpty ? line : '${p.note}\n$line';
-    widget.store.edit(p.id, title: p.title, forWhom: p.forWhom, verse: p.verse, note: note);
+    widget.store.edit(
+      p.id,
+      title: p.title,
+      forWhom: p.forWhom,
+      verse: p.verse,
+      note: note,
+      topic: p.topic,
+    );
     setState(() {});
   }
 
@@ -254,18 +322,118 @@ class _PrayNowViewState extends State<PrayNowView> {
   Widget _build(BuildContext context) {
     _takeNew();
     final p = _current;
+    final step = _frameStep;
     _report(p?.id);
-    if (p == null) return _finished(context);
+    if (p == null && step == null) return _finished(context);
     final muted = Theme.of(context).textTheme.bodySmall
         ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
-    final position = '${_index + 1} of ${_ids.length}';
+    final position = '${_index + 1} of $_steps';
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.arrowRight): _next,
         const SingleActivator(LogicalKeyboardKey.arrowLeft): _back,
       },
-      child: Focus(autofocus: true, child: _body(context, p, position, muted)),
+      child: Focus(
+        autofocus: true,
+        child: step != null
+            ? _frameBody(context, step, position, muted)
+            : _body(context, p!, position, muted),
+      ),
     );
+  }
+
+  /// The labels of the frame, the one being prayed in bold: Praise, Confess, Thank, Ask, Others.
+  Widget _frameLabels(BuildContext context, String now) {
+    final scheme = Theme.of(context).colorScheme;
+    final labels = [
+      ...[for (final s in _askOnly ? const <_FrameStep>[] : _before) s.label],
+      'Ask',
+      ...[for (final s in _tail) s.label],
+    ];
+    return Wrap(
+      spacing: 12,
+      children: [
+        for (final l in labels)
+          Text(
+            l,
+            style: TextStyle(
+              fontWeight: l == now ? FontWeight.w700 : FontWeight.w400,
+              color: l == now ? scheme.primary : scheme.onSurfaceVariant,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _frameBody(BuildContext context, _FrameStep step, String position, TextStyle? muted) {
+    final scheme = Theme.of(context).colorScheme;
+    final verse = passageText(widget.passage(step.point.verse));
+    return ListView(
+      padding: const EdgeInsets.all(_cardPadding),
+      children: [
+        Row(
+          children: [
+            _StepDots(_index, _steps),
+            const SizedBox(width: 8),
+            Text(widget.keyHint ? '$position · ← → to move' : position, style: muted),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _frameLabels(context, step.label),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(_cardPadding),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(_cardRadius),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PrayerLabel(step.label),
+              const SizedBox(height: 6),
+              Text(step.point.text, style: scriptureStyle(context).copyWith(fontSize: 22)),
+              const SizedBox(height: 16),
+              PrayerLabel('${step.point.ref} · ${widget.translation()}'),
+              if (verse.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  verse,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: scriptureStyle(context)
+                      .copyWith(fontSize: 15, color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        FilledButton(onPressed: _amenFrame, child: const Text('Amen, next')),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            TextButton(onPressed: _next, child: const Text('Skip')),
+            if (!_askOnly && _index < _lead)
+              TextButton(onPressed: _askOnlyNow, child: const Text('Ask only')),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Two lines from the prayer's topic, to pray it with the Word. None for a prayer that has no
+  /// topic or whose topic this build does not have.
+  List<Widget> _withTheWord(BuildContext context, Prayer p) {
+    final topic = widget.content?.topic(p.topic);
+    if (topic == null) return const [];
+    return [
+      const SizedBox(height: 12),
+      PrayerLabel('Pray it with the Word \u00B7 ${topic.title}'),
+      for (var i = 0; i < _wordLines && i < topic.points.length; i++)
+        PointTile(number: i + 1, point: topic.points[i]),
+    ];
   }
 
   Widget _body(BuildContext context, Prayer p, String position, TextStyle? muted) {
@@ -274,13 +442,15 @@ class _PrayNowViewState extends State<PrayNowView> {
       children: [
         Row(
           children: [
-            _StepDots(_index, _ids.length),
+            _StepDots(_index, _steps),
             const SizedBox(width: 8),
             Text(widget.keyHint ? '$position · ← → to move' : position, style: muted),
           ],
         ),
         const SizedBox(height: 16),
+        if (_hasFrame) ...[_frameLabels(context, 'Ask'), const SizedBox(height: 12)],
         PrayerCard(prayer: p, passage: widget.passage, translation: widget.translation()),
+        ..._withTheWord(context, p),
         const SizedBox(height: 8),
         Text(prayedSummary(p), style: muted, textAlign: TextAlign.center),
         const SizedBox(height: 24),
@@ -327,11 +497,13 @@ class PrayNowScreen extends StatelessWidget {
   final PrayerStore store;
   final PassageLookup passage;
   final String Function() translation;
+  final PrayerContent? content;
   const PrayNowScreen({
     super.key,
     required this.store,
     required this.passage,
     required this.translation,
+    this.content,
   });
 
   @override
@@ -341,6 +513,7 @@ class PrayNowScreen extends StatelessWidget {
       store: store,
       passage: passage,
       translation: translation,
+      content: content,
       onDone: () => Navigator.pop(context),
     ),
   );
@@ -350,14 +523,25 @@ class PrayNowScreen extends StatelessWidget {
 class LordsPrayerScreen extends StatefulWidget {
   final PassageLookup passage;
   final String Function() translation;
-  const LordsPrayerScreen({super.key, required this.passage, required this.translation});
+
+  /// Any prayer in the Bible can be prayed a verse at a time; the Lord's Prayer is the default.
+  final Ref? ref;
+  final String title;
+  const LordsPrayerScreen({
+    super.key,
+    required this.passage,
+    required this.translation,
+    this.ref,
+    this.title = "The Lord's Prayer",
+  });
 
   @override
   State<LordsPrayerScreen> createState() => _LordsPrayerScreenState();
 }
 
 class _LordsPrayerScreenState extends State<LordsPrayerScreen> {
-  late final _verses = widget.passage(lordsPrayer);
+  late final _ref = widget.ref ?? lordsPrayer;
+  late final _verses = widget.passage(_ref);
   var _index = 0;
 
   @override
@@ -365,9 +549,9 @@ class _LordsPrayerScreenState extends State<LordsPrayerScreen> {
     final last = _index >= _verses.length - 1;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(leading: const CloseButton(), title: const Text("The Lord's Prayer")),
+      appBar: AppBar(leading: const CloseButton(), title: Text(widget.title)),
       body: _verses.isEmpty
-          ? const Center(child: Text('Matthew 6 is not in this translation.'))
+          ? Center(child: Text('${_ref.book.name} ${_ref.chapter} is not in this translation.'))
           : ListView(
               padding: const EdgeInsets.all(_cardPadding),
               children: [
@@ -375,7 +559,7 @@ class _LordsPrayerScreenState extends State<LordsPrayerScreen> {
                   children: [
                     _StepDots(_index, _verses.length),
                     const SizedBox(width: 8),
-                    PrayerLabel('${lordsPrayer.label} · ${widget.translation()}'),
+                    PrayerLabel('${_ref.label} · ${widget.translation()}'),
                   ],
                 ),
                 const SizedBox(height: 16),

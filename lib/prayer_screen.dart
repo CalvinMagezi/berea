@@ -1,19 +1,26 @@
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
+import 'prayer_points.dart';
 import 'prayer_pray_now.dart';
 import 'prayer_sheet.dart';
 import 'prayer_store.dart';
+import 'prayer_today.dart';
+import 'prayer_verse.dart';
+import 'prayer_words.dart';
 import 'setup_screen.dart' show deviceNoun;
 import 'theme.dart';
 
 export 'prayer_pray_now.dart' show PrayNowScreen, LordsPrayerScreen;
 export 'prayer_sheet.dart' show PassageLookup, ShareText, passageLookupFor, showPrayerSheet;
+export 'prayer_points.dart' show PrayerEnv;
 
 /// Measured on the room the Prayer place has beside the sidebar, not the window; local rather
 /// than the shell's constant, so this screen does not import the shell.
 const _wideBreakpoint = 760.0;
 const _wideListWidth = 400.0;
+const _topicCardHeight = 124.0;
+const _topicCardWidth = 164.0;
 const _pagePadding = 16.0;
 const _daysInWeek = 7;
 const _daysInTwoWeeks = 14;
@@ -50,12 +57,24 @@ class PrayerScreen extends StatefulWidget {
   /// The reader's translation code, such as BSB, for verse labels.
   final String Function() translation;
   final ShareText share;
+
+  /// The prayer lines bundled with the app. Without them Prayer is the list alone.
+  final PrayerContent? content;
+
+  /// Today's prayer, asked for each time the place is built so a new day shows its own.
+  final TodayPrayer? Function()? todayPrayer;
+
+  /// Rebuilds the place when something besides the prayers changes, such as the day.
+  final Listenable? refresh;
   const PrayerScreen({
     super.key,
     required this.store,
     required this.passage,
     required this.translation,
     this.share = shareText,
+    this.content,
+    this.todayPrayer,
+    this.refresh,
   });
 
   @override
@@ -72,11 +91,49 @@ class _PrayerScreenState extends State<PrayerScreen> {
   /// The prayer the wide panel is showing, marked in the list.
   int? _shown;
 
+  /// The topic the wide panel is showing beside the list, instead of Pray now.
+  PrayerTopic? _topic;
+
   PrayerStore get _store => widget.store;
+  PrayerContent get _content => widget.content ?? PrayerContent.empty;
 
-  Future<void> _add() => showPrayerSheet(context, _store, passage: widget.passage);
+  late final _env = PrayerEnv(
+    content: _content,
+    store: widget.store,
+    passage: widget.passage,
+    translation: widget.translation,
+    share: widget.share,
+  );
 
-  void _edit(Prayer p) => showPrayerSheet(context, _store, editing: p, passage: widget.passage);
+  Future<void> _add() =>
+      showPrayerSheet(context, _store, passage: widget.passage, content: _content);
+
+  void _edit(Prayer p) =>
+      showPrayerSheet(context, _store, editing: p, passage: widget.passage, content: _content);
+
+  void _openTopic(PrayerTopic t, {required bool wide}) => wide
+      ? setState(() => _topic = t)
+      : Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => TopicScreen(env: _env, topic: t),
+          ),
+        );
+
+  void _allTopics({required bool wide}) => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      builder: (_) =>
+          FromTheWordScreen(env: _env, onTopic: wide ? (t) => setState(() => _topic = t) : null),
+    ),
+  );
+
+  void _prayToday(TodayPrayer t) => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      builder: (_) => LinesPrayerScreen(env: _env, title: "Today's prayer", points: [t.point]),
+    ),
+  );
 
   /// Wide layout: a clicked row opens in the panel beside the list. Edit is in the panel.
   void _showInPanel(Prayer p) => setState(() {
@@ -101,6 +158,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
               store: _store,
               passage: widget.passage,
               translation: widget.translation,
+              content: _content,
             ),
           ),
         );
@@ -115,7 +173,12 @@ class _PrayerScreenState extends State<PrayerScreen> {
   void _answered() => Navigator.push(
     context,
     MaterialPageRoute<void>(
-      builder: (_) => AnsweredScreen(store: _store, share: widget.share),
+      builder: (_) => AnsweredScreen(
+        store: _store,
+        share: widget.share,
+        passage: widget.passage,
+        translation: widget.translation,
+      ),
     ),
   );
 
@@ -129,7 +192,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: _store,
+    listenable: Listenable.merge([_store, ?widget.refresh]),
     builder: (context, _) => LayoutBuilder(
       builder: (context, c) {
         if (_store.isEmpty) {
@@ -138,6 +201,9 @@ class _PrayerScreenState extends State<PrayerScreen> {
             translation: widget.translation,
             onAdd: _add,
             onLordsPrayer: _lordsPrayer,
+            onWords: _content.topics.isEmpty ? null : () => _allTopics(wide: false),
+            today: widget.todayPrayer?.call(),
+            onPrayToday: _prayToday,
           );
         }
         final wide = c.maxWidth >= _wideBreakpoint;
@@ -155,6 +221,26 @@ class _PrayerScreenState extends State<PrayerScreen> {
   );
 
   Widget _widePanel(BuildContext context) {
+    final topic = _topic;
+    if (topic != null) {
+      return Column(
+        children: [
+          ListTile(
+            title: Text(topic.title, style: Theme.of(context).textTheme.titleLarge),
+            subtitle: Text('From the Word \u00B7 ${topic.group}'),
+            trailing: IconButton(
+              tooltip: 'Close the topic',
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() => _topic = null),
+            ),
+          ),
+          Expanded(
+            child: TopicView(env: _env, topic: topic),
+          ),
+          const _PrivacyLine(),
+        ],
+      );
+    }
     if (_store.praying().isEmpty) {
       return const Center(child: Text('Nothing on the list right now.'));
     }
@@ -166,6 +252,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
             store: _store,
             passage: widget.passage,
             translation: widget.translation,
+            content: _content,
             startAt: _startAt,
             keyHint: true,
             onShow: _onShow,
@@ -212,6 +299,11 @@ class _PrayerScreenState extends State<PrayerScreen> {
                 label: Text('Pray now · ${_count(praying.length)}'),
               ),
             ),
+          if (widget.todayPrayer?.call() case final today?) ...[
+            TodayPrayerCard(prayer: today, onPray: () => _prayToday(today)),
+            const SizedBox(height: 8),
+          ],
+          if (_content.topics.isNotEmpty) _fromTheWord(context, praying, wide: wide),
           _section('Praying · ${praying.length}'),
           for (final p in praying)
             _PrayerRow(
@@ -275,6 +367,84 @@ class _PrayerScreenState extends State<PrayerScreen> {
     padding: const EdgeInsets.fromLTRB(_pagePadding, 12, _pagePadding, 4),
     child: PrayerLabel(text),
   );
+
+  /// Topic cards, those that match the reader's own prayers first.
+  Widget _fromTheWord(BuildContext context, List<Prayer> praying, {required bool wide}) {
+    final topics = topicsForList(_content, praying);
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(_pagePadding, 12, 8, 0),
+          child: Row(
+            children: [
+              const Expanded(child: PrayerLabel('From the Word')),
+              TextButton(
+                onPressed: () => _allTopics(wide: wide),
+                child: Text('All ${_content.topics.length} topics'),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: MediaQuery.textScalerOf(context).scale(_topicCardHeight),
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: _pagePadding),
+            children: [
+              for (final t in topics)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: SizedBox(
+                    width: _topicCardWidth,
+                    child: Card(
+                      elevation: 0,
+                      margin: EdgeInsets.zero,
+                      color: t.id == _topic?.id
+                          ? scheme.secondaryContainer
+                          : scheme.surfaceContainerHighest,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(_pagePadding),
+                        onTap: () => _openTopic(t, wide: wide),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.volunteer_activism_outlined, color: scheme.primary),
+                              const Spacer(),
+                              Text(
+                                t.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              Text(
+                                '${t.points.length} prayer points',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(_pagePadding, 6, _pagePadding, 0),
+          child: Text(
+            'First: topics that match what you are praying for.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 String _count(int n) => n == 1 ? '1 prayer' : '$n prayers';
@@ -370,11 +540,17 @@ class _FirstTime extends StatelessWidget {
   final String Function() translation;
   final VoidCallback onAdd;
   final VoidCallback onLordsPrayer;
+  final VoidCallback? onWords;
+  final TodayPrayer? today;
+  final void Function(TodayPrayer) onPrayToday;
   const _FirstTime({
     required this.passage,
     required this.translation,
     required this.onAdd,
     required this.onLordsPrayer,
+    required this.onWords,
+    required this.today,
+    required this.onPrayToday,
   });
 
   @override
@@ -421,12 +597,24 @@ class _FirstTime extends StatelessWidget {
                   ),
                 ),
               ],
+              if (today case final t?) ...[
+                const SizedBox(height: 16),
+                TodayPrayerCard(prayer: t, onPray: () => onPrayToday(t)),
+              ],
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: onAdd,
                 icon: const Icon(Icons.add),
                 label: const Text('Add a prayer'),
               ),
+              if (onWords != null) ...[
+                const SizedBox(height: 12),
+                FilledButton.tonalIcon(
+                  onPressed: onWords,
+                  icon: const Icon(Icons.volunteer_activism_outlined),
+                  label: const Text('Find words to pray'),
+                ),
+              ],
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: onLordsPrayer,
@@ -465,7 +653,17 @@ String answeredSummary(List<Prayer> answered, DateTime now) {
 class AnsweredScreen extends StatelessWidget {
   final PrayerStore store;
   final ShareText share;
-  const AnsweredScreen({super.key, required this.store, this.share = shareText});
+
+  /// Gives a testimony the words of its verse. Without it the verse is shared by reference.
+  final PassageLookup? passage;
+  final String Function()? translation;
+  const AnsweredScreen({
+    super.key,
+    required this.store,
+    this.share = shareText,
+    this.passage,
+    this.translation,
+  });
 
   /// Back on the list, with Undo bringing back the person's line and the day it was answered.
   void _stillPraying(BuildContext context, Prayer p) {
@@ -528,7 +726,13 @@ class AnsweredScreen extends StatelessWidget {
                       children: [
                         Builder(
                           builder: (button) => TextButton.icon(
-                            onPressed: () => share(testimonyText(p), shareOrigin(button)),
+                            onPressed: () => shareTestimony(
+                              context,
+                              p,
+                              share: share,
+                              passage: passage,
+                              origin: shareOrigin(button),
+                            ),
                             icon: const Icon(Icons.share_outlined, size: 18),
                             label: const Text('Share a testimony'),
                           ),
