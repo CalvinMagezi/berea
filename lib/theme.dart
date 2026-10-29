@@ -7,7 +7,8 @@ abstract final class BereaColors {
   static const parchmentDeep = Color(0xFFEBE3D3);
   static const ink = Color(0xFF1E1A15);
   static const inkMuted = Color(0xFF6B6257);
-  static const gold = Color(0xFF9E7628);
+  // 5.9:1 on parchment, 5.3:1 on parchmentDeep, 4.6:1 under the 18% highlight wash.
+  static const gold = Color(0xFF75571C);
   static const ember = Color(0xFF9B3B2E);
 
   static const night = Color(0xFF161310);
@@ -20,6 +21,8 @@ abstract final class BereaColors {
 
 const scriptureFontFallback = ['Georgia', 'Times New Roman', 'serif'];
 const contentMaxWidth = 760.0;
+const fieldRadius = 14.0;
+const focusRingWidth = 2.0;
 
 /// From this width the shell shows the sidebar and places may show two panes.
 const wideLayoutBreakpoint = 760.0;
@@ -55,8 +58,16 @@ ThemeData bereaTheme(Brightness brightness) {
       filled: true,
       fillColor: scheme.surfaceContainerHighest,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(fieldRadius),
         borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(fieldRadius),
+        borderSide: BorderSide(color: scheme.primary, width: focusRingWidth),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(fieldRadius),
+        borderSide: BorderSide(color: scheme.error, width: focusRingWidth),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     ),

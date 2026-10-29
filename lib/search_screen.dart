@@ -41,6 +41,8 @@ class _SearchScreenState extends State<SearchScreen> {
             hintText: 'Search $translation or type a reference',
             filled: false,
             border: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            focusedErrorBorder: InputBorder.none,
           ),
         ),
       ),
