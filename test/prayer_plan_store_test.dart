@@ -14,6 +14,7 @@ void main() {
   var clock = DateTime(2026, 10, 29, 9);
 
   setUp(() {
+    clock = DateTime(2026, 10, 29, 9);
     study = StudyStore(sqlite3.openInMemory());
     prayers = PrayerStore(study.db, now: () => clock);
     plans = PrayerPlanStore(study.db, now: () => clock);
@@ -120,6 +121,23 @@ void main() {
     expect(plans.running().single.planId, 'work-7');
   });
 
+  test('the notes export lists prayer plans and the days prayed, and nothing else of them', () {
+    prayers.add(title: 'Keep me');
+    plans.start('work-7');
+    plans.pray('work-7', 1, 7);
+    plans.setFasting('work-7', true);
+    plans.prayReading('nt-90', 3);
+    final md = prayersMarkdown(
+      prayers,
+      plans: plans,
+      planTitles: {'work-7': '7 days for your work', 'nt-90': 'New Testament in 90 days'},
+    );
+    expect(md, contains('## Prayer plans'));
+    expect(md, contains('- 7 days for your work: started 2026-10-29, prayed on 1 day, fasting on'));
+    expect(md, contains('- Pray what you read, New Testament in 90 days: 1 day'));
+    expect(prayersMarkdown(prayers), isNot(contains('Prayer plans')));
+  });
+
   test('a restore that removes the linked prayer unlinks it', () {
     final id = prayers.add(title: 'Wisdom');
     plans.start('work-7');
@@ -129,6 +147,22 @@ void main() {
     tables['prayer_days'] = [];
     tables['prayer_plan_runs'] = [
       {'plan_id': 'work-7', 'started': 1, 'fasting': 0, 'prayer_id': null, 'finished': null},
+    ];
+    study.importTables(tables);
+    expect(plans.run('work-7')!.prayerId, isNull);
+  });
+
+  test('restoring prayers without the plan tables unlinks every plan prayer', () {
+    final id = prayers.add(title: 'Wisdom');
+    plans.start('work-7');
+    plans.linkPrayer('work-7', id);
+    final tables = study.exportTables()
+      ..remove('prayer_plan_runs')
+      ..remove('prayer_plan_days')
+      ..remove('plan_prayed');
+    // The backup's prayer 1 is another prayer than the one the plan linked.
+    tables['prayers'] = [
+      {'id': id, 'title': 'Someone else', 'for_whom': '', 'note': '', 'created': 1, 'archived': 0},
     ];
     study.importTables(tables);
     expect(plans.run('work-7')!.prayerId, isNull);

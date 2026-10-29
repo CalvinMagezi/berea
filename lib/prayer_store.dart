@@ -2,6 +2,8 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'prayer_plan_store.dart';
+
 /// Study store migration for Prayer. Dates are epoch milliseconds. [verse] is a reference label
 /// such as "Philippians 4:6-7". A prayed day is a local yyyymmdd number, one row per day, so
 /// Amen twice in a day counts once and last prayed is the latest day. [reminder] is minutes
@@ -291,8 +293,14 @@ String prayerListText(List<Prayer> praying) => [
   for (final p in praying) '- ${prayerShareText(p).replaceAll('\n', ' · ')}',
 ].join('\n');
 
-/// Every prayer as Markdown for export, praying first, then answered, then stopped.
-String prayersMarkdown(PrayerStore store) {
+/// Every prayer as Markdown for export, praying first, then answered, then stopped, then the
+/// prayer plans and the reading plan days prayed. [planTitles] names plans by id; an id
+/// stands in for a plan this build does not have.
+String prayersMarkdown(
+  PrayerStore store, {
+  PrayerPlanStore? plans,
+  Map<String, String> planTitles = const {},
+}) {
   final b = StringBuffer('# Prayer\n\n');
   void section(String title, List<Prayer> ps) {
     if (ps.isEmpty) return;
@@ -315,5 +323,28 @@ String prayersMarkdown(PrayerStore store) {
   section('Praying', store.praying());
   section('Answered', store.answered());
   section('No longer praying', store.stopped());
+  if (plans != null) _planSection(b, plans, planTitles);
   return b.toString();
+}
+
+void _planSection(StringBuffer b, PrayerPlanStore plans, Map<String, String> titles) {
+  final runs = plans.all();
+  final reading = plans.readingCounts();
+  if (runs.isEmpty && reading.isEmpty) return;
+  b.writeln('## Prayer plans\n');
+  String name(String id) => titles[id] ?? id;
+  for (final r in runs) {
+    final days = plans.daysPrayed(r.planId).length;
+    final parts = [
+      'started ${_ymd(r.started)}',
+      days == 1 ? 'prayed on 1 day' : 'prayed on $days days',
+      if (r.finished != null) 'finished ${_ymd(r.finished!)}',
+      if (r.fasting) 'fasting on',
+    ];
+    b.writeln('- ${name(r.planId)}: ${parts.join(', ')}');
+  }
+  for (final e in reading.entries) {
+    b.writeln('- Pray what you read, ${name(e.key)}: ${e.value} ${e.value == 1 ? 'day' : 'days'}');
+  }
+  b.writeln();
 }

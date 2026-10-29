@@ -97,6 +97,19 @@ class PrayerPlanStore extends ChangeNotifier {
       _run(r),
   ];
 
+  /// Every run, finished ones too, oldest start first.
+  List<PlanRun> all() => [
+    for (final r in db.select('SELECT * FROM prayer_plan_runs ORDER BY started, plan_id')) _run(r),
+  ];
+
+  /// Days whose Pray what you read step is done, for each reading plan that has any.
+  Map<String, int> readingCounts() => {
+    for (final r in db.select(
+      'SELECT plan_id, COUNT(*) AS n FROM plan_prayed GROUP BY plan_id ORDER BY plan_id',
+    ))
+      r['plan_id'] as String: r['n'] as int,
+  };
+
   PlanRun? run(String planId) => [
     for (final r in db.select('SELECT * FROM prayer_plan_runs WHERE plan_id = ?', [planId]))
       _run(r),

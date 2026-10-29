@@ -257,10 +257,12 @@ class StudyStore {
     }
     final rows = db.select('SELECT id FROM notebooks WHERE system_key = ?', [notesOnVersesKey]);
     if (rows.isNotEmpty) return rows.first['id'] as int;
-    db.execute(
-      'INSERT INTO notebooks(title, created, updated, system_key) VALUES (?, ?, ?, ?)',
-      [notesOnVersesTitle, _now(), _now(), notesOnVersesKey],
-    );
+    db.execute('INSERT INTO notebooks(title, created, updated, system_key) VALUES (?, ?, ?, ?)', [
+      notesOnVersesTitle,
+      _now(),
+      _now(),
+      notesOnVersesKey,
+    ]);
     return db.lastInsertRowId;
   }
 
@@ -283,9 +285,11 @@ class StudyStore {
       .isNotEmpty;
 
   /// The id of the notes on verses notebook, or null while there is none.
-  static int? notesOnVersesId(Database db) => db
-      .select('SELECT id FROM notebooks WHERE system_key = ?', [notesOnVersesKey])
-      .firstOrNull?['id'] as int?;
+  static int? notesOnVersesId(Database db) =>
+      db.select('SELECT id FROM notebooks WHERE system_key = ?', [
+            notesOnVersesKey,
+          ]).firstOrNull?['id']
+          as int?;
 
   /// Keys the notes on verses notebook made before keys existed (by migration 5, or restored
   /// from an older backup), and marks kept words saved before notes had a kind.
@@ -1029,10 +1033,15 @@ class StudyStore {
           );
         }
       }
-      // A prayer the restore removed can no longer be the one a plan links.
+      // A restore that replaced the prayers without the plan tables leaves ids that mean other
+      // prayers now, so every link goes; with the plan tables, only links to a missing prayer.
+      final replacedPrayers = tables.containsKey('prayers');
+      final brokeLinks = replacedPrayers && !tables.containsKey('prayer_plan_runs');
       db.execute(
-        'UPDATE prayer_plan_runs SET prayer_id = NULL '
-        'WHERE prayer_id IS NOT NULL AND prayer_id NOT IN (SELECT id FROM prayers)',
+        brokeLinks
+            ? 'UPDATE prayer_plan_runs SET prayer_id = NULL'
+            : 'UPDATE prayer_plan_runs SET prayer_id = NULL '
+                  'WHERE prayer_id IS NOT NULL AND prayer_id NOT IN (SELECT id FROM prayers)',
       );
       // The notes were replaced under the kept notebooks, so their note ids mean other notes.
       if (!hasNotebooks) db.execute('UPDATE notebook_sources SET note_id = NULL');
