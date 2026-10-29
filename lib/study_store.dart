@@ -6,6 +6,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'notebook_store.dart';
 import 'plans.dart';
+import 'prayer_plan_store.dart';
 import 'prayer_store.dart';
 
 /// Everything the user writes: notes, highlights and saved studies. One local SQLite file,
@@ -161,6 +162,7 @@ class StudyStore {
     prayerSchema,
     planChaptersSchema,
     notebookKeySchema,
+    prayerPlanSchema,
   ];
 
   static int get schemaVersion => migrations.length;
@@ -667,6 +669,7 @@ class StudyStore {
   void clearPlan(String planId) => _transaction(() {
     db.execute('DELETE FROM plan_chapters WHERE plan_id = ?', [planId]);
     db.execute('DELETE FROM plan_progress WHERE plan_id = ?', [planId]);
+    db.execute('DELETE FROM plan_prayed WHERE plan_id = ?', [planId]);
   });
 
   /// Ticks every chapter of each day ticked before plans counted chapters, then drops the day,
@@ -778,6 +781,7 @@ class StudyStore {
     'notebook_chunks',
     'notebook_messages',
     ...prayerTables,
+    ...prayerPlanTables,
   ];
 
   Map<String, List<Map<String, Object?>>> exportTables() => {
@@ -830,6 +834,7 @@ class StudyStore {
       'sources': String,
     },
     ...prayerColumnTypes,
+    ...prayerPlanColumnTypes,
   };
 
   /// Columns a backup may lack, older ones having been written before they existed. When
@@ -849,6 +854,8 @@ class StudyStore {
     'conversations': {'notebook_id': int},
     'messages': {'sources': String, 'notebook_message_id': int},
     'notebook_sources': {'note_id': int},
+    'prayers': {'topic': String},
+    'prayer_plan_runs': {'prayer_id': int, 'finished': int},
   };
 
   static const _nullable = {
@@ -860,6 +867,9 @@ class StudyStore {
     'notebook_id',
     'notebook_message_id',
     'note_id',
+    'topic',
+    'prayer_id',
+    'finished',
   };
 
   static const _verseColumnNames = ['book', 'chapter', 'verse_start', 'verse_end'];
@@ -878,6 +888,7 @@ class StudyStore {
     _validateColumns(tables);
     _validateNotebooks(tables);
     validatePrayerTables(tables);
+    validatePrayerPlanTables(tables);
   }
 
   void _validateColumns(Map<String, List<Map<String, Object?>>> tables) {
@@ -1007,6 +1018,8 @@ class StudyStore {
         if (!hasNotebooks && _notebookChatTables.contains(t)) continue;
         // A backup from before Prayer leaves the prayers on the device alone.
         if (!tables.containsKey('prayers') && prayerTables.contains(t)) continue;
+        // A backup from before prayer plans leaves the plans on the device alone.
+        if (!tables.containsKey('prayer_plan_runs') && prayerPlanTables.contains(t)) continue;
         db.execute('DELETE FROM $t');
         for (final row in tables[t] ?? const <Map<String, Object?>>[]) {
           final cols = row.keys.toList();
@@ -1016,6 +1029,11 @@ class StudyStore {
           );
         }
       }
+      // A prayer the restore removed can no longer be the one a plan links.
+      db.execute(
+        'UPDATE prayer_plan_runs SET prayer_id = NULL '
+        'WHERE prayer_id IS NOT NULL AND prayer_id NOT IN (SELECT id FROM prayers)',
+      );
       // The notes were replaced under the kept notebooks, so their note ids mean other notes.
       if (!hasNotebooks) db.execute('UPDATE notebook_sources SET note_id = NULL');
       // An older backup's notes on verses notebook has no key yet; key it before the merge

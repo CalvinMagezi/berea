@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -19,6 +20,7 @@ import 'notebook_chat.dart';
 import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'plans.dart';
+import 'prayer_plan_store.dart';
 import 'prayer_store.dart';
 import 'study_store.dart';
 import 'today.dart';
@@ -408,6 +410,11 @@ class AppState extends ChangeNotifier {
 
   /// Prayers share study.sqlite, so they are backed up and restored with the notes.
   late final PrayerStore prayers = PrayerStore(study.db);
+  late final PrayerPlanStore prayerPlans = PrayerPlanStore(study.db);
+
+  /// The prayer lines bundled with the app. Empty when the file cannot be read, so Prayer still
+  /// works without them.
+  PrayerContent prayerContent = PrayerContent.empty;
   late final Directory supportDir;
 
   /// Optional public domain commentaries the user has downloaded.
@@ -515,6 +522,7 @@ class AppState extends ChangeNotifier {
     s.study = openStudy('${s.supportDir.path}/study.sqlite');
     s.study.copyNotebookChats();
     s.systemPrompt = _stripFrontMatter(await rootBundle.loadString('prompts/system.md'));
+    s.prayerContent = await _loadPrayerContent();
     s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
     s.deviceGb = bytes == null ? null : bytes / bytesPerGb;
@@ -543,6 +551,16 @@ class AppState extends ChangeNotifier {
     _helperStarted = true;
     await _rebuildHarness();
     if (_autorunAllowed) unawaited(_autorun());
+  }
+
+  static Future<PrayerContent> _loadPrayerContent() async {
+    try {
+      final json = jsonDecode(await rootBundle.loadString('assets/prayers.json'));
+      return PrayerContent.fromJson((json as Map).cast());
+    } on Object catch (e) {
+      debugPrint('The prayer lines did not load: $e');
+      return PrayerContent.empty;
+    }
   }
 
   /// Opens the notes database. The notes merge first writes a safety copy beside it; if that
@@ -906,6 +924,7 @@ class AppState extends ChangeNotifier {
     // Restoring an older backup merges its notes into notebooks, which may add one.
     notebooks.refresh();
     prayers.refresh();
+    prayerPlans.refresh();
     _keepTranslationValid();
     clear();
     pendingScope = null;

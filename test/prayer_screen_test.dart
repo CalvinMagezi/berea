@@ -1,4 +1,5 @@
 import 'package:berea/prayer_screen.dart';
+import 'package:berea/prayer_plan_store.dart';
 import 'package:berea/prayer_store.dart';
 import 'package:berea/setup_screen.dart' show deviceNoun;
 import 'package:berea_harness/berea_harness.dart';
@@ -34,7 +35,7 @@ void main() {
   late List<Rect?> origins;
 
   setUp(() {
-    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema));
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema)..execute(prayerPlanSchema));
     shared = [];
     origins = [];
   });
@@ -260,7 +261,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     var clock = DateTime(2026, 10, 2, 9);
-    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema), now: () => clock);
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema)..execute(prayerPlanSchema), now: () => clock);
     for (final title in ['First', 'Second', 'Third']) {
       store.add(title: title);
       clock = clock.add(const Duration(minutes: 1));
@@ -327,7 +328,7 @@ void main() {
   testWidgets('Still praying offers Undo that brings back the line and the date', (tester) async {
     phone(tester);
     var clock = DateTime(2026, 8, 3, 9);
-    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema), now: () => clock);
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema)..execute(prayerPlanSchema), now: () => clock);
     final job = store.add(title: 'Job interview at the bank');
     store.markAnswered(job, 'I got the job.');
     clock = DateTime(2026, 10, 28, 9);
@@ -435,7 +436,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     var clock = DateTime(2026, 10, 2, 9);
-    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema), now: () => clock);
+    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema)..execute(prayerPlanSchema), now: () => clock);
     for (final title in ['First', 'Second']) {
       store.add(title: title);
       clock = clock.add(const Duration(minutes: 1));

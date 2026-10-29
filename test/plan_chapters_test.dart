@@ -30,6 +30,11 @@ void main() {
       ..execute('DROP INDEX notebooks_system_key')
       ..execute('ALTER TABLE notebooks DROP COLUMN system_key')
       ..execute('ALTER TABLE notes DROP COLUMN kind')
+      // Migration 7 (prayer plans) came later still.
+      ..execute('DROP TABLE prayer_plan_runs')
+      ..execute('DROP TABLE prayer_plan_days')
+      ..execute('DROP TABLE plan_prayed')
+      ..execute('ALTER TABLE prayers DROP COLUMN topic')
       ..execute('PRAGMA user_version = $_beforeChapters')
       ..execute('''
         INSERT INTO plan_progress VALUES ('nt-90', 1, 100);

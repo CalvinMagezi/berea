@@ -1,6 +1,29 @@
 import 'books.dart';
 import 'ref_parser.dart';
 
+final _booksByName = {for (final b in books) b.name: b};
+
+/// The reference in a canonical label such as "Psalms 37:5" or "1 John 4:4-6". Labels in the
+/// compiled file are always canonical, so this avoids the regex a typed reference needs; anything
+/// else falls back to [RefParser].
+Ref parseLabel(String label) {
+  final space = label.lastIndexOf(' ');
+  final book = space < 0 ? null : _booksByName[label.substring(0, space)];
+  if (book != null) {
+    final rest = label.substring(space + 1);
+    final colon = rest.indexOf(':');
+    final chapter = int.tryParse(colon < 0 ? rest : rest.substring(0, colon));
+    if (chapter != null) {
+      if (colon < 0) return Ref(book, chapter);
+      final dash = rest.indexOf('-', colon);
+      final start = int.tryParse(rest.substring(colon + 1, dash < 0 ? null : dash));
+      final end = dash < 0 ? null : int.tryParse(rest.substring(dash + 1));
+      if (start != null && (dash < 0 || end != null)) return Ref(book, chapter, start, end);
+    }
+  }
+  return RefParser.parse(label).first;
+}
+
 /// One prayer point: a line in the first person that stands on [ref], a canonical label such as
 /// "Philippians 4:6-7".
 class PrayerPoint {
@@ -8,7 +31,7 @@ class PrayerPoint {
   final String ref;
   const PrayerPoint(this.text, this.ref);
 
-  Ref get verse => RefParser.parse(ref).first;
+  Ref get verse => parseLabel(ref);
 
   Map<String, Object?> toJson() => {'text': text, 'ref': ref};
   factory PrayerPoint.fromJson(Map<String, Object?> j) =>
@@ -48,7 +71,7 @@ class BiblePrayer {
   final String ref;
   const BiblePrayer(this.id, this.title, this.ref);
 
-  Ref get passage => RefParser.parse(ref).first;
+  Ref get passage => parseLabel(ref);
 
   Map<String, Object?> toJson() => {'id': id, 'title': title, 'ref': ref};
   factory BiblePrayer.fromJson(Map<String, Object?> j) =>
@@ -62,7 +85,7 @@ class PlanDay {
   final List<PrayerPoint> points;
   const PlanDay(this.title, this.ref, this.points);
 
-  Ref get passage => RefParser.parse(ref).first;
+  Ref get passage => parseLabel(ref);
 
   Map<String, Object?> toJson() => {
     'title': title,

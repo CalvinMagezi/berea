@@ -22,8 +22,8 @@ const canvasLines = <(String, String)>[
   ('Make me strong in You and in Your mighty power, not in my own.', 'Ephesians 6:10'),
   ('Clothe me in Your full armour, so that I can stand.', 'Ephesians 6:11'),
   (
-    // The board's line has 21 words; "that" and a second "my" are dropped to meet the limit.
-    'Remind me my struggle is not against people, not my relatives or neighbours, '
+    // The board's line has 21 words; a second "my" is dropped to meet the limit.
+    'Remind me that my struggle is not against people, not my relatives or neighbours, '
         'but against the powers of darkness.',
     'Ephesians 6:12',
   ),
@@ -198,6 +198,20 @@ void main() {
     expect(back.pointsForVerse(Ref(bookById(40), 7, 7)).single.text, 'Lord, hear me.');
     expect(back.pointsForVerse(Ref(bookById(40), 7, 8)), isEmpty);
     expect(back.dailyLine(Ref(bookById(23), 41, 10)), 'Lord, hold me up.');
+  });
+
+  test('a canonical label parses the same as a typed reference', () {
+    for (final label in [
+      'Psalms 37:5',
+      'Psalms 23',
+      '1 John 4:4-6',
+      'Song of Solomon 2:4',
+      'Matthew 6:9-13',
+      '3 John 1:14',
+    ]) {
+      expect(parseLabel(label), RefParser.parse(label).first, reason: label);
+    }
+    expect(parseLabel('Psalm 23:1'), RefParser.parse('Psalm 23:1').first);
   });
 
   test('topics are found by the words people type', () {

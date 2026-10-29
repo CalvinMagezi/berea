@@ -1,0 +1,89 @@
+id: psalms-40
+title: "40 days in the Psalms"
+summary: "One psalm a day, prayed a line at a time"
+fasting: false
+reviewed: false
+# Eight psalms end their passage before a verse that calls down harm on people; a plan day
+# prays its passage word for word, so those verses are left out (3:7, 5:9-10, 40:14-15, 63:9-10,
+# 86:17, 139:19-22, 143:12, 149:6-9).
+days:
+  - title: "Delight in God's word"
+    ref: Psalm 1
+  - title: "A shield around me"
+    ref: Psalm 3:1-6
+  - title: "Peace to lie down in"
+    ref: Psalm 4
+  - title: "A morning prayer"
+    ref: Psalm 5:1-8
+  - title: "The majesty of God's name"
+    ref: Psalm 8
+  - title: "My refuge and my portion"
+    ref: Psalm 16
+  - title: "God's glory in the sky and in His word"
+    ref: Psalm 19
+  - title: "The Lord is my shepherd"
+    ref: Psalm 23
+  - title: "Teach me Your paths"
+    ref: Psalm 25
+  - title: "The Lord is my light and my stronghold"
+    ref: Psalm 27
+  - title: "Mourning turned to dancing"
+    ref: Psalm 30
+  - title: "The joy of being forgiven"
+    ref: Psalm 32
+  - title: "Taste and see that the Lord is good"
+    ref: Psalm 34
+  - title: "Waiting, then a new song"
+    ref: Psalm 40:1-13
+  - title: "A soul thirsty for God"
+    ref: Psalm 42
+  - title: "God is our refuge and strength"
+    ref: Psalm 46
+  - title: "Mercy and a clean heart"
+    ref: Psalm 51
+  - title: "Rest in God alone"
+    ref: Psalm 62
+  - title: "Thirsting for God in a dry land"
+    ref: Psalm 63:1-8
+  - title: "Thanks for rain and harvest"
+    ref: Psalm 65
+  - title: "Longing for God's house"
+    ref: Psalm 84
+  - title: "A prayer of the poor and needy"
+    ref: Psalm 86:1-16
+  - title: "Teach us to number our days"
+    ref: Psalm 90
+  - title: "Safe in God's shelter"
+    ref: Psalm 91
+  - title: "Come, let us worship"
+    ref: Psalm 95
+  - title: "Enter with thanksgiving"
+    ref: Psalm 100
+  - title: "Bless the Lord, my soul"
+    ref: Psalm 103
+  - title: "The Lord who hears me"
+    ref: Psalm 116
+  - title: "My help comes from the Lord"
+    ref: Psalm 121
+  - title: "Out of the depths"
+    ref: Psalm 130
+  - title: "A quieted soul"
+    ref: Psalm 131
+  - title: "Thanks for answered prayer"
+    ref: Psalm 138
+  - title: "You know me and You are near"
+    ref: Psalm 139:1-18
+  - title: "Teach me to do Your will"
+    ref: Psalm 143:1-11
+  - title: "Great is the Lord"
+    ref: Psalm 145
+  - title: "Hope in the Lord, not in princes"
+    ref: Psalm 146
+  - title: "He heals the brokenhearted"
+    ref: Psalm 147
+  - title: "Let all creation praise the Lord"
+    ref: Psalm 148
+  - title: "Sing to the Lord a new song"
+    ref: Psalm 149:1-5
+  - title: "Let everything that has breath praise the Lord"
+    ref: Psalm 150

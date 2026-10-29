@@ -25,6 +25,9 @@ echo "Building the Bible database and the lexicon pack"
 echo "Placing SHA-256 checked PDFium builds for the hook"
 tool/pin_pdfium.sh mac-arm64 mac-x64 android-arm64
 
+echo "Checking that every prayer line has been read by a person"
+(cd packages/harness && dart run bin/build_prayers.dart --check --release)
+
 echo "Running checks"
 (cd packages/harness && dart analyze --fatal-infos && dart test)
 flutter analyze --fatal-infos

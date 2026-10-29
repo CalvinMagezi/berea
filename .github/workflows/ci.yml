@@ -20,6 +20,10 @@ jobs:
         working-directory: packages/harness
       - run: dart test
         working-directory: packages/harness
+      # The prayer lines pass the writing rules and the bundled file is their compiled form. Review
+      # is checked at release (tool/release.sh), not here.
+      - run: dart run bin/build_prayers.dart --check
+        working-directory: packages/harness
 
   app:
     runs-on: ubuntu-latest

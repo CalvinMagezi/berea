@@ -60,7 +60,7 @@ PrayerSource loadPrayerSource(Directory dir) {
     final doc = read(f);
     final book = bookFor(_str(doc, 'book'));
     if (book == null) throw FormatException('${f.path}: unknown book ${doc['book']}');
-    flag('chapters ${book.name}', doc);
+    flag('chapters ${f.uri.pathSegments.last}', doc);
     final byChapter = doc['chapters'];
     if (byChapter is! Map<String, Object?>) {
       throw FormatException('${f.path}: chapters must be a mapping');

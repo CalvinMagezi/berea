@@ -1,0 +1,148 @@
+book: John
+reviewed: false
+chapters:
+  1:
+    - text: "Jesus, I receive You and believe in Your name. Thank You for the right to be a child of God."
+      ref: John 1:12
+    - text: "Thank You that the Word became flesh and lived among us, full of grace and truth."
+      ref: John 1:14
+    - text: "Thank You, Jesus, that You take away the sin of the world."
+      ref: John 1:29
+  2:
+    - text: "Lord, help me do whatever You tell me."
+      ref: John 2:5
+    - text: "Jesus, reveal Your glory to me, as You did at the wedding, and let me believe in You."
+      ref: John 2:11
+    - text: "You know what is in every person, so I will not hide my heart from You."
+      ref: John 2:25
+  3:
+    - text: "Jesus, You said no one can see the kingdom of God unless born again. Give me new birth."
+      ref: John 3:3
+    - text: "Thank You, God, that You loved the world and gave Your only Son. I believe in Him."
+      ref: John 3:16
+    - text: "Lord, let Jesus increase in my life, and let me decrease."
+      ref: John 3:30
+  4:
+    - text: "Give me the water You give, Jesus, springing up in me to eternal life."
+      ref: John 4:14
+    - text: "Help me worship You in spirit and in truth."
+      ref: John 4:24
+    - text: "Make it my food to do Your will and the work You give me."
+      ref: John 4:34
+  5:
+    - text: "Jesus, You told a sick man to walk, and he was made well. I trust You in my need."
+      ref: John 5:8-9
+    - text: "Let me hear Your word, Jesus, and believe the Father who sent You, and have eternal life."
+      ref: John 5:24
+  6:
+    - text: "Jesus, when I am afraid in the storm, say to me, it is I, do not be afraid."
+      ref: John 6:20
+    - text: "Jesus, You are the bread of life. I come to You and believe in You."
+      ref: John 6:35
+    - text: "Lord, I have nowhere else to go. You have the words of eternal life."
+      ref: John 6:68
+  7:
+    - text: "Jesus, give me a desire to do God's will, so that I know Your teaching is from Him."
+      ref: John 7:17
+    - text: "Keep me from judging by outward appearances. Help me judge justly."
+      ref: John 7:24
+    - text: "I am thirsty, Jesus. I come to You to drink."
+      ref: John 7:37
+  8:
+    - text: "Jesus, You told the woman, neither do I condemn you. Forgive me, and help me sin no more."
+      ref: John 8:11
+    - text: "Jesus, You are the light of the world. Help me follow You and not walk in darkness."
+      ref: John 8:12
+    - text: "Jesus, set me free, for when the Son sets us free, we are free indeed."
+      ref: John 8:36
+  9:
+    - text: "Let the works of God be displayed in me."
+      ref: John 9:3
+    - text: "Open my eyes, Lord, so that I can say, I was blind, but now I see."
+      ref: John 9:25
+    - text: "Lord, I believe. Help me worship You as the man did whose eyes You opened."
+      ref: John 9:38
+  10:
+    - text: "Thank You, good shepherd, for laying down Your life for Your sheep."
+      ref: John 10:11
+    - text: "Make me one of Your sheep, who listen to Your voice and follow You."
+      ref: John 10:27
+    - text: "Thank You that no one can snatch Your sheep out of Your hand."
+      ref: John 10:28
+  11:
+    - text: "Jesus, You are the resurrection and the life. I believe in You."
+      ref: John 11:25
+    - text: "Thank You, Jesus, that You wept. Comfort all who weep today."
+      ref: John 11:35
+    - text: "Help me believe, Lord, so that I see the glory of God."
+      ref: John 11:40
+  12:
+    - text: "Jesus, let me serve You, follow You, and be where You are."
+      ref: John 12:26
+    - text: "Keep me from loving praise from people more than praise from God."
+      ref: John 12:43
+    - text: "Thank You, Jesus, for coming as a light, so that those who believe do not remain in darkness."
+      ref: John 12:46
+  13:
+    - text: "Thank You, Jesus, that You love Your own to the very end."
+      ref: John 13:1
+    - text: "Jesus, You washed Your disciples' feet. Teach me to serve others as You did."
+      ref: John 13:15
+    - text: "Let our love for one another show everyone that we are Your disciples."
+      ref: John 13:35
+  14:
+    - text: "Thank You that You are preparing a place for me, so that I may be where You are."
+      ref: John 14:3
+    - text: "Jesus, You are the way, the truth and the life. Bring me to the Father through You."
+      ref: John 14:6
+    - text: "Father, let the Holy Spirit teach me and remind me of everything Jesus has told us."
+      ref: John 14:26
+  15:
+    - text: "Help me remain in You, Jesus, for apart from You I can do nothing."
+      ref: John 15:5
+    - text: "Thank You, Jesus, that You love me as the Father loves You. Help me remain in Your love."
+      ref: John 15:9
+    - text: "Jesus, You chose Your disciples and appointed them to bear fruit. Help me bear fruit that will last."
+      ref: John 15:16
+  16:
+    - text: "Guide me by the Spirit of truth into all truth."
+      ref: John 16:13
+    - text: "Teach me to ask in Your name, Jesus, so that my joy may be complete."
+      ref: John 16:24
+    - text: "Thank You, Jesus, that You have overcome the world. Give me courage and peace in You."
+      ref: John 16:33
+  17:
+    - text: "Father, help me know You, the only true God, and Jesus Christ, whom You sent."
+      ref: John 17:3
+    - text: "Father, keep me from the evil one while I live in the world."
+      ref: John 17:15
+    - text: "Make us one, Father, as You and Jesus are one, so that the world may believe."
+      ref: John 17:21
+  18:
+    - text: "Lord, when I am asked if I am Your disciple, give me courage not to deny You."
+      ref: John 18:25
+    - text: "Jesus, Your kingdom is not of this world. Help me to live for it."
+      ref: John 18:36
+    - text: "Let me belong to the truth and listen to Your voice, Jesus."
+      ref: John 18:37
+  19:
+    - text: "Jesus, You cared for Your mother even on the cross. Teach me to care for my family."
+      ref: John 19:26-27
+    - text: "Jesus, knowing everything was accomplished, You said, it is finished. Thank You for the cross."
+      ref: John 19:28-30
+    - text: "Take away my fear of people, so that I do not follow You only in secret."
+      ref: John 19:38
+  20:
+    - text: "Jesus, You are my Lord and my God."
+      ref: John 20:28
+    - text: "Help me be one of those who have not seen and yet have believed."
+      ref: John 20:29
+    - text: "Help me believe that Jesus is the Christ, the Son of God, and have life in His name."
+      ref: John 20:31
+  21:
+    - text: "Thank You, Jesus, for feeding Your disciples on the shore. Feed us too."
+      ref: John 21:12
+    - text: "Lord, You know all things, and You know I love You. Help me feed Your sheep."
+      ref: John 21:17
+    - text: "Keep me from comparing my path with others. Help me just follow You."
+      ref: John 21:22

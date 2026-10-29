@@ -1,0 +1,51 @@
+id: exam-5
+title: Exam week
+summary: "5 days · for students, and parents praying for them"
+fasting: false
+reviewed: false
+days:
+  - title: Ask for wisdom
+    ref: James 1:5
+    points:
+      - text: "God, I ask You for wisdom this week. Thank You that You give generously, without finding fault."
+        ref: James 1:5
+      - text: "Help me to ask You in faith, without doubting."
+        ref: James 1:6
+      - text: "Lord, wisdom, knowledge and understanding come from You. Give them to every student sitting an exam this week."
+        ref: Proverbs 2:6
+  - title: A calm mind
+    ref: Philippians 4:6-7
+    points:
+      - text: "Help me not to be anxious. I bring all my requests to You, with thanksgiving."
+        ref: Philippians 4:6
+      - text: "Let Your peace, which goes beyond understanding, guard our hearts and our minds in Christ Jesus."
+        ref: Philippians 4:7
+      - text: "Help me to think about whatever is true, honorable and right."
+        ref: Philippians 4:8
+  - title: Learn with your whole heart
+    ref: Colossians 3:23
+    points:
+      - text: "Whatever I study today, help me work at it with my whole being, as for You."
+        ref: Colossians 3:23
+      - text: "It is the Lord Christ I am serving. Help me to remember it when I am tired of studying."
+        ref: Colossians 3:24
+      - text: "Give me a discerning heart and an ear that seeks out knowledge."
+        ref: Proverbs 18:15
+  - title: Strength to keep going
+    ref: Isaiah 40:31
+    points:
+      - text: "Lord, You never grow tired or weary. I come to You because I am tired."
+        ref: Isaiah 40:28
+      - text: "You give power to the faint and increase the strength of the weak. Do this for us."
+        ref: Isaiah 40:29
+      - text: "I wait on You, Lord. Renew my strength, so that I run and do not grow weary."
+        ref: Isaiah 40:31
+  - title: Rest in His care
+    ref: Psalm 4:8
+    points:
+      - text: "You have relieved my distress before. Show me grace now, and hear my prayer."
+        ref: Psalm 4:1
+      - text: "When I lie on my bed tonight, help me to search my heart and be still."
+        ref: Psalm 4:4
+      - text: "Tonight I will lie down and sleep in peace, for You alone keep me safe."
+        ref: Psalm 4:8

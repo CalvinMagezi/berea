@@ -1,0 +1,10 @@
+book: 3 John
+reviewed: false
+chapters:
+  1:
+    - text: "Father, I pray that in every way those I love may prosper and enjoy good health, as their souls prosper."
+      ref: 3 John 1:2
+    - text: "Make me faithful in what I do for my brothers and sisters, especially those who are strangers to me."
+      ref: 3 John 1:5
+    - text: "Help me not to imitate what is evil, but what is good."
+      ref: 3 John 1:11

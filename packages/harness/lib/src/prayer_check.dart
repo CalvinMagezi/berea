@@ -111,12 +111,15 @@ Set<String> parseProperWords(String text) => {
 final _edgePunctuation = RegExp('^[\\s“”"\'‘’(),.;:!?]+|[\\s“”"\'‘’(),.;:!?]+\$');
 final _possessive = RegExp("[’']s\$");
 
+/// The one title with a second capital, which a Bible prayer is called.
+final _properPhrase = RegExp("Lord[’']s Prayer");
+
 /// Problems with the case of [text]: a capital inside a sentence on a word that is not a name or
 /// a divine title, or a word in capitals.
 List<String> caseProblems(String text, Set<String> proper) {
   final out = <String>[];
   var sentenceStart = true;
-  for (final raw in text.split(RegExp(r'\s+'))) {
+  for (final raw in text.replaceAll(_properPhrase, 'Lord\'s').split(RegExp(r'\s+'))) {
     final word = raw.replaceAll(_edgePunctuation, '');
     if (word.isNotEmpty) {
       final bare = word.replaceFirst(_possessive, '').split('-').first;
@@ -248,11 +251,50 @@ List<PrayerProblem> checkPrayerContent(
       }
     }
   }
+  out.addAll(_repeats(content));
   line('the fasting note', prayerFastingNote);
   if (!prayerFastingNote.contains('never water') || !prayerFastingNote.contains('health worker')) {
     out.add(
       const PrayerProblem('the fasting note', 'must say never water and ask a health worker'),
     );
+  }
+  return out;
+}
+
+/// A line used twice outside the topics. Topics may share a line, since the same need can be
+/// prayed from two places; everywhere else a repeat means a writer copied a line.
+List<PrayerProblem> _repeats(PrayerContent content) {
+  final seen = <String, String>{};
+  final out = <PrayerProblem>[];
+  void see(String where, String text) {
+    final key = text.toLowerCase();
+    final first = seen[key];
+    if (first == null) {
+      seen[key] = where;
+    } else if (!(first.startsWith('topic') && where.startsWith('topic'))) {
+      out.add(PrayerProblem(where, 'repeats the line at $first'));
+    }
+  }
+
+  for (final t in content.topics) {
+    for (var i = 0; i < t.points.length; i++) {
+      see('topic ${t.id}.${i + 1}', t.points[i].text);
+    }
+  }
+  for (final e in content.chapters.entries) {
+    for (final p in e.value) {
+      see('chapter ${e.key}', p.text);
+    }
+  }
+  for (final e in content.daily.entries) {
+    see('daily ${e.key}', e.value);
+  }
+  for (final plan in content.plans) {
+    for (var d = 0; d < plan.days.length; d++) {
+      for (final p in plan.days[d].points) {
+        see('${plan.id} day ${d + 1}', p.text);
+      }
+    }
   }
   return out;
 }

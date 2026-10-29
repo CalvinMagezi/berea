@@ -32,7 +32,7 @@ Future<void> main(List<String> args) async {
   if (File(dbFile).existsSync()) problems.addAll(_againstBible(index, daily.toList()));
 
   if (problems.isNotEmpty) {
-    for (final p in problems.take(200)) {
+    for (final p in problems) {
       stderr.writeln(p);
     }
     stderr.writeln('${problems.length} problems in the prayer content.');

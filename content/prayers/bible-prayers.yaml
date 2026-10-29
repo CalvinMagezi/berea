@@ -1,0 +1,13 @@
+# Prayers that are in the Bible. The text comes from the installed translation, prayed a verse at
+# a time, so only the reference is kept here.
+prayers:
+  - {id: lords-prayer, title: The Lord's Prayer, ref: Matthew 6:9-13}
+  - {id: shepherd, title: The shepherd, ref: Psalm 23}
+  - {id: mercy, title: Mercy, ref: Psalm 51}
+  - {id: shelter, title: Shelter, ref: Psalm 91}
+  - {id: blessing, title: The blessing, ref: Numbers 6:24-26}
+  - {id: hannah, title: Hannah, ref: 1 Samuel 2:1-10}
+  - {id: paul-wisdom, title: Paul for wisdom, ref: Ephesians 1:17-19}
+  - {id: paul-strength, title: Paul for strength, ref: Ephesians 3:14-21}
+  - {id: paul-love, title: Paul for love, ref: Philippians 1:9-11}
+  - {id: paul-knowledge, title: Paul for knowledge, ref: Colossians 1:9-12}

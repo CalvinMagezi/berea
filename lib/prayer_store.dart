@@ -44,6 +44,7 @@ void validatePrayerTables(Map<String, List<Map<String, Object?>>> tables) {
     _nullableOf<int>(r, 'answered');
     _nullableOf<int>(r, 'reminder');
     _nullableOf<String>(r, 'answer');
+    _nullableOf<String>(r, 'topic');
     final verse = r['verse'];
     if (verse != null && (verse is! String || RefParser.parse(verse).isEmpty)) {
       throw FormatException('prayer ${r['id']} has a bad verse');
@@ -93,6 +94,9 @@ class Prayer {
 
   /// Minutes after midnight. Stored but not offered until reminders exist.
   final int? reminder;
+
+  /// The id of the topic this prayer is prayed with, so Pray now shows that topic's lines.
+  final String? topic;
   const Prayer({
     required this.id,
     required this.title,
@@ -107,6 +111,7 @@ class Prayer {
     this.answer,
     this.archived = false,
     this.reminder,
+    this.topic,
   });
 
   bool get isAnswered => answered != null;
@@ -146,6 +151,7 @@ class PrayerStore extends ChangeNotifier {
       answer: r['answer'] as String?,
       archived: r['archived'] == 1,
       reminder: r['reminder'] as int?,
+      topic: r['topic'] as String?,
     );
   }
 
@@ -180,24 +186,34 @@ class PrayerStore extends ChangeNotifier {
 
   bool get isEmpty => db.select('SELECT 1 FROM prayers LIMIT 1').isEmpty;
 
-  int add({required String title, String forWhom = '', String? verse, String note = ''}) {
+  int add({
+    required String title,
+    String forWhom = '',
+    String? verse,
+    String note = '',
+    String? topic,
+  }) {
     db.execute(
-      'INSERT INTO prayers(title, for_whom, verse, note, created) VALUES (?, ?, ?, ?, ?)',
-      [title.trim(), forWhom.trim(), verseLabel(verse), note.trim(), _nowMs()],
+      'INSERT INTO prayers(title, for_whom, verse, note, created, topic) VALUES (?, ?, ?, ?, ?, ?)',
+      [title.trim(), forWhom.trim(), verseLabel(verse), note.trim(), _nowMs(), topic],
     );
     final id = db.lastInsertRowId;
     notifyListeners();
     return id;
   }
 
-  void edit(int id, {required String title, String forWhom = '', String? verse, String note = ''}) {
-    db.execute('UPDATE prayers SET title = ?, for_whom = ?, verse = ?, note = ? WHERE id = ?', [
-      title.trim(),
-      forWhom.trim(),
-      verseLabel(verse),
-      note.trim(),
-      id,
-    ]);
+  void edit(
+    int id, {
+    required String title,
+    String forWhom = '',
+    String? verse,
+    String note = '',
+    String? topic,
+  }) {
+    db.execute(
+      'UPDATE prayers SET title = ?, for_whom = ?, verse = ?, note = ?, topic = ? WHERE id = ?',
+      [title.trim(), forWhom.trim(), verseLabel(verse), note.trim(), topic, id],
+    );
     notifyListeners();
   }
 
@@ -237,6 +253,7 @@ class PrayerStore extends ChangeNotifier {
     db.execute('BEGIN');
     try {
       db.execute('DELETE FROM prayer_days WHERE prayer_id = ?', [id]);
+      db.execute('UPDATE prayer_plan_runs SET prayer_id = NULL WHERE prayer_id = ?', [id]);
       db.execute('DELETE FROM prayers WHERE id = ?', [id]);
       db.execute('COMMIT');
     } catch (_) {
