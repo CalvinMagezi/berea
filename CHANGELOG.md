@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- The Berean Standard Bible now shows its section headings, with the parallel passages under them
+  and the five books of Psalms and the acrostic letters of Psalm 119 marked. Tap a heading to
+  select its whole section, ready to highlight, ask about or add to a notebook; tap it again to
+  clear. The headings are public domain with the BSB text.
+- Chapters longer than 40 verses (Psalm 119, Genesis 24, John 6 and many more) are read to their
+  end; the reader used to stop at verse 40.
+- A jump to a verse (the resume point, a search result) now reaches it in chapters whose verses
+  are of very different heights.
+
 ## 0.8.0
 
 Prayers from the Word

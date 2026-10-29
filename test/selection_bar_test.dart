@@ -76,7 +76,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    for (final n in verses) {
+    // Last verse first: once a verse is selected its card covers the lower part of the screen.
+    for (final n in verses.reversed) {
       final verse = find.byWidgetPredicate(
         (w) => w is Text && (w.textSpan?.toPlainText().startsWith('$n ') ?? false),
       );
@@ -117,6 +118,20 @@ void main() {
       expect(card.bottom, lessThan(study.top));
     });
   }
+
+  testWidgets('tapping a BSB heading selects its section, and tapping again clears it', (
+    tester,
+  ) async {
+    await pumpSelected(tester, _roomyPhone, []);
+    expect(find.text('(Genesis 22:1–10; Romans 5:6–11)'), findsOneWidget);
+    await tester.tap(find.text('Jesus and Nicodemus'));
+    await tester.pumpAndSettle();
+    expect(find.text('John 3:1-21'), findsOneWidget);
+    expect(find.text('21 verses'), findsOneWidget);
+    await tester.tap(find.text('Jesus and Nicodemus'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SelectionBar), findsNothing);
+  });
 
   testWidgets('Pray opens the prayer sheet with the selected verses filled in', (tester) async {
     await pumpSelected(tester, _roomyPhone, [1, 2]);
