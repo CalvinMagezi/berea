@@ -186,12 +186,18 @@ class PrayerContent {
 
   Map<String, Map<int, List<PrayerPoint>>> _indexPoints() {
     final out = <String, Map<int, List<PrayerPoint>>>{};
-    void add(PrayerPoint p) {
+    // A verse of the day line is the verse's own prayer: it joins a verse only when nothing else
+    // stands on it, so the sheet never shows two near copies.
+    void add(PrayerPoint p, {bool onlyIfBare = false}) {
       final r = p.verse;
       final start = r.verseStart;
       if (start == null) return;
       final verses = out.putIfAbsent(chapterKey(r.book, r.chapter), () => {});
-      for (var v = start; v <= (r.verseEnd ?? start); v++) {
+      final end = r.verseEnd ?? start;
+      if (onlyIfBare && [for (var v = start; v <= end; v++) verses[v]].any((l) => l != null)) {
+        return;
+      }
+      for (var v = start; v <= end; v++) {
         (verses[v] ??= []).add(p);
       }
     }
@@ -203,7 +209,7 @@ class PrayerContent {
     for (final plan in plans) {
       plan.days.expand((d) => d.points).forEach(add);
     }
-    daily.forEach((ref, text) => add(PrayerPoint(text, ref)));
+    daily.forEach((ref, text) => add(PrayerPoint(text, ref), onlyIfBare: true));
     return out;
   }
 

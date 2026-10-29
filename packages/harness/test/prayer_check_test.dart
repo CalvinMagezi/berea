@@ -200,6 +200,25 @@ void main() {
     expect(back.dailyLine(Ref(bookById(23), 41, 10)), 'Lord, hold me up.');
   });
 
+  test('a verse of the day line joins a verse only when nothing else stands on it', () {
+    final content = PrayerContent(
+      chapters: {
+        PrayerContent.chapterKey(bookById(58), 8): [
+          const PrayerPoint('Chapter line.', 'Hebrews 8:10'),
+        ],
+      },
+      daily: {'Hebrews 8:10': 'Daily line.', 'Hebrews 8:12': 'Other daily line.'},
+    );
+    expect(
+      [for (final p in content.pointsForVerse(Ref(bookById(58), 8, 10))) p.text],
+      ['Chapter line.'],
+    );
+    expect(
+      [for (final p in content.pointsForVerse(Ref(bookById(58), 8, 12))) p.text],
+      ['Other daily line.'],
+    );
+  });
+
   test('a canonical label parses the same as a typed reference', () {
     for (final label in [
       'Psalms 37:5',

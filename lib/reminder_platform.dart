@@ -11,7 +11,7 @@ import 'daily_reminder.dart';
 const _channelId = 'daily_prayer';
 const _channelName = 'Verse of the day and prayer';
 const _channelDescription = 'One notification a day at the time you choose.';
-const _androidIcon = '@mipmap/ic_launcher';
+const _androidIcon = 'ic_stat_berea';
 
 /// Notifications on the platforms that have them. Everything is scheduled on this device; the
 /// plugin sends nothing anywhere.
