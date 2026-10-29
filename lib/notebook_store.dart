@@ -585,7 +585,7 @@ SourceRequest noteSource(Note n) => SourceRequest(
 SourceRequest? passageSource(BibleDb db, String reference, String translation) {
   final ref = RefParser.parse(reference).firstOrNull;
   if (ref == null) return null;
-  final verses = db.passage(ref, translation: translation);
+  final verses = db.verses(ref, translation: translation);
   if (verses.isEmpty) return null;
   return SourceRequest(
     SourceKind.passage,

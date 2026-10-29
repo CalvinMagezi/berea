@@ -1821,6 +1821,14 @@ class AppState extends ChangeNotifier {
     notes: offDeviceHost == null ? _answerNotes(notebookId) : const [],
   );
 
+  /// The study packet of notebook [id], built from its Bible readings, the verses its notes are
+  /// on and the passages of its study pages, in that order.
+  StudyPacket studyPacket(int id) => buildStudyPacket(db, [
+    ...NotebookIndex(notebooks.db, id).passages(),
+    for (final n in study.notebookNotes(id)) ?n.verse,
+    for (final p in study.studyPages(notebookId: id)) p.ref,
+  ], commentary: commentary.library);
+
   /// The readings of notebook [id] as its page lists them: a reading that links one of the
   /// notebook's own notes is shown, and read, as that note.
   List<NotebookSource> notebookReadings(int id) {

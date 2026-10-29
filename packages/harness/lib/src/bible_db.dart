@@ -5,6 +5,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'books.dart';
 import 'importers.dart';
 import 'ref_parser.dart';
+import 'sword.dart';
 import 'word_study.dart';
 
 class Verse {
@@ -98,6 +99,9 @@ const defaultTranslation = 'BSB';
 const translationCodeMax = 8;
 final translationCode = RegExp('^[A-Z0-9]{1,$translationCodeMax}\$');
 const maxPassageVerses = 40;
+
+/// SQLite reads a negative LIMIT as no limit.
+const _noLimit = -1;
 
 class BibleDb {
   final Database db;
@@ -198,6 +202,17 @@ class BibleDb {
     r['text'] as String,
   );
 
+  /// When this database was built, from its meta table; empty for one without it.
+  late final String built = () {
+    try {
+      return db.select("SELECT value FROM meta WHERE key = 'built'").firstOrNull?['value']
+              as String? ??
+          '';
+    } on SqliteException {
+      return '';
+    }
+  }();
+
   /// Every verse of a chapter, for reading. [passage] caps what goes into a prompt instead.
   List<Verse> chapter(Book book, int chapter, {String translation = defaultTranslation}) => db
       .select(
@@ -210,14 +225,21 @@ class BibleDb {
 
   /// At most [maxPassageVerses] verses, so a whole chapter named in a question cannot crowd out
   /// the rest of a prompt.
-  List<Verse> passage(Ref ref, {String translation = defaultTranslation}) {
+  List<Verse> passage(Ref ref, {String translation = defaultTranslation}) =>
+      _range(ref, translation, maxPassageVerses);
+
+  /// Every verse of [ref], for reading or keeping; [passage] caps what goes into a prompt.
+  List<Verse> verses(Ref ref, {String translation = defaultTranslation}) =>
+      _range(ref, translation, _noLimit);
+
+  List<Verse> _range(Ref ref, String translation, int limit) {
     final vs = ref.verseStart ?? 1;
     final ve = ref.verseStart == null ? 999 : (ref.verseEnd ?? vs);
     final rows = db.select(
       'SELECT book, chapter, verse, text FROM verses '
       'WHERE translation = ? AND book = ? AND chapter = ? AND verse BETWEEN ? AND ? '
       'ORDER BY verse LIMIT ?',
-      [translation, ref.book.id, ref.chapter, vs, ve, maxPassageVerses],
+      [translation, ref.book.id, ref.chapter, vs, ve, limit],
     );
     return rows.map(_verse).toList();
   }
@@ -688,6 +710,22 @@ class BibleDb {
     return [for (final r in picks) ...passage(r, translation: translation)];
   }
 
+  /// How many verses use [code] anywhere in the Bible.
+  int wordVerseCount(String code) {
+    _ensureWordIndex();
+    return db.select(
+          'SELECT COUNT(*) AS n FROM (SELECT DISTINCT book, chapter, verse FROM word_index '
+          'WHERE strongs = ?)',
+          [strongsBase(code)],
+        ).first['n']
+        as int;
+  }
+
+  /// How many verses [translation] has.
+  int verseCount({String translation = defaultTranslation}) =>
+      db.select('SELECT COUNT(*) AS n FROM verses WHERE translation = ?', [translation]).first['n']
+          as int;
+
   /// Hebrew and Greek words STEP glosses with [english] (by [wordStem]), most often first.
   List<GlossedWord> wordsGlossed(String english, {int k = 8}) {
     _ensureWordIndex();
@@ -784,7 +822,7 @@ class BibleDb {
       "COUNT(DISTINCT from_book || ':' || from_chapter || ':' || from_verse) AS n, "
       'SUM(votes) AS v FROM xrefs '
       'WHERE ($where) AND votes > 0 GROUP BY to_book, to_chapter, to_verse_start '
-      'ORDER BY n DESC, v DESC LIMIT ?',
+      'ORDER BY n DESC, v DESC, to_book, to_chapter, to_verse_start LIMIT ?',
       [
         for (final r in sources) ...[r.book.id, r.chapter, r.verseStart ?? 1],
         k + sources.length,
@@ -803,13 +841,21 @@ class BibleDb {
     ].take(k).toList();
   }
 
-  List<XRef> xrefs(Ref ref, {int k = 8}) {
+  /// The passages [ref] points to, most voted first. With [toNewTestament], only those in the
+  /// New Testament (true) or the Old (false).
+  List<XRef> xrefs(Ref ref, {int k = 8, bool? toNewTestament}) {
     final vs = ref.verseStart ?? 1;
     final ve = ref.verseStart == null ? 999 : (ref.verseEnd ?? vs);
+    final testament = switch (toNewTestament) {
+      null => '',
+      true => 'AND to_book > $otBookCount ',
+      false => 'AND to_book <= $otBookCount ',
+    };
     final rows = db.select(
       'SELECT to_book, to_chapter, to_verse_start, to_verse_end, MAX(votes) AS votes FROM xrefs '
-      'WHERE from_book = ? AND from_chapter = ? AND from_verse BETWEEN ? AND ? '
-      'GROUP BY to_book, to_chapter, to_verse_start, to_verse_end ORDER BY votes DESC LIMIT ?',
+      'WHERE from_book = ? AND from_chapter = ? AND from_verse BETWEEN ? AND ? $testament'
+      'GROUP BY to_book, to_chapter, to_verse_start, to_verse_end '
+      'ORDER BY votes DESC, to_book, to_chapter, to_verse_start, to_verse_end LIMIT ?',
       [ref.book.id, ref.chapter, vs, ve, k],
     );
     return [

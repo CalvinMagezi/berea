@@ -28,7 +28,7 @@ String studyMarkdown(StudyStore store, BibleDb db, int conversationId, String tr
   if (cited.isNotEmpty) {
     b.writeln('## Passages ($translation)\n');
     for (final r in cited) {
-      final text = db.passage(r, translation: translation).map((v) => v.text).join(' ');
+      final text = db.verses(r, translation: translation).map((v) => v.text).join(' ');
       b.writeln('> **${r.label}** $text\n');
     }
   }
@@ -79,7 +79,7 @@ String _noteMarkdown(Note n, BibleDb db, String translation) {
   final heading = [?verse?.label, if (n.title.isNotEmpty) n.title].join(', ');
   final quote = verse == null
       ? ''
-      : '> ${db.passage(verse, translation: translation).map((v) => v.text).join(' ')}\n\n';
+      : '> ${db.verses(verse, translation: translation).map((v) => v.text).join(' ')}\n\n';
   return '### ${heading.isEmpty ? 'Note' : heading}\n\n$quote${n.text}\n';
 }
 

@@ -492,7 +492,7 @@ class _VersePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final verses = state.db.passage(ref, translation: state.settings.translation);
+    final verses = state.db.verses(ref, translation: state.settings.translation);
     return Material(
       color: scheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(12),

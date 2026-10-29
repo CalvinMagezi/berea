@@ -537,4 +537,42 @@ void main() {
     expect(find.text('1 note, 1 reading'), findsOneWidget);
     expect(find.text('Nothing in it yet'), findsOneWidget);
   });
+
+  testWidgets('a long passage is kept whole, past the prompt cap', (tester) async {
+    final nb = s.notebooks.createNotebook('Long chapters');
+    final translation = s.settings.translation;
+    await tester.runAsync(
+      () => s.notebooks.addSource(nb, passageSource(s.db, 'Genesis 24', translation)!),
+    );
+    await pump(tester, NotebookScreen(state: s, notebookId: nb));
+    expect(find.text('$translation · 67 verses'), findsOneWidget);
+  });
+
+  testWidgets('Synthesize gathers the sections, words and witnesses of the readings', (
+    tester,
+  ) async {
+    final nb = s.notebooks.createNotebook('Nicodemus');
+    await tester.runAsync(
+      () => s.notebooks.addSource(nb, passageSource(s.db, 'John 3:1-21', 'BSB')!),
+    );
+    s.study.addNotebookNote(nb, 'Light and darkness.', title: 'On light');
+    await pump(tester, NotebookScreen(state: s, notebookId: nb));
+    await tester.tap(find.byTooltip('Synthesize'));
+    await tester.pumpAndSettle();
+    expect(find.text('Jesus and Nicodemus'), findsOneWidget);
+    expect(find.text('John 3:1-21 · 21 verses'), findsOneWidget);
+    expect(find.textContaining('No commentary is installed'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Key words'), 200);
+    expect(find.textContaining('"to beget"'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Witnesses from the other testament'), 200);
+  });
+
+  testWidgets('Synthesize on a notebook with no passages says what to add', (tester) async {
+    final nb = s.notebooks.createNotebook('Sermon notes');
+    s.study.addNotebookNote(nb, 'No verse here.', title: 'Thoughts');
+    await pump(tester, NotebookScreen(state: s, notebookId: nb));
+    await tester.tap(find.byTooltip('Synthesize'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Nothing to synthesize yet'), findsOneWidget);
+  });
 }
