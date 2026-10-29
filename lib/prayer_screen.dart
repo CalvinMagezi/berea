@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
@@ -21,6 +23,7 @@ const _wideBreakpoint = 760.0;
 const _wideListWidth = 400.0;
 const _topicCardHeight = 124.0;
 const _topicCardWidth = 164.0;
+const _topicCardMaxShare = 0.8;
 const _pagePadding = 16.0;
 const _daysInWeek = 7;
 const _daysInTwoWeeks = 14;
@@ -137,6 +140,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
 
   /// Wide layout: a clicked row opens in the panel beside the list. Edit is in the panel.
   void _showInPanel(Prayer p) => setState(() {
+    _topic = null;
     _startAt = p.id;
     _session++;
   });
@@ -148,6 +152,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
   /// A phone opens Pray now as a page; a wide window starts it over in the panel.
   void _prayNow({required bool wide}) => wide
       ? setState(() {
+          _topic = null;
           _startAt = null;
           _session++;
         })
@@ -372,6 +377,12 @@ class _PrayerScreenState extends State<PrayerScreen> {
   Widget _fromTheWord(BuildContext context, List<Prayer> praying, {required bool wide}) {
     final topics = topicsForList(_content, praying);
     final scheme = Theme.of(context).colorScheme;
+    // Cards grow with the text size, up to most of the screen, so a large size reads whole.
+    final scaler = MediaQuery.textScalerOf(context);
+    final topicCardWidth = min(
+      scaler.scale(_topicCardWidth),
+      MediaQuery.sizeOf(context).width * _topicCardMaxShare,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -380,9 +391,15 @@ class _PrayerScreenState extends State<PrayerScreen> {
           child: Row(
             children: [
               const Expanded(child: PrayerLabel('From the Word')),
-              TextButton(
-                onPressed: () => _allTopics(wide: wide),
-                child: Text('All ${_content.topics.length} topics'),
+              Flexible(
+                child: TextButton(
+                  onPressed: () => _allTopics(wide: wide),
+                  child: Text(
+                    'All ${_content.topics.length} topics',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
             ],
           ),
@@ -397,7 +414,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: SizedBox(
-                    width: _topicCardWidth,
+                    width: topicCardWidth,
                     child: Card(
                       elevation: 0,
                       margin: EdgeInsets.zero,
@@ -422,6 +439,8 @@ class _PrayerScreenState extends State<PrayerScreen> {
                               ),
                               Text(
                                 '${t.points.length} prayer points',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: scheme.onSurfaceVariant),
                               ),

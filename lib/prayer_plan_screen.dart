@@ -12,6 +12,7 @@ import 'theme.dart';
 const _pagePadding = 16.0;
 const _cardRadius = 16.0;
 const _dayCircle = 34.0;
+const _dayTarget = 48.0;
 
 /// "Day 3 of 7", for a plan that is being prayed.
 String planDayLabel(int day, int days) => 'Day $day of $days';
@@ -240,33 +241,42 @@ class _PrayerPlanScreenState extends State<PrayerPlanScreen> {
   Widget _days(BuildContext context, int now, Set<int> done) {
     final scheme = Theme.of(context).colorScheme;
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 0,
+      runSpacing: 0,
       children: [
         for (var d = 1; d <= plan.days.length; d++)
           Semantics(
             button: true,
             label: 'Day $d${done.contains(d) ? ', done' : ''}',
+            onTap: () => setState(() => _picked = d),
             excludeSemantics: true,
             child: InkResponse(
               onTap: () => setState(() => _picked = d),
-              child: Container(
-                width: _dayCircle,
-                height: _dayCircle,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: done.contains(d) ? scheme.primary : null,
-                  border: done.contains(d)
-                      ? null
-                      : Border.all(
-                          color: d == now ? scheme.primary : scheme.outline.withValues(alpha: 0.3),
-                          width: d == now ? 2 : 1,
-                        ),
+              child: SizedBox(
+                width: _dayTarget,
+                height: _dayTarget,
+                child: Center(
+                  child: Container(
+                    width: _dayCircle,
+                    height: _dayCircle,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: done.contains(d) ? scheme.primary : null,
+                      border: done.contains(d)
+                          ? null
+                          : Border.all(
+                              color: d == now
+                                  ? scheme.primary
+                                  : scheme.outline.withValues(alpha: 0.3),
+                              width: d == now ? 2 : 1,
+                            ),
+                    ),
+                    child: done.contains(d)
+                        ? Icon(Icons.check, size: 16, color: scheme.onPrimary)
+                        : Text('$d', style: const TextStyle(fontSize: 12)),
+                  ),
                 ),
-                child: done.contains(d)
-                    ? Icon(Icons.check, size: 16, color: scheme.onPrimary)
-                    : Text('$d', style: const TextStyle(fontSize: 12)),
               ),
             ),
           ),

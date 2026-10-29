@@ -748,6 +748,10 @@ class AppState extends ChangeNotifier {
   /// Asks the shell to show Plans.
   final openPlansRequest = ValueNotifier<int>(0);
 
+  /// Bumped when what Prayer shows for today may have changed: a new day, a plan started or stopped
+  /// or a restore. The Prayer place listens to this, not to every change of the app.
+  final dayChanged = ValueNotifier<int>(0);
+
   /// The reader keys are written at once, so a first open that never turns a page is still
   /// remembered as opened.
   void _loadReader() {
@@ -767,6 +771,7 @@ class AppState extends ChangeNotifier {
     if (prefs.getString('todayCardFullOn') == today) return false;
     todayCardFull = true;
     prefs.setString('todayCardFullOn', today);
+    dayChanged.value++;
     notifyListeners();
     return true;
   }
@@ -802,6 +807,7 @@ class AppState extends ChangeNotifier {
   void startPlan(ReadingPlan plan) {
     if (activePlan != null) study.clearPlan(plan.id);
     _setPlan(plan.id, DateTime.now());
+    dayChanged.value++;
     notifyListeners();
   }
 
@@ -813,6 +819,7 @@ class AppState extends ChangeNotifier {
   void stopPlan() {
     prefs.remove('activePlan');
     prefs.remove('activePlanStart');
+    dayChanged.value++;
     notifyListeners();
   }
 
@@ -866,12 +873,21 @@ class AppState extends ChangeNotifier {
   /// when the person says no or there is nothing to schedule with; nothing is changed then.
   Future<bool> turnOnReminder(int minutes, {required bool referenceOnly}) async {
     final platform = reminderPlatform;
-    if (platform == null || !await platform.requestPermission()) return false;
-    await prefs.setBool('reminderOn', true);
-    await prefs.setInt('reminderMinutes', minutes);
-    await prefs.setBool('reminderReferenceOnly', referenceOnly);
-    await syncReminder();
-    notifyListeners();
+    if (platform == null) return false;
+    try {
+      if (!await platform.requestPermission()) return false;
+      await prefs.setBool('reminderOn', true);
+      await prefs.setInt('reminderMinutes', minutes);
+      await prefs.setBool('reminderReferenceOnly', referenceOnly);
+      await _scheduleReminder(platform);
+    } on Object catch (e) {
+      // Nothing was scheduled, so it must not read as on.
+      debugPrint('The daily notification could not be turned on: $e');
+      await prefs.setBool('reminderOn', false);
+      return false;
+    } finally {
+      notifyListeners();
+    }
     return true;
   }
 
@@ -886,6 +902,14 @@ class AppState extends ChangeNotifier {
   Future<void> syncReminder() async {
     final platform = reminderPlatform;
     if (platform == null) return;
+    try {
+      await _scheduleReminder(platform);
+    } on Object catch (e) {
+      debugPrint('The daily notification could not be scheduled: $e');
+    }
+  }
+
+  Future<void> _scheduleReminder(ReminderPlatform platform) async {
     final settings = reminder;
     // Off schedules nothing: turning it off already cancelled, and the plugin is not loaded for
     // readers who never turned it on.
@@ -1003,6 +1027,7 @@ class AppState extends ChangeNotifier {
     notebooks.refresh();
     prayers.refresh();
     prayerPlans.refresh();
+    dayChanged.value++;
     _keepTranslationValid();
     clear();
     pendingScope = null;

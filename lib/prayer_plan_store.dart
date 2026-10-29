@@ -23,19 +23,19 @@ const prayerPlanColumnTypes = <String, Map<String, Type>>{
   'plan_prayed': {'plan_id': String, 'day': int, 'done_at': int},
 };
 
-/// Throws [FormatException] when a backed-up plan day belongs to no run, a run links a prayer
-/// that is not in the backup, or a fasting flag is not 0 or 1.
+/// Throws [FormatException] when a backed-up plan day belongs to no run or a flag or date is the
+/// wrong type. A link to a prayer the backup lacks is not refused: an older Berea could delete a
+/// linked prayer, and the restore drops the link.
 void validatePrayerPlanTables(Map<String, List<Map<String, Object?>>> tables) {
   final runs = tables['prayer_plan_runs'] ?? const <Map<String, Object?>>[];
   final planIds = {for (final r in runs) r['plan_id']};
-  final prayerIds = {for (final r in tables['prayers'] ?? const <Map<String, Object?>>[]) r['id']};
   for (final r in runs) {
     if (r['fasting'] != 0 && r['fasting'] != 1) {
       throw FormatException('prayer plan ${r['plan_id']} has a bad fasting flag');
     }
     final linked = r['prayer_id'];
-    if (linked != null && (linked is! int || !prayerIds.contains(linked))) {
-      throw FormatException('prayer plan ${r['plan_id']} links a prayer that is not there');
+    if (linked != null && linked is! int) {
+      throw FormatException('prayer plan ${r['plan_id']} has a bad prayer link');
     }
     final finished = r['finished'];
     if (finished != null && finished is! int) {

@@ -205,12 +205,15 @@ class _PlansScreenState extends State<PlansScreen> {
 
   Widget _prayerTile(PrayerPlan plan, PlanRun? run, {required bool wide}) {
     final day = run == null ? null : s.prayerPlans.currentDay(plan.id, plan.days.length);
+    final finished = s.prayerPlans.run(plan.id)?.finished;
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: const Icon(Icons.volunteer_activism_outlined),
       title: Text(plan.title),
       subtitle: Text(
-        day == null
+        finished != null
+            ? 'Finished ${shortDate(finished)}. ${plan.summary}'
+            : day == null
             ? plan.summary
             : '${planDayLabel(day, plan.days.length)} \u00B7 ${plan.days[day - 1].title}',
       ),
@@ -230,7 +233,22 @@ class _PlansScreenState extends State<PlansScreen> {
     ),
   );
 
-  void _startPrayerPlan(PrayerPlan plan) {
+  /// Starting a plan that was finished begins it again with no days, so it asks first.
+  Future<void> _startPrayerPlan(PrayerPlan plan) async {
+    if (s.prayerPlans.run(plan.id) != null) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Start ${plan.title} again?'),
+          content: const Text('The days you prayed are cleared. Your prayers stay.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Start again')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
     s.prayerPlans.start(plan.id);
     _openPrayerPlan(plan);
   }

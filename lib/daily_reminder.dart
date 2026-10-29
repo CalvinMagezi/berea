@@ -72,7 +72,14 @@ List<ReminderMessage> buildReminders({
   final out = <ReminderMessage>[];
   for (var i = 0; out.length < days; i++) {
     final day = DateTime(now.year, now.month, now.day + i);
-    final at = day.add(Duration(minutes: settings.minutes));
+    // Clock time, so a daylight saving change does not move it an hour.
+    final at = DateTime(
+      day.year,
+      day.month,
+      day.day,
+      settings.minutes ~/ 60,
+      settings.minutes % 60,
+    );
     if (!at.isAfter(now)) continue;
     final verse = verseOn(day);
     final prayer = prayerOn(day);

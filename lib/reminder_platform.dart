@@ -80,8 +80,18 @@ class LocalNotificationsPlatform implements ReminderPlatform {
     return await mac?.requestPermissions(alert: true, sound: true) ?? false;
   }
 
+  /// Updates run one after another, so a sync on resume cannot interleave with Turn off or a new
+  /// time and leave some days at the old one.
+  Future<void> _queue = Future.value();
+
   @override
-  Future<void> replaceAll(List<ReminderMessage> messages) async {
+  Future<void> replaceAll(List<ReminderMessage> messages) {
+    final run = _queue.then((_) => _replace(messages));
+    _queue = run.catchError((Object _) {});
+    return run;
+  }
+
+  Future<void> _replace(List<ReminderMessage> messages) async {
     await _init();
     await _plugin.cancelAll();
     for (final m in messages) {

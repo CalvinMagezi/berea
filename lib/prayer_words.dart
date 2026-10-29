@@ -410,8 +410,12 @@ class TodayPrayerCard extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              VerseChip(prayer.point.ref),
-              const Spacer(),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FittedBox(fit: BoxFit.scaleDown, child: VerseChip(prayer.point.ref)),
+                ),
+              ),
               TextButton(onPressed: onPray, child: const Text('Pray it')),
             ],
           ),

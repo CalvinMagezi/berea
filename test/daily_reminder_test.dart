@@ -5,6 +5,7 @@ import 'package:berea/daily_reminder.dart';
 import 'package:berea/prayer_today.dart';
 import 'package:berea/reminder_settings.dart';
 import 'package:berea/theme.dart';
+import 'package:berea/today.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +15,7 @@ import 'support/bible.dart';
 
 class FakePlatform implements ReminderPlatform {
   var granted = true;
+  var failToSchedule = false;
   var enabled = true;
   var asked = 0;
   List<ReminderMessage> scheduled = [];
@@ -29,7 +31,10 @@ class FakePlatform implements ReminderPlatform {
   }
 
   @override
-  Future<void> replaceAll(List<ReminderMessage> messages) async => scheduled = messages;
+  Future<void> replaceAll(List<ReminderMessage> messages) async {
+    if (failToSchedule) throw StateError('no such time zone');
+    scheduled = messages;
+  }
 }
 
 Ref _verse(DateTime day) => Ref(bookById(23), 41, 1 + day.day % 10);
@@ -64,6 +69,11 @@ void main() {
       expect(out.first.body, 'Verse text 10.\nPray: Prayer for day 29.');
       expect(out[1].body, contains('Prayer for day 30.'));
       expect({for (final m in out) m.id}.length, reminderDaysAhead);
+    });
+
+    test('every day is at the clock time chosen, never shifted by an hour', () {
+      final out = build(morning, const ReminderSettings(on: true));
+      expect(out.every((m) => m.when.hour == 6 && m.when.minute == 30), isTrue);
     });
 
     test('a time already past today starts tomorrow', () {
@@ -174,13 +184,46 @@ void main() {
       expect(s.reminder.on, isFalse);
     });
 
-    test('the prayer in a notification is never one of the reader\'s own', () async {
-      final p = FakePlatform();
+    test('a failure while scheduling leaves it off and says so', () async {
+      final p = FakePlatform()..failToSchedule = true;
       final s = await open(platform: p);
-      s.prayers.add(title: 'My private request for Sam');
-      await s.turnOnReminder(390, referenceOnly: false);
-      expect(p.scheduled.every((m) => !m.body.contains('private')), isTrue);
+      expect(await s.turnOnReminder(390, referenceOnly: false), isFalse);
+      expect(s.reminder.on, isFalse);
+      await s.syncReminder();
     });
+
+    test(
+      'the prayer in a notification is the day\'s line, never one of the reader\'s own',
+      () async {
+        final p = FakePlatform();
+        final s = await open(platform: p);
+        final now = DateTime.now();
+        s.prayerContent = PrayerContent(
+          topics: [
+            const PrayerTopic(
+              'healing',
+              'Home and health',
+              'Sickness and healing',
+              ['sick', 'surgery'],
+              [PrayerPoint('Heal the sick.', 'Psalms 23:1')],
+            ),
+          ],
+          daily: {
+            for (var i = 0; i < 16; i++)
+              verseOfTheDay(s.db, DateTime(now.year, now.month, now.day + i)).label:
+                  'Line for the day.',
+          },
+        );
+        s.prayers.add(title: "Sam's surgery on Friday", forWhom: 'Sam', note: 'sick and afraid');
+        await s.turnOnReminder(390, referenceOnly: false);
+        expect(p.scheduled.length, reminderDaysAhead);
+        for (final m in p.scheduled) {
+          expect(m.body, contains('Pray: Line for the day.'));
+          expect(m.title + m.body, isNot(contains('Sam')));
+          expect(m.body, isNot(contains('surgery')));
+        }
+      },
+    );
   });
 
   group('the settings section', () {

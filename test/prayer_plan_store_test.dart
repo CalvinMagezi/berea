@@ -168,7 +168,7 @@ void main() {
     expect(plans.run('work-7')!.prayerId, isNull);
   });
 
-  test('a plan day with no plan, or a plan linking a missing prayer, is refused', () {
+  test('a plan day with no plan is refused, and a link to a missing prayer is dropped', () {
     plans.start('work-7');
     final base = study.exportTables();
     expect(
@@ -180,15 +180,13 @@ void main() {
       }),
       throwsFormatException,
     );
-    expect(
-      () => study.importTables({
-        ...base,
-        'prayer_plan_runs': [
-          {'plan_id': 'work-7', 'started': 1, 'fasting': 0, 'prayer_id': 99, 'finished': null},
-        ],
-      }),
-      throwsFormatException,
-    );
     expect(plans.running().single.planId, 'work-7');
+    study.importTables({
+      ...base,
+      'prayer_plan_runs': [
+        {'plan_id': 'work-7', 'started': 1, 'fasting': 0, 'prayer_id': 99, 'finished': null},
+      ],
+    });
+    expect(plans.run('work-7')!.prayerId, isNull);
   });
 }

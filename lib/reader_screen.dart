@@ -526,6 +526,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _PrayerMark(
+                                      verse: verse,
                                       own: mine,
                                       hasWords: wordsFor.containsKey(v.verse),
                                       onTap: () => showPrayVerseSheet(context, s.prayerEnv, verse),
@@ -858,10 +859,16 @@ class _ChapterPickerState extends State<_ChapterPicker> {
 /// the verse's text, so a long press still finds the word under the finger. Every verse has the
 /// column, marked or not, so the text keeps its place.
 class _PrayerMark extends StatelessWidget {
+  final Ref verse;
   final List<Prayer> own;
   final bool hasWords;
   final VoidCallback onTap;
-  const _PrayerMark({required this.own, required this.hasWords, required this.onTap});
+  const _PrayerMark({
+    required this.verse,
+    required this.own,
+    required this.hasWords,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -869,7 +876,8 @@ class _PrayerMark extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
-      label: own.isEmpty ? 'Pray this verse' : 'Your prayer stands on this verse',
+      label: own.isEmpty ? 'Pray ${verse.label}' : 'Your prayer stands on ${verse.label}. Open it.',
+      onTap: onTap,
       excludeSemantics: true,
       child: InkResponse(
         onTap: onTap,
@@ -907,6 +915,6 @@ class _YourPrayer extends StatelessWidget {
   );
 }
 
-const _markGutter = 18.0;
-const _markTap = 36.0;
+const _markGutter = 20.0;
+const _markTap = 48.0;
 const _markIcon = 14.0;

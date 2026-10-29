@@ -8,6 +8,7 @@ import 'package:berea/reader_screen.dart';
 import 'package:berea/theme.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -107,6 +108,27 @@ void main() {
 
       expect(find.byType(PrayerIcon), findsNWidgets(2));
       expect(find.text('Your prayer · Peace for Brian'), findsOneWidget);
+    });
+
+    testWidgets('a marked verse keeps the same text position as an unmarked one', (tester) async {
+      final state = (await tester.runAsync(() => open(john3)))!;
+      await pump(tester, ReaderScreen(state: state));
+      Finder verse(int n) => find.byWidgetPredicate(
+        (w) => w is Text && (w.textSpan?.toPlainText().startsWith('$n ') ?? false),
+      );
+      // Verse 2 has prayer points in this content; verse 1 has none.
+      expect(tester.getTopLeft(verse(2)).dx, tester.getTopLeft(verse(1)).dx);
+      expect(tester.getSize(verse(2)).width, tester.getSize(verse(1)).width);
+    });
+
+    testWidgets('the mark is a button for a screen reader and names its verse', (tester) async {
+      final handle = tester.ensureSemantics();
+      final state = (await tester.runAsync(() => open(john3)))!;
+      await pump(tester, ReaderScreen(state: state));
+      expect(find.bySemanticsLabel('Pray John 3:2'), findsOneWidget);
+      final node = tester.getSemantics(find.bySemanticsLabel('Pray John 3:2'));
+      expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
     });
 
     testWidgets('an answered prayer keeps its mark on the verse', (tester) async {
@@ -228,6 +250,27 @@ void main() {
       await tester.pumpAndSettle();
       expect(state.prayerPlans.running(), isEmpty);
       expect(find.textContaining('is finished'), findsOneWidget);
+    });
+
+    testWidgets('a finished plan asks before it starts again', (tester) async {
+      final state = (await tester.runAsync(() => open({})))!;
+      state.prayerPlans.start('work-7');
+      state.prayerPlans.pray('work-7', 1, 2);
+      state.prayerPlans.pray('work-7', 2, 2);
+      await pump(tester, PlansScreen(state: state));
+      expect(find.textContaining('Finished'), findsOneWidget);
+      await tester.tap(find.text('7 days for your work'));
+      await tester.pumpAndSettle();
+      expect(find.text('Start 7 days for your work again?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(state.prayerPlans.daysPrayed('work-7'), {1, 2});
+      await tester.tap(find.text('7 days for your work'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start again'));
+      await tester.pumpAndSettle();
+      expect(state.prayerPlans.daysPrayed('work-7'), isEmpty);
+      expect(find.text('PRAYER PLAN \u00B7 DAY 1 OF 2'), findsOneWidget);
     });
 
     testWidgets('a prayer of your own can be linked to the plan', (tester) async {

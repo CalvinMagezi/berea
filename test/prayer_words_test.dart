@@ -54,6 +54,13 @@ void main() {
     addTearDown(tester.view.reset);
   }
 
+  /// Amen on the frame or a prayer, then past the moment in which a second tap is ignored.
+  Future<void> amen(WidgetTester tester) async {
+    await tester.tap(find.text('Amen, next'));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+  }
+
   Widget app({TodayPrayer? Function()? today, PrayerContent? words}) => MaterialApp(
     home: Scaffold(
       body: PrayerScreen(
@@ -87,11 +94,9 @@ void main() {
     await tester.tap(find.text('Pray these now'));
     await tester.pumpAndSettle();
     expect(find.text('1 of 3'), findsOneWidget);
-    await tester.tap(find.text('Amen, next'));
-    await tester.pumpAndSettle();
+    await amen(tester);
     expect(find.text('Bless the seed.'), findsOneWidget);
-    await tester.tap(find.text('Amen, next'));
-    await tester.pumpAndSettle();
+    await amen(tester);
     await tester.tap(find.text('Amen'));
     await tester.pumpAndSettle();
     expect(find.text('Farming, rain and harvest'), findsWidgets);
@@ -191,22 +196,16 @@ void main() {
 
     expect(find.text('1 of 6'), findsOneWidget);
     expect(find.text('Praise line.'), findsOneWidget);
-    await tester.tap(find.text('Amen, next'));
-    await tester.pumpAndSettle();
+    await amen(tester);
     expect(find.text('Confess line.'), findsOneWidget);
-    await tester.tap(find.text('Amen, next'));
-    await tester.pumpAndSettle();
+    await amen(tester);
     expect(find.text('Thank line.'), findsOneWidget);
-    await tester.tap(find.text('Amen, next'));
-    await tester.pumpAndSettle();
+    await amen(tester);
     expect(find.text('4 of 6'), findsOneWidget);
-    await tester.tap(find.text('Amen, next'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Amen, next'));
-    await tester.pumpAndSettle();
+    await amen(tester);
+    await amen(tester);
     expect(find.text('Others line.'), findsOneWidget);
-    await tester.tap(find.text('Amen, next'));
-    await tester.pumpAndSettle();
+    await amen(tester);
     expect(find.text('You prayed for 2 requests today.'), findsOneWidget);
     expect(store.praying().where((p) => p.daysPrayed == 1).length, 2);
   });
@@ -219,8 +218,7 @@ void main() {
     await tester.pumpWidget(app());
     await tester.tap(find.text('Pray now · 1 prayer'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Amen, next'));
-    await tester.pumpAndSettle();
+    await amen(tester);
     expect(store.prayer(id)!.daysPrayed, 0);
     await tester.tap(find.text('Ask only'));
     await tester.pumpAndSettle();
@@ -315,5 +313,123 @@ void main() {
       'Farming, rain and harvest\n1. Send rain. (Isaiah 41:10)\n2. Bless the seed. '
       '(Isaiah 41:10)\n3. Give me patience. (Isaiah 41:10)',
     );
+  });
+
+  testWidgets('clicking a prayer row, or Pray now, closes the topic in the wide panel', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    store.add(title: 'Rain for the harvest');
+    await tester.pumpWidget(app());
+
+    await tester.tap(find.text('Farming, rain and harvest').first);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Close the topic'), findsOneWidget);
+    await tester.tap(find.text('Rain for the harvest'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Close the topic'), findsNothing);
+
+    await tester.tap(find.text('Farming, rain and harvest').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Pray now'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Close the topic'), findsNothing);
+  });
+
+  testWidgets('a fast second tap on a frame step does not pray for the first prayer', (
+    tester,
+  ) async {
+    phone(tester);
+    final id = store.add(title: 'Rain for the harvest');
+    await tester.pumpWidget(app());
+    await tester.tap(find.text('Pray now \u00B7 1 prayer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Amen, next'));
+    await tester.pump();
+    await tester.tap(find.text('Amen, next'));
+    await tester.pump();
+    expect(find.text('Confess line.'), findsOneWidget);
+    expect(store.prayer(id)!.daysPrayed, 0);
+  });
+
+  testWidgets('a prayer answered while praying is passed over, frame and all', (tester) async {
+    phone(tester);
+    final a = store.add(title: 'First');
+    store.add(title: 'Second');
+    await tester.pumpWidget(app());
+    await tester.tap(find.text('Pray now \u00B7 2 prayers'));
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 3; i++) {
+      await amen(tester);
+    }
+    expect(find.text('First'), findsOneWidget);
+    store.markAnswered(a, '');
+    await tester.pumpAndSettle();
+    expect(find.text('Second'), findsOneWidget);
+    await amen(tester);
+    expect(find.text('Others line.'), findsOneWidget);
+  });
+
+  group('large text on a narrow phone', () {
+    Future<void> pumpScaled(WidgetTester tester, Widget home) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2.0), size: Size(360, 800)),
+            child: home,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets("Prayer with today's prayer on a long reference does not overflow", (tester) async {
+      store.add(title: 'Rain for the harvest');
+      await pumpScaled(
+        tester,
+        Scaffold(
+          body: PrayerScreen(
+            store: store,
+            passage: fakePassage,
+            translation: () => 'BSB',
+            content: content,
+            todayPrayer: () => const TodayPrayer(
+              PrayerPoint('Lord, lift my eyes.', '1 Thessalonians 5:16-18'),
+              "in today's plan",
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the library, a topic and Pray now do not overflow', (tester) async {
+      store.add(title: 'Rain for the harvest', topic: 'farming');
+      await pumpScaled(
+        tester,
+        Scaffold(
+          body: PrayerScreen(
+            store: store,
+            passage: fakePassage,
+            translation: () => 'BSB',
+            content: content,
+          ),
+        ),
+      );
+      await tester.tap(find.text('All 6 topics'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Farming, rain and harvest'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Pray these now'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
   });
 }

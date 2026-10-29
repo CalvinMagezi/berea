@@ -8,7 +8,8 @@ import 'today.dart';
 const _sheetPadding = 24.0;
 
 const deniedMessage =
-    'Notifications are off for Berea. Allow them in your device settings, then try again.';
+    'Berea could not turn this on. Check that notifications are allowed for Berea in your '
+    'device settings, then try again.';
 
 /// Settings: the daily verse and prayer. Off until turned on, set on this device, and never
 /// showing the reader's own prayers. Not shown where this build cannot schedule notifications.
@@ -96,8 +97,12 @@ class _ReminderSheetState extends State<_ReminderSheet> {
 
   Future<void> _turnOn() async {
     setState(() => _asking = true);
-    final on = await widget.state.turnOnReminder(_minutes, referenceOnly: _referenceOnly);
-    if (mounted) Navigator.pop(context, on ? null : true);
+    var on = false;
+    try {
+      on = await widget.state.turnOnReminder(_minutes, referenceOnly: _referenceOnly);
+    } finally {
+      if (mounted) Navigator.pop(context, on ? null : true);
+    }
   }
 
   /// Today's message as the notification will show it.

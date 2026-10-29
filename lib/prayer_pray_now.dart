@@ -252,7 +252,13 @@ class _PrayNowViewState extends State<PrayNowView> {
     if (_index > 0) setState(() => _index--);
   }
 
-  void _amenFrame() => _next();
+  /// Amen on a frame step records nothing, but moves on with the same guard as a prayer's Amen,
+  /// so a quick second tap is not read as Amen for the first prayer.
+  void _amenFrame() {
+    if (_settling?.isActive ?? false) return;
+    _next();
+    _settling = Timer(_amenSettle, () {});
+  }
 
   Future<void> _edit(Prayer p) async {
     await showPrayerSheet(context, widget.store, editing: p, passage: widget.passage);
