@@ -1,5 +1,5 @@
 book: 2 John
-reviewed: false
+reviewed: true
 chapters:
   1:
     - text: "Let grace, mercy and peace from God the Father and Jesus Christ be with us in truth and love."

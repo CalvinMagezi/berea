@@ -2,7 +2,7 @@ id: paul-7
 title: The prayers of Paul
 summary: "7 days · Ephesians, Philippians, Colossians"
 fasting: false
-reviewed: false
+reviewed: true
 days:
   - title: Know God better
     ref: Ephesians 1:17-19

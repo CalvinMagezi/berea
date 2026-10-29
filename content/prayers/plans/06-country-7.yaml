@@ -2,7 +2,7 @@ id: country-7
 title: For our country and its leaders
 summary: "7 days · 1 Timothy 2:1-2"
 fasting: false
-reviewed: false
+reviewed: true
 days:
   - title: Pray for everyone
     ref: 1 Timothy 2:1

@@ -1,13 +1,13 @@
 # Prayer topics. Each point stands on one verse, says no more than that verse, and is 20 words or
-# fewer. `words` are what people type for the topic. Set `reviewed: true` only after Calvin and
-# pastors from three traditions have read the topic. Never reorder or delete a point, since groups
-# pray "point 3" together: add new points at the end.
+# fewer. `words` are what people type for the topic. Set `reviewed: true` only after a person has
+# read the topic; the pastors' open questions for 0.8.0 are in TECHDEBT.md. Never reorder or delete
+# a point, since groups pray "point 3" together: add new points at the end.
 topics:
   - id: praise
     group: Every day
     title: Praise
     words: [worship, adore, glory, honour, honor, thank, magnify]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Bless the Lord, my soul. With all that is within me, I bless His holy name."
         ref: Psalm 103:1
@@ -26,7 +26,7 @@ topics:
     group: Every day
     title: Confession
     words: [sin, forgive, forgiveness, guilt, repent, sorry, wrong, cleanse]
-    reviewed: false
+    reviewed: true
     points:
       - text: "I confess my sins to You. You are faithful and just to forgive me."
         ref: 1 John 1:9
@@ -47,7 +47,7 @@ topics:
     group: Every day
     title: Thanksgiving
     words: [thank, thanks, grateful, blessings, gratitude, thankful]
-    reviewed: false
+    reviewed: true
     points:
       - text: "I give thanks to You, Lord, for You are good. Your loving devotion endures forever."
         ref: Psalm 107:1
@@ -66,7 +66,7 @@ topics:
     group: Every day
     title: For others
     words: [intercession, intercede, people, friends, nation, leaders, government, gospel, missionaries, pastor]
-    reviewed: false
+    reviewed: true
     points:
       - text: "I pray for everyone today, with petitions, prayers, intercessions and thanks."
         ref: 1 Timothy 2:1
@@ -87,7 +87,7 @@ topics:
     group: Daily life
     title: Work and daily bread
     words: [job, employment, boss, office, salary, wages, daily, bread, income, career, hard work]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Father, give us today our daily bread, and teach me to trust You for tomorrow."
         ref: Matthew 6:11
@@ -110,7 +110,7 @@ topics:
     group: Daily life
     title: Looking for work
     words: [unemployed, interview, vacancy, cv, hired, employer, career, apply, application, jobless]
-    reviewed: false
+    reviewed: true
     points:
       - text: "I ask, I seek, I knock. Open the right door for me."
         ref: Matthew 7:7
@@ -131,7 +131,7 @@ topics:
     group: Daily life
     title: Business and trade
     words: [shop, market, customers, trader, selling, buying, profit, enterprise, boda, startup, company]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Keep my scales honest and my dealings clean, even when no one is checking."
         ref: Proverbs 11:1
@@ -152,7 +152,7 @@ topics:
     group: Daily life
     title: Farming, rain and harvest
     words: [farm, farmer, crops, garden, rain, drought, harvest, seeds, planting, animals, cattle, soil, maize, coffee, famine]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Lord, send rain on our land in its season, the early rains and the late."
         ref: Deuteronomy 11:14
@@ -173,7 +173,7 @@ topics:
     group: Daily life
     title: Money and debts
     words: [debt, loan, rent, bills, school fees, poor, poverty, savings, provision, lender, cash, broke]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Supply all my needs according to Your glorious riches in Christ Jesus."
         ref: Philippians 4:19
@@ -194,7 +194,7 @@ topics:
     group: Daily life
     title: Exams and study
     words: [exam, exams, test, school, university, student, studying, learning, results, marks, class, assignment]
-    reviewed: false
+    reviewed: true
     points:
       - text: "I lack wisdom for my studies. You give generously to all who ask, so I ask."
         ref: James 1:5
@@ -215,7 +215,7 @@ topics:
     group: Daily life
     title: Justice and fairness
     words: [court, case, judge, unfair, oppression, corruption, rights, injustice, police, land dispute, wronged, lawyer]
-    reviewed: false
+    reviewed: true
     points:
       - text: "I commit this matter to You and trust You. Bring forth my justice like the noonday sun."
         ref: Psalm 37:5-6
@@ -236,7 +236,7 @@ topics:
     group: Home and health
     title: Sickness and healing
     words: [sick, ill, illness, disease, hospital, pain, surgery, operation, recovery, health, malaria, cancer, medicine]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Heal me, Lord, and I will be healed. Save me, and I will be saved."
         ref: Jeremiah 17:14
@@ -259,7 +259,7 @@ topics:
     group: Home and health
     title: Hoping for a child
     words: [pregnant, pregnancy, conceive, baby, barren, infertile, fertility, childless, expecting, miscarriage]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Lord, hear my prayer, as You heard Isaac when he prayed for his wife."
         ref: Genesis 25:21
@@ -278,7 +278,7 @@ topics:
     group: Home and health
     title: Raising children
     words: [parenting, son, daughter, teenager, kids, discipline, school, family, grandchildren, orphan, youth]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Help me train my children in the way they should go."
         ref: Proverbs 22:6
@@ -299,7 +299,7 @@ topics:
     group: Home and health
     title: Marriage
     words: [husband, wife, spouse, wedding, married, love, couple, forgiveness, unity, divorce, anniversary]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Help us bear with one another and forgive any complaint, as You forgave us."
         ref: Colossians 3:13
@@ -320,7 +320,7 @@ topics:
     group: Home and health
     title: Waiting for a spouse
     words: [single, courtship, boyfriend, girlfriend, fiance, engaged, marry, partner, dating, unmarried]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Teach me to delight in You, and hear the desires of my heart."
         ref: Psalm 37:4
@@ -339,7 +339,7 @@ topics:
     group: Home and health
     title: Peace at home
     words: [quarrel, argument, conflict, anger, reconcile, family, relatives, tension, fighting, forgive, harmony]
-    reviewed: false
+    reviewed: true
     points:
       - text: "If it is possible on my part, help me live at peace with everyone."
         ref: Romans 12:18
@@ -360,7 +360,7 @@ topics:
     group: The heart
     title: Fear and worry
     words: [afraid, anxious, anxiety, worried, scared, panic, stress, nervous, troubled, terror]
-    reviewed: false
+    reviewed: true
     points:
       - text: "When I am afraid, I put my trust in You."
         ref: Psalm 56:3
@@ -381,7 +381,7 @@ topics:
     group: The heart
     title: Grief
     words: [death, died, funeral, mourning, loss, bereaved, sorrow, widow, widower, tears, passed away]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Lord, You are near to the brokenhearted. Be near to me now."
         ref: Psalm 34:18
@@ -402,7 +402,7 @@ topics:
     group: The heart
     title: Guidance
     words: [decision, direction, choose, choice, future, path, plans, confused, unsure, calling, purpose]
-    reviewed: false
+    reviewed: true
     points:
       - text: "I trust in You with all my heart and do not lean on my own understanding."
         ref: Proverbs 3:5
@@ -421,7 +421,7 @@ topics:
     group: The heart
     title: New beginnings
     words: [fresh start, change, move, moving, begin, restart, past, regret, mistakes, hope, renewal, new year]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Because of Your loving devotion I am not consumed, and Your mercies never fail."
         ref: Lamentations 3:22
@@ -442,7 +442,7 @@ topics:
     group: The heart
     title: Protection
     words: [safe, safety, danger, journey, travel, accident, thieves, night, guard, shelter, refuge, sleep]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Let me dwell in the shelter of the Most High and rest in the shadow of the Almighty."
         ref: Psalm 91:1
@@ -463,7 +463,7 @@ topics:
     group: Faith
     title: Growing in faith
     words: [grow, maturity, knowing God, discipleship, spiritual, holiness, closer, deeper, devotion, trust]
-    reviewed: false
+    reviewed: true
     points:
       - text: "I want to know Christ and the power of His resurrection."
         ref: Philippians 3:10
@@ -484,7 +484,7 @@ topics:
     group: Faith
     title: Standing firm against evil
     words: [evil, devil, satan, spiritual warfare, temptation, darkness, attack, demons, oppression, armor, armour, battle]
-    reviewed: false
+    reviewed: true
     points:
       - text: "Make me strong in You and in Your mighty power, not in my own."
         ref: Ephesians 6:10

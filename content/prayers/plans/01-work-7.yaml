@@ -2,7 +2,7 @@ id: work-7
 title: 7 days for your work
 summary: "Work, a job, a business · 3 prayer points a day"
 fasting: true
-reviewed: false
+reviewed: true
 days:
   - title: Give your work to the Lord
     ref: Proverbs 16:3

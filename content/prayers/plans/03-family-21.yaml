@@ -2,7 +2,7 @@ id: family-21
 title: "21 days for your family"
 summary: "Marriage, children, peace at home"
 fasting: true
-reviewed: false
+reviewed: true
 days:
   - title: "Made for company"
     ref: Genesis 2:18-25

@@ -2,7 +2,7 @@ id: psalms-40
 title: "40 days in the Psalms"
 summary: "One psalm a day, prayed a line at a time"
 fasting: false
-reviewed: false
+reviewed: true
 # Eight psalms end their passage before a verse that calls down harm on people; a plan day
 # prays its passage word for word, so those verses are left out (3:7, 5:9-10, 40:14-15, 63:9-10,
 # 86:17, 139:19-22, 143:12, 149:6-9).
