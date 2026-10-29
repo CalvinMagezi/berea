@@ -7,6 +7,9 @@ import 'today.dart';
 
 const _sheetPadding = 24.0;
 
+/// Enough lines to show the verse and the prayer line under it in the preview.
+const _previewLines = 7;
+
 const deniedMessage =
     'Berea could not turn this on. Check that notifications are allowed for Berea in your '
     'device settings, then try again.';
@@ -176,7 +179,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
                 Text('Berea · preview', style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 4),
                 Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(body, maxLines: 4, overflow: TextOverflow.ellipsis),
+                Text(body, maxLines: _previewLines, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
