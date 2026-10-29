@@ -1,5 +1,6 @@
 import 'package:sqlite3/sqlite3.dart';
 
+import 'books.dart';
 import 'commentary.dart';
 import 'notebook_text.dart';
 import 'ref_parser.dart';
@@ -371,27 +372,60 @@ List<SourceChunk> commentaryChunks(
 ) {
   if (limit <= 0 || library.isEmpty || refs.isEmpty) return const [];
   final words = _queryWords(question);
-  final titles = {for (final m in library.modules()) m.id: m.title};
-  final scored = <(int, SourceChunk)>[];
-  for (final ref in refs.take(_maxCommentaryRefs)) {
-    final first = ref.verseStart ?? 1;
-    final last = ref.verseStart == null ? _wholeChapter : (ref.verseEnd ?? first);
-    for (final e in library.forRange(ref.book.id, ref.chapter, first, last)) {
-      final on = Ref(ref.book, e.chapter, e.verseStart, e.verseEnd);
-      final title = '${titles[e.module] ?? e.module} on ${on.label}';
-      for (final piece in _pieces(e.text)) {
-        final chunk = SourceChunk(
-          title: title,
-          kind: SourceKind.commentary,
-          ordinal: piece.ordinal,
-          text: piece.text,
-          ref: on,
-        );
-        scored.add((_overlap(words, piece.text), chunk));
-      }
-    }
-  }
+  final scored = [
+    for (final ref in refs.take(_maxCommentaryRefs))
+      for (final chunk in commentaryPieces(library, ref)) (_overlap(words, chunk.text), chunk),
+  ];
   return _bestFirst(scored, limit);
+}
+
+/// Every comment of the installed commentaries on [ref], in catalog then verse order, cut to
+/// notebook chunk size. Each piece is titled with its work and the verses it comments on.
+List<SourceChunk> commentaryPieces(CommentaryLibrary library, Ref ref) {
+  if (library.isEmpty) return const [];
+  final titles = {for (final m in library.modules()) m.id: m.title};
+  final first = ref.verseStart ?? 1;
+  final last = ref.verseStart == null ? _wholeChapter : (ref.verseEnd ?? first);
+  return [
+    for (final e in library.forRange(ref.book.id, ref.chapter, first, last))
+      ..._entryPieces(e, titles),
+  ];
+}
+
+/// [e] cut to notebook chunk size, titled with its work from [titles] and the verses it is on.
+List<SourceChunk> _entryPieces(CommentaryEntry e, Map<String, String> titles) {
+  final on = Ref(bookById(e.book), e.chapter, e.verseStart, e.verseEnd);
+  final title = '${titles[e.module] ?? e.module} on ${on.label}';
+  return [
+    for (final piece in _pieces(e.text))
+      SourceChunk(
+        title: title,
+        kind: SourceKind.commentary,
+        ordinal: piece.ordinal,
+        text: piece.text,
+        ref: on,
+      ),
+  ];
+}
+
+/// The book and chapter introductions of the installed commentaries for [ref], cut to chunk size.
+List<SourceChunk> commentaryIntroductions(CommentaryLibrary library, Ref ref) {
+  if (library.isEmpty) return const [];
+  final titles = {for (final m in library.modules()) m.id: m.title};
+  return [
+    for (final e in library.introductions(ref.book.id, ref.chapter))
+      for (final c in _entryPieces(e, titles))
+        SourceChunk(
+          title:
+              '${titles[e.module] ?? e.module}, introduction to '
+              '${e.chapter == 0 ? ref.book.name : '${ref.book.name} ${e.chapter}'}',
+          kind: c.kind,
+          ordinal: c.ordinal,
+          text: c.text,
+          // A book's introduction is the same for every chapter, so it keys on the book.
+          ref: Ref(ref.book, e.chapter == 0 ? 1 : ref.chapter),
+        ),
+  ];
 }
 
 /// The chunks of [scored] by score, best first, at most [limit]. Stable: equal scores keep

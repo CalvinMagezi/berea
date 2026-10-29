@@ -12,6 +12,7 @@ import 'confirm.dart';
 import 'keep_sheet.dart';
 import 'note_dialog.dart';
 import 'notebook_store.dart';
+import 'study_packet_screen.dart';
 import 'study_page_screen.dart';
 import 'study_store.dart';
 import 'theme.dart';
@@ -502,6 +503,16 @@ class _NotebookScreenState extends State<NotebookScreen> {
         appBar: AppBar(
           title: Text(notebook.title),
           actions: [
+            IconButton(
+              tooltip: 'Synthesize',
+              icon: const Icon(Icons.auto_stories_outlined),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => StudyPacketScreen(state: _s, notebookId: notebookId),
+                ),
+              ),
+            ),
             _NotebookMenu(
               store: store,
               notebook: notebook,
@@ -703,7 +714,7 @@ class _NotebookScreenState extends State<NotebookScreen> {
   /// commentary by where it came from, the rest by sections.
   String _readingDetail(NotebookSource r) {
     if (_passage(r) case (final ref, final translation)) {
-      final verses = _s.db.passage(ref, translation: translation).length;
+      final verses = _s.db.verses(ref, translation: translation).length;
       return '$translation · ${plural(verses, 'verse', 'verses')}';
     }
     if (r.kind == SourceKind.commentary) return 'From the installed commentaries';

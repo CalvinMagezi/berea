@@ -92,7 +92,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final verses = s.db.passage(widget.ref, translation: s.settings.translation);
+    final verses = s.db.verses(widget.ref, translation: s.settings.translation);
     final empty =
         _observation.text.isEmpty && _interpretation.text.isEmpty && _application.text.isEmpty;
     return Scaffold(

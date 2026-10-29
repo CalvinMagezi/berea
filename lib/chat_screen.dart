@@ -786,7 +786,7 @@ class _Citations extends StatelessWidget {
   );
 
   void _showPassage(BuildContext context, Ref ref) {
-    final verses = db.passage(ref, translation: translation);
+    final verses = db.verses(ref, translation: translation);
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(

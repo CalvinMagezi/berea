@@ -10,6 +10,14 @@
   end; the reader used to stop at verse 40.
 - A jump to a verse (the resume point, a search result) now reaches it in chapters whose verses
   are of very different heights.
+- Synthesize, in a notebook, gathers what the Bible and your installed commentaries say about the
+  notebook's passages, without the helper: each BSB section with its parallels and cross
+  references, the key Hebrew and Greek words of the reading with other places they are used,
+  the commentary on each section, and verses from the other testament that the passage points
+  to. It reads the notebook's Bible passages and the verses its notes and study pages are on. It
+  is the groundwork for listening to a notebook as a spoken deep dive.
+- Passages longer than 40 verses are kept whole in a notebook, a study page, a note's verse
+  preview and an export; they used to stop at verse 40.
 
 ## 0.8.0
 
