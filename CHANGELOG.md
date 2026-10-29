@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 Prayers from the Word
 - Prayer gains words to pray. 24 topics of everyday need (work, farming and rain, exams, sickness

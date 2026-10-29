@@ -2,7 +2,7 @@ id: exam-5
 title: Exam week
 summary: "5 days · for students, and parents praying for them"
 fasting: false
-reviewed: false
+reviewed: true
 days:
   - title: Ask for wisdom
     ref: James 1:5

@@ -1,5 +1,5 @@
 book: James
-reviewed: false
+reviewed: true
 chapters:
   1:
     - text: "Let perseverance finish its work in me, so that I may be mature and complete, lacking nothing."

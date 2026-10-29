@@ -1,5 +1,5 @@
 book: 1 Peter
-reviewed: false
+reviewed: true
 chapters:
   1:
     - text: "Blessed be You, God and Father, who by great mercy gave us new birth into a living hope."

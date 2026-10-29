@@ -1,5 +1,5 @@
 book: 1 John
-reviewed: false
+reviewed: true
 chapters:
   1:
     - text: "God, You are light, and in You there is no darkness at all."
