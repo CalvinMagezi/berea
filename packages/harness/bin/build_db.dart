@@ -42,6 +42,10 @@ const _stepText = '$_step/Translators%20Amalgamated%20OT%2BNT';
 const _stepLex = '$_step/Lexicons';
 const _xrefs = 'https://a.openbible.info/data/cross-references.zip';
 const _web = 'https://ebible.org/Scriptures/engwebp_usfm.zip';
+// The BSB in USFM, public domain like bsb.txt, read only for its section headings and parallel
+// passage lines; the verse text still comes from bsb.txt.
+const _bsbUsfm = 'https://ebible.org/Scriptures/engbsb_usfm.zip';
+const _bsbUsfmSha256 = 'ce8bb27e62ab433e9eae460b65bf10710fabfd74017a9535aa8904343866e257';
 
 const scrollmapperTranslations = ['KJV'];
 const stepTextFiles = [
@@ -111,6 +115,9 @@ Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
   final web = await _fetchBytes(_web, '$cache/engwebp_usfm.zip');
   _loadRows(db, 'WEB', parseBibleFile('engwebp_usfm.zip', web));
   db.execute("INSERT INTO verses_fts(verses_fts) VALUES('rebuild')");
+  final bsbUsfm = await _fetchBytes(_bsbUsfm, '$cache/engbsb_usfm.zip', pin: _bsbUsfmSha256);
+  _loadHeadings(db, 'BSB', parseUsfmZipHeadings(bsbUsfm));
+  _loadHeadings(db, 'WEB', parseUsfmZipHeadings(web));
 
   for (final f in stepTextFiles) {
     final text = await _fetch('$_stepText/$f', '$cache/${Uri.decodeComponent(f)}');
@@ -145,6 +152,7 @@ String _writeMeta(Database db) {
     ..execute(['translations', translations])
     ..execute(['bsb_source', '$_bsb sha256:$_bsbSha256'])
     ..execute(['bsb_tables_source', '$_bsbTables sha256:$_bsbTablesSha256'])
+    ..execute(['bsb_headings_source', '$_bsbUsfm sha256:$_bsbUsfmSha256'])
     ..dispose();
   db.execute('VACUUM');
   for (final t in [
@@ -155,6 +163,7 @@ String _writeMeta(Database db) {
     'word_index',
     'gloss_index',
     'bsb_words',
+    'headings',
   ]) {
     final n = db.select('SELECT COUNT(*) AS n FROM $t').first['n'];
     stdout.writeln('$t: $n rows');
@@ -210,6 +219,16 @@ Future<void> _download(String url, File dest, String? pin) async {
   if (pin != null) checkPin(r.bodyBytes, pin, source: url);
   final part = File('${dest.path}.part')..writeAsBytesSync(r.bodyBytes);
   part.renameSync(dest.path);
+}
+
+/// A heading anchored to a verse the translation lacks would never show, so the build fails on
+/// one rather than ship it silently.
+void _loadHeadings(Database db, String translation, List<HeadingRow> rows) {
+  final stray = BibleDb(db).importHeadings(rows, translation);
+  if (stray > 0) {
+    throw StateError('$translation: $stray headings anchor to verses it does not have');
+  }
+  stdout.writeln('$translation headings: ${rows.length}');
 }
 
 void _loadTranslation(Database db, String translation, String csv) {

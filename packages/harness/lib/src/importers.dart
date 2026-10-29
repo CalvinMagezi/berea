@@ -127,6 +127,78 @@ List<VerseRow> parseUsfm(String usfm) {
   return out;
 }
 
+/// A heading printed before [verse]: `ms` a major division (the five books of Psalms), `s1` a
+/// section, `s2` a subsection, `qa` an acrostic letter. [refs] holds the parallel passages
+/// (`\r`) or the division's range (`\mr`), empty when there are none.
+typedef HeadingRow = ({Book book, int chapter, int verse, String kind, String text, String refs});
+
+final _usfmHeadingLine = RegExp(r'^\\(ms|s|qa|r|mr)(\d*)\s+(.*)$');
+
+/// The headings of one USFM book file, each anchored to the verse that follows it. Psalm
+/// superscriptions (`\d`) are scripture in the BSB's own text, so they are not headings.
+List<HeadingRow> parseUsfmHeadings(String usfm) {
+  if (usfm.startsWith('﻿')) usfm = usfm.substring(1);
+  final id = RegExp(r'^\\id\s+([A-Z0-9]{3})', multiLine: true).firstMatch(usfm);
+  final book = id == null ? null : bookFor(id[1]!);
+  if (book == null) return const [];
+
+  final out = <HeadingRow>[];
+  final pending = <_PendingHeading>[];
+  var chapter = 0;
+  final text = usfm.replaceAll(_usfmNotes, '');
+  for (final raw in const LineSplitter().convert(text)) {
+    final line = raw.trimLeft();
+    final heading = _usfmHeadingLine.firstMatch(line);
+    if (heading != null) {
+      _addPending(pending, heading);
+      continue;
+    }
+    for (final m in _usfmChapterVerse.allMatches(line)) {
+      if (m[1] == 'c') {
+        chapter = int.parse(m[2]!);
+        continue;
+      }
+      final verse = int.parse(m[2]!);
+      out.addAll(pending.map((p) => p.at(book, chapter, verse)));
+      pending.clear();
+    }
+  }
+  return out;
+}
+
+class _PendingHeading {
+  final String kind;
+  final String text;
+  String refs = '';
+  _PendingHeading(this.kind, this.text);
+
+  HeadingRow at(Book book, int chapter, int verse) =>
+      (book: book, chapter: chapter, verse: verse, kind: kind, text: text, refs: refs);
+}
+
+void _addPending(List<_PendingHeading> pending, RegExpMatch heading) {
+  final body = _clean(heading[3]!.replaceAll(_usfmAnyMarker, ''));
+  if (body.isEmpty) return;
+  final marker = heading[1]!;
+  if (marker != 'r' && marker != 'mr') {
+    pending.add(
+      _PendingHeading(marker == 's' ? 's${heading[2]!.isEmpty ? '1' : heading[2]}' : marker, body),
+    );
+    return;
+  }
+  // A reference line belongs to the heading just above it; with none waiting it is dropped.
+  if (pending.isEmpty) return;
+  final last = pending.last;
+  last.refs = last.refs.isEmpty ? body : '${last.refs} $body';
+}
+
+/// Headings from every USFM file in an ebible.org style zip.
+List<HeadingRow> parseUsfmZipHeadings(Uint8List zip) => [
+  for (final e in readZip(zip).entries)
+    if (e.key.toLowerCase().endsWith('.usfm') || e.key.toLowerCase().endsWith('.sfm'))
+      ...parseUsfmHeadings(utf8.decode(e.value, allowMalformed: true)),
+];
+
 final _xmlToken = RegExp(r'<[^>]+>|[^<]+');
 final _xmlName = RegExp(r'^</?\s*([A-Za-z:]+)');
 

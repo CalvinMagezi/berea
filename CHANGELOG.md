@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- The Berean Standard Bible now shows its section headings, with the parallel passages under them
+  and the five books of Psalms and the acrostic letters of Psalm 119 marked. Tap a heading to
+  select its whole section, ready to highlight, ask about or add to a notebook; tap it again to
+  clear. The headings are public domain with the BSB text.
+- A jump to a verse (the resume point, a search result) now reaches it in chapters whose verses
+  are of very different heights.
+
 ## 0.8.0
 
 Prayers from the Word

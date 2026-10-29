@@ -65,6 +65,33 @@ class XRef {
   const XRef(this.to, this.votes);
 }
 
+/// A heading printed before [verse]; see [HeadingRow] for the kinds.
+class Heading {
+  final int verse;
+  final String kind;
+  final String text;
+  final String refs;
+  const Heading(this.verse, this.kind, this.text, this.refs);
+
+  /// Lower is broader: a division, then a section, a subsection, an acrostic stanza.
+  int get rank => _headingRanks.contains(kind) ? _headingRanks.indexOf(kind) : _headingRanks.length;
+}
+
+const _headingRanks = ['ms', 's1', 's2', 'qa'];
+
+/// The verses [heading] covers in a chapter whose last verse is [last]: up to the next heading
+/// of the same or a broader rank, or the end of the chapter.
+({int start, int end}) sectionSpan(List<Heading> headings, Heading heading, int last) {
+  final next = [
+    for (final h in headings)
+      if (h.verse > heading.verse && h.rank <= heading.rank) h.verse,
+  ];
+  return (
+    start: heading.verse,
+    end: next.isEmpty ? last : next.reduce((a, b) => a < b ? a : b) - 1,
+  );
+}
+
 const defaultTranslation = 'BSB';
 
 /// Translation codes are short uppercase identifiers; they also name files on disk.
@@ -181,6 +208,60 @@ class BibleDb {
       [translation, ref.book.id, ref.chapter, vs, ve, maxPassageVerses],
     );
     return rows.map(_verse).toList();
+  }
+
+  /// The headings of one chapter in printed order. Empty for a translation without headings and
+  /// for databases built before headings existed.
+  List<Heading> headings(Book book, int chapter, {String translation = defaultTranslation}) {
+    if (!_hasHeadings) return const [];
+    final rows = db.select(
+      'SELECT verse, kind, text, refs FROM headings '
+      'WHERE translation = ? AND book = ? AND chapter = ? ORDER BY verse, ord',
+      [translation, book.id, chapter],
+    );
+    return [
+      for (final r in rows)
+        Heading(r['verse'] as int, r['kind'] as String, r['text'] as String, r['refs'] as String),
+    ];
+  }
+
+  bool get _hasHeadings => db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'headings'")
+      .isNotEmpty;
+
+  /// Stores [rows] as the headings of translation [code], replacing any it had. Returns how many
+  /// anchor to a verse the translation does not have, which a builder should report.
+  int importHeadings(List<HeadingRow> rows, String code) {
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS headings(translation TEXT, book INTEGER, chapter INTEGER, '
+      'verse INTEGER, ord INTEGER, kind TEXT, text TEXT, refs TEXT, '
+      'PRIMARY KEY(translation, book, chapter, verse, ord)) WITHOUT ROWID',
+    );
+    final insert = db.prepare('INSERT INTO headings VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    final known = db.prepare(
+      'SELECT 1 FROM verses WHERE translation = ? AND book = ? AND chapter = ? AND verse = ?',
+    );
+    var stray = 0, ord = 0;
+    String? at;
+    db.execute('BEGIN');
+    try {
+      db.execute('DELETE FROM headings WHERE translation = ?', [code]);
+      for (final r in rows) {
+        final key = '${r.book.id}:${r.chapter}:${r.verse}';
+        ord = key == at ? ord + 1 : 0;
+        at = key;
+        insert.execute([code, r.book.id, r.chapter, r.verse, ord, r.kind, r.text, r.refs]);
+        if (known.select([code, r.book.id, r.chapter, r.verse]).isEmpty) stray++;
+      }
+      db.execute('COMMIT');
+      return stray;
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    } finally {
+      insert.dispose();
+      known.dispose();
+    }
   }
 
   bool exists(Ref ref, {String translation = defaultTranslation}) {

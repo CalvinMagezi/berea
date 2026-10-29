@@ -22,7 +22,10 @@ import 'word_study_screen.dart';
 
 /// Where a jumped-to verse lands: a little below the top so the one before is visible.
 const verseJumpAlignment = 0.08;
-const maxVerseJumpAttempts = 3;
+
+/// Each attempt is one frame; after the first estimate the list steps a screen at a time toward
+/// the verse, so a chapter of tall items (headings, prayers) still reaches it.
+const maxVerseJumpAttempts = 12;
 
 /// Wide enough to set two translations side by side instead of stacked.
 const parallelSideBySideWidth = 560.0;
@@ -214,8 +217,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final count = s.db.passage(Ref(book, chapter), translation: s.settings.translation).length;
     if (count < 2) return;
     final pos = _scroll.position;
-    final perVerse = (pos.maxScrollExtent + pos.viewportDimension) / count;
-    _scroll.jumpTo(((verse - 1) * perVerse).clamp(0, pos.maxScrollExtent));
+    final built = [
+      for (final e in _verseKeys.entries)
+        if (e.value.currentContext != null) e.key,
+    ];
+    final double to;
+    if (attempt == 0 || built.isEmpty) {
+      to = (verse - 1) * (pos.maxScrollExtent + pos.viewportDimension) / count;
+    } else {
+      final before = built.every((v) => v > verse);
+      to = pos.pixels + (before ? -pos.viewportDimension : pos.viewportDimension);
+    }
+    _scroll.jumpTo(to.clamp(0, pos.maxScrollExtent));
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(verse, attempt + 1));
   }
 
@@ -388,6 +401,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
     };
     final wordsFor = s.prayerContent.pointsInChapter(Ref(book, chapter));
     final ownFor = _ownPrayers();
+    final headings = s.db.headings(book, chapter, translation: translation);
+    final headingsAt = <int, List<Heading>>{};
+    for (final h in headings) {
+      headingsAt.putIfAbsent(h.verse, () => []).add(h);
+    }
     return Scaffold(
       appBar: AppBar(
         title: TextButton(
@@ -522,7 +540,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 );
                                 final verse = Ref(book, chapter, v.verse);
                                 final mine = ownFor[v.verse] ?? const <Prayer>[];
-                                return Row(
+                                final row = Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _PrayerMark(
@@ -542,6 +560,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                         ],
                                       ),
                                     ),
+                                  ],
+                                );
+                                final above = headingsAt[v.verse];
+                                if (above == null) return row;
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    for (final h in above)
+                                      _SectionHeading(
+                                        heading: h,
+                                        selected: _sectionSelected(headings, h, verses),
+                                        onTap: () => _toggleSection(headings, h, verses),
+                                      ),
+                                    row,
                                   ],
                                 );
                               },
@@ -593,6 +625,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
+  /// The verses [h] covers that this chapter actually has (BSB omits some, such as Matthew 17:21).
+  List<int> _sectionVerses(List<Heading> headings, Heading h, List<Verse> verses) {
+    final span = sectionSpan(headings, h, verses.last.verse);
+    return [
+      for (final v in verses)
+        if (v.verse >= span.start && v.verse <= span.end) v.verse,
+    ];
+  }
+
+  bool _sectionSelected(List<Heading> headings, Heading h, List<Verse> verses) =>
+      _selected.containsAll(_sectionVerses(headings, h, verses));
+
+  /// Selects the verses under a heading, or clears them when they are all selected already.
+  void _toggleSection(List<Heading> headings, Heading h, List<Verse> verses) {
+    final section = _sectionVerses(headings, h, verses);
+    setState(
+      () =>
+          _selected.containsAll(section) ? _selected.removeAll(section) : _selected.addAll(section),
+    );
+  }
+
   void _goLastChapter(Book b) => _go(b, s.db.chapterCount(b, translation: s.settings.translation));
 }
 
@@ -641,6 +694,61 @@ class _ReaderTitle extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Vertical room around a heading so the whole line is a comfortable tap target.
+const _headingPadding = EdgeInsets.fromLTRB(_markGutter + 8, 14, 8, 6);
+const _headingRefsGap = 2.0;
+
+/// A heading from the translation, above the verse it introduces. Tapping it selects the verses
+/// it covers, so a section goes to a notebook in one step.
+class _SectionHeading extends StatelessWidget {
+  final Heading heading;
+  final bool selected;
+  final VoidCallback onTap;
+  const _SectionHeading({required this.heading, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final style = switch (heading.kind) {
+      'ms' || 'qa' => text.labelLarge?.copyWith(color: scheme.primary, letterSpacing: 1.2),
+      's2' => text.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+      _ => text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+    };
+    return Semantics(
+      button: true,
+      selected: selected,
+      hint: selected ? 'clears this section' : 'selects this section',
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: _headingPadding,
+          decoration: BoxDecoration(
+            border: selected ? Border(left: BorderSide(color: scheme.primary, width: 3)) : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(heading.text, style: style),
+              if (heading.refs.isNotEmpty) ...[
+                const SizedBox(height: _headingRefsGap),
+                Text(
+                  heading.refs,
+                  style: text.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

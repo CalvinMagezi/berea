@@ -54,8 +54,9 @@ licence. The packs are optional public domain downloads.
 
 **Bible.** An offline reader with the Berean Standard Bible, the King James Version and the World
 English Bible built in. Search the whole Bible or type a reference to jump to it. Show a second
-translation beside or below the text. Select verses to ask Berea about them, write a note, make a
-study page or highlight them. Long-press the verse number for its Hebrew or Greek words with
+translation beside or below the text. The BSB shows its section headings with their parallel
+passages; tap a heading to select the whole section. Select verses to ask Berea about them, write a
+note, make a study page or highlight them. Long-press the verse number for its Hebrew or Greek words with
 transliteration, gloss and lexicon entry. Import a translation you own (CSV, USFM, OSIS, Zefania
 or a zip); it stays on your device.
 
@@ -221,6 +222,7 @@ the guess: where the guess picks a word, it is the tables' word 91.5% of the tim
 | Dataset | Licence | Role |
 |---------|---------|------|
 | Berean Standard Bible | Public domain (CC0) | Default translation, the official text from [bereanbible.com](https://bereanbible.com) (`bsb.txt`), pinned by SHA-256 |
+| BSB section headings | Public domain, with the BSB text | Section headings and parallel passage lines from the ebible.org BSB USFM (`engbsb_usfm.zip`), pinned by SHA-256; the verse text still comes from `bsb.txt` |
 | King James Version | Public domain | Second translation |
 | World English Bible | Public domain | Third translation, from the ebible.org USFM |
 | STEPBible TAHOT and TAGNT | CC BY 4.0 | Every Hebrew and Greek word with transliteration, gloss, Strong's number and morphology |
@@ -260,7 +262,9 @@ Commentaries, Licences and sources.
 29 MB compressed: 93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k
 cross references, 366 daily verses, and the word study concordance: `word_index` holds every use
 of each base Strong's number and `gloss_index` the words STEP glosses with each English stem; `bsb_words` holds, for each BSB verse,
-the Strong's number behind each of its words, aligned from the translation tables) and a
+the Strong's number behind each of its words, aligned from the translation tables; `headings` holds
+3,124 BSB section headings, each anchored to the verse it introduces, and the build fails if one
+anchors to a verse the BSB does not have) and a
 small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
 the optional lexicon pack, which is published with each release. None of these are committed.
 
