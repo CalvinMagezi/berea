@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- The daily verse and prayer are scheduled on the phone and again after a restart. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <application
+    <application android:usesCleartextTraffic="true"
         android:label="Berea"
         android:largeHeap="true"
         android:allowBackup="false"

@@ -107,6 +107,22 @@ const edgeModels = <EdgeModel>[
       bytes: 3659530240,
     ),
   ),
+  // Spike only: served from the Mac over adb reverse for the A32 measurement.
+  EdgeModel(
+    id: 'lfm3-1.7b',
+    label: 'LFM3 1.7B',
+    repo: 'litert-community/LFM3-1.7B-LiteRT',
+    file: 'LFM3-1.7B_mixed_int4_ekv4096.litertlm',
+    sizeGb: 1.4,
+    type: ModelType.qwen35,
+    tier: Tier.low,
+    summary: 'Liquid AI, spike.',
+    source: PinnedSource(
+      url: 'http://127.0.0.1:8000/LFM3-1.7B_mixed_int4_ekv4096.litertlm',
+      sha256: '327486bf01d0b1eefd727b7aadec8627a2b8db143349262857ac98403109d72b',
+      bytes: 1441629120,
+    ),
+  ),
   EdgeModel(
     id: 'gemma-3-1b',
     label: 'Gemma 3 1B',
@@ -158,7 +174,8 @@ String? memoryBand(EdgeModel m, double? gb, String noun) {
 List<EdgeModel> helperChoices(double? gb) {
   final suggested = recommendedModel(gb);
   final small = edgeModelById('gemma-3-1b');
-  return [suggested, suggested == small ? edgeModelById('gemma-4-e2b') : small];
+  // Spike: offer LFM3 for the A32 measurement.
+  return [suggested, edgeModelById('lfm3-1.7b'), suggested == small ? edgeModelById('gemma-4-e2b') : small];
 }
 
 /// Best model for [gb] of RAM; null [gb] (unknown) picks the default.

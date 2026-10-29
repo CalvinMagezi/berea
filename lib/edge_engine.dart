@@ -201,6 +201,10 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
       maxOutputTokens: maxTokens,
     );
     _answering = chat;
+    final clock = Stopwatch()..start();
+    var chunks = 0, chars = 0;
+    int? firstMs;
+    final promptChars = messages.fold<int>(0, (n, m) => n + m.content.length);
     try {
       if (_stopRequested) return;
       for (final m in messages.where((m) => m.role != 'system')) {
@@ -208,9 +212,20 @@ class EdgeAiEngine implements LlmEngine, StoppableEngine {
       }
       if (_stopRequested) return;
       await for (final r in chat.generateChatResponseAsync()) {
-        if (r is TextResponse) yield r.token;
+        if (r is! TextResponse) continue;
+        firstMs ??= clock.elapsedMilliseconds;
+        chunks++;
+        chars += r.token.length;
+        yield r.token;
       }
     } finally {
+      final total = clock.elapsedMilliseconds;
+      final decodeMs = total - (firstMs ?? total);
+      // ignore: avoid_print
+      print('BEREA_TIMING model=${spec.id} promptChars=$promptChars firstMs=$firstMs '
+          'totalMs=$total chunks=$chunks chars=$chars charsPerSec='
+          '${decodeMs > 0 ? (chars * 1000 / decodeMs).toStringAsFixed(1) : '-'} decodePerSec='
+          '${decodeMs > 0 ? (chunks * 1000 / decodeMs).toStringAsFixed(2) : '-'}');
       _answering = null;
       await chat.close();
     }
