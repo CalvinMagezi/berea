@@ -203,6 +203,22 @@ void main() {
     expect(state.prefs.getInt('readerVerse'), 1);
   });
 
+  testWidgets('a chapter longer than 40 verses is read to its end, headings and all', (
+    tester,
+  ) async {
+    final state = await tester.runAsync(
+      () => open({'readerBook': 19, 'readerChapter': 119, 'readerVerse': 169, 'tipT14Done': true}),
+    );
+    await pumpReader(tester, state!);
+    expect(find.textContaining('Where you stopped'), findsOneWidget);
+    expect(find.text('TAW'), findsOneWidget, reason: 'the last acrostic letter, at verse 169');
+    final last = find.byWidgetPredicate(
+      (w) => w is Text && (w.textSpan?.toPlainText().startsWith('176 ') ?? false),
+    );
+    await tester.scrollUntilVisible(last, 300, scrollable: find.byType(Scrollable).last);
+    expect(last, findsOneWidget);
+  });
+
   testWidgets('the resume marker shows once, not again when the reader is rebuilt', (tester) async {
     final state = await tester.runAsync(
       () => open({'readerBook': 43, 'readerChapter': 3, 'readerVerse': 16, 'tipT14Done': true}),

@@ -208,13 +208,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// builds the verse) and then aligns exactly once the verse's widget exists.
   void _scrollToVerse(int verse, [int attempt = 0]) {
     if (!_scroll.hasClients) return;
+    if (attempt == 0) verse = _nearestVerse(verse);
     final ctx = _verseKeys[verse]?.currentContext;
     if (ctx != null) {
       Scrollable.ensureVisible(ctx, alignment: verseJumpAlignment);
       return;
     }
     if (attempt >= maxVerseJumpAttempts) return;
-    final count = s.db.passage(Ref(book, chapter), translation: s.settings.translation).length;
+    final count = s.db.chapter(book, chapter, translation: s.settings.translation).length;
     if (count < 2) return;
     final pos = _scroll.position;
     final built = [
@@ -230,6 +231,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
     _scroll.jumpTo(to.clamp(0, pos.maxScrollExtent));
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(verse, attempt + 1));
+  }
+
+  /// [verse], or the verse before it when the translation omits it (the BSB has no Matthew
+  /// 17:21), so a jump lands where the reader expects instead of searching for a missing item.
+  int _nearestVerse(int verse) {
+    final have = s.db.chapter(book, chapter, translation: s.settings.translation);
+    final before = have.where((v) => v.verse <= verse);
+    if (before.isNotEmpty) return before.last.verse;
+    return have.isEmpty ? verse : have.first.verse;
   }
 
   /// Jumps again after layout: the list corrects its offset to the old chapter's item sizes.
@@ -261,7 +271,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String get _selectionText {
     final translation = s.settings.translation;
     final ref = _selection;
-    final verses = s.db.passage(ref, translation: translation);
+    // The whole chapter, not passage(): a selection may run past its prompt cap.
+    final verses = [
+      for (final v in s.db.chapter(book, chapter, translation: translation))
+        if (v.verse >= ref.verseStart! && v.verse <= ref.verseEnd!) v,
+    ];
     if (!_gapped) return selectionText(verses, ref, translation);
     final chosen = verses.where((v) => _selected.contains(v.verse)).toList();
     return gappedSelectionText(chosen, _selectionLabel, translation);
@@ -382,14 +396,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final translation = s.settings.translation;
-    final verses = s.db.passage(Ref(book, chapter), translation: translation);
+    final verses = s.db.chapter(book, chapter, translation: translation);
     final parallel = s.parallelTranslation;
     final second = parallel == null || parallel == translation
         ? const <int, String>{}
-        : {
-            for (final v in s.db.passage(Ref(book, chapter), translation: parallel))
-              v.verse: v.text,
-          };
+        : {for (final v in s.db.chapter(book, chapter, translation: parallel)) v.verse: v.text};
     final chapters = s.db.chapterCount(book, translation: translation);
     final highlights = s.study.highlights(book, chapter);
     final wide = MediaQuery.sizeOf(context).width >= wideLayoutBreakpoint;

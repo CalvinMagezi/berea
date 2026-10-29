@@ -198,6 +198,18 @@ class BibleDb {
     r['text'] as String,
   );
 
+  /// Every verse of a chapter, for reading. [passage] caps what goes into a prompt instead.
+  List<Verse> chapter(Book book, int chapter, {String translation = defaultTranslation}) => db
+      .select(
+        'SELECT book, chapter, verse, text FROM verses '
+        'WHERE translation = ? AND book = ? AND chapter = ? ORDER BY verse',
+        [translation, book.id, chapter],
+      )
+      .map(_verse)
+      .toList();
+
+  /// At most [maxPassageVerses] verses, so a whole chapter named in a question cannot crowd out
+  /// the rest of a prompt.
   List<Verse> passage(Ref ref, {String translation = defaultTranslation}) {
     final vs = ref.verseStart ?? 1;
     final ve = ref.verseStart == null ? 999 : (ref.verseEnd ?? vs);
@@ -225,7 +237,8 @@ class BibleDb {
     ];
   }
 
-  bool get _hasHeadings => db
+  // Read on every reader build, so the table check runs once; importHeadings sets it.
+  late bool _hasHeadings = db
       .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'headings'")
       .isNotEmpty;
 
@@ -241,19 +254,19 @@ class BibleDb {
     final known = db.prepare(
       'SELECT 1 FROM verses WHERE translation = ? AND book = ? AND chapter = ? AND verse = ?',
     );
-    var stray = 0, ord = 0;
-    String? at;
+    var stray = 0;
+    final ords = <String, int>{};
     db.execute('BEGIN');
     try {
       db.execute('DELETE FROM headings WHERE translation = ?', [code]);
       for (final r in rows) {
         final key = '${r.book.id}:${r.chapter}:${r.verse}';
-        ord = key == at ? ord + 1 : 0;
-        at = key;
+        final ord = ords[key] = (ords[key] ?? -1) + 1;
         insert.execute([code, r.book.id, r.chapter, r.verse, ord, r.kind, r.text, r.refs]);
         if (known.select([code, r.book.id, r.chapter, r.verse]).isEmpty) stray++;
       }
       db.execute('COMMIT');
+      _hasHeadings = true;
       return stray;
     } catch (_) {
       db.execute('ROLLBACK');

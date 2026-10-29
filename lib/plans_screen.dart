@@ -270,11 +270,16 @@ class _PlansScreenState extends State<PlansScreen> {
     setState(() {});
   }
 
+  /// A plan portion in full; a whole chapter is read whole, past the prompt cap of passage().
+  List<Verse> _versesOf(Ref r) => r.verseStart == null
+      ? s.db.chapter(r.book, r.chapter, translation: s.settings.translation)
+      : s.db.passage(r, translation: s.settings.translation);
+
   /// Reading time for today's unread chapters.
   int? _minutes(PlanProgress p) {
     final unread = p.portion.where((r) => !p.done.contains(r));
     final words = unread
-        .expand((r) => s.db.passage(r, translation: s.settings.translation))
+        .expand((r) => _versesOf(r))
         .fold(0, (n, v) => n + v.text.split(' ').length);
     return words == 0 ? null : (words / _wordsPerMinute).ceil();
   }

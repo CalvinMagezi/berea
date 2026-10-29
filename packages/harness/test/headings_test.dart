@@ -97,4 +97,21 @@ void main() {
     expect(sectionSpan(hs, hs[3], 20), (start: 7, end: 8));
     expect(sectionSpan(hs, hs[4], 20), (start: 9, end: 20));
   });
+
+  test('a chapter is read whole, past the prompt cap of passage', () {
+    final db = BibleDb(sqlite3.openInMemory())
+      ..db.execute(
+        'CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, '
+        'chapter INTEGER, verse INTEGER, text TEXT)',
+      );
+    for (var v = 1; v <= 176; v++) {
+      db.db.execute(
+        "INSERT INTO verses(translation, book, chapter, verse, text) VALUES ('BSB', 19, 119, ?, '')",
+        [v],
+      );
+    }
+    final psalms = bookById(19);
+    expect(db.chapter(psalms, 119).length, 176);
+    expect(db.passage(Ref(psalms, 119)).length, maxPassageVerses);
+  });
 }
