@@ -65,6 +65,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.pendingQuestion.addListener(_jumpToStudy);
     widget.state.openReaderRequest.addListener(_jumpToBible);
     widget.state.openStudyRequest.addListener(_openStudy);
+    widget.state.openNotebookRequest.addListener(_openRequestedNotebook);
     widget.state.openPlansRequest.addListener(_openPlans);
     // The Bible is on screen first; the helper loads behind it.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -76,6 +77,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void _jumpToBible() => _select(HomeTab.bible);
 
   void _openStudy() => _select(HomeTab.study);
+
+  void _openRequestedNotebook() {
+    final id = widget.state.openNotebookRequest.value;
+    if (id == null) return;
+    widget.state.openNotebookRequest.value = null;
+    _openNotebook(context, id);
+  }
 
   void _openPlans() => _select(HomeTab.plans);
 
@@ -93,6 +101,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.pendingQuestion.removeListener(_jumpToStudy);
     widget.state.openReaderRequest.removeListener(_jumpToBible);
     widget.state.openStudyRequest.removeListener(_openStudy);
+    widget.state.openNotebookRequest.removeListener(_openRequestedNotebook);
     widget.state.openPlansRequest.removeListener(_openPlans);
     _notesRoutes.open.dispose();
     super.dispose();

@@ -1110,6 +1110,12 @@ class AppState extends ChangeNotifier {
   /// Asks the shell to show Study.
   final openStudyRequest = ValueNotifier<int>(0);
 
+  /// Set to a notebook's id to open it in Notes, under the bar or beside the sidebar, so the
+  /// places stay in reach; the shell sets it back to null once it has opened it.
+  final openNotebookRequest = ValueNotifier<int?>(null);
+
+  void openNotebook(int id) => openNotebookRequest.value = id;
+
   /// Ask about this notebook: Study opens scoped to [notebookId].
   void askAboutNotebook(int notebookId) {
     setStudyScope(notebookId);

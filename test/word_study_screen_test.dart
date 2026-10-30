@@ -65,7 +65,15 @@ BibleDb wordBible() {
     ['G5046', 'G5046', 'τέλειος', 'teleios', 'G:A', 'perfect', 'having reached its end, mature'],
     ['G5048', 'G5048', 'τελειόω', 'teleioō', 'G:V', 'to perfect', 'to bring to an end'],
     ['G3962', 'G3962', 'πατήρ', 'patēr', 'G:N-M', 'father', 'a father'],
-    ['H8535', 'H8535', 'תָּם', 'tam', 'H:A', 'complete', '1) perfect, complete'],
+    [
+      'H8535',
+      'H8535',
+      'תָּם',
+      'tam',
+      'H:A',
+      'complete',
+      '1) perfect, complete 1a) (Qal) whole 2) peaceable, upright Mat.5:48',
+    ],
     ['H3477G', 'H3477', 'יָשָׁר', 'ya.shar', 'H:A', 'upright', 'straight, upright'],
   ]) {
     raw.execute('INSERT INTO lexicon VALUES (?, ?, ?, ?, ?, ?, ?)', l);
@@ -145,9 +153,9 @@ void main() {
   testWidgets('a pressed word opens its original, its use and every verse', (tester) async {
     await open(tester, 'Matthew 5:48', english: 'perfect');
     expect(find.text('τέλειος'), findsOneWidget);
-    expect(find.text('teleios · G5046 · Greek · adjective'), findsOneWidget);
+    expect(find.text('teleios · Greek · adjective'), findsOneWidget);
     expect(find.textContaining('Chosen by meaning'), findsOneWidget);
-    expect(find.text('Used 3 times in 2 verses across 2 books.'), findsOneWidget);
+    expect(find.text('You will find it 3 times in 2 verses across 2 books.'), findsOneWidget);
     expect(find.text('perfect · 2'), findsOneWidget);
     expect(find.text('mature · 1'), findsOneWidget);
     // Another word glossed "perfect" is offered, with how often.
@@ -179,12 +187,8 @@ void main() {
     await tester.scrollUntilVisible(find.text('τελειόω  teleioō'), 200, scrollable: page);
     await tester.tap(find.text('τελειόω  teleioō'));
     await tester.pump();
-    await tester.scrollUntilVisible(
-      find.text('teleioō · G5048 · Greek · verb'),
-      -200,
-      scrollable: page,
-    );
-    expect(find.text('Used once in 1 verse across 1 book.'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('teleioō · Greek · verb'), -200, scrollable: page);
+    expect(find.text('You will find it once in 1 verse across 1 book.'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Ask Berea about τελειόω'), -200, scrollable: page);
     await tester.tap(find.text('Ask Berea about τελειόω'));
     expect(asked.single, startsWith('Word study: the Greek word τελειόω'));
@@ -193,18 +197,18 @@ void main() {
   testWidgets('a word with no match asks the reader to choose one', (tester) async {
     await open(tester, 'Job 1:1', english: 'shunning');
     expect(find.textContaining('could not tell which Hebrew word is behind "shunning"'), findsOne);
-    expect(find.text('MEANING'), findsNothing);
+    expect(find.text('What it means'), findsNothing);
     await tester.tap(find.text('upright'));
     await tester.pump();
     expect(find.text('יָשָׁר'), findsOneWidget);
-    expect(find.text('ya.shar · H3477 · Hebrew · adjective'), findsOneWidget);
+    expect(find.text('ya.shar · Hebrew · adjective'), findsOneWidget);
     expect(find.textContaining('Chosen by meaning'), findsNothing);
   });
 
   testWidgets('the KJV word behind a different BSB word is found', (tester) async {
     await open(tester, 'Job 1:1', english: 'perfect');
     // Found through its lexicon definition, though this verse glosses it "blameless".
-    expect(find.text('tam · H8535 · Hebrew · adjective'), findsOneWidget);
+    expect(find.text('tam · Hebrew · adjective'), findsOneWidget);
     expect(find.text('complete'), findsWidgets);
     // The form in the verse, without its accent, is the lemma, so no second line repeats it.
     expect(find.textContaining('In Job 1:1:'), findsNothing);
@@ -271,7 +275,7 @@ void main() {
     await open(tester, 'Job 1:1', english: 'this', wordIndex: 1);
     expect(find.textContaining('The translators supplied "this" here'), findsOneWidget);
     expect(find.textContaining('no Hebrew word stands behind it'), findsOneWidget);
-    expect(find.text('MEANING'), findsNothing);
+    expect(find.text('What it means'), findsNothing);
   });
 
   testWidgets('a name the BSB wrote onto a verb asks which word instead of opening the verb', (
@@ -282,7 +286,7 @@ void main() {
     expect(find.textContaining('Jesus, John 21:15', findRichText: true), findsOneWidget);
     expect(find.textContaining('The BSB writes "Jesus" here'), findsOneWidget);
     expect(find.textContaining('stands on λέγω ("to say")'), findsOneWidget);
-    expect(find.text('MEANING'), findsNothing);
+    expect(find.text('What it means'), findsNothing);
     expect(find.text('Words in John 21:15'), findsOneWidget);
   });
 
@@ -296,7 +300,7 @@ void main() {
   testWidgets('a word the tables number but STEP does not tag is still studied', (tester) async {
     // "fearing" is H3373 in the tables; this fixture's Job 1:1 has no STEP word for it.
     await open(tester, 'Job 1:1', english: 'fearing', wordIndex: 7);
-    expect(find.text('H3373 · Hebrew'), findsOneWidget);
+    expect(find.text('Hebrew · H3373'), findsOneWidget);
     expect(find.text('No lexicon entry for H3373.'), findsOneWidget);
     expect(find.textContaining('Chosen by meaning'), findsNothing);
     expect(find.text('Words in Job 1:1'), findsOneWidget);
@@ -304,7 +308,7 @@ void main() {
 
   testWidgets('other translations keep the guess by meaning', (tester) async {
     await open(tester, 'Job 1:1', english: 'perfect', wordIndex: 7, translation: 'KJV');
-    expect(find.text('tam · H8535 · Hebrew · adjective'), findsOneWidget);
+    expect(find.text('tam · Hebrew · adjective'), findsOneWidget);
     expect(find.textContaining('Chosen by meaning'), findsOneWidget);
   });
 
@@ -364,5 +368,47 @@ void main() {
   testWidgets('without a way to keep, Save word is not offered', (tester) async {
     await open(tester, 'Matthew 5:48', english: 'perfect', wordIndex: 1);
     expect(find.text('Save word'), findsNothing);
+  });
+
+  testWidgets('at phone width the meaning leads in plain words and the lexicon entry is closed', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WordStudyScreen(
+          db: db,
+          ref: RefParser.parse('Matthew 5:48').first,
+          english: 'perfect',
+          wordIndex: 1,
+          onAsk: asked.add,
+          onOpen: opened.add,
+          onKeep: ({required title, required body, required subtitle, verse}) {},
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('What it means'), findsOneWidget);
+    expect(find.text('perfect'), findsWidgets);
+    expect(find.text('Having reached its end, mature'), findsOneWidget);
+    expect(find.text('In this verse'), findsOneWidget);
+    expect(find.text("Scholar's lexicon entry"), findsOneWidget);
+    // Closed: the raw definition is not on screen until the tile is opened.
+    expect(find.text('having reached its end, mature'), findsNothing);
+    await tester.scrollUntilVisible(find.text("Scholar's lexicon entry"), 200, scrollable: page);
+    await tester.tap(find.text("Scholar's lexicon entry"));
+    await tester.pumpAndSettle();
+    expect(find.text('having reached its end, mature'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a definition with several senses lists them in plain words', (tester) async {
+    await open(tester, 'Job 1:1', english: 'blameless', wordIndex: 4);
+    expect(find.text('Its senses'), findsOneWidget);
+    expect(find.text('Perfect, complete'), findsOneWidget);
+    expect(find.text('Peaceable, upright'), findsOneWidget);
+    expect(find.text('2.'), findsOneWidget);
   });
 }

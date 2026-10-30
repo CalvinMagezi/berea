@@ -100,22 +100,37 @@ class _WordCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${w.translit} · ${w.morph}', style: const TextStyle(fontSize: 13)),
+                Text(
+                  [w.translit, if (partOfSpeech(entries.firstOrNull?.pos ?? '') case final p
+                      when p.isNotEmpty) p].join(' · '),
+                  style: const TextStyle(fontSize: 13),
+                ),
                 const SizedBox(height: 12),
                 if (entries.isEmpty) const Text('No lexicon entry.'),
                 for (final e in entries) ...[
                   Text(
-                    '${e.key} ${e.lemma} (${e.translit}) · ${e.gloss}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    e.gloss.isEmpty ? e.lemma : 'Means "${e.gloss}"',
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
                   ),
-                  const SizedBox(height: 4),
-                  SelectableText(e.definition, style: const TextStyle(height: 1.45)),
-                  if (s.db.fullLexicon(e.key) case final full?)
-                    ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      title: const Text('Full LSJ entry'),
-                      children: [SelectableText(full, style: const TextStyle(height: 1.45))],
+                  for (final sense in plainSenses(e.definition))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(sense, style: const TextStyle(height: 1.4)),
                     ),
+                  // The lexicons as written stay a tap away for those who read them.
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: const Text("Scholar's lexicon entry"),
+                    subtitle: Text("Strong's ${e.key}"),
+                    children: [
+                      SelectableText(e.definition, style: const TextStyle(height: 1.45)),
+                      if (s.db.fullLexicon(e.key) case final full?) ...[
+                        const SizedBox(height: 12),
+                        const Text('Full LSJ entry', style: TextStyle(fontWeight: FontWeight.w600)),
+                        SelectableText(full, style: const TextStyle(height: 1.45)),
+                      ],
+                    ],
+                  ),
                   const SizedBox(height: 12),
                 ],
               ],

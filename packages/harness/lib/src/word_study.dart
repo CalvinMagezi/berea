@@ -555,6 +555,127 @@ String partOfSpeech(String pos) {
   };
 }
 
+/// Longest a single sense is shown, cut at a comma so it never ends mid-phrase.
+const _senseLength = 140;
+
+/// A lead-in before the first numbered sense is a sense of its own only when it is this short.
+const _preambleLength = 60;
+
+final _scriptLetters = RegExp(r'[̀-Ͽἀ-῿֐-׿יִ-ﭏ]+');
+final _notes = RegExp(r'\[[^\]]*(\]|$)');
+final _cutOff = RegExp(r'\([^)]*$|\.\.\.$');
+final _parenthetical = RegExp(r'\([^()]*\)');
+final _scriptureRef = RegExp(r'\b[1-3]?[A-Z][a-z]{1,3}\.\s?\d|\bJu\s\d');
+final _senseEnd = RegExp(
+  r'\s:|:\u2014|;|§|\s\.\s|\s\d+[a-z]\d*\)|\bSYN\b|\b[Cc]f\.|Also (?:means|named)|Aramaic (?:of|equivalent)',
+);
+final _sentenceEnd = RegExp(r'(?<=[a-z]{3}\.)\s+(?=[A-Z])');
+final _leadingGrammar = RegExp(r'^(?:(?:indecl|adv|adj|prep|conj)\.[\s,]*)+');
+final _dangling = RegExp(r'\s+(?:at|in|of|see|cf|and|or|from|with|also|as|the|a)$');
+final _nameMeaning = RegExp(r'^[^="]{1,30}= "[^"]*"\s*');
+final _clPrefix = RegExp(r'^(?:=\s*)?cl\.[\s,]*');
+final _romanMarker = RegExp(r'^__[IVX]+\.\s*');
+
+/// Marks of a numbered sense n: Abbott-Smith "__1.", BDB "1)" and Liddell-Scott "1.".
+final _senseMarkers = <RegExp Function(int)>[
+  (n) => RegExp('__\\s?$n\\.'),
+  (n) => RegExp('(?:^|\\s)$n\\)\\s'),
+  (n) => RegExp('(?:^|\\s)$n\\.\\s'),
+];
+
+/// The senses of a lexicon definition in plain words, at most [max]: no Scripture references, Greek
+/// or Hebrew script, grammar notes, LXX remarks or sense markers. Abbott-Smith, BDB and Liddell-
+/// Scott numbering all split into senses; a definition with no numbering is one sense. Empty when
+/// nothing readable is left, so the caller can fall back to the gloss alone.
+List<String> plainSenses(String definition, {int max = 4}) {
+  var text = definition.replaceAll(_notes, ' ').replaceAll(_cutOff, ' ');
+  for (var again = true; again;) {
+    final next = text.replaceAll(_parenthetical, ' ');
+    again = next != text;
+    text = next;
+  }
+  text = text.replaceAll(_scriptLetters, ' ');
+  final numbered = _splitNumbered(text);
+  final parts = numbered == null
+      ? [text]
+      : [
+          if (_sense(numbered.first, lead: true) case final lead?
+              when lead.length <= _preambleLength)
+            numbered.first,
+          ...numbered.skip(1),
+        ];
+  final senses = <String>[];
+  for (final part in parts) {
+    final sense = _sense(part);
+    if (sense != null && !senses.contains(sense)) senses.add(sense);
+  }
+  return senses.take(max).toList();
+}
+
+/// [text] cut at its numbered senses: the lead-in before sense 1, then each sense; null when the
+/// text is not numbered.
+List<String>? _splitNumbered(String text) {
+  for (final marker in _senseMarkers) {
+    final cuts = <RegExpMatch>[];
+    for (var n = 1; ; n++) {
+      final m = marker(n).allMatches(text, cuts.isEmpty ? 0 : cuts.last.end).firstOrNull;
+      if (m == null) break;
+      cuts.add(m);
+    }
+    if (cuts.isEmpty) continue;
+    return [
+      text.substring(0, cuts.first.start),
+      for (var i = 0; i < cuts.length; i++)
+        text.substring(cuts[i].end, i + 1 < cuts.length ? cuts[i + 1].start : text.length),
+    ];
+  }
+  return null;
+}
+
+/// One sense in plain words from a piece of definition, or null when it is not readable. A
+/// [lead] is the text before sense 1, which is a sense only when it is a clause that ends.
+String? _sense(String part, {bool lead = false}) {
+  var s = part
+      .replaceAll(RegExp(r'[†*]|__\(?\w+\)?'), ' ')
+      .replaceAll(_romanMarker, '')
+      .replaceFirst(RegExp(r'^[\s,;:.\-]*By meton\.?'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll(RegExp(r'\s*,(\s*,)+'), ',')
+      .replaceAll(' ,', ',')
+      .replaceFirst(RegExp(r'^[\s,;:.\-]+'), '')
+      .replaceFirst(_leadingGrammar, '')
+      .replaceFirst(_clPrefix, '')
+      .replaceFirst(_nameMeaning, '')
+      .replaceFirst(RegExp(r'\s(?:adj|adv)$'), '')
+      .trim();
+  for (final stop in [_scriptureRef, _senseEnd]) {
+    final m = stop.firstMatch(s);
+    if (m != null) s = _withoutTail(s.substring(0, m.start));
+  }
+  if (lead && s.endsWith(',')) return null;
+  s = s.split(_sentenceEnd).first.replaceFirst(RegExp(r'[\s,;:.\-]+$'), '');
+  if (s.length > _senseLength) s = _withoutTail(s.substring(0, _cutAt(s)));
+  if (s.length < 3 || s.contains(RegExp(r'\d'))) return null;
+  return s[0].toUpperCase() + s.substring(1);
+}
+
+/// [s] without a clause left hanging by a cut ("only mentioned at"): its last comma clause goes
+/// when it ends on a word that needs a following one.
+/// Where a long sense is cut: its last comma, else its last space, within [_senseLength].
+int _cutAt(String s) {
+  final comma = s.lastIndexOf(',', _senseLength);
+  if (comma > 0) return comma;
+  final space = s.lastIndexOf(' ', _senseLength);
+  return space > 0 ? space : _senseLength;
+}
+
+String _withoutTail(String s) {
+  final t = s.replaceFirst(RegExp(r'[\s,;:.\-]+$'), '');
+  if (!_dangling.hasMatch(t)) return t;
+  final comma = t.lastIndexOf(',');
+  return comma < 0 ? t.replaceFirst(_dangling, '') : t.substring(0, comma);
+}
+
 /// The question a word study sends to the chat. It names the Strong's number, which the retriever
 /// reads to put the lexicon entry and other uses of the word in front of the model. Without [ref]
 /// it asks about the word across Scripture, as for a word reached from another word's study.

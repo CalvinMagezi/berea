@@ -5,7 +5,9 @@ import 'package:berea/brand/lamp_mark.dart';
 import 'package:berea/keep_sheet.dart';
 import 'package:berea/note_dialog.dart';
 import 'package:berea/notebook_store.dart';
+import 'package:berea/notebook_ask_panel.dart';
 import 'package:berea/notebooks_screen.dart';
+import 'package:berea/study_packet_screen.dart';
 import 'package:berea/notes_screen.dart';
 import 'package:berea/voice_composer.dart';
 import 'package:berea/study_store.dart';
@@ -15,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'commentary_test.dart' show writePack;
 import 'support/bible.dart';
 
 const _phone = Size(600, 1000);
@@ -474,7 +477,7 @@ void main() {
     await pump(tester, NotebookScreen(state: s, notebookId: nb), size: _mac);
     expect(find.byType(ListAndDetail), findsOneWidget);
     expect(find.text('Everything'), findsOneWidget);
-    expect(find.textContaining('Choose a note or reading'), findsOneWidget);
+    expect(find.byType(NotebookAskPanel), findsOneWidget);
 
     await tester.tap(find.text('Outline for Thursday'));
     await tester.pumpAndSettle();
@@ -487,7 +490,7 @@ void main() {
 
     await tester.tap(find.text('Readings 0'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Choose a note or reading'), findsOneWidget);
+    expect(find.byType(NotebookAskPanel), findsOneWidget);
     await tester.tap(find.text('Everything'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(SelectableText, 'What we suffer.'), findsOneWidget);
@@ -496,7 +499,36 @@ void main() {
     s.study.deleteNote(s.study.notebookNotes(nb).single.id);
     s.notebooks.renameNotebook(nb, 'Romans 8');
     await tester.pumpAndSettle();
-    expect(find.textContaining('Choose a note or reading'), findsOneWidget);
+    expect(find.byType(NotebookAskPanel), findsOneWidget);
+  });
+
+  testWidgets('on a wide screen Ask about this notebook brings its conversation back beside it', (
+    tester,
+  ) async {
+    final nb = s.notebooks.createNotebook('Romans with the youth');
+    s.study.addNotebookNote(nb, 'What we suffer.', title: 'Outline for Thursday');
+    await pump(tester, NotebookScreen(state: s, notebookId: nb), size: _mac);
+    await tester.tap(find.text('Outline for Thursday'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NotebookAskPanel), findsNothing);
+    await tester.tap(find.widgetWithText(FilledButton, 'Ask about this notebook'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NotebookAskPanel), findsOneWidget);
+    final box = find.descendant(
+      of: find.byType(NotebookAskPanel),
+      matching: find.byType(TextField),
+    );
+    expect(tester.widget<TextField>(box).focusNode!.hasFocus, isTrue);
+    expect(s.studyScope.value, isNot(nb), reason: 'Study is scoped only once a question is asked');
+  });
+
+  testWidgets('on a phone Ask about this notebook scopes Study to it', (tester) async {
+    final nb = s.notebooks.createNotebook('Romans with the youth');
+    await pump(tester, NotebookScreen(state: s, notebookId: nb));
+    await tester.tap(find.widgetWithText(FilledButton, 'Ask about this notebook'));
+    await tester.pump();
+    expect(s.studyScope.value, nb);
+    s.setStudyScope(null);
   });
 
   testWidgets('the phone layout keeps opening entries on their own', (tester) async {
@@ -575,5 +607,32 @@ void main() {
     await tester.tap(find.byTooltip('Synthesize'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Nothing to synthesize yet'), findsOneWidget);
+  });
+
+  testWidgets('Synthesize on a phone groups commentary by work and reads cleanly at 360', (
+    tester,
+  ) async {
+    final pack = writePack(dir, 'core', [
+      ['MHCC', 43, 3, 1, 1, 'Nicodemus was a Pharisee.'],
+      ['MHCC', 43, 3, 3, 3, 'Born again means born from above.'],
+    ]);
+    s.commentary.library.open('core', pack);
+    addTearDown(() => s.commentary.library.closeAll());
+    final nb = s.notebooks.createNotebook('Nicodemus');
+    await tester.runAsync(
+      () => s.notebooks.addSource(nb, passageSource(s.db, 'John 3:1-21', 'BSB')!),
+    );
+    await pump(tester, StudyPacketScreen(state: s, notebookId: nb), size: const Size(360, 800));
+    expect(tester.takeException(), isNull, reason: 'no overflow on a narrow phone');
+    final work = commentaryModuleById('MHCC')!.title;
+    expect(find.text(work), findsOneWidget, reason: 'one row for the work, not one per verse');
+    expect(find.text('2 comments'), findsOneWidget);
+    await tester.ensureVisible(find.text(work));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(work));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('born from above'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Listen'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Ask about this notebook'), findsOneWidget);
   });
 }

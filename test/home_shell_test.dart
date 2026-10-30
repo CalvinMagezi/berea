@@ -4,6 +4,7 @@ import 'package:berea/app_state.dart';
 import 'package:berea/chat_screen.dart';
 import 'package:berea/home_shell.dart';
 import 'package:berea/models.dart';
+import 'package:berea/notebook_ask_panel.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/notes_screen.dart';
 import 'package:berea/plans_screen.dart';
@@ -210,13 +211,11 @@ void main() {
     expect(find.byType(NotebookScreen), findsOneWidget);
     expect(find.text('NOTEBOOKS'), findsOneWidget);
 
-    // Ask about this notebook, from inside it, lands on Study scoped to it.
+    // Ask about this notebook, from inside it, keeps the notebook and talks beside it.
     await tester.tap(find.widgetWithText(FilledButton, 'Ask about this notebook'));
     await tester.pumpAndSettle();
-    expect(find.byType(ChatScreen), findsOneWidget);
-    expect(find.byType(NotebookScreen), findsNothing);
-    expect(state.studyScope.value, id);
-    state.studyScope.value = null;
+    expect(find.byType(NotebookScreen), findsOneWidget);
+    expect(find.byType(NotebookAskPanel), findsOneWidget);
     state.notebooks.deleteNotebook(id);
   });
 
