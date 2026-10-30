@@ -131,6 +131,14 @@ void main() {
     expect(beat.text, 'He came by night.');
   });
 
+  test('a sentence said twice in a row is said once', () {
+    expect(
+      withoutRepeats('Is it a feeling? Is it a feeling? It is a posture.\nIs it a feeling?'),
+      'Is it a feeling? It is a posture.\nIs it a feeling?',
+    );
+    expect(withoutRepeats('Rejoice! Rejoice in the Lord.'), 'Rejoice! Rejoice in the Lord.');
+  });
+
   test('a written beat survives saving', () {
     const beat = ScriptBeat(Beat.witnesses, 'Text [C1234].', ['C1234: Concise']);
     final back = ScriptBeat.fromJson(beat.toJson());

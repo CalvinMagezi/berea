@@ -68,6 +68,10 @@ void main() {
         'God loved the world, John chapter 3, verse 16.',
       );
       expect(speakable('Faith (Romans 10:17) comes.'), 'Faith, Romans chapter 10, verse 17 comes.');
+      expect(
+        speakable('We start with Philippians 4:4, BSB, which commands joy.'),
+        'We start with Philippians chapter 4, verse 4, which commands joy.',
+      );
     });
   });
 

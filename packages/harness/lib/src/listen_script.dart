@@ -147,7 +147,7 @@ class ListenWriter {
     }
     final raw = pieces >= maxTokens ? withoutUnfinishedSentence(buf.toString()) : buf.toString();
     final checked = guard.apply(raw, prompt.shown, checkSources: true);
-    return ScriptBeat(slice.beat, checked.text.trim(), [
+    return ScriptBeat(slice.beat, withoutRepeats(checked.text).trim(), [
       for (final s in checked.sources) '${s.tag}: ${s.chunk.title}',
     ]);
   }
@@ -201,13 +201,14 @@ String beatInstruction(
     Beat.opening =>
       'This is the opening. Begin with a short everyday scene that leads into the passage, as an '
           'illustration only. Then name the passage, say who first heard it and in what setting as '
-          'far as the CONTEXT tells, and say what this deep dive will walk through.',
+          'far as the CONTEXT tells, and say in one sentence what this deep dive will walk '
+          'through. Do not go through the verses yet: the next part does that.',
     Beat.verseWalk =>
       'Walk through ${walkTitle ?? 'the passage'} (${walkRange ?? 'the PASSAGES'}) verse by verse, '
           'in order. Quote each verse word for word from PASSAGES. Where the LEXICON gives a word '
           'of the verse, say "the Greek word here is" or "the Hebrew word here is", then the word '
-          'and its meaning. Where SOURCES hold a commentator on the verse, name the commentator '
-          'and quote them. Ask the listener one question aloud and answer it from the text. Give '
+          'as it is spelled in brackets after it, then its meaning in your own plain words. Where '
+          'SOURCES hold a commentator on the verse, name the commentator and quote them. Ask the listener one question aloud and answer it from the text. Give '
           'one everyday comparison. End with one short line the listener can sit with.',
     Beat.hardQuestion =>
       'Raise the hardest question this passage leaves a careful reader with, and answer it from '
@@ -223,6 +224,29 @@ String beatInstruction(
   return 'You are writing part $part of $parts of a spoken deep dive on a Bible notebook, read '
       'aloud by one narrator. The notebook covers: $named$more.\n\n$task\n\nWrite about $words '
       'words of spoken prose: no headings, lists, bullet points or markdown, and no greeting '
-      'unless this is the opening. Cite each verse you use as Book chapter:verse, and put the '
-      'source tag right after anything taken from SOURCES. Do not repeat what other parts cover.';
+      'unless this is the opening. Speak to the listener: never name the CONTEXT, its blocks or '
+      'the translation. Say what a verse says only when it is in PASSAGES or CROSS REFERENCES, '
+      'and cite it as Book chapter:verse. Put a source tag right after anything taken from '
+      'SOURCES, and no other tag. Say each thing once, and do not repeat what other parts cover.';
 }
+
+final _sentenceRun = RegExp(r'[^.!?]+[.!?]+["\u201d\u2019)]*\s*');
+
+/// [text] without a sentence that says again, word for word, one said just before it: a small
+/// model can loop on a line, and read aloud that is plainly a fault.
+String withoutRepeats(String text) => text
+    .split('\n')
+    .map((line) {
+      String? last;
+      return line.splitMapJoin(
+        _sentenceRun,
+        onMatch: (m) {
+          final said = m[0]!.trim();
+          if (said == last) return '';
+          last = said;
+          return m[0]!;
+        },
+        onNonMatch: (n) => n,
+      );
+    })
+    .join('\n');

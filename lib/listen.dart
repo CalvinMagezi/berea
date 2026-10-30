@@ -244,11 +244,24 @@ class LocalListenNotice implements ListenNotice {
     ongoing: true,
   );
 
+  /// Whether the service runs. Android refuses to start one while the app is in the background,
+  /// so later progress posts to the service's notification instead.
+  var _serving = false;
+
   @override
   Future<void> working(String title, String body) async {
     final android = _android;
     if (android == null) return;
     await _init();
+    if (_serving) {
+      return _plugin.show(
+        id: _workingId,
+        title: title,
+        body: body,
+        notificationDetails: const NotificationDetails(android: _details),
+      );
+    }
+    _serving = true;
     await android.startForegroundService(
       id: _workingId,
       title: title,
@@ -260,7 +273,11 @@ class LocalListenNotice implements ListenNotice {
   }
 
   @override
-  Future<void> idle() async => _android?.stopForegroundService();
+  Future<void> idle() async {
+    if (!_serving) return;
+    _serving = false;
+    await _android?.stopForegroundService();
+  }
 
   @override
   Future<void> ready(String title, String body) async {

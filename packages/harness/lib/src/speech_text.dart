@@ -25,6 +25,9 @@ final _emptyParen = RegExp(r'\s*\([,;:.\s]*\)');
 
 final _paren = RegExp(r'\s*\(([^()\n]*)\)');
 final _translationCode = RegExp(r'\s*,\s*[A-Z]{2,5}\s*$');
+
+/// A translation named after a reference outside parentheses, as in "John 3:16, BSB, says".
+final _codeAfterRef = RegExp(r'(?<=\d)\s*,\s*(?:BSB|KJV|WEB|ASV|YLT)\b');
 final _numberedBook = RegExp(r'^([123]) (.+)$');
 const _ordinals = {'1': 'First', '2': 'Second', '3': 'Third'};
 const _psalms = 'Psalms';
@@ -91,7 +94,7 @@ String _speakUnit(String unit) {
   s = s.replaceAllMapped(_stars, (m) => m[1]!).replaceAllMapped(_unders, (m) => m[1]!);
   s = s.replaceAll('`', '');
   s = s.replaceAll(_foreignScript, '').replaceAll(_strongs, '').replaceAll(_emptyParen, '');
-  s = _speakRefs(_refParens(s));
+  s = _speakRefs(_refParens(s).replaceAll(_codeAfterRef, ''));
   return _tidy(s.replaceAll(_lord, 'Lord').replaceAll(_god, 'God'));
 }
 

@@ -280,7 +280,20 @@ class _PlayerState extends State<_Player> {
           (s) => setState(() => _playing = s == PlayerState.playing),
         ),
       );
-    unawaited(_player.setSource(DeviceFileSource(widget.audio)));
+  }
+
+  /// The file is opened on the first Play, so opening the screen does not load the recording.
+  var _opened = false;
+
+  Future<void> _play() async {
+    if (_opened) return _player.resume();
+    _opened = true;
+    await _player.play(DeviceFileSource(widget.audio), position: _at);
+  }
+
+  Future<void> _seek(Duration to) async {
+    setState(() => _at = to);
+    if (_opened) await _player.seek(to);
   }
 
   @override
@@ -307,13 +320,13 @@ class _PlayerState extends State<_Player> {
                 IconButton.filled(
                   tooltip: _playing ? 'Pause' : 'Play',
                   icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
-                  onPressed: () => _playing ? _player.pause() : _player.resume(),
+                  onPressed: () => _playing ? _player.pause() : _play(),
                 ),
                 Expanded(
                   child: Slider(
                     value: at,
                     max: total,
-                    onChanged: (v) => _player.seek(Duration(milliseconds: v.round())),
+                    onChanged: (v) => _seek(Duration(milliseconds: v.round())),
                   ),
                 ),
                 Text('${clockOf(_at)} / ${clockOf(widget.length)}'),
