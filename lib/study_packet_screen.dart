@@ -2,7 +2,9 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'extras_hint.dart';
 import 'notebooks_screen.dart';
+import 'settings_sheet.dart';
 import 'theme.dart';
 
 /// What a deep dive on a notebook would draw on, gathered from the Bible and the installed
@@ -28,7 +30,7 @@ class _StudyPacketScreenState extends State<StudyPacketScreen> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-          child: packet.isEmpty ? const _Empty() : _PacketList(packet: packet),
+          child: packet.isEmpty ? const _Empty() : _PacketList(state: widget.state, packet: packet),
         ),
       ),
     );
@@ -51,8 +53,9 @@ class _Empty extends StatelessWidget {
 }
 
 class _PacketList extends StatelessWidget {
+  final AppState state;
   final StudyPacket packet;
-  const _PacketList({required this.packet});
+  const _PacketList({required this.state, required this.packet});
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +70,7 @@ class _PacketList extends StatelessWidget {
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         if (noCommentary)
-          const _Note('No commentary is installed. Add one in Settings to include it here.'),
+          ExtrasHint(state: state, part: SettingsPart.commentary, text: commentaryHint),
         for (final s in p.sections) _SectionCard(section: s),
         if (p.keyWords.isNotEmpty) ...[
           const _Heading('Key words'),
@@ -155,17 +158,6 @@ class _Heading extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 24, bottom: 4),
     child: Text(text, style: Theme.of(context).textTheme.titleMedium),
-  );
-}
-
-class _Note extends StatelessWidget {
-  final String text;
-  const _Note(this.text);
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: Text(text, style: Theme.of(context).textTheme.bodySmall),
   );
 }
 

@@ -69,6 +69,9 @@ class PrayerScreen extends StatefulWidget {
 
   /// Rebuilds the place when something besides the prayers changes, such as the day.
   final Listenable? refresh;
+
+  /// Opens Settings from the app bar; null hides the button.
+  final VoidCallback? onSettings;
   const PrayerScreen({
     super.key,
     required this.store,
@@ -78,6 +81,7 @@ class PrayerScreen extends StatefulWidget {
     this.content,
     this.todayPrayer,
     this.refresh,
+    this.onSettings,
   });
 
   @override
@@ -209,6 +213,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
             onWords: _content.topics.isEmpty ? null : () => _allTopics(wide: false),
             today: widget.todayPrayer?.call(),
             onPrayToday: _prayToday,
+            onSettings: widget.onSettings,
           );
         }
         final wide = c.maxWidth >= _wideBreakpoint;
@@ -291,6 +296,8 @@ class _PrayerScreenState extends State<PrayerScreen> {
             ),
           ),
           IconButton(tooltip: 'Add a prayer', onPressed: _add, icon: const Icon(Icons.add)),
+          if (widget.onSettings case final open?)
+            IconButton(tooltip: 'Settings', icon: const Icon(Icons.tune), onPressed: open),
         ],
       ),
       body: ListView(
@@ -567,6 +574,7 @@ class _FirstTime extends StatelessWidget {
   final VoidCallback? onWords;
   final TodayPrayer? today;
   final void Function(TodayPrayer) onPrayToday;
+  final VoidCallback? onSettings;
   const _FirstTime({
     required this.passage,
     required this.translation,
@@ -575,6 +583,7 @@ class _FirstTime extends StatelessWidget {
     required this.onWords,
     required this.today,
     required this.onPrayToday,
+    this.onSettings,
   });
 
   @override
@@ -583,7 +592,13 @@ class _FirstTime extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final verse = passageText(passage(_welcomeVerse));
     return Scaffold(
-      appBar: AppBar(title: const Text('Prayer')),
+      appBar: AppBar(
+        title: const Text('Prayer'),
+        actions: [
+          if (onSettings case final open?)
+            IconButton(tooltip: 'Settings', icon: const Icon(Icons.tune), onPressed: open),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: contentMaxWidth),

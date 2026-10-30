@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import 'app_state.dart';
+import 'extras_hint.dart' show lexiconHint;
 import 'keep_sheet.dart';
+import 'settings_sheet.dart';
 import 'study_store.dart' show keptWordKind;
 import 'theme.dart';
 
@@ -37,6 +39,7 @@ Future<void> showWordStudy(
         wordIndex: wordIndex,
         pos: pos,
         translation: s.settings.translation,
+        onGetLexicon: () => showSettingsSheet(ctx, s, show: SettingsPart.lexicon),
         onAsk: (question) {
           Navigator.of(ctx).popUntil((r) => r.isFirst);
           s.askAboutWord(question);
@@ -130,6 +133,9 @@ class WordStudyScreen extends StatefulWidget {
   final void Function(String question) onAsk;
   final void Function(Ref verse) onOpen;
 
+  /// Opens Settings at the full Greek lexicon; null where Settings cannot be reached.
+  final VoidCallback? onGetLexicon;
+
   /// Null hides Save word.
   final KeepWord? onKeep;
 
@@ -139,6 +145,7 @@ class WordStudyScreen extends StatefulWidget {
     required this.ref,
     required this.onAsk,
     required this.onOpen,
+    this.onGetLexicon,
     this.english,
     this.occurrence = 0,
     this.wordIndex,
@@ -479,6 +486,8 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
         e == null || e.definition.isEmpty ? 'No lexicon entry for $_code.' : e.definition,
         style: const TextStyle(height: 1.5),
       ),
+      if (full == null && _code!.startsWith('G') && !widget.db.hasFullLexicon)
+        if (widget.onGetLexicon case final get?) _LexiconHint(onGet: get),
       if (full != null)
         ExpansionTile(
           tilePadding: EdgeInsets.zero,
@@ -641,4 +650,26 @@ class _UseTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Says what the complete Greek lexicon would add here, with a way to it.
+class _LexiconHint extends StatelessWidget {
+  final VoidCallback onGet;
+  const _LexiconHint({required this.onGet});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(lexiconHint, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        TextButton(
+          style: TextButton.styleFrom(padding: EdgeInsets.zero),
+          onPressed: onGet,
+          child: const Text('Download in Settings'),
+        ),
+      ],
+    ),
+  );
 }

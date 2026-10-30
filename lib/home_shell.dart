@@ -15,6 +15,7 @@ import 'prayer_screen.dart';
 import 'reader_screen.dart';
 import 'setup_screen.dart';
 import 'study_button.dart';
+import 'settings_sheet.dart';
 import 'theme.dart';
 
 const sidebarWidth = 232.0;
@@ -133,6 +134,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       for (final t in HomeTab.values)
         SingleActivator(digits[t.index], meta: Platform.isMacOS, control: !Platform.isMacOS): () =>
             _select(t),
+      // Cmd comma, where a Mac app keeps its settings.
+      SingleActivator(
+        LogicalKeyboardKey.comma,
+        meta: Platform.isMacOS,
+        control: !Platform.isMacOS,
+      ): () => showSettingsSheet(context, widget.state),
     };
   }
 
@@ -152,6 +159,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           content: s.prayerContent,
           todayPrayer: () => s.prayerOfTheDay,
           refresh: s.dayChanged,
+          onSettings: () => showSettingsSheet(context, s),
         ),
         NavigatorPopHandler(
           enabled: _tab == HomeTab.notes,
@@ -444,6 +452,13 @@ class _Sidebar extends StatelessWidget {
                       ],
                     ),
                   ),
+                ),
+                _SidebarRow(
+                  leading: const Icon(Icons.tune),
+                  label: 'Settings',
+                  shortcut: '${Platform.isMacOS ? '⌘' : 'Ctrl+'},',
+                  selected: false,
+                  onTap: () => showSettingsSheet(context, state),
                 ),
                 const Divider(),
                 ListenableBuilder(

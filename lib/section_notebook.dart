@@ -10,19 +10,20 @@ String sectionNotebookTitle(String heading, Ref ref) => '$heading (${ref.label})
 
 /// Makes notebook for the section [heading] covering [ref], ready to study: the passage, what each
 /// installed commentary says on it, and its key words kept as word studies. A notebook made for
-/// the same section before is opened instead, so a second tap never makes a copy.
+/// the same section before is opened instead, so a second tap never makes a copy; it gains the
+/// commentaries installed since.
 Future<int> makeSectionNotebook(AppState s, Ref ref, String heading) async {
   final title = sectionNotebookTitle(heading, ref);
   for (final n in s.notebooks.notebooks()) {
-    if (n.title == title) return n.id;
+    if (n.title != title) continue;
+    await _addCommentary(s, n.id, ref);
+    return n.id;
   }
   final passage = passageSource(s.db, ref.label, s.settings.translation);
   if (passage == null) throw ReaderMessage('${ref.label} is not in ${s.settings.translation}.');
   final id = s.notebooks.createNotebook(title);
   await s.notebooks.addSource(id, passage);
-  for (final c in commentarySources(s.commentary.library, ref.label)) {
-    await s.notebooks.addSource(id, c);
-  }
+  await _addCommentary(s, id, ref);
   for (final k in s.studyPacket(id).keyWords) {
     final e = k.entry;
     final code = strongsBase(e.key);
@@ -38,9 +39,20 @@ Future<int> makeSectionNotebook(AppState s, Ref ref, String heading) async {
       ),
       verse: k.firstUse,
       title: e.gloss.isEmpty ? e.lemma : '${e.lemma}, ${e.gloss}',
-      kind: keptWordKind,
+      kind: studyWordKind,
     );
   }
   s.touch();
   return id;
+}
+
+/// Adds each installed commentary on [ref] that notebook [id] does not hold yet.
+Future<void> _addCommentary(AppState s, int id, Ref ref) async {
+  final held = {
+    for (final r in s.notebooks.sources(id)) r.title,
+    for (final p in s.notebooks.pendingFor(id)) p.title,
+  };
+  for (final c in commentarySources(s.commentary.library, ref.label)) {
+    if (!held.contains(c.title)) await s.notebooks.addSource(id, c);
+  }
 }

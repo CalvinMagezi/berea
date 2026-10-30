@@ -33,7 +33,7 @@ class Note {
     this.kind = plainNoteKind,
   });
 
-  bool get isKeptWord => kind == keptWordKind;
+  bool get isKeptWord => kind == keptWordKind || kind == studyWordKind;
 
   /// The verse of a verse note. [StudyStore.notes] returns only verse notes.
   Ref get ref => verse!;
@@ -90,6 +90,14 @@ const notesOnVersesKey = 'verse_notes';
 
 const plainNoteKind = 'note';
 const keptWordKind = 'word';
+
+/// A word study that Study notebook added for a section. It goes with its notebook when the
+/// notebook is deleted; once the reader edits it, it is theirs and becomes [keptWordKind].
+const studyWordKind = 'studyword';
+
+/// Makes an added word study the reader's own once they change it.
+const _ownedKind =
+    "kind = CASE WHEN kind = '$studyWordKind' THEN '$keptWordKind' ELSE kind END";
 
 /// Study store migration 5: the notes on verses notebook carries a key, so it is found by key
 /// rather than by its title, and a note says whether it is a kept word.
@@ -479,7 +487,11 @@ class StudyStore {
   }
 
   void updateNote(int id, String text) => _transaction(() {
-    db.execute('UPDATE notes SET text = ?, updated = ? WHERE id = ?', [text, _now(), id]);
+    db.execute('UPDATE notes SET text = ?, updated = ?, $_ownedKind WHERE id = ?', [
+      text,
+      _now(),
+      id,
+    ]);
     _syncNoteSources(id);
   });
 
@@ -494,7 +506,7 @@ class StudyStore {
     final (book, chapter, vs, ve) = _verseColumns(verse);
     db.execute(
       'UPDATE notes SET book = ?, chapter = ?, verse_start = ?, verse_end = ?, text = ?, '
-      'title = ?, notebook_id = ?, updated = ? WHERE id = ?',
+      'title = ?, notebook_id = ?, updated = ?, $_ownedKind WHERE id = ?',
       [book, chapter, vs, ve, text, title, notebookId, _now(), id],
     );
     _syncNoteSources(id);

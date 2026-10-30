@@ -145,6 +145,34 @@ void main() {
     expect(find.byType(ReaderScreen), findsOneWidget);
   });
 
+  testWidgets('Settings opens from the sidebar, from Cmd comma, and from each place', (
+    tester,
+  ) async {
+    await pumpShell(tester, _mac);
+    await tester.pump();
+    final engine = find.text('Engine');
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    expect(engine, findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    final modifier = Platform.isMacOS ? LogicalKeyboardKey.meta : LogicalKeyboardKey.control;
+    await tester.sendKeyDownEvent(modifier);
+    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyUpEvent(modifier);
+    await tester.pumpAndSettle();
+    expect(engine, findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    for (final place in ['Plans', 'Prayer', 'Notes']) {
+      await tester.tap(find.text(place).first);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Settings'), findsWidgets, reason: place);
+    }
+  });
+
   testWidgets('the sidebar speaks Study as the button does, and reads its caption as a word', (
     tester,
   ) async {

@@ -320,11 +320,21 @@ class NotebookStore extends ChangeNotifier {
   /// Removes the notebook with its sources and chunks in one transaction. Its notes and study
   /// pages move to the notes on verses notebook and its conversations to the Bible, so
   /// deleting a notebook never deletes what the user wrote.
+  /// Word studies Study notebook added to notebook [id] that the reader has not changed.
+  int addedWords(int id) =>
+      db.select('SELECT COUNT(*) AS n FROM notes WHERE notebook_id = ? AND kind = ?', [
+            id,
+            studyWordKind,
+          ]).first['n']
+          as int;
+
   void deleteNotebook(int id) {
     for (final p in pending.where((p) => p.notebookId == id)) {
       p.cancelled = true;
     }
     _transaction(() {
+      // What Study notebook added is the notebook's, not the reader's, so it goes with it.
+      db.execute('DELETE FROM notes WHERE notebook_id = ? AND kind = ?', [id, studyWordKind]);
       final holds = db.select(
         'SELECT 1 FROM notes WHERE notebook_id = ? UNION ALL '
         'SELECT 1 FROM study_pages WHERE notebook_id = ? LIMIT 1',
