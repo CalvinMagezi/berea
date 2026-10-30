@@ -80,16 +80,4 @@ void main() {
     await makeSectionNotebook(s, james, 'Taming the Tongue');
     expect(s.notebooks.sources(id), hasLength(2), reason: 'never added twice');
   });
-
-  test('deleting Notes on verses deletes its notes instead of making it again', () async {
-    final id = await makeSectionNotebook(s, james, 'Taming the Tongue');
-    s.study.addNotebookNote(id, 'The tongue is a fire.', title: 'Mine');
-    s.notebooks.deleteNotebook(id);
-    final home = StudyStore.notesOnVersesNotebook(s.study.db);
-    expect(s.notebooks.isNotesOnVerses(home), isTrue);
-    expect(s.notebooks.writtenIn(home), 1);
-    s.notebooks.deleteNotebook(home);
-    expect(s.notebooks.notebooks(), isEmpty, reason: 'not made again');
-    expect(s.study.notes(), isEmpty);
-  });
 }

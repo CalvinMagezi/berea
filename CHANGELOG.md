@@ -39,8 +39,6 @@
   commentaries yet in Synthesize, Listen and Study notebook, and the complete Greek lexicon in a
   word study. Settings opens at the right place.
 - Settings is in the Mac sidebar (Cmd comma) and on Plans, Prayer and Notes, not only Study.
-- Deleting Notes on verses deletes the notes and study pages in it, after saying so; it used to
-  move them into a new Notes on verses, so the delete seemed to do nothing.
 
 ## 0.8.0
 
