@@ -31,7 +31,7 @@ Future<int> makeSectionNotebook(AppState s, Ref ref, String heading) async {
       id,
       keptWordBody(
         code: code,
-        meaning: e.definition.isEmpty ? e.gloss : e.definition,
+        meaning: _plainMeaning(e),
         translit: e.translit,
         language: languageOf(code),
         from: k.firstUse,
@@ -55,4 +55,12 @@ Future<void> _addCommentary(AppState s, int id, Ref ref) async {
   for (final c in commentarySources(s.commentary.library, ref.label)) {
     if (!held.contains(c.title)) await s.notebooks.addSource(id, c);
   }
+}
+
+/// What a kept word says it means: the gloss and its senses in plain words, as the word study
+/// shows them, not the lexicon's abbreviations.
+String _plainMeaning(LexEntry e) {
+  final senses = plainSenses(e.definition);
+  if (senses.isEmpty) return e.gloss;
+  return senses.join('; ');
 }

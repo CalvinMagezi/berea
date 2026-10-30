@@ -39,6 +39,10 @@ void main() {
       expect(words.length, s.studyPacket(id).keyWords.length);
       expect(words, isNotEmpty);
       expect(words.first.text, contains('From James 3:'));
+    // Plain words, as the word study shows them: no lexicon notes, script or reference lists.
+    final meaning = words.first.text.split('\n').first;
+    expect(meaning, isNot(contains('LXX')));
+    expect(RegExp(r'[\u0370-\u03FF\u0590-\u05FF]').hasMatch(meaning), isFalse, reason: meaning);
       expect(words.first.verse, isNotNull);
     },
   );

@@ -41,6 +41,16 @@
 - Settings is in the Mac sidebar (Cmd comma) and on Plans, Prayer and Notes, not only Study.
 - Deleting Notes on verses deletes the notes and study pages in it, after saying so; it used to
   move them into a new Notes on verses, so the delete seemed to do nothing.
+- On a wide screen the conversation about a notebook sits beside its list, and Ask about this
+  notebook brings it back; on a phone it opens Study scoped to the notebook. A notebook made
+  from a section now opens in Notes, so the places stay in reach; Ask used to seem to do nothing
+  there.
+- Synthesize groups commentary by work, folded, with each comment a tap away, instead of one line
+  per verse. References are buttons that open the passage, key words say what they mean, and
+  Listen and Ask sit at the bottom.
+- Word study leads with plain words: what the word means and its senses, without lexicon
+  abbreviations or reference lists. The scholar's lexicon entry, and the full LSJ entry, are one
+  tap away. The Words sheet and the word studies Study notebook keeps read the same way.
 
 ## 0.8.0
 
