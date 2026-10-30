@@ -6,6 +6,7 @@ export 'src/csv.dart';
 export 'src/engine.dart';
 export 'src/harness.dart';
 export 'src/importers.dart';
+export 'src/listen_script.dart';
 export 'src/notebook_text.dart';
 export 'src/ollama_engine.dart';
 export 'src/prayer_check.dart';
