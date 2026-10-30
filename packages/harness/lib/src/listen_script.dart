@@ -8,7 +8,10 @@ import 'study_packet.dart';
 import 'tier.dart';
 import 'truncation.dart';
 
-/// Words a deep dive aims for: about nine minutes at the 160 words a minute the voice reads.
+/// The pace Supertonic 3 read Hebrews 11 at on the A32.
+const listenWordsPerMinute = 160;
+
+/// Words a deep dive aims for: about nine minutes at [listenWordsPerMinute].
 const listenWords = 1400;
 
 /// Words for each beat other than the verse walk, which shares what is left.

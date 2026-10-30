@@ -32,6 +32,7 @@ String helperStatusWords(HelperState helper) => switch (helper) {
   HelperChecking() => 'helper starting',
   HelperLoading() => 'helper loading',
   HelperReady() => 'helper ready',
+  HelperResting() => 'helper resting while a deep dive is recorded',
   HelperFailed() => 'helper needs a look',
 };
 

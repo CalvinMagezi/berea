@@ -3,6 +3,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- The daily verse and prayer are scheduled on the phone and again after a restart. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- A deep dive keeps being made, with a progress notification, while Berea is in the background. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <application
         android:label="Berea"
         android:largeHeap="true"
@@ -33,6 +36,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- stopWithTask: a deep dive runs in the app's Dart code, which ends when Berea is swiped
+             away, so the notice goes with it and the dive continues from its last part next time. -->
+        <service
+            android:name="com.dexterous.flutterlocalnotifications.ForegroundService"
+            android:exported="false"
+            android:stopWithTask="true"
+            android:foregroundServiceType="dataSync"/>
         <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
         <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
             <intent-filter>

@@ -16,6 +16,23 @@ const _androidIcon = 'ic_stat_berea';
 /// A platform call that never answers must not hold every later update behind it.
 const _updateTimeout = Duration(seconds: 30);
 
+/// Sets up [plugin] without asking for permission: that is asked when the reader turns
+/// notifications on, or starts a deep dive, never at launch.
+Future<void> initLocalNotifications(FlutterLocalNotificationsPlugin plugin) async {
+  const darwin = DarwinInitializationSettings(
+    requestAlertPermission: false,
+    requestBadgePermission: false,
+    requestSoundPermission: false,
+  );
+  await plugin.initialize(
+    settings: const InitializationSettings(
+      android: AndroidInitializationSettings(_androidIcon),
+      iOS: darwin,
+      macOS: darwin,
+    ),
+  );
+}
+
 /// Notifications on the platforms that have them. Everything is scheduled on this device; the
 /// plugin sends nothing anywhere.
 class LocalNotificationsPlatform implements ReminderPlatform {
@@ -40,19 +57,7 @@ class LocalNotificationsPlatform implements ReminderPlatform {
 
   Future<void> _init() async {
     if (_ready) return;
-    // Permission is asked when the reader turns notifications on, never at launch.
-    const darwin = DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
-    );
-    await _plugin.initialize(
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings(_androidIcon),
-        iOS: darwin,
-        macOS: darwin,
-      ),
-    );
+    await initLocalNotifications(_plugin);
     _ready = true;
   }
 

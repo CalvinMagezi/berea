@@ -53,3 +53,4 @@ flutter:
     - prompts/system.md
     - licenses/pdfium/
     - licenses/gemma/
+    - licenses/supertonic/
