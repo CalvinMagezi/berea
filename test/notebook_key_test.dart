@@ -21,20 +21,22 @@ void main() {
     expect(StudyStore.notesOnVersesId(store.db), home);
   });
 
-  test('deleting notes on verses moves its notes to a new one that takes the key', () {
+  test('deleting notes on verses deletes its notes; the next one made takes the key', () {
     final store = StudyStore(sqlite3.openInMemory());
     final books = NotebookStore(store.db);
     final other = books.createNotebook('Sermons');
     final note = store.addNotebookNote(other, 'Sunday.');
     final home = store.note(store.addNote(_ref('John 1:1'), 'Word.'))!.notebookId!;
 
+    // Decided 2026-10-30: Delete here deletes what is in it, after the prompt says so.
     books.deleteNotebook(home);
+    expect(StudyStore.notesOnVersesId(store.db), isNull);
     books.deleteNotebook(other);
 
     final now = StudyStore.notesOnVersesId(store.db)!;
     expect(now, isNot(home));
     expect(store.note(note)!.notebookId, now);
-    expect(store.notebookNotes(now), hasLength(2));
+    expect(store.notebookNotes(now), hasLength(1));
   });
 
   test('a backup from before keys restores without a second notes on verses', () {

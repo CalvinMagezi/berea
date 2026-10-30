@@ -9,6 +9,7 @@ import 'prayer_points.dart';
 import 'prayer_today.dart';
 import 'prayer_words.dart';
 import 'setup_screen.dart' show deviceNoun;
+import 'settings_sheet.dart';
 import 'theme.dart';
 import 'today.dart';
 
@@ -60,6 +61,7 @@ class _PlansScreenState extends State<PlansScreen> {
           style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 26),
         ),
         actions: [
+          SettingsButton(state: s),
           if (progress != null)
             PopupMenuButton<void>(
               tooltip: 'Plan options',

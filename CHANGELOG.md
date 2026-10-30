@@ -32,6 +32,15 @@
   voice reads, and on Android a notification shows how far along it is and says when it is
   ready. Stop keeps what was made, and Continue picks up from there. The recording stays on the
   device and out of backups, and it says that it is machine generated.
+- Study notebook marks the word studies it adds as its own: deleting the notebook removes them
+  with it, while notes you wrote, and word studies you have edited, still move to Notes on
+  verses. Tapping Study notebook again adds the commentaries installed since.
+- Where an optional download would add something, Berea says so quietly with a way to it: no
+  commentaries yet in Synthesize, Listen and Study notebook, and the complete Greek lexicon in a
+  word study. Settings opens at the right place.
+- Settings is in the Mac sidebar (Cmd comma) and on Plans, Prayer and Notes, not only Study.
+- Deleting Notes on verses deletes the notes and study pages in it, after saying so; it used to
+  move them into a new Notes on verses, so the delete seemed to do nothing.
 
 ## 0.8.0
 

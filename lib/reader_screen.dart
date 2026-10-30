@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'app_state.dart';
 import 'commentary_sheet.dart';
+import 'extras_hint.dart';
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
 import 'notebooks_screen.dart';
@@ -14,6 +15,7 @@ import 'prayer_store.dart' show Prayer;
 import 'brand/prayer_icon.dart';
 import 'prayer_sheet.dart' show passageText, shareOrigin, shareText;
 import 'selection_bar.dart';
+import 'settings_sheet.dart';
 import 'study_page_screen.dart';
 import 'search_screen.dart';
 import 'section_notebook.dart';
@@ -385,6 +387,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
       setState(_selected.clear);
+      if (!hasCommentary(s)) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text(commentaryHint),
+            duration: const Duration(seconds: 8),
+            action: SnackBarAction(
+              label: 'Get them',
+              onPressed: () => showSettingsSheet(
+                navigator.context,
+                s,
+                show: SettingsPart.commentary,
+              ),
+            ),
+          ),
+        );
+      }
       await navigator.push(
         MaterialPageRoute<void>(builder: (_) => NotebookScreen(state: s, notebookId: id)),
       );

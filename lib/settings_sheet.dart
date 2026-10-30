@@ -13,13 +13,31 @@ import 'terms.dart';
 
 const minPassphraseLength = 8;
 
-Future<void> showSettingsSheet(BuildContext context, AppState state) {
-  return showDialog<void>(context: context, builder: (_) => _SettingsDialog(state));
+/// The Settings button every place shows in its app bar, as Study does.
+class SettingsButton extends StatelessWidget {
+  final AppState state;
+  const SettingsButton({super.key, required this.state});
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: 'Settings',
+    icon: const Icon(Icons.tune),
+    onPressed: () => showSettingsSheet(context, state),
+  );
+}
+
+/// A part of Settings a hint can open straight to.
+enum SettingsPart { commentary, lexicon }
+
+/// Opens Settings, scrolled to [show] when given.
+Future<void> showSettingsSheet(BuildContext context, AppState state, {SettingsPart? show}) {
+  return showDialog<void>(context: context, builder: (_) => _SettingsDialog(state, show: show));
 }
 
 class _SettingsDialog extends StatefulWidget {
   final AppState state;
-  const _SettingsDialog(this.state);
+  final SettingsPart? show;
+  const _SettingsDialog(this.state, {this.show});
 
   @override
   State<_SettingsDialog> createState() => _SettingsDialogState();
@@ -30,10 +48,18 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   late final _url = TextEditingController(text: draft.ollamaUrl);
   late final _model = TextEditingController(text: draft.model);
 
+  final _parts = {for (final p in SettingsPart.values) p: GlobalKey()};
+
   @override
   void initState() {
     super.initState();
     widget.state.addListener(_refresh);
+    if (widget.show case final part?) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final at = _parts[part]!.currentContext;
+        if (at != null && at.mounted) Scrollable.ensureVisible(at, alignment: 0.1);
+      });
+    }
   }
 
   @override
@@ -388,7 +414,11 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                   style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.error),
                 ),
               const Divider(height: 24),
-              Text('Full Greek lexicon', style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                'Full Greek lexicon',
+                key: _parts[SettingsPart.lexicon],
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
               const SizedBox(height: 4),
               Text(
                 widget.state.db.hasFullLexicon
@@ -418,7 +448,11 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                   ],
                 ),
               const Divider(height: 24),
-              CommentarySettings(state: widget.state, onMessage: _say),
+              CommentarySettings(
+                key: _parts[SettingsPart.commentary],
+                state: widget.state,
+                onMessage: _say,
+              ),
               ReminderSettingsSection(state: widget.state, onMessage: _say),
               const Divider(height: 24),
               Text('Your data', style: Theme.of(context).textTheme.titleSmall),

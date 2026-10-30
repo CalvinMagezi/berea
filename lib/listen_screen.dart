@@ -7,9 +7,11 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'attributions_screen.dart';
+import 'extras_hint.dart';
 import 'listen.dart';
 import 'listen_voice.dart';
 import 'notebooks_screen.dart';
+import 'settings_sheet.dart';
 import 'terms.dart';
 import 'theme.dart';
 
@@ -107,6 +109,7 @@ class _ListenScreenState extends State<ListenScreen> {
         _VoiceSetup(state: _s)
       else
         _Start(
+          state: _s,
           plan: _plan,
           onStart: _start,
           resumes: _unfinished,
@@ -125,6 +128,7 @@ class _ListenScreenState extends State<ListenScreen> {
 }
 
 class _Start extends StatelessWidget {
+  final AppState state;
   final ListenPlan plan;
   final VoidCallback onStart;
   final bool resumes;
@@ -135,6 +139,7 @@ class _Start extends StatelessWidget {
   /// The notebook a deep dive is being made for, when it is another one.
   final String? busyWith;
   const _Start({
+    required this.state,
     required this.plan,
     required this.onStart,
     required this.resumes,
@@ -161,6 +166,8 @@ class _Start extends StatelessWidget {
           'Making it takes $listenWaitWords. You can keep using Berea: questions in Study are '
           'answered between parts, and the helper rests while the voice reads.',
         ),
+        if (!hasCommentary(state))
+          ExtrasHint(state: state, part: SettingsPart.commentary, text: listenCommentaryHint),
         if (!plan.walksAll)
           _Muted(
             'This notebook is long, so the deep dive walks through ${plan.walkedVerses} of its '

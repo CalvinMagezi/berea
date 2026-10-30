@@ -320,11 +320,41 @@ class NotebookStore extends ChangeNotifier {
   /// Removes the notebook with its sources and chunks in one transaction. Its notes and study
   /// pages move to the notes on verses notebook and its conversations to the Bible, so
   /// deleting a notebook never deletes what the user wrote.
+  /// Word studies Study notebook added to notebook [id] that the reader has not changed.
+  int addedWords(int id) =>
+      db.select('SELECT COUNT(*) AS n FROM notes WHERE notebook_id = ? AND kind = ?', [
+            id,
+            studyWordKind,
+          ]).first['n']
+          as int;
+
+  /// Whether [id] is the notes on verses notebook, where a deleted notebook's notes go.
+  bool isNotesOnVerses(int id) => db
+      .select('SELECT 1 FROM notebooks WHERE id = ? AND system_key = ?', [id, notesOnVersesKey])
+      .isNotEmpty;
+
+  /// Notes and study pages in notebook [id]: what a delete moves, or for the notes on verses
+  /// notebook, deletes.
+  int writtenIn(int id) =>
+      db.select(
+            'SELECT (SELECT COUNT(*) FROM notes WHERE notebook_id = ?) + '
+            '(SELECT COUNT(*) FROM study_pages WHERE notebook_id = ?) AS n',
+            [id, id],
+          ).first['n']
+          as int;
+
   void deleteNotebook(int id) {
     for (final p in pending.where((p) => p.notebookId == id)) {
       p.cancelled = true;
     }
     _transaction(() {
+      // What Study notebook added is the notebook's, not the reader's, so it goes with it.
+      db.execute('DELETE FROM notes WHERE notebook_id = ? AND kind = ?', [id, studyWordKind]);
+      // The notes on verses notebook is where notes go; moving them would only make it again.
+      if (isNotesOnVerses(id)) {
+        db.execute('DELETE FROM notes WHERE notebook_id = ?', [id]);
+        db.execute('DELETE FROM study_pages WHERE notebook_id = ?', [id]);
+      }
       final holds = db.select(
         'SELECT 1 FROM notes WHERE notebook_id = ? UNION ALL '
         'SELECT 1 FROM study_pages WHERE notebook_id = ? LIMIT 1',

@@ -561,7 +561,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Jesus and Nicodemus'), findsOneWidget);
     expect(find.text('John 3:1-21 · 21 verses'), findsOneWidget);
-    expect(find.textContaining('No commentary is installed'), findsOneWidget);
+    expect(find.textContaining('No commentaries are downloaded yet'), findsOneWidget);
+    expect(find.text('Download in Settings'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Key words'), 200);
     expect(find.textContaining('"to beget"'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Witnesses from the other testament'), 200);

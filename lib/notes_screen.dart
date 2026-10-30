@@ -7,6 +7,7 @@ import 'note_dialog.dart';
 import 'notebook_store.dart';
 import 'notebooks_screen.dart';
 import 'study_store.dart';
+import 'settings_sheet.dart';
 import 'theme.dart';
 
 /// Recent shows this many entries; older ones are in their notebooks.
@@ -120,6 +121,7 @@ class _NotesScreenState extends State<NotesScreen> {
               _filter = '';
             }),
           ),
+          SettingsButton(state: _s),
           IconButton(
             tooltip: 'Export all as Markdown',
             icon: const Icon(Icons.ios_share),
