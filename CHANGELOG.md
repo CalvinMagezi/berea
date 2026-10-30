@@ -18,6 +18,10 @@
   is the groundwork for listening to a notebook as a spoken deep dive.
 - Passages longer than 40 verses are kept whole in a notebook, a study page, a note's verse
   preview and an export; they used to stop at verse 40.
+- Tap a section heading in the reader, then Study notebook: the section becomes a notebook named
+  for it, with the passage, what each installed commentary says on it, and its key Hebrew or Greek
+  words kept as word studies, ready to Synthesize or Listen. Tapping it again for the same section
+  opens that notebook instead of making a copy.
 - Listen, in a notebook, makes a spoken deep dive of about nine minutes, read by one narrator.
   The helper writes it part by part from what Synthesize gathers: an opening, a walk through the
   verses with their Hebrew or Greek words and commentators, the hardest question the passage

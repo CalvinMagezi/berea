@@ -7,10 +7,12 @@ import 'package:berea/reader_screen.dart';
 import 'package:berea/selection_bar.dart';
 import 'package:berea/study_button.dart';
 import 'package:berea/theme.dart';
+import 'package:berea/voice.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/bible.dart';
@@ -31,6 +33,12 @@ const _phoneActions = ['Highlight', 'Note', 'Pray', 'Ask', 'More'];
 /// An action on the selection bar.
 Finder action(String label) =>
     find.descendant(of: find.byType(SelectionBar), matching: find.bySemanticsLabel(label));
+
+/// The notebook's composer asks whether voice is in use; tests have no microphone plugin.
+class _NoRecorder implements AudioRecorder {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
   if (needsBuiltBible case final why?) {
@@ -55,11 +63,17 @@ void main() {
       'readerChapter': 3,
       'tipT14Done': true,
     });
-    return AppState.bootstrap(
+    final s = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
       prayerContent: PrayerContent.empty,
     );
+    return s
+      ..voice = VoiceInput(
+        transcribe: (_) async => '',
+        recorder: _NoRecorder(),
+        cacheDir: () async => dir,
+      );
   }
 
   /// Opens the shell at [size] with verses [verses] of John 3 selected. The verses are tapped at
@@ -131,6 +145,39 @@ void main() {
     await tester.tap(find.text('Jesus and Nicodemus'));
     await tester.pumpAndSettle();
     expect(find.byType(SelectionBar), findsNothing);
+  });
+
+  testWidgets('a section chosen by its heading becomes a study notebook in one tap', (
+    tester,
+  ) async {
+    final state = await pumpSelected(tester, _roomyPhone, []);
+    await tester.tap(find.text('Jesus and Nicodemus'));
+    await tester.pumpAndSettle();
+    final study = find.text('Study notebook: Jesus and Nicodemus');
+    expect(study, findsOneWidget);
+    await tester.tap(study);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 500)));
+    await tester.pumpAndSettle();
+    expect(find.text('Jesus and Nicodemus (John 3:1-21)'), findsWidgets);
+    final made = state.notebooks.notebooks().single;
+    expect(state.notebooks.sources(made.id).first.title, startsWith('John 3:1-21'));
+    expect(state.study.notebookNotes(made.id).where((n) => n.isKeptWord), isNotEmpty);
+    expect(find.byTooltip('Listen'), findsOneWidget);
+    expect(find.byTooltip('Synthesize'), findsOneWidget);
+  });
+
+  testWidgets('a verse or a part of a section offers no study notebook', (tester) async {
+    await pumpSelected(tester, _roomyPhone, [1, 2]);
+    expect(find.textContaining('Study notebook'), findsNothing);
+  });
+
+  testWidgets('the Mac toolbar puts Study notebook first for a whole section', (tester) async {
+    await pumpSelected(tester, _mac, []);
+    await tester.tap(find.text('Jesus and Nicodemus'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final xs = [for (final a in ['Study notebook', 'Highlight']) tester.getCenter(action(a)).dx];
+    expect(xs.first, lessThan(xs.last));
   });
 
   testWidgets('Pray opens the prayer sheet with the selected verses filled in', (tester) async {
