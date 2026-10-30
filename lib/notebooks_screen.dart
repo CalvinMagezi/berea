@@ -404,13 +404,19 @@ class _NotebookMenu extends StatelessWidget {
         }
       case _NotebookAction.delete:
         final added = store.addedWords(notebook.id);
+        final written = store.writtenIn(notebook.id);
         final ok = await confirmAction(
           context,
           'Delete ${notebook.title}?',
-          'Its ${plural(notebook.sourceCount, 'reading', 'readings')}'
-              '${added == 0 ? '' : ' and the ${plural(added, 'word study', 'word studies')} Study notebook added'}'
-              ' will be removed from this device. Notes and study pages you wrote in it move to '
-              '$notesOnVersesTitle. This cannot be undone.',
+          store.isNotesOnVerses(notebook.id)
+              ? 'Everything in it will be deleted from this device: '
+                    '${plural(written, 'note or study page', 'notes and study pages')} and '
+                    '${plural(notebook.sourceCount, 'reading', 'readings')}. Notes you write on '
+                    'verses later start it again. This cannot be undone.'
+              : 'Its ${plural(notebook.sourceCount, 'reading', 'readings')}'
+                    '${added == 0 ? '' : ' and the ${plural(added, 'word study', 'word studies')} Study notebook added'}'
+                    ' will be removed from this device. Notes and study pages you wrote in it '
+                    'move to $notesOnVersesTitle. This cannot be undone.',
           'Delete',
         );
         if (!ok || !context.mounted) return;
