@@ -436,6 +436,11 @@ docs/screenshots/
   files carry `com.apple.security.device.audio-input`. On Linux, voice needs `parecord`
   (PulseAudio or PipeWire) and `ffmpeg` installed. Recordings go in a private folder in the app's
   cache and are deleted as soon as they are read.
+- **Listen**: deep dives are spoken by Supertonic 3 (int8, BigScience Open RAIL-M) through
+  `sherpa_onnx` in its own isolate, downloaded once per file from the `voice-supertonic3-1` data
+  release, and played with `audioplayers`. Android keeps a render going in the background with a
+  `dataSync` foreground service. Building for Linux needs `libgstreamer1.0-dev` and
+  `libgstreamer-plugins-base1.0-dev`, which `audioplayers` plays through.
 - A small method channel reports device memory so the settings can recommend a model.
 - Debug builds read `BEREA_AUTORUN` or `autorun.txt` in the app's documents folder and run that
   question on launch, so a headless simulator or emulator can exercise the on-device path.
