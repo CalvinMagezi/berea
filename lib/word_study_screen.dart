@@ -48,29 +48,27 @@ Future<void> showWordStudy(
           Navigator.of(ctx).popUntil((r) => r.isFirst);
           s.openInReader(verse);
         },
-        onKeep: ({required title, required body, required subtitle, verse}) =>
-            showKeepSheet(
-              ctx,
-              s,
-              title: title,
-              body: body,
-              subtitle: subtitle,
-              verse: verse,
-              kind: keptWordKind,
-            ),
+        onKeep: ({required title, required body, required subtitle, verse}) => showKeepSheet(
+          ctx,
+          s,
+          title: title,
+          body: body,
+          subtitle: subtitle,
+          verse: verse,
+          kind: keptWordKind,
+        ),
       ),
     ),
   );
 }
 
 /// Files a word in a notebook: Save word.
-typedef KeepWord =
-    void Function({
-      required String title,
-      required String body,
-      required String subtitle,
-      Ref? verse,
-    });
+typedef KeepWord = void Function({
+  required String title,
+  required String body,
+  required String subtitle,
+  Ref? verse,
+});
 
 /// The word under [global] in the verse laid out by the text widget at [textContext], whose first
 /// [prefixLength] characters (the verse number) come before [text]. Null when the press is not on
@@ -170,6 +168,9 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   /// The base Strong's number studied; null until the reader picks a word.
   String? _code;
   LexEntry? _entry;
+
+  /// The entry's definition in plain words, without the gloss itself; see [plainSenses].
+  List<String> _senses = const [];
   ({int uses, int verses}) _count = (uses: 0, verses: 0);
   List<(Book, int)> _books = const [];
   List<(String, int)> _glosses = const [];
@@ -224,6 +225,10 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   void _study(String code, [LexEntry? entry]) {
     _code = code;
     _entry = entry ?? widget.db.lexicon(code);
+    _senses = [
+      for (final sense in plainSenses(_entry?.definition ?? ''))
+        if (sense.toLowerCase() != _entry!.gloss.toLowerCase()) sense,
+    ];
     _count = widget.db.wordCount(code);
     _books = widget.db.wordBooks(code);
     _glosses = widget.db.wordGlosses(code);
@@ -294,7 +299,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
               ),
               const SizedBox(height: 12),
-              if (_code == null)
+              if (_code == null) ...[
                 Text(
                   english == null
                       ? 'Choose a word from ${widget.ref.label}.'
@@ -303,19 +308,23 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
                             '$_verseLanguage word stands behind it. Choose a word from the verse:'
                       : _unknown(english),
                   style: const TextStyle(height: 1.45),
-                )
-              else
-                ..._header(scheme),
-              if (_verseWords.isNotEmpty) ..._verseRow(scheme),
-              if (_code == null && english != null && _glossed.isNotEmpty)
-                ..._otherWords(
-                  scheme,
-                  _sectionHeading(scheme),
-                  english,
-                  _glossed.take(glossedWordsShown).toList(),
-                  'WORDS GLOSSED',
                 ),
-              if (_code != null) ..._body(scheme),
+                if (_verseWords.isNotEmpty) ..._verseRow(scheme),
+                if (english != null && _glossed.isNotEmpty)
+                  ..._otherWords(
+                    scheme,
+                    _sectionHeading(scheme),
+                    english,
+                    _glossed.take(glossedWordsShown).toList(),
+                    'WORDS GLOSSED',
+                  ),
+              ] else ...[
+                ..._header(scheme),
+                ..._meaning(scheme),
+                ..._inThisVerse(scheme),
+                ..._scholarEntry(scheme),
+                ..._body(scheme),
+              ],
             ],
           ),
         ),
@@ -335,11 +344,14 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
         'It stands on ${entry.lemma} ("${entry.gloss}"). Choose a word from the verse:';
   }
 
+  /// The form of the word as this verse prints it, without accents; empty from another word's study.
+  String get _hereForm => _tag == null ? '' : cleanOriginal(_tag!.original);
+
   List<Widget> _header(ColorScheme scheme) {
     final e = _entry;
     final tag = _tag;
-    final here = tag == null ? '' : cleanOriginal(tag.original);
-    final lemma = e?.lemma ?? here;
+    final lemma = e?.lemma ?? _hereForm;
+    final pos = e == null ? '' : partOfSpeech(e.pos);
     return [
       Text(
         lemma,
@@ -348,28 +360,13 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
       Text(
         [
           if (e != null && e.translit.isNotEmpty) e.translit,
-          _code!,
           _language,
-          if (e != null && partOfSpeech(e.pos).isNotEmpty) partOfSpeech(e.pos),
+          if (pos.isNotEmpty) pos,
+          // Without an entry the number is all there is to say about the word.
+          if (e == null) _code!,
         ].join(' · '),
-        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
       ),
-      if (e != null && e.gloss.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Text(
-            e.gloss,
-            style: TextStyle(color: scheme.primary, fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-        ),
-      if (tag != null && here.isNotEmpty && here != lemma)
-        Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Text(
-            'In ${widget.ref.label}: $here (${tag.translit}), "${cleanGloss(tag.gloss, strongs: tag.strongs)}"',
-            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
-          ),
-        ),
       const SizedBox(height: 16),
       if (e != null)
         Wrap(
@@ -399,6 +396,89 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     ];
   }
 
+  TextStyle _sectionTitle(ColorScheme scheme) =>
+      TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: scheme.onSurface);
+
+  /// The gloss in large type, then the definition's senses in plain words when it has any.
+  List<Widget> _meaning(ColorScheme scheme) {
+    final gloss = _entry?.gloss ?? '';
+    return [
+      const SizedBox(height: 24),
+      Text('What it means', style: _sectionTitle(scheme)),
+      const SizedBox(height: 6),
+      if (gloss.isEmpty && _senses.isEmpty)
+        Text('No lexicon entry for $_code.')
+      else if (gloss.isNotEmpty)
+        SelectableText(
+          gloss,
+          style: TextStyle(color: scheme.primary, fontSize: 20, fontWeight: FontWeight.w600),
+        ),
+      if (_senses.length == 1)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: SelectableText(_senses.first, style: const TextStyle(height: 1.45)),
+        ),
+      if (_senses.length > 1) ...[
+        const SizedBox(height: 14),
+        Text('Its senses', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+        const SizedBox(height: 4),
+        for (final (i, sense) in _senses.indexed) _SenseRow(number: i + 1, text: sense),
+      ],
+    ];
+  }
+
+  /// How this verse prints the word, and the verse's original words one tap from the right one.
+  List<Widget> _inThisVerse(ColorScheme scheme) {
+    final tag = _tag;
+    final here = _hereForm;
+    if (tag == null && _verseWords.isEmpty) return const [];
+    return [
+      const SizedBox(height: 24),
+      Text('In this verse', style: _sectionTitle(scheme)),
+      if (tag != null && here.isNotEmpty && here != (_entry?.lemma ?? here))
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            'In ${widget.ref.label}: $here (${tag.translit}), '
+            '"${cleanGloss(tag.gloss, strongs: tag.strongs)}"',
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+          ),
+        ),
+      if (_verseWords.isNotEmpty) ..._verseRow(scheme),
+    ];
+  }
+
+  /// The lexicon's own entry as the scholars wrote it, one tap away and closed to begin with.
+  List<Widget> _scholarEntry(ColorScheme scheme) {
+    final definition = _entry?.definition ?? '';
+    final greek = _code!.startsWith('G');
+    final full = greek ? widget.db.fullLexicon(_entry?.key ?? _code!) : null;
+    final get = full == null && greek && !widget.db.hasFullLexicon ? widget.onGetLexicon : null;
+    if (definition.isEmpty && full == null && get == null) return const [];
+    return [
+      const SizedBox(height: 8),
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: EdgeInsets.zero,
+        expandedAlignment: Alignment.centerLeft,
+        expandedCrossAxisAlignment: CrossAxisAlignment.start,
+        title: Text("Scholar's lexicon entry", style: _sectionTitle(scheme)),
+        subtitle: Text("Strong's $_code"),
+        children: [
+          if (definition.isNotEmpty)
+            SelectableText(definition, style: const TextStyle(height: 1.5)),
+          if (get != null) _LexiconHint(onGet: get),
+          if (full != null)
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('Full LSJ entry'),
+              children: [SelectableText(full, style: const TextStyle(height: 1.45))],
+            ),
+        ],
+      ),
+    ];
+  }
+
   /// Files the word as a note titled with the word and its gloss; see [keptWordBody].
   void _keep(LexEntry e, String lemma) {
     final from = _tag == null ? null : widget.ref;
@@ -423,7 +503,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
 
   /// The original words of the verse, so a wrong guess is one tap from the right word.
   List<Widget> _verseRow(ColorScheme scheme) => [
-    const SizedBox(height: 20),
+    const SizedBox(height: 16),
     Text(
       _guessed
           ? 'Chosen by meaning. Not the word you meant? Choose another from ${widget.ref.label}:'
@@ -470,38 +550,18 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   );
 
   List<Widget> _body(ColorScheme scheme) {
-    final e = _entry;
     final heading = _sectionHeading(scheme);
-    final full = _code!.startsWith('G') ? widget.db.fullLexicon(e?.key ?? _code!) : null;
-    final others = [
-      for (final g in _glossed)
-        if (g.code != _code) g,
-    ].take(glossedWordsShown).toList();
+    final others = _glossed.where((g) => g.code != _code).take(glossedWordsShown).toList();
     final english = widget.english;
     return [
       const SizedBox(height: 24),
-      Text('MEANING', style: heading),
-      const SizedBox(height: 6),
-      SelectableText(
-        e == null || e.definition.isEmpty ? 'No lexicon entry for $_code.' : e.definition,
-        style: const TextStyle(height: 1.5),
-      ),
-      if (full == null && _code!.startsWith('G') && !widget.db.hasFullLexicon)
-        if (widget.onGetLexicon case final get?) _LexiconHint(onGet: get),
-      if (full != null)
-        ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          title: const Text('Full LSJ entry'),
-          children: [SelectableText(full, style: const TextStyle(height: 1.45))],
-        ),
-      const SizedBox(height: 24),
-      Text('USE', style: heading),
+      Text('How it is used', style: _sectionTitle(scheme)),
       const SizedBox(height: 6),
       Text(
         _count.uses == 0
             ? 'Not found anywhere else in the tagged text.'
-            : 'Used ${_times(_count.uses)} in ${_plural(_count.verses, 'verse')} across '
-                  '${_plural(_books.length, 'book')}.',
+            : 'You will find it ${_times(_count.uses)} in ${_plural(_count.verses, 'verse')} '
+                  'across ${_plural(_books.length, 'book')}.',
       ),
       if (_glosses.isNotEmpty) ...[
         const SizedBox(height: 10),
@@ -583,6 +643,31 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
 
   static String _times(int n) => n == 1 ? 'once' : (n == 2 ? 'twice' : '$n times');
   static String _plural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
+}
+
+/// One numbered sense of a word, the number in its own column so wrapped lines stay aligned.
+class _SenseRow extends StatelessWidget {
+  final int number;
+  final String text;
+  const _SenseRow({required this.number, required this.text});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 24,
+          child: Text(
+            '$number.',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.45),
+          ),
+        ),
+        Expanded(child: SelectableText(text, style: const TextStyle(height: 1.45))),
+      ],
+    ),
+  );
 }
 
 /// One verse that uses the word, with the English words that render it marked.

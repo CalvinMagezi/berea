@@ -513,4 +513,121 @@ void main() {
       expect(press('Jesus', const [], const [], 5).kind, PressKind.unknown);
     });
   });
+
+  group('plainSenses', () {
+    const krima =
+        'κρίμα (B1., § 27, 2), -τος, τό (κρίνω), [in LXX chiefly for מִשְׁפָּט ;] the issue of a '
+        'judicial process, hence, __1. judgment, the decision passed on the faults of others : '
+        'Mat.7:2; in forensic sense, with genitive pun., Luk.24:20; esp. of the judgment of God, '
+        'Rom.2:2 5:16 11:33 ( ICC , in l), 2Pe.2:3 , Ju 4 ; κ. λαμβάνεσθαι, Mat.23:13 (Rec., R, mg.)';
+    const kriseis =
+        'κρίσις , -εως, ἡ (κρίνω), [in LXX chiefly for מִשְׁפָּט, also for רִיב, etc. ;] __1. a '
+        'seperating, selection (Arist., al.) __2. a decision, judgment (cl.): Jhn.8:16 , 1Ti.5:24 ; '
+        'κ. κρίνειν, Jhn.7:24; esp. of the Divine judgment, Jhn.3:19 5:24, 27 __3. By meton. (as in '
+        'LXX for מ...';
+
+    test('Abbott-Smith: the krima entry loses its grammar, LXX note and references', () {
+      expect(plainSenses(krima), ['Judgment, the decision passed on the faults of others']);
+    });
+
+    test('Abbott-Smith: numbered senses split and a cut-off one is dropped', () {
+      expect(plainSenses(kriseis), ['A seperating, selection', 'A decision, judgment']);
+    });
+
+    test('Abbott-Smith without numbers is one sense up to its references', () {
+      expect(
+        plainSenses(
+          'ἄτιμος , -ον (τιμή), [in LXX: Isa.3:5 (קָלָה ni.), Wis.5:1-23 , Sir.1:1-30 * ;] '
+          'without honour, dishonoured, despised : Mat.13:57 , Mrk.6:4 , 1Co.4:10 ; comp., '
+          '1Co.12:23. † (AS)',
+        ),
+        ['Without honour, dishonoured, despised'],
+      );
+    });
+
+    test('Abbott-Smith keeps a short lead-in before the numbered senses', () {
+      expect(
+        plainSenses(
+          'ἀγάπη , -ης, ἡ [in LXX for אַהֲבָה ;] love, goodwill, esteem . Outside of bibl. books, '
+          'there is none. In NT, like ἀγαπάω, __1. Of men\'s love : __(a) to one another, '
+          'Jhn.13:35. __2. Of divine love ; __(a) God\'s love : to men, Rom.5:8.',
+        ),
+        ['Love, goodwill, esteem', "Of men's love", 'Of divine love'],
+      );
+    });
+
+    test('Liddell-Scott numbering drops authors, bracketed refs and Greek', () {
+      expect(
+        plainSenses(
+          '1. pain of body, (Iliad by Homer) 2. pain of mind, grief, distress , (Homer) '
+          '3. anything that causes pain , [ Refs 2nd c.BC , variant dates Anthology Palantina (ML)',
+        ),
+        ['Pain of body', 'Pain of mind, grief, distress', 'Anything that causes pain'],
+      );
+      expect(
+        plainSenses(
+          'an intestine, piece of gut , ἔντερον οἰός a string of sheep\'s gut , '
+          '(Odyssey by Homer):\u2014;mostly in plural ἔντερα, the guts, bowels (ML)',
+        ),
+        ["An intestine, piece of gut, a string of sheep's gut"],
+      );
+    });
+
+    test('BDB takes the top-level senses and not their Qal, Piel and sub-senses', () {
+      expect(
+        plainSenses(
+          '1) to be red, red 1a) (Qal) ruddy (of Nazarites) 1b) (Pual) 1b1) to be rubbed red '
+          '1b2) dyed red 1c) (Hiphil) 1c1) to cause to show red 1d) (Hithpael) 1d1) to redden',
+        ),
+        ['To be red, red'],
+      );
+      expect(
+        plainSenses(
+          ': husband 1) man 1a) man, male (in contrast to woman, female) 1b) husband '
+          '2) whosoever 3) each (adjective)',
+        ),
+        ['Husband', 'Man', 'Whosoever', 'Each'],
+      );
+      expect(
+        plainSenses('1) to lift, bear, bear up 1a) (Qal) to lift Aramaic equivalent: ne.tal'),
+        ['To lift, bear, bear up'],
+      );
+    });
+
+    test('a Hebrew name keeps what it is and drops its meaning, references and relatives', () {
+      expect(
+        plainSenses(
+          'A man of the tribe of Judah living at the time of Egypt and Wilderness, only mentioned '
+          'at 1Ch.2.18; son of: Caleb (H3612H) and Jerioth(?) (H3408); brother of: Hur',
+        ),
+        ['A man of the tribe of Judah living at the time of Egypt and Wilderness'],
+      );
+      expect(
+        plainSenses(
+          'Jezreel = "God sows" a city in Issachar on the northwest spur of Mount Gilboa '
+          'Also named: yiz.re.e.li (יִזְרְעֵאלִי "Jezreelite" H3158H)',
+        ),
+        ['A city in Issachar on the northwest spur of Mount Gilboa'],
+      );
+    });
+
+    test('a bare gloss list is one sense, and nothing readable gives none', () {
+      expect(plainSenses('pledge, token, bond, surety, thing exchanged'), [
+        'Pledge, token, bond, surety, thing exchanged',
+      ]);
+      expect(plainSenses(''), isEmpty);
+      expect(plainSenses('ἄτιμος , -ον (τιμή)'), isEmpty);
+    });
+
+    test('at most max senses, none with a digit or marker left in', () {
+      const many = '__1. one, __2. two, __3. three, __4. four, __5. five, __6. six';
+      expect(plainSenses(many), hasLength(4));
+      expect(plainSenses(many, max: 2), ['One', 'Two']);
+      for (final d in [krima, kriseis]) {
+        for (final s in plainSenses(d)) {
+          expect(s, isNot(matches(RegExp(r'\d|__|\[|\(|[Ͱ-Ͽ֐-׿]'))));
+        }
+      }
+    });
+  });
 }
