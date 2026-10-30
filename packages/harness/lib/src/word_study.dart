@@ -654,13 +654,21 @@ String? _sense(String part, {bool lead = false}) {
   }
   if (lead && s.endsWith(',')) return null;
   s = s.split(_sentenceEnd).first.replaceFirst(RegExp(r'[\s,;:.\-]+$'), '');
-  if (s.length > _senseLength) s = _withoutTail(s.substring(0, s.lastIndexOf(',', _senseLength)));
+  if (s.length > _senseLength) s = _withoutTail(s.substring(0, _cutAt(s)));
   if (s.length < 3 || s.contains(RegExp(r'\d'))) return null;
   return s[0].toUpperCase() + s.substring(1);
 }
 
 /// [s] without a clause left hanging by a cut ("only mentioned at"): its last comma clause goes
 /// when it ends on a word that needs a following one.
+/// Where a long sense is cut: its last comma, else its last space, within [_senseLength].
+int _cutAt(String s) {
+  final comma = s.lastIndexOf(',', _senseLength);
+  if (comma > 0) return comma;
+  final space = s.lastIndexOf(' ', _senseLength);
+  return space > 0 ? space : _senseLength;
+}
+
 String _withoutTail(String s) {
   final t = s.replaceFirst(RegExp(r'[\s,;:.\-]+$'), '');
   if (!_dangling.hasMatch(t)) return t;
