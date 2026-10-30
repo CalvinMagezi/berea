@@ -126,14 +126,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _keepReading() => widget.state.openReaderRequest.value++;
 
-  /// Files [turn]'s answer in a notebook under its question, beside the first verse it cites.
-  Future<void> _keep(BuildContext context, ChatTurn turn) => showKeepSheet(
-    context,
-    widget.state,
-    title: turn.question,
-    body: turn.answer,
-    verse: turn.verified.firstOrNull,
-  );
+  Future<void> _keep(BuildContext context, ChatTurn turn) => keepTurn(context, widget.state, turn);
 
   void _pick(String q) {
     _input.text = q;
@@ -384,14 +377,26 @@ class ScopeBar extends StatelessWidget {
 
 /// Study with nothing asked yet: questions from today's reading, from where the reader stopped,
 /// and about their notebooks.
+/// Files [turn]'s answer in a notebook under its question, beside the first verse it cites.
+Future<void> keepTurn(BuildContext context, AppState s, ChatTurn turn) => showKeepSheet(
+  context,
+  s,
+  title: turn.question,
+  body: turn.answer,
+  verse: turn.verified.firstOrNull,
+);
+
 class Suggestions extends StatelessWidget {
   final AppState state;
   final void Function(String) onPick;
-  const Suggestions({super.key, required this.state, required this.onPick});
+
+  /// Suggests for this notebook whatever Study is scoped to, as the notebook's own panel does.
+  final int? notebookId;
+  const Suggestions({super.key, required this.state, required this.onPick, this.notebookId});
 
   @override
   Widget build(BuildContext context) {
-    final scope = state.studyScope.value;
+    final scope = notebookId ?? state.studyScope.value;
     final sections = scope == null ? _bible() : _notebook(scope);
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),

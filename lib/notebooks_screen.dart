@@ -12,6 +12,7 @@ import 'confirm.dart';
 import 'keep_sheet.dart';
 import 'listen_screen.dart';
 import 'note_dialog.dart';
+import 'notebook_ask_panel.dart';
 import 'notebook_store.dart';
 import 'study_packet_screen.dart';
 import 'study_page_screen.dart';
@@ -35,7 +36,6 @@ const notesWideBreakpoint = 760.0;
 const notesWideListWidth = 400.0;
 const _detailTitleSize = 26.0;
 const _detailPadding = 24.0;
-const _askIconSize = 32.0;
 
 IconData kindIcon(SourceKind k) => switch (k) {
   SourceKind.text => Icons.notes,
@@ -488,6 +488,22 @@ class _NotebookScreenState extends State<NotebookScreen> {
   (Type, int)? _selected;
   var _wide = false;
 
+  /// The ask panel's question box, focused by Ask about this notebook on a wide screen.
+  final _askFocus = FocusNode();
+
+  @override
+  void dispose() {
+    _askFocus.dispose();
+    super.dispose();
+  }
+
+  /// On a wide screen the conversation is beside the list; elsewhere Study opens scoped here.
+  void _ask() {
+    if (!_wide) return _s.askAboutNotebook(notebookId);
+    setState(() => _selected = null);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _askFocus.requestFocus());
+  }
+
   AppState get _s => widget.state;
   NotebookStore get store => _s.notebooks;
   int get notebookId => widget.notebookId;
@@ -551,7 +567,7 @@ class _NotebookScreenState extends State<NotebookScreen> {
             return ListAndDetail(
               list: list,
               detail: chosen == null
-                  ? const _AskPanel()
+                  ? NotebookAskPanel(state: _s, notebookId: notebookId, focus: _askFocus)
                   : EntryDetail(state: _s, entry: chosen, onChanged: () => setState(() {})),
             );
           },
@@ -619,7 +635,7 @@ class _NotebookScreenState extends State<NotebookScreen> {
               const SizedBox(width: _bottomBarPadding),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () => _s.askAboutNotebook(notebookId),
+                  onPressed: _ask,
                   icon: Builder(
                     builder: (context) {
                       final on = Theme.of(context).colorScheme.onPrimary;
@@ -970,35 +986,6 @@ class _NotebookScreenState extends State<NotebookScreen> {
   }
 }
 
-/// Beside the list on a wide screen until an entry is chosen: what asking about it draws on.
-class _AskPanel extends StatelessWidget {
-  const _AskPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(_detailPadding),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.chat_bubble_outline, size: _askIconSize, color: scheme.primary),
-            const SizedBox(height: 12),
-            Text('Ask about this notebook', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              "Answers draw on this notebook's notes and readings, and on Scripture. Pin a "
-              'reading to include it in every answer. Choose a note or reading to see it here.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _NotePicker extends StatefulWidget {
   final List<Note> notes;

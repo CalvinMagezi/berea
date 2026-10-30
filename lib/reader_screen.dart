@@ -7,7 +7,6 @@ import 'commentary_sheet.dart';
 import 'extras_hint.dart';
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
-import 'notebooks_screen.dart';
 import 'pray_verse_sheet.dart';
 import 'prayer_screen.dart';
 import 'prayer_points.dart';
@@ -379,7 +378,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// Makes the section a study notebook and opens it, or opens the one made for it before.
   Future<void> _studySection(Heading h) async {
     final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
     final ref = _selection;
     messenger.showSnackBar(SnackBar(content: Text('Making a study notebook for ${h.text}.')));
     try {
@@ -394,18 +392,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
             duration: const Duration(seconds: 8),
             action: SnackBarAction(
               label: 'Get them',
-              onPressed: () => showSettingsSheet(
-                navigator.context,
-                s,
-                show: SettingsPart.commentary,
-              ),
+              onPressed: () {
+                if (mounted) showSettingsSheet(context, s, show: SettingsPart.commentary);
+              },
             ),
           ),
         );
       }
-      await navigator.push(
-        MaterialPageRoute<void>(builder: (_) => NotebookScreen(state: s, notebookId: id)),
-      );
+      // In Notes, so Ask about this notebook and the places stay in reach.
+      s.openNotebook(id);
     } catch (e) {
       messenger
         ..hideCurrentSnackBar()
