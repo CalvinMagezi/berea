@@ -8,18 +8,19 @@ import 'study_packet.dart';
 import 'tier.dart';
 import 'truncation.dart';
 
-/// The pace Supertonic 3 read Hebrews 11 at on the A32.
-const listenWordsPerMinute = 160;
+/// The pace of a finished deep dive with its pauses: 1,283 words took 9:31 on a Mac.
+const listenWordsPerMinute = 135;
 
-/// Words a deep dive aims for: about nine minutes at [listenWordsPerMinute].
-const listenWords = 1400;
+/// Words a deep dive aims for: about eight and a half minutes at [listenWordsPerMinute]. 1,400
+/// gave 11:05 on the A32.
+const listenWords = 1150;
 
 /// Words for each beat other than the verse walk, which shares what is left.
 const _beatWords = {
-  Beat.opening: 220,
-  Beat.hardQuestion: 200,
-  Beat.witnesses: 180,
-  Beat.close: 180,
+  Beat.opening: 180,
+  Beat.hardQuestion: 170,
+  Beat.witnesses: 150,
+  Beat.close: 150,
 };
 
 /// A verse walk slice shorter than this says too little, so a long notebook walks fewer slices.

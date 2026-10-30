@@ -7,9 +7,9 @@ import 'package:test/test.dart';
 /// About the size of the real system prompt, in characters.
 const _systemChars = 3000;
 
-/// Six to ten minutes at the 160 words a minute Supertonic 3 read Hebrews 11 on the A32.
-const _fewestWords = 960;
-const _mostWords = 1600;
+/// Six to ten minutes at the pace of a finished deep dive.
+const _fewestWords = 6 * listenWordsPerMinute;
+const _mostWords = 10 * listenWordsPerMinute;
 
 /// Replies with [reply] in [pieces] tokens, and keeps what it was asked.
 class _Echo implements LlmEngine {
