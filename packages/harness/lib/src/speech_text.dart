@@ -2,7 +2,13 @@ import 'ref_parser.dart';
 import 'sources.dart';
 
 /// A guard marker means the claim failed its check, so the sentence holding it is never spoken.
-final _failedClaim = RegExp(r'\[unverified\b|\[differs from Scripture\]');
+/// A source tag group keeps its own bracket, round or square, and may mix good and bad tags.
+final _failedClaim = RegExp(r'[\[(][^\])\n]*\bunverified\b|\[differs from Scripture\]');
+
+/// A failed quotation with its marker: the quote can hold several sentences, and all of them go.
+final _failedQuote = RegExp(
+  r'(?:\u201c[^\u201d\n]*\u201d|"[^"\n]*")\s*(\[(?:unverified quote|differs from Scripture)\])',
+);
 final _corrected = RegExp(r'\s*\[quote corrected\]');
 
 /// A sentence runs to . ? ! before a space or the end; a bracket group, "v." and "3.16" stay whole.
@@ -98,11 +104,13 @@ String _speakUnit(String unit) {
   return _tidy(s.replaceAll(_lord, 'Lord').replaceAll(_god, 'God'));
 }
 
-String _dropFailed(String s) => s.splitMapJoin(
-  _sentence,
-  onMatch: (m) => _failedClaim.hasMatch(m[0]!) ? '' : m[0]!,
-  onNonMatch: (n) => n,
-);
+String _dropFailed(String s) => s
+    .replaceAllMapped(_failedQuote, (m) => '${m[1]}.')
+    .splitMapJoin(
+      _sentence,
+      onMatch: (m) => _failedClaim.hasMatch(m[0]!) ? '' : m[0]!,
+      onNonMatch: (n) => n,
+    );
 
 /// A parenthesised citation becomes part of the sentence, without its translation code.
 String _refParens(String s) => s.replaceAllMapped(_paren, (m) {

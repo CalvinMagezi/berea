@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -37,15 +38,23 @@ class ListenScreen extends StatefulWidget {
 class _ListenScreenState extends State<ListenScreen> {
   AppState get _s => widget.state;
 
-  // Built once: it reads every verse's words, so a rebuild must not repeat it.
-  late final StudyPacket _packet = _s.studyPacket(widget.notebookId);
-  late final ListenPlan _plan = ListenWriter(
-    _s.db,
-    _s.systemPrompt,
-    _s.settings.tier,
-  ).plan(_packet);
-  late final String _key = _s.listenKey(_packet);
   late final ListenStore _store = _s.listenStore(widget.notebookId);
+  late ListenPlan _plan;
+  late String _key;
+  ({File audio, Duration length, List<ScriptBeat> script, bool current})? _done;
+  var _unfinished = false;
+
+  /// What [_load] last read for: the packet reads every verse's words and the store reads files,
+  /// so they are read again only when a deep dive starts, stops or ends, or the voice arrives.
+  Object? _loadedFor;
+
+  void _load() {
+    final packet = _s.studyPacket(widget.notebookId);
+    _plan = ListenWriter(_s.db, _s.systemPrompt, _s.settings.tier).plan(packet);
+    _key = _s.listenKey(packet);
+    _done = _store.finished(_key);
+    _unfinished = _store.unfinished(_key);
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -63,12 +72,17 @@ class _ListenScreenState extends State<ListenScreen> {
   );
 
   List<Widget> _body(BuildContext context) {
-    if (_plan.beats.isEmpty) return const [_Muted(listenNothing)];
     final job = _s.listenJob;
+    final now = (job, job?.stage, _s.voiceReady);
+    if (now != _loadedFor) {
+      _loadedFor = now;
+      _load();
+    }
+    if (_plan.beats.isEmpty) return const [_Muted(listenNothing)];
     final mine = job != null && job.notebookId == widget.notebookId;
     if (mine && job.running) return [_Progress(job: job)];
     final busyWith = job != null && job.running ? job.notebookTitle : null;
-    final done = _store.finished(_key);
+    final done = _done;
     final player = done == null
         ? const <Widget>[]
         : [
@@ -95,7 +109,7 @@ class _ListenScreenState extends State<ListenScreen> {
         _Start(
           plan: _plan,
           onStart: _start,
-          resumes: _store.unfinished(_key),
+          resumes: _unfinished,
           busyWith: busyWith,
           stale: done != null,
         ),
@@ -106,10 +120,8 @@ class _ListenScreenState extends State<ListenScreen> {
 
   void _start() => unawaited(_s.makeDeepDive(widget.notebookId, widget.title));
 
-  void _remake() {
-    _store.clear();
-    _start();
-  }
+  /// The recording plays on until the new one replaces it.
+  void _remake() => unawaited(_s.makeDeepDive(widget.notebookId, widget.title, again: true));
 }
 
 class _Start extends StatelessWidget {
@@ -133,14 +145,15 @@ class _Start extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final busy = busyWith;
-    final minutes = (listenWords / listenWordsPerMinute).round();
+    final minutes = plan.minutes;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'A deep dive of this notebook, read by one narrator, about $minutes minutes long. The '
           'helper writes it part by part from the notebook\'s passages, word studies and '
-          'commentary, and every verse it quotes is checked against the Bible. Then the voice '
+          'commentary in the Berean Standard Bible. The verses it quotes and cites are checked '
+          'against the Bible, and a sentence that fails the check is not read. Then the voice '
           'reads it aloud on this device.',
         ),
         const SizedBox(height: 8),
@@ -355,7 +368,9 @@ class _Script extends StatelessWidget {
   Widget build(BuildContext context) => ExpansionTile(
     tilePadding: EdgeInsets.zero,
     title: const Text('Script'),
-    subtitle: const Text('What was read, with the verses and sources it cites'),
+    subtitle: const Text(
+      'With the verses and sources it cites. A sentence marked unverified was not read.',
+    ),
     children: [
       for (final b in beats)
         Padding(

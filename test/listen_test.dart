@@ -278,6 +278,78 @@ void main() {
     expect(kept.existsSync(), isFalse);
   });
 
+  test('Make it again keeps the recording playing when the new one cannot be made', () async {
+    await s.makeDeepDive(notebook, 'Born again');
+    final key = s.listenKey(s.studyPacket(notebook));
+    final store = s.listenStore(notebook);
+    final before = store.finished(key)!.length;
+    // The voice gave the memory back and nothing rebuilt a helper that can write.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    s
+      ..harness = null
+      ..helperState = const HelperNotInstalled();
+    await s.makeDeepDive(notebook, 'Born again', again: true);
+    expect(s.listenJob!.error, listenNeedsHelper);
+    expect(store.finished(key)!.length, before);
+    expect(store.audio.existsSync(), isTrue);
+  });
+
+  test('deleting the notebook stops its deep dive and removes what was made', () async {
+    writer.gate = Completer<void>();
+    final dive = s.makeDeepDive(notebook, 'Born again');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    s.notebooks.deleteNotebook(notebook);
+    expect(s.listenJob!.stopping, isTrue);
+    writer.gate!.complete();
+    await dive;
+    expect(s.listenJob!.stage, ListenStage.stopped);
+    expect(s.listenStore(notebook).dir.existsSync(), isFalse);
+    expect(notice.log, isNot(contains(startsWith('ready'))));
+  });
+
+  test('a new tier while it is written stops it, since the plan was for the old one', () async {
+    writer.gate = Completer<void>();
+    final dive = s.makeDeepDive(notebook, 'Born again');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    s.settings = s.settings.copyWith(tier: Tier.low);
+    writer.gate!.complete();
+    await dive;
+    expect(s.listenJob!.error, listenSettingsChanged);
+  });
+
+  test('a settings change while the voice reads returns at once; the helper loads after', () async {
+    holdVoice = Completer<void>();
+    final dive = s.makeDeepDive(notebook, 'Born again');
+    while (s.listenJob?.stage != ListenStage.speaking) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    await s
+        .updateSettings(s.settings.copyWith(translation: 'KJV'))
+        .timeout(const Duration(seconds: 1));
+    expect(s.harness, isNull, reason: 'nothing loads beside the voice');
+    holdVoice!.complete();
+    await dive;
+    expect(s.listenJob!.stage, ListenStage.ready);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(s.harness, isNotNull);
+  });
+
+  test('Stop before the voice starts never starts it', () async {
+    writer.gate = Completer<void>();
+    final dive = s.makeDeepDive(notebook, 'Born again');
+    while (writer.calls < planned()) {
+      writer.gate!.complete();
+      writer.gate = Completer<void>();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    s.listenJob!.stop();
+    writer.gate!.complete();
+    await dive;
+    expect(s.listenJob!.stage, ListenStage.stopped);
+    expect(spokeWith, isEmpty);
+    expect(gemma.closed, isFalse);
+  });
+
   test('beats are joined with a pause between them and the header says how long', () async {
     final out = Directory('${dir.path}/join')..createSync();
     for (var i = 0; i < 2; i++) {

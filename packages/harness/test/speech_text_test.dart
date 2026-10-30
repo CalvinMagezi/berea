@@ -17,6 +17,22 @@ void main() {
       );
     });
 
+    test('drops a sentence whose source tag failed, in round or mixed brackets', () {
+      expect(speakable('One. Henry says so (unverified source: S9 p.40). Two.'), 'One. Two.');
+      expect(speakable('One. Henry agrees [S3; unverified source: S9]. Two.'), 'One. Two.');
+    });
+
+    test('drops every sentence of a failed quotation', () {
+      expect(
+        speakable('Jesus said, "Come to me. All who are weary." [unverified quote] Then he left.'),
+        'Then he left.',
+      );
+      expect(
+        speakable('He said, \u201cBe still. Know.\u201d [differs from Scripture]. True.'),
+        'True.',
+      );
+    });
+
     test('keeps a corrected quote without its marker', () {
       expect(speakable('He said it [quote corrected]. Done.'), 'He said it. Done.');
     });

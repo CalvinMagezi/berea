@@ -37,8 +37,8 @@ const listenOutlineLines = 8;
 /// Said before the script, in a voice the model never words: OpenRAIL-M Attachment A (e) asks
 /// that machine-generated content says so.
 const listenOpeningNotice =
-    'This deep dive was written and read aloud by Berea on this device, from your notebook. '
-    'The voice is machine generated.';
+    'This deep dive was written and read aloud by Berea on this device, from your notebook, with '
+    'Scripture from the Berean Standard Bible. The voice is machine generated.';
 
 /// A deep dive's beats with the words each may use, and how much of the notebook they walk.
 class ListenPlan {
@@ -52,6 +52,8 @@ class ListenPlan {
   const ListenPlan(this.packet, this.beats, this.words, this.walkedVerses);
 
   int get totalVerses => packet.verses.length;
+  int get totalWords => words.fold(0, (a, b) => a + b);
+  int get minutes => (totalWords / listenWordsPerMinute).round();
   bool get walksAll => walkedVerses == totalVerses;
 }
 
@@ -101,8 +103,10 @@ class ListenWriter {
         if (b.beat != Beat.verseWalk || kept.contains(b)) b,
     ];
     final walkWords = count == 0 ? 0 : room ~/ count;
+    // A beat cannot ask for more than the tier lets the model write.
+    final most = (tier.maxOutput / listenTokensPerWord).floor();
     return ListenPlan(packet, beats, [
-      for (final b in beats) _beatWords[b.beat] ?? walkWords,
+      for (final b in beats) min(most, _beatWords[b.beat] ?? walkWords),
     ], kept.fold(0, (n, b) => n + b.context.passages.length));
   }
 

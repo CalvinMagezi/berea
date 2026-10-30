@@ -27,6 +27,24 @@ const voiceNeedsWifi =
     'The voice downloads over Wi-Fi only. Connect to Wi-Fi, or turn off Wi-Fi only in Settings.';
 const voiceDownloadFailed = 'The voice did not download. Check the connection and try again.';
 const voiceDamaged = 'The voice arrived damaged and was removed. Try again.';
+const listenSettingsChanged =
+    'The helper changed while the deep dive was written. Make it again to write it for the new one.';
+
+/// A beat that came back empty is written once more before it is kept as it is.
+const listenBeatTries = 2;
+
+const _fnvOffset = 0x811c9dc5;
+const _fnvPrime = 0x01000193;
+const _mask32 = 0xffffffff;
+
+/// A stable 32-bit hash of [s]: String.hashCode may differ between runs, and a key must not.
+int fnv1a(String s) {
+  var h = _fnvOffset;
+  for (final u in s.codeUnits) {
+    h = ((h ^ u) * _fnvPrime) & _mask32;
+  }
+  return h;
+}
 
 const _scriptFile = 'script.json';
 const _doneFile = 'done.json';
@@ -43,74 +61,83 @@ class ListenStore {
   File get _done => File('${dir.path}/$_doneFile');
   File get audio => File('${dir.path}/$_audioFile');
 
+  /// A damaged or foreign file reads as none, so the screen offers to make the deep dive again.
   Map<String, Object?>? _read(File f) {
     try {
       return f.existsSync() ? jsonDecode(f.readAsStringSync()) as Map<String, Object?> : null;
-    } on FormatException {
+    } catch (_) {
       return null;
     }
   }
 
-  /// The beats written for [fingerprint] so far; none when they were written for another packet.
-  List<ScriptBeat> beats(String fingerprint) {
-    final json = _read(_script);
-    if (json == null || json['fingerprint'] != fingerprint) return [];
-    return _beats(json);
+  List<ScriptBeat>? _beatsOf(Map<String, Object?>? json, String? fingerprint) {
+    if (json == null || (fingerprint != null && json['fingerprint'] != fingerprint)) return null;
+    try {
+      return [
+        for (final b in json['beats']! as List) ScriptBeat.fromJson(b as Map<String, Object?>),
+      ];
+    } catch (_) {
+      return null;
+    }
   }
 
-  static List<ScriptBeat> _beats(Map<String, Object?> json) => [
-    for (final b in json['beats']! as List) ScriptBeat.fromJson(b as Map<String, Object?>),
-  ];
-
-  void saveBeats(String fingerprint, List<ScriptBeat> beats) {
+  void _write(File f, Map<String, Object?> json) {
     dir.createSync(recursive: true);
-    final part = File('${_script.path}.part')
-      ..writeAsStringSync(
-        jsonEncode({
-          'fingerprint': fingerprint,
-          'beats': [for (final b in beats) b.toJson()],
-        }),
-      );
-    part.renameSync(_script.path);
+    File('${f.path}.part')
+      ..writeAsStringSync(jsonEncode(json))
+      ..renameSync(f.path);
   }
+
+  /// The beats written for [fingerprint] so far; none when they were written for another packet.
+  List<ScriptBeat> beats(String fingerprint) => _beatsOf(_read(_script), fingerprint) ?? [];
+
+  void saveBeats(String fingerprint, List<ScriptBeat> beats) => _write(_script, {
+    'fingerprint': fingerprint,
+    'beats': [for (final b in beats) b.toJson()],
+  });
 
   /// The finished recording, with [current] false when it was made before the notebook changed:
-  /// it still plays until a new one is made.
+  /// it still plays until a new one replaces it.
   ({File audio, Duration length, List<ScriptBeat> script, bool current})? finished(
     String fingerprint,
   ) {
     final done = _read(_done);
-    final script = _read(_script);
-    if (done == null || script == null || !audio.existsSync()) return null;
+    final script = _beatsOf(done, null);
+    final millis = done?['millis'];
+    if (done == null || script == null || millis is! int || !audio.existsSync()) return null;
     return (
       audio: audio,
-      length: Duration(milliseconds: done['millis']! as int),
-      script: _beats(script),
+      length: Duration(milliseconds: millis),
+      script: script,
       current: done['fingerprint'] == fingerprint,
     );
   }
 
-  /// Whether a render for [fingerprint] was started and not finished.
-  bool unfinished(String fingerprint) =>
-      finished(fingerprint)?.current != true && beats(fingerprint).isNotEmpty;
+  /// Whether a deep dive for [fingerprint] was started and not finished.
+  bool unfinished(String fingerprint) => beats(fingerprint).isNotEmpty;
 
-  /// Gets ready to make the deep dive for [fingerprint]: what was made for another is removed.
-  void startFor(String fingerprint) {
+  /// Gets ready to make the deep dive for [fingerprint], from the start when [again]. Parts made
+  /// for another packet go; a finished recording stays until [finish] replaces it.
+  void startFor(String fingerprint, {bool again = false}) {
     final script = _read(_script);
-    final done = _read(_done);
-    final other =
-        (script != null && script['fingerprint'] != fingerprint) ||
-        (done != null && done['fingerprint'] != fingerprint);
-    if (other) clear();
+    if (again || (script != null && script['fingerprint'] != fingerprint)) _dropWork();
   }
 
-  /// Marks the recording done and drops the beat files it was joined from.
-  void finish(String fingerprint, Duration length) {
-    _done.writeAsStringSync(
-      jsonEncode({'fingerprint': fingerprint, 'millis': length.inMilliseconds}),
-    );
+  /// Keeps [beats] as the script of the recording just joined, and drops the parts it was made of.
+  void finish(String fingerprint, Duration length, List<ScriptBeat> beats) {
+    _write(_done, {
+      'fingerprint': fingerprint,
+      'millis': length.inMilliseconds,
+      'beats': [for (final b in beats) b.toJson()],
+    });
+    _dropWork();
+  }
+
+  void _dropWork() {
+    if (!dir.existsSync()) return;
     for (final f in dir.listSync().whereType<File>()) {
-      if (f.path.contains('/beat-')) f.deleteSync();
+      final name = f.uri.pathSegments.last;
+      if (name.startsWith('beat-') || name.startsWith(_scriptFile)) f.deleteSync();
     }
   }
 
@@ -154,7 +181,7 @@ class ListenJob extends ChangeNotifier {
 
   String get status => switch (stage) {
     ListenStage.writing when stopping => 'Stopping after this part',
-    ListenStage.speaking when stopping => 'Stopping after this paragraph',
+    ListenStage.speaking when stopping => 'Stopping',
     ListenStage.writing => 'Writing part ${done + 1} of $total',
     ListenStage.speaking => 'Recording, ${(done * 100 / total).floor()} percent',
     ListenStage.ready => 'Ready to listen',
@@ -205,18 +232,32 @@ class QuietListenNotice implements ListenNotice {
 }
 
 const _channelId = 'listen';
-const _channelName = 'Deep dives';
-const _channelDescription = 'Progress while a deep dive is made, and a notice when it is ready.';
+const _channelName = 'Deep dive progress';
+const _channelDescription = 'Shows how far along a deep dive is while it is made.';
+
+/// Its own channel: Android keeps a channel's first importance, and progress is quiet.
+const _readyChannelId = 'listen_ready';
+const _readyChannelName = 'Deep dive ready';
+const _readyChannelDescription = 'Says when a deep dive is ready to listen to.';
 
 /// Ids clear of the reminders, which are dates such as 20261030.
 const _workingId = 9001;
 const _readyId = 9002;
 
 /// An Android foreground service with a progress notification while a deep dive is made, so the
-/// system keeps Berea's process while the reader uses other apps; elsewhere only the ready notice.
+/// system keeps Berea's process while the reader uses other apps; everywhere, the ready notice.
 class LocalListenNotice implements ListenNotice {
   final _plugin = FlutterLocalNotificationsPlugin();
   var _asked = false;
+
+  /// Calls run in order, so a stop never overtakes the start it follows.
+  Future<void> _queue = Future.value();
+
+  Future<void> _run(Future<void> Function() call) {
+    final next = _queue.then((_) => call());
+    _queue = next.catchError((Object e) => debugPrint('The deep dive notice failed: $e'));
+    return next;
+  }
 
   static AndroidFlutterLocalNotificationsPlugin? get _android => Platform.isAndroid
       ? FlutterLocalNotificationsPlugin()
@@ -229,7 +270,7 @@ class LocalListenNotice implements ListenNotice {
     if (_asked) return;
     _asked = true;
     try {
-      await _android?.requestNotificationsPermission();
+      await LocalNotificationsPlatform().requestPermission();
     } catch (e) {
       debugPrint('Notification permission was not asked: ${e.runtimeType}');
     }
@@ -249,10 +290,11 @@ class LocalListenNotice implements ListenNotice {
   var _serving = false;
 
   @override
-  Future<void> working(String title, String body) async {
+  Future<void> working(String title, String body) => _run(() async {
+    if (!LocalNotificationsPlatform.supported) return;
+    await _init();
     final android = _android;
     if (android == null) return;
-    await _init();
     if (_serving) {
       return _plugin.show(
         id: _workingId,
@@ -270,17 +312,17 @@ class LocalListenNotice implements ListenNotice {
       startType: AndroidServiceStartType.startNotSticky,
       foregroundServiceTypes: {AndroidServiceForegroundType.foregroundServiceTypeDataSync},
     );
-  }
+  });
 
   @override
-  Future<void> idle() async {
+  Future<void> idle() => _run(() async {
     if (!_serving) return;
     _serving = false;
     await _android?.stopForegroundService();
-  }
+  });
 
   @override
-  Future<void> ready(String title, String body) async {
+  Future<void> ready(String title, String body) => _run(() async {
     if (!LocalNotificationsPlatform.supported) return;
     await _init();
     await _plugin.show(
@@ -289,13 +331,13 @@ class LocalListenNotice implements ListenNotice {
       body: body,
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
-          _channelId,
-          _channelName,
-          channelDescription: _channelDescription,
+          _readyChannelId,
+          _readyChannelName,
+          channelDescription: _readyChannelDescription,
         ),
         iOS: DarwinNotificationDetails(),
         macOS: DarwinNotificationDetails(),
       ),
     );
-  }
+  });
 }

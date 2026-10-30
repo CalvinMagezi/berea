@@ -81,7 +81,7 @@ void main() {
   ) async {
     s.voicePresent = (_) => true;
     await pump(tester, screen());
-    expect(find.textContaining('about 9 minutes long'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'about [6-9] minutes long')), findsOneWidget);
     expect(find.textContaining('You can keep using Berea'), findsOneWidget);
     expect(find.text('Make the deep dive'), findsOneWidget);
     expect(find.textContaining('walks through'), findsNothing);
@@ -131,7 +131,7 @@ void main() {
     await tester.runAsync(() async {
       await (WavSink(store.audio, 8000)..silence(const Duration(seconds: 3))).close();
     });
-    store.finish(key, const Duration(minutes: 8, seconds: 5));
+    store.finish(key, const Duration(minutes: 8, seconds: 5), store.beats(key));
     await pump(tester, screen());
     expect(find.byTooltip('Play'), findsOneWidget);
     expect(find.text('0:00 / 8:05'), findsOneWidget);

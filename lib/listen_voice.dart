@@ -137,19 +137,30 @@ Future<void> speakWithSupertonic({
     onError: events.sendPort,
   );
   SendPort? control;
-  unawaited(stop?.then((_) => control?.send(true)));
+  var stopped = false;
+  unawaited(
+    stop?.then((_) {
+      stopped = true;
+      control?.send(true);
+    }),
+  );
+  // An error is held until the isolate has exited, so the voice is freed before the helper
+  // loads again.
+  Object? failure;
   try {
     await for (final e in events) {
       switch (e) {
         case SendPort p:
           control = p;
+          if (stopped) p.send(true);
         case int _:
           onProgress(++done, total);
         case String message:
-          throw StateError(message);
+          failure = message;
         case List error:
-          throw StateError('${error.first}');
+          failure = error.first;
         case null:
+          if (failure != null) throw StateError('$failure');
           return;
       }
     }
@@ -312,3 +323,8 @@ Future<Duration> joinBeats(Directory dir, int count, File into) async {
   await sink.file.rename(into.path);
   return Duration(microseconds: bytes ~/ _bytesPerSample * _microsPerSecond ~/ rate);
 }
+
+/// [joinBeats] on another isolate, so tens of megabytes of copying never stall a frame. Top level,
+/// so the closure carries only these three values across.
+Future<Duration> joinBeatsAway(String dir, int count, String into) =>
+    Isolate.run(() => joinBeats(Directory(dir), count, File(into)));

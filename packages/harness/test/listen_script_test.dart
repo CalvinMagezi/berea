@@ -62,6 +62,15 @@ void main() {
     expect(total(plan), inInclusiveRange(_fewestWords, _mostWords));
   });
 
+  test('no beat asks for more words than its tier can write', () {
+    for (final tier in Tier.values) {
+      final plan = ListenWriter(db, system, tier).plan(packet('John 3:1-21'));
+      final most = tier.maxOutput / listenTokensPerWord;
+      expect(plan.words.every((w) => w <= most), isTrue, reason: '$tier ${plan.words}');
+      expect(plan.minutes, (plan.totalWords / listenWordsPerMinute).round());
+    }
+  });
+
   test('Psalm 119 walks only its first sections and says how much', () {
     final plan = ListenWriter(db, system, Tier.mid).plan(packet('Psalm 119'));
     final walk = plan.beats.where((b) => b.beat == Beat.verseWalk).toList();
