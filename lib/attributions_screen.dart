@@ -42,6 +42,12 @@ const downloadableSources = [
         'The file is as Google published it, hosted by Berea so no account is needed.',
   ),
   DataSource(
+    'Supertonic 3 voice (reads deep dives aloud)',
+    'BigScience Open RAIL-M License, with the use restrictions in its Attachment A',
+    'Supertone Inc.; the int8 build is by the sherpa-onnx project (k2-fsa), hosted unchanged by '
+        'Berea. The restrictions are part of Berea\'s terms of use.',
+  ),
+  DataSource(
     'STEPBible TFLSJ (full Greek lexicon pack)',
     'CC BY 4.0',
     'Tyndale House, Cambridge, www.STEPBible.org',

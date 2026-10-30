@@ -10,6 +10,7 @@ import 'app_state.dart';
 import 'brand/lamp_mark.dart';
 import 'confirm.dart';
 import 'keep_sheet.dart';
+import 'listen_screen.dart';
 import 'note_dialog.dart';
 import 'notebook_store.dart';
 import 'study_packet_screen.dart';
@@ -513,6 +514,7 @@ class _NotebookScreenState extends State<NotebookScreen> {
                 ),
               ),
             ),
+            ListenButton(state: _s, notebookId: notebookId, title: notebook.title),
             _NotebookMenu(
               store: store,
               notebook: notebook,

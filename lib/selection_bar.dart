@@ -35,6 +35,10 @@ class SelectionBar extends StatelessWidget {
   /// Given the More button's context, so the share popover can point from it.
   final ValueChanged<BuildContext> onShare;
   final VoidCallback onClear;
+
+  /// The heading of the section selected whole, which can become a study notebook in one tap.
+  final String? section;
+  final VoidCallback? onStudySection;
   const SelectionBar({
     super.key,
     required this.label,
@@ -50,12 +54,21 @@ class SelectionBar extends StatelessWidget {
     required this.onCopy,
     required this.onShare,
     required this.onClear,
+    this.section,
+    this.onStudySection,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final study = onStudySection;
     final actions = [
+      if (wide && section != null && study != null)
+        _Action(
+          label: 'Study notebook',
+          icon: const Icon(Icons.auto_stories_outlined),
+          onTap: study,
+        ),
       _Action(
         label: 'Highlight',
         icon: const Icon(Icons.border_color_outlined),
@@ -116,6 +129,18 @@ class SelectionBar extends StatelessWidget {
                       ],
                     ),
                     Row(children: [for (final a in actions) Expanded(child: a)]),
+                    if (section != null && study != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.tonalIcon(
+                            onPressed: study,
+                            icon: const Icon(Icons.auto_stories_outlined),
+                            label: Text('Study notebook: $section', overflow: TextOverflow.ellipsis),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
         ),

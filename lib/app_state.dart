@@ -16,6 +16,8 @@ import 'backup.dart';
 import 'commentary_packs.dart';
 import 'edge_engine.dart';
 import 'helper_download.dart' as net;
+import 'listen.dart';
+import 'listen_voice.dart';
 import 'models.dart';
 import 'notebook_chat.dart';
 import 'notebook_store.dart';
@@ -303,6 +305,12 @@ final class HelperReady extends HelperState {
   const HelperReady();
 }
 
+/// The helper is closed while a deep dive is read aloud, since the voice and the model together
+/// do not fit a phone's memory. It loads again when the recording is done.
+final class HelperResting extends HelperState {
+  const HelperResting();
+}
+
 final class HelperFailed extends HelperState {
   /// Plain words for the reader.
   final String reason;
@@ -467,6 +475,7 @@ class AppState extends ChangeNotifier {
     HelperDownloading() => DeviceModelState.downloading,
     HelperChecking() || HelperLoading() => DeviceModelState.loading,
     HelperReady() => _helperOnDevice ? DeviceModelState.ready : DeviceModelState.notInstalled,
+    HelperResting() => DeviceModelState.loading,
     HelperFailed() => DeviceModelState.failed,
   };
 
@@ -531,6 +540,7 @@ class AppState extends ChangeNotifier {
     // Tests give their own support folder and never touch the notification plugin.
     if (supportDir == null && LocalNotificationsPlatform.supported) {
       s.reminderPlatform = LocalNotificationsPlatform();
+      s.listenNotice = LocalListenNotice();
     }
     s.prefs = prefs ?? await SharedPreferences.getInstance();
     final bytes = await totalMemoryBytes();
@@ -547,6 +557,8 @@ class AppState extends ChangeNotifier {
     s._keepTranslationValid();
     s.db.attachFullLexicon(s.lexiconPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
+    s._dropDeepDives();
+    s.notebooks.addListener(s._dropDeepDives);
     s._canStartHelper = true;
     s._autorunAllowed = kDebugMode && supportDir == null;
     // A question asked before the shell starts the helper waits for it.
@@ -1033,6 +1045,8 @@ class AppState extends ChangeNotifier {
       File('${importsDir.path}/${e.key}.csv').writeAsStringSync(e.value.csv);
     }
     study.importTables(contents.tables);
+    // Restored notebooks can take ids that had other deep dives.
+    _dropDeepDives(all: true);
     // The restored ticks belong to the plan that was running; an older backup leaves it be.
     if (contents.plan case final plan?) _setPlan(plan.id, plan.start);
     // A source still being read belongs to a notebook id the backup may have reused.
@@ -1202,10 +1216,25 @@ class AppState extends ChangeNotifier {
   /// download could otherwise start a second load that finishes first and is then replaced.
   Future<void> _rebuildHarness() {
     final previous = _rebuilding ?? Future<void>.value();
-    final next = previous.then((_) {}, onError: (_) {}).then((_) => _buildHarness());
+    final next = previous.then((_) {}, onError: (_) {}).then((_) async {
+      // A deep dive being read aloud has the memory; the helper loads once it is done. The check
+      // and the start of the build share one step, so a voice starting between them sees it.
+      for (var speaking = _speaking; speaking != null; speaking = _speaking) {
+        await speaking.future;
+      }
+      final build = _building = _buildHarness();
+      try {
+        await build;
+      } finally {
+        _building = null;
+      }
+    });
     _rebuilding = next;
     return next;
   }
+
+  /// The build under way, past the wait for a deep dive's voice; null when none is.
+  Future<void>? _building;
 
   Future<void> _buildHarness() async {
     final old = _edge;
@@ -1602,6 +1631,8 @@ class AppState extends ChangeNotifier {
         next.tier == settings.tier;
     settings = next;
     await next.save(prefs);
+    // While a deep dive is read aloud the helper is closed and loads after; nothing waits for it.
+    if (_speaking != null) return unawaited(_rebuildHarness());
     if (sameModel && settings.engine == EngineKind.device && harness != null) {
       harness = Harness(
         db: db,
@@ -1828,6 +1859,238 @@ class AppState extends ChangeNotifier {
     for (final n in study.notebookNotes(id)) ?n.verse,
     for (final p in study.studyPages(notebookId: id)) p.ref,
   ], commentary: commentary.library);
+
+  /// The deep dive being made, or the last one made, while the app runs.
+  ListenJob? listenJob;
+
+  /// Speaks a deep dive; replaced in tests, which have no voice.
+  @visibleForTesting
+  SpeakBeats speakBeats = speakWithSupertonic;
+
+  /// Fetches the voice; replaced in tests, which have no network.
+  @visibleForTesting
+  Future<void> Function(
+    Directory dir, {
+    required void Function(int received, int total) onProgress,
+    Future<void>? stop,
+  })
+  voiceDownload = downloadVoice;
+
+  ListenNotice listenNotice = const QuietListenNotice();
+
+  /// Set while a deep dive is read aloud; a helper rebuild waits for it.
+  Completer<void>? _speaking;
+
+  Directory get voiceDir => Directory('${modelsDir.path}/supertonic-3');
+  /// Whether the voice is on this device; replaced in tests, which have no voice files.
+  @visibleForTesting
+  bool Function(Directory dir) voicePresent = voiceInstalled;
+
+  bool get voiceReady => voicePresent(voiceDir);
+
+  /// Bytes of the voice download so far, while one runs.
+  int? voiceReceived;
+  String? voiceError;
+  Completer<void>? _stopVoice;
+
+  bool get voiceDownloading => _stopVoice != null;
+
+  /// Fetches Supertonic 3, honouring the Wi-Fi only choice the helper download uses.
+  Future<void> downloadListenVoice() async {
+    if (voiceDownloading) return;
+    voiceError = null;
+    if (wifiOnly && await mobileDataNow()) {
+      voiceError = voiceNeedsWifi;
+      notifyListeners();
+      return;
+    }
+    final stop = _stopVoice = Completer<void>();
+    voiceReceived = 0;
+    notifyListeners();
+    try {
+      await voiceDownload(
+        voiceDir,
+        onProgress: (received, _) {
+          voiceReceived = received;
+          notifyListeners();
+        },
+        stop: stop.future,
+      );
+    } on DownloadStopped {
+      // Kept for Continue.
+    } catch (e) {
+      debugPrint('The voice did not download: $e');
+      voiceError = e is DownloadDamaged ? voiceDamaged : voiceDownloadFailed;
+    } finally {
+      _stopVoice = null;
+      voiceReceived = null;
+      notifyListeners();
+    }
+  }
+
+  void stopVoiceDownload() {
+    final stop = _stopVoice;
+    if (stop != null && !stop.isCompleted) stop.complete();
+  }
+
+  ListenStore listenStore(int notebookId) =>
+      ListenStore(Directory('${supportDir.path}/listen/$notebookId'));
+
+  /// What a deep dive of notebook [id] is made from; a change to any of it makes the one kept stale.
+  String listenKey(StudyPacket packet) =>
+      '${packet.inputs.fingerprint}|${settings.tier.name}|$listenScriptVersion|'
+      '${systemPrompt.length}:${fnv1a(systemPrompt)}';
+
+  /// Deep dives of notebooks that are gone take their space back, or every one with [all]. One
+  /// being made for such a notebook is stopped, and its folder goes once it has stopped.
+  void _dropDeepDives({bool all = false}) {
+    final ids = all ? const <String>{} : {for (final n in notebooks.notebooks()) '${n.id}'};
+    final job = listenJob;
+    final stopping = job != null && job.running && !ids.contains('${job.notebookId}');
+    if (stopping) job.stop();
+    final root = Directory('${supportDir.path}/listen');
+    if (!root.existsSync()) return;
+    for (final d in root.listSync().whereType<Directory>()) {
+      final id = d.uri.pathSegments.where((p) => p.isNotEmpty).last;
+      if (ids.contains(id) || (stopping && '${job.notebookId}' == id)) continue;
+      d.deleteSync(recursive: true);
+    }
+  }
+
+  /// Makes a deep dive of notebook [notebookId] in the background, continuing one that stopped.
+  /// The helper writes it beat by beat between other questions, then rests while the voice reads
+  /// it, and loads again after.
+  Future<void> makeDeepDive(int notebookId, String title, {bool again = false}) async {
+    if (listenJob?.running ?? false) return;
+    final job = listenJob = ListenJob(notebookId, title);
+    var shown = '';
+    void tell() {
+      if (job.status == shown || !job.running) return;
+      shown = job.status;
+      unawaited(listenNotice.working(title, shown).catchError(_noticeFailed));
+    }
+
+    job.addListener(tell);
+    notifyListeners();
+    try {
+      await _makeDeepDive(job, again: again);
+    } catch (e) {
+      debugPrint('The deep dive failed: $e');
+      job.failed(e is ReaderMessage ? e.message : listenFailed);
+    } finally {
+      job.removeListener(tell);
+      await listenNotice.idle().catchError(_noticeFailed);
+      notifyListeners();
+    }
+    if (notebooks.notebook(notebookId) == null) return _dropDeepDives();
+    if (job.stage == ListenStage.ready) {
+      unawaited(listenNotice.ready(deepDiveReadyTitle, title).catchError(_noticeFailed));
+    }
+  }
+
+  static void _noticeFailed(Object e) => debugPrint('The deep dive notice failed: $e');
+
+  /// With [again], a finished deep dive is written anew; it plays until the new one replaces it.
+  Future<void> _makeDeepDive(ListenJob job, {required bool again}) async {
+    if (!voiceReady) throw const ReaderMessage(listenNeedsVoice);
+    final tier = settings.tier;
+    final packet = studyPacket(job.notebookId);
+    final writer = ListenWriter(db, systemPrompt, tier);
+    final plan = writer.plan(packet);
+    if (plan.beats.isEmpty) throw const ReaderMessage(listenNothing);
+    final key = listenKey(packet);
+    final store = listenStore(job.notebookId)..startFor(key, again: again);
+    final beats = store.beats(key);
+    for (var i = beats.length; i < plan.beats.length; i++) {
+      if (job.stopping) return job.stopped();
+      // The plan fits the prompt of the tier it was made for; a helper rebuilt for another tier
+      // could not read it whole.
+      if (settings.tier != tier) throw const ReaderMessage(listenSettingsChanged);
+      job.writing(i, plan.beats.length);
+      final beat = await _writeBeat(job, writer, plan, i);
+      if (beat == null) return job.stopped();
+      beats.add(beat);
+      store.saveBeats(key, beats);
+    }
+    if (job.stopping) return job.stopped();
+    final spoken = [
+      for (var i = 0; i < beats.length; i++)
+        [if (i == 0) listenOpeningNotice, ...speechParagraphs(beats[i].text)],
+    ];
+    job.speaking(0, spoken.fold(0, (n, b) => n + b.length));
+    final missing = [for (var i = 0; i < spoken.length; i++) beatAudio(store.dir, i)]
+        .where((f) => !f.existsSync());
+    if (missing.isNotEmpty) {
+      await _speakAlone(
+        job,
+        () => speakBeats(
+          voice: voiceDir,
+          beats: spoken,
+          out: store.dir,
+          onProgress: job.speaking,
+          stop: job.stopRequested,
+        ),
+      );
+    }
+    if (missing.any((f) => !f.existsSync())) return job.stopped();
+    final length = await joinBeatsAway(store.dir.path, spoken.length, store.audio.path);
+    store.finish(key, length, beats);
+    job.ready();
+  }
+
+  /// Beat [i] written when the helper is free, written once more when it came back empty; null
+  /// when the job was stopped while it waited.
+  Future<ScriptBeat?> _writeBeat(ListenJob job, ListenWriter writer, ListenPlan plan, int i) async {
+    ScriptBeat? beat;
+    for (var tries = 0; tries < listenBeatTries && (beat?.text.isEmpty ?? true); tries++) {
+      beat = await _whenModelFree(job, (engine) => writer.write(engine, plan, i));
+      if (beat == null) return null;
+    }
+    return beat;
+  }
+
+  /// Runs [work] on the helper as soon as nothing else uses it. A question asked meanwhile goes
+  /// first, so chat keeps working while a deep dive is written. Null when [job] is stopped first.
+  Future<T?> _whenModelFree<T>(ListenJob job, Future<T> Function(LlmEngine engine) work) async {
+    while (!job.stopping) {
+      final h = harness;
+      if (h != null && !busy && !voice.inUse) return useModel(() => work(h.engine));
+      if (h == null && !helperComing) throw const ReaderMessage(listenNeedsHelper);
+      await Future.any([_modelUse ?? Future<void>.delayed(listenModelPoll), job.stopRequested]);
+    }
+    return null;
+  }
+
+  /// Runs [speak] with the on-device helper closed: Gemma and the voice together do not fit a
+  /// 4 GB phone. An Ollama helper lives elsewhere and keeps answering.
+  Future<void> _speakAlone(ListenJob job, Future<void> Function() speak) async {
+    final speaking = _speaking = Completer<void>();
+    final edge = await _closeHelper();
+    try {
+      if (!job.stopping) await speak();
+    } finally {
+      _speaking = null;
+      speaking.complete();
+      if (edge != null) unawaited(_rebuildHarness());
+      notifyListeners();
+    }
+  }
+
+  /// Closes the on-device helper as a rebuild would: out of reach first, so no question starts
+  /// on it, then closed once whatever uses it has finished. Null when there was none.
+  Future<EdgeAiEngine?> _closeHelper() async {
+    // A build that started before the voice finishes first; later ones wait for the voice.
+    await _building?.catchError((_) {});
+    final edge = _edge;
+    if (edge == null) return null;
+    _edge = null;
+    harness = null;
+    helperState = const HelperResting();
+    await voice.cancel();
+    await _modelUse;
+    await edge.close();
+    return edge;
+  }
 
   /// The readings of notebook [id] as its page lists them: a reading that links one of the
   /// notebook's own notes is shown, and read, as that note.

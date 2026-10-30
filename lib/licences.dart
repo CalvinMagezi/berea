@@ -26,9 +26,15 @@ const pdfiumLicences = {
   'libunwind.txt': 'libunwind (in PDFium for Android)',
 };
 
-/// Adds the PDFium notices to the licence page Flutter shows.
+/// The voice Listen downloads, which is not a Dart package either.
+const supertonicLicence = 'licenses/supertonic/LICENSE.txt';
+
+/// Adds the PDFium notices and the voice's licence to the licence page Flutter shows.
 void registerBundledLicences() {
   LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Supertonic 3 voice (Supertone)',
+    ], await rootBundle.loadString(supertonicLicence));
     for (final MapEntry(key: file, value: component) in pdfiumLicences.entries) {
       yield LicenseEntryWithLineBreaks([
         component,

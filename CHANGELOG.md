@@ -18,6 +18,20 @@
   is the groundwork for listening to a notebook as a spoken deep dive.
 - Passages longer than 40 verses are kept whole in a notebook, a study page, a note's verse
   preview and an export; they used to stop at verse 40.
+- Tap a section heading in the reader, then Study notebook: the section becomes a notebook named
+  for it, with the passage, what each installed commentary says on it, and its key Hebrew or Greek
+  words kept as word studies, ready to Synthesize or Listen. Tapping it again for the same section
+  opens that notebook instead of making a copy.
+- Listen, in a notebook, makes a spoken deep dive of about ten minutes, read by one narrator.
+  The helper writes it part by part from what Synthesize gathers: an opening, a walk through the
+  verses with their Hebrew or Greek words and commentators, the hardest question the passage
+  raises, witnesses from the other testament, and a recap with a question to take away. Every
+  verse it quotes is checked against the Bible, and a sentence that fails the check is not read.
+  Supertonic 3, a voice that runs on the device (a 145 MB download, once), then reads it aloud.
+  It is made in the background: Study keeps answering between parts, the helper rests while the
+  voice reads, and on Android a notification shows how far along it is and says when it is
+  ready. Stop keeps what was made, and Continue picks up from there. The recording stays on the
+  device and out of backups, and it says that it is machine generated.
 
 ## 0.8.0
 

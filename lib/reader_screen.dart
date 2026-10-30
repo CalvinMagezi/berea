@@ -6,6 +6,7 @@ import 'app_state.dart';
 import 'commentary_sheet.dart';
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
+import 'notebooks_screen.dart';
 import 'pray_verse_sheet.dart';
 import 'prayer_screen.dart';
 import 'prayer_points.dart';
@@ -15,6 +16,7 @@ import 'prayer_sheet.dart' show passageText, shareOrigin, shareText;
 import 'selection_bar.dart';
 import 'study_page_screen.dart';
 import 'search_screen.dart';
+import 'section_notebook.dart';
 import 'theme.dart';
 import 'today_card.dart';
 import 'word_press.dart';
@@ -360,7 +362,46 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(_selected.clear);
   }
 
-  Widget _selectionBar({required bool wide}) => SelectionBar(
+  /// The section whose verses are exactly the selection, as a heading tap leaves it; null for
+  /// any other selection. A book division is not a section to study.
+  Heading? _wholeSection(List<Heading> headings, List<Verse> verses) {
+    if (_selected.isEmpty || verses.isEmpty) return null;
+    for (final h in headings) {
+      if (h.kind == 'ms') continue;
+      final section = _sectionVerses(headings, h, verses);
+      if (section.length == _selected.length && _selected.containsAll(section)) return h;
+    }
+    return null;
+  }
+
+  /// Makes the section a study notebook and opens it, or opens the one made for it before.
+  Future<void> _studySection(Heading h) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final ref = _selection;
+    messenger.showSnackBar(SnackBar(content: Text('Making a study notebook for ${h.text}.')));
+    try {
+      final id = await makeSectionNotebook(s, ref, h.text);
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      setState(_selected.clear);
+      await navigator.push(
+        MaterialPageRoute<void>(builder: (_) => NotebookScreen(state: s, notebookId: id)),
+      );
+    } catch (e) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              e is ReaderMessage ? e.message : 'The notebook could not be made. Try again.',
+            ),
+          ),
+        );
+    }
+  }
+
+  Widget _selectionBar({required bool wide, Heading? section}) => SelectionBar(
     label: _selectionLabel,
     count: _selected.length,
     wide: wide,
@@ -382,6 +423,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     onCopy: _copy,
     onShare: _share,
     onClear: () => setState(_selected.clear),
+    section: section?.text,
+    onStudySection: section == null ? null : () => _studySection(section),
   );
 
   Future<void> _pickChapter() async {
@@ -404,7 +447,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final chapters = s.db.chapterCount(book, translation: translation);
     final highlights = s.study.highlights(book, chapter);
     final wide = MediaQuery.sizeOf(context).width >= wideLayoutBreakpoint;
-    final card = _selected.isEmpty || wide ? null : _selectionBar(wide: false);
     final tip = _tip && verses.isNotEmpty;
     final noted = {
       for (final n in s.study.notes(book: book, chapter: chapter))
@@ -417,6 +459,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     for (final h in headings) {
       headingsAt.putIfAbsent(h.verse, () => []).add(h);
     }
+    final section = _wholeSection(headings, verses);
+    final card = _selected.isEmpty || wide ? null : _selectionBar(wide: false, section: section);
     return Scaffold(
       appBar: AppBar(
         title: TextButton(
@@ -618,7 +662,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
               right: _toolbarInset,
               // A narrow Mac window leaves the reader less room than the toolbar's full width.
               child: Center(
-                child: FittedBox(fit: BoxFit.scaleDown, child: _selectionBar(wide: true)),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _selectionBar(wide: true, section: section),
+                ),
               ),
             ),
         ],

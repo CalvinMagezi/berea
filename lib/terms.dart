@@ -7,6 +7,19 @@ import 'theme.dart';
 
 const gemmaTermsAsset = 'licenses/gemma/terms.txt';
 const gemmaPolicyAsset = 'licenses/gemma/prohibited_use_policy.txt';
+const supertonicLicenceAsset = 'licenses/supertonic/LICENSE.txt';
+
+/// OpenRAIL-M paragraph 5 asks that every user of the voice is bound by Attachment A; this is
+/// that list, in plain words, and the licence text is a tap away.
+const supertonicUseRestriction =
+    'You must not use the Supertonic voice, or anything made with it, to break the law; to harm '
+    'or exploit minors; to spread false information meant to harm others; to spread personal '
+    'information that can harm someone; to publish what it says without saying clearly that it '
+    'is machine generated; to defame, disparage or harass anyone; to impersonate anyone without '
+    'their consent; for fully automated decisions that harm a person\'s legal rights; to '
+    'discriminate, or to exploit the weaknesses of a group of people; to give medical advice; or '
+    'for law enforcement, justice, immigration or asylum decisions. These are the use '
+    'restrictions in Attachment A of its licence, and they are part of these terms.';
 
 /// The restriction Gemma Terms 3.1 asks to be an enforceable provision of the terms that govern
 /// use, worded as 3.2 words it.
@@ -51,6 +64,16 @@ class TermsScreen extends StatelessWidget {
               const SizedBox(height: 16),
               _TextTile('Gemma Terms of Use', gemmaTermsAsset),
               _TextTile('Gemma Prohibited Use Policy', gemmaPolicyAsset),
+              const _Heading('Supertonic voice'),
+              const Text(
+                'Listen reads deep dives aloud with Supertonic 3 by Supertone, under the '
+                'BigScience Open RAIL-M License. When you download or use it in Berea, you agree '
+                'to that licence.',
+              ),
+              const SizedBox(height: 8),
+              const Text(supertonicUseRestriction),
+              const SizedBox(height: 16),
+              const _TextTile('Open RAIL-M License', supertonicLicenceAsset),
             ],
           ),
         ),
