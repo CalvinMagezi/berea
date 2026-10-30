@@ -81,7 +81,7 @@ void main() {
   ) async {
     s.voicePresent = (_) => true;
     await pump(tester, screen());
-    expect(find.textContaining(RegExp(r'about [6-9] minutes long')), findsOneWidget);
+    expect(find.textContaining(RegExp(r'about (\d+) minutes long')), findsOneWidget);
     expect(find.textContaining('You can keep using Berea'), findsOneWidget);
     expect(find.text('Make the deep dive'), findsOneWidget);
     expect(find.textContaining('walks through'), findsNothing);

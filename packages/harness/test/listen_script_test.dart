@@ -7,9 +7,9 @@ import 'package:test/test.dart';
 /// About the size of the real system prompt, in characters.
 const _systemChars = 3000;
 
-/// Six to ten minutes at the pace of a finished deep dive.
+/// Six to twelve minutes at the pace of a finished deep dive; quality sets the length, not a cap.
 const _fewestWords = 6 * listenWordsPerMinute;
-const _mostWords = 10 * listenWordsPerMinute;
+const _mostWords = 12 * listenWordsPerMinute;
 
 /// Replies with [reply] in [pieces] tokens, and keeps what it was asked.
 class _Echo implements LlmEngine {

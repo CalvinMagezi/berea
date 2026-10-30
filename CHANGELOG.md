@@ -22,7 +22,7 @@
   for it, with the passage, what each installed commentary says on it, and its key Hebrew or Greek
   words kept as word studies, ready to Synthesize or Listen. Tapping it again for the same section
   opens that notebook instead of making a copy.
-- Listen, in a notebook, makes a spoken deep dive of about eight minutes, read by one narrator.
+- Listen, in a notebook, makes a spoken deep dive of about ten minutes, read by one narrator.
   The helper writes it part by part from what Synthesize gathers: an opening, a walk through the
   verses with their Hebrew or Greek words and commentators, the hardest question the passage
   raises, witnesses from the other testament, and a recap with a question to take away. Every

@@ -11,16 +11,16 @@ import 'truncation.dart';
 /// The pace of a finished deep dive with its pauses: 1,283 words took 9:31 on a Mac.
 const listenWordsPerMinute = 135;
 
-/// Words a deep dive aims for: about eight and a half minutes at [listenWordsPerMinute]. 1,400
-/// gave 11:05 on the A32.
-const listenWords = 1150;
+/// Words a deep dive aims for, about ten minutes at [listenWordsPerMinute] (11:05 on the A32).
+/// Depth comes before length: each beat keeps room to say its part well.
+const listenWords = 1400;
 
 /// Words for each beat other than the verse walk, which shares what is left.
 const _beatWords = {
-  Beat.opening: 180,
-  Beat.hardQuestion: 170,
-  Beat.witnesses: 150,
-  Beat.close: 150,
+  Beat.opening: 220,
+  Beat.hardQuestion: 200,
+  Beat.witnesses: 180,
+  Beat.close: 180,
 };
 
 /// A verse walk slice shorter than this says too little, so a long notebook walks fewer slices.
