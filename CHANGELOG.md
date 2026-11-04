@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A brief answer to a question that names two or more passages is told to cite each one, so
+  "Explain Luke 15:11-32 in light of Luke 15:1-2" cites both far more often.
 - The site's reference check marks a Strong's number that does not exist ("G9999 is not a
   Strong's number"), from a 106 KB list of the lexicon's codes. Browsers too old for the check
   skip it and still check references and quotes.
