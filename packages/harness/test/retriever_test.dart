@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 const _colossians = 51;
 const _romans = 45;
 const _job = 18;
+const _james = 59;
 
 void main() {
   final bible = File('../../assets/berea.sqlite');
@@ -45,6 +46,13 @@ void main() {
     final ctx = retriever.retrieve('How should I work hard at my job?', Tier.low);
     expect(ctx.searchHits, isNotEmpty);
     expect(ctx.searchHits.every((v) => v.book.id == _job), isFalse);
+  });
+
+  test('a book name that names a person does not scope the search', () {
+    final daniel = retriever.retrieve('Who was Daniel?', Tier.low);
+    expect(daniel.searchHits, isNotEmpty);
+    final apostles = retriever.retrieve('What did James and John ask Jesus for?', Tier.low);
+    expect(apostles.searchHits.every((v) => v.book.id == _james), isFalse);
   });
 
   test('a topical question still searches the whole Bible', () {

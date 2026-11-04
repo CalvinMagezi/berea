@@ -18,7 +18,7 @@ final _strongsSuffix = RegExp(r'[A-Za-z]$');
 bool isParticleCode(String code) => code.startsWith('H9');
 
 final _functionPos = RegExp(
-  r'^(G:(T|CONJ|PREP|D|COND|P(-\d)?|PRT(-[A-Z])?)|[HA]:(Prep|Conj|Part|DemP)|Prefix|Punct\.)$',
+  r'^(G:(T|CONJ|PREP|D|COND|R|X|I|F(-\d)?|P(-\d)?|PRT(-[A-Z])?)|[HA]:(Prep|Conj|Part|DemP)|Prefix|Punct\.)$',
 );
 
 /// Articles, conjunctions, prepositions, pronouns and particles: they fill a lexicon slot without

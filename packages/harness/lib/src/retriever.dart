@@ -52,17 +52,25 @@ Iterable<Match> _bookMentions(String text) => _bookName.allMatches(text).where((
   return !_everydayWords.contains(w.toLowerCase()) || w[0] != w[0].toLowerCase();
 });
 
-/// The question with references and book names removed: they match the wrong verses in full text.
-String _searchText(String text) {
-  var out = text;
-  final spans = RefParser.matches(text).toList()..sort((a, b) => b.start.compareTo(a.start));
-  for (final m in spans) {
-    out = out.replaceRange(m.start, m.end, ' ');
+/// Words before a book name that make it the place to look: "in Romans", "the book of Job".
+final _scopeBefore = RegExp(
+  r'\b(in|book of|gospel of|letter to|epistle to|epistle of)(\s+the)?\s*$',
+  caseSensitive: false,
+);
+
+/// Words after a book name that make it the speaker: "Romans teach", "James says".
+final _scopeAfter = RegExp(r'^\s+(teach|teaches|say|says|tell|tells)\b', caseSensitive: false);
+
+/// The book a topical question asks to search within, or null. A bare name is not enough:
+/// "James and John" are people and "Who was Daniel?" wants every verse about him.
+Match? _bookScope(String text) {
+  for (final m in _bookMentions(text)) {
+    final cued =
+        _scopeBefore.hasMatch(text.substring(0, m.start)) ||
+        _scopeAfter.hasMatch(text.substring(m.end));
+    if (cued) return m;
   }
-  for (final m in _bookMentions(out).toList().reversed) {
-    out = out.replaceRange(m.start, m.end, ' ');
-  }
-  return out;
+  return null;
 }
 
 class Retriever {
@@ -145,15 +153,16 @@ class Retriever {
     );
   }
 
-  /// A book named without a chapter scopes the search to that book, falling back to the whole Bible.
+  /// A book named as the place to look scopes the search to it, falling back to the whole Bible.
   List<Verse> _topicSearch(String userText, Tier tier) {
-    final text = _searchText(userText);
-    final book = _bookMentions(userText).firstOrNull;
-    final scope = book == null ? null : bookFor(book[0]!.replaceAll(RegExp(r'\s+'), ' '));
-    if (scope != null) {
-      final scoped = db.search(text, translation: translation, k: tier.searchK, book: scope);
+    final mention = _bookScope(userText);
+    final book = mention == null ? null : bookFor(mention[0]!.replaceAll(RegExp(r'\s+'), ' '));
+    if (book != null) {
+      // The name is dropped from the search: every verse of the book is already in scope.
+      final text = userText.replaceRange(mention!.start, mention.end, ' ');
+      final scoped = db.search(text, translation: translation, k: tier.searchK, book: book);
       if (scoped.isNotEmpty) return scoped;
     }
-    return db.search(text, translation: translation, k: tier.searchK);
+    return db.search(userText, translation: translation, k: tier.searchK);
   }
 }
