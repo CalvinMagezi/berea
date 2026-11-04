@@ -24,6 +24,7 @@ import 'support/bible.dart';
 // Wide enough for the reader's chapter bar in the test font, which is wider than real type.
 const _phone = Size(600, 900);
 const _mac = Size(1280, 800);
+const _shortPhoneHeight = 560.0;
 
 /// Over the shell's breakpoint, so the sidebar shows, but leaves the places too little room for
 /// two panes.
@@ -300,6 +301,16 @@ void main() {
     await tester.tap(find.text('Prayer'));
     await tester.pumpAndSettle();
     expect(find.byType(PrayerScreen), findsOneWidget);
+  });
+
+  testWidgets('today\'s card in full scrolls on a short phone instead of overflowing', (
+    tester,
+  ) async {
+    state.todayCardFull = true;
+    await pumpShell(tester, Size(_phone.width, _shortPhoneHeight));
+    expect(tester.takeException(), isNull, reason: 'no overflow');
+    final verses = tester.getRect(find.byType(ListView).first);
+    expect(verses.height, greaterThan(_shortPhoneHeight / 5), reason: 'the chapter keeps room');
   });
 
   testWidgets('today\'s card on the Bible opens the Plans place', (tester) async {

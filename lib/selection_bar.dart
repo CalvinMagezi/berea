@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'brand/lamp_mark.dart';
 import 'brand/prayer_icon.dart';
@@ -13,10 +14,17 @@ const _labelSize = 12.0;
 const _cardRadius = 16.0;
 const _cardElevation = 3.0;
 
+/// How far the phone card follows a sideways drag, and how far it must go to count as a swipe.
+const _swipeTravel = 96.0;
+const _swipeDistance = 56.0;
+const _swipeVelocity = 600.0;
+const _swipeReturn = Duration(milliseconds: 180);
+
 enum _More { words, commentary, studyPage, copy, share }
 
 /// What a selection of verses can do: Highlight, Note, Pray, Ask and More on a phone card; on a
-/// wide screen a toolbar with Words and Commentary out of More.
+/// wide screen a toolbar with Words and Commentary out of More. On a phone, swiping the card
+/// right opens Commentary and swiping it left opens Words.
 class SelectionBar extends StatelessWidget {
   final String label;
 
@@ -96,7 +104,7 @@ class SelectionBar extends StatelessWidget {
       icon: const Icon(Icons.close),
       onPressed: onClear,
     );
-    return Material(
+    final card = Material(
       color: scheme.surfaceContainerHighest,
       elevation: _cardElevation,
       shadowColor: scheme.shadow,
@@ -137,7 +145,10 @@ class SelectionBar extends StatelessWidget {
                           child: FilledButton.tonalIcon(
                             onPressed: study,
                             icon: const Icon(Icons.auto_stories_outlined),
-                            label: Text('Study notebook: $section', overflow: TextOverflow.ellipsis),
+                            label: Text(
+                              'Study notebook: $section',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                       ),
@@ -146,6 +157,8 @@ class SelectionBar extends StatelessWidget {
         ),
       ),
     );
+    if (wide) return card;
+    return _SwipeCard(onRight: onCommentary, onLeft: onWords, child: card);
   }
 
   Widget _moreButton() => Builder(
@@ -227,4 +240,103 @@ class _ActionFace extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// The phone card on a sideways drag, with the action it will open shown in the space it leaves.
+class _SwipeCard extends StatefulWidget {
+  final VoidCallback onRight;
+  final VoidCallback onLeft;
+  final Widget child;
+  const _SwipeCard({required this.onRight, required this.onLeft, required this.child});
+
+  @override
+  State<_SwipeCard> createState() => _SwipeCardState();
+}
+
+class _SwipeCardState extends State<_SwipeCard> with SingleTickerProviderStateMixin {
+  late final _shift = AnimationController(
+    vsync: this,
+    lowerBound: -_swipeTravel,
+    upperBound: _swipeTravel,
+    value: 0,
+    duration: _swipeReturn,
+  );
+
+  @override
+  void dispose() {
+    _shift.dispose();
+    super.dispose();
+  }
+
+  void _end(DragEndDetails d) {
+    final dx = _shift.value;
+    final v = d.primaryVelocity ?? 0;
+    _shift.animateTo(0, curve: Curves.easeOut);
+    final right = dx >= _swipeDistance || (v >= _swipeVelocity && dx > 0);
+    final left = dx <= -_swipeDistance || (v <= -_swipeVelocity && dx < 0);
+    if (!right && !left) return;
+    HapticFeedback.selectionClick();
+    right ? widget.onRight() : widget.onLeft();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onHorizontalDragUpdate: (d) => _shift.value += d.delta.dx,
+      onHorizontalDragEnd: _end,
+      onHorizontalDragCancel: () => _shift.animateTo(0),
+      child: AnimatedBuilder(
+        animation: _shift,
+        child: widget.child,
+        builder: (context, card) {
+          final dx = _shift.value;
+          final reach = (dx.abs() / _swipeDistance).clamp(0.0, 1.0);
+          return Stack(
+            children: [
+              if (dx != 0)
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: reach,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Align(
+                        alignment: dx > 0 ? Alignment.centerLeft : Alignment.centerRight,
+                        child: dx > 0
+                            ? const _SwipeHint(
+                                icon: Icons.library_books_outlined,
+                                label: 'Commentary',
+                              )
+                            : const _SwipeHint(icon: Icons.translate, label: 'Words'),
+                      ),
+                    ),
+                  ),
+                ),
+              Transform.translate(offset: Offset(dx, 0), child: card),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SwipeHint extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _SwipeHint({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color),
+        Text(
+          label,
+          style: TextStyle(fontSize: _labelSize, color: color),
+        ),
+      ],
+    );
+  }
 }

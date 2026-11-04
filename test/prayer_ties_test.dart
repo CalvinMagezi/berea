@@ -6,6 +6,7 @@ import 'package:berea/plans.dart';
 import 'package:berea/plans_screen.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/theme.dart';
+import 'package:berea/today.dart';
 import 'package:berea/word_press.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
@@ -66,6 +67,8 @@ void main() {
     SharedPreferences.setMockInitialValues({
       'engine': EngineKind.ollama.name,
       'tipT14Done': true,
+      // Folded, as on any look after the first of the day.
+      'todayCardFullOn': dayKey(DateTime.now()),
       ...prefs,
     });
     return AppState.bootstrap(

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- On a phone, swipe the selected verse's card right for Commentary or left for Words, the
+  Hebrew or Greek of the verse word by word. Each verb in Words shows its parsing from the
+  tagged text ("imperfect active indicative"). Today's card in full no longer pushes the chapter
+  off a short screen; it scrolls instead.
 - Study answers draw on better context. A question about a passage no longer pulls in verses that
   only share a book's name (asking about Luke 12 used to bring Colossians 4:14, "Luke the beloved
   physician"), the word list skips "the", "and" and "for" so the lexicon holds the passage's real
