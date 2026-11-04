@@ -1,0 +1,100 @@
+[
+ {
+  "q": "What does John 19:13 say about Gabbatha?",
+  "expect": [
+   "John 19:13"
+  ],
+  "note": "verse itself says in Hebrew"
+ },
+ {
+  "q": "What does Revelation 16:16 mean by Armageddon?",
+  "expect": [
+   "Revelation 16:16"
+  ],
+  "note": "verse itself says in Hebrew"
+ },
+ {
+  "q": "What does Jesus cry out in Mark 15:34?",
+  "expect": [
+   "Mark 15:34"
+  ],
+  "note": "Aramaic or Hebrew cry"
+ },
+ {
+  "q": "What does the name Jesus mean in Matthew 1:21?",
+  "expect": [
+   "Matthew 1:21"
+  ],
+  "note": "Hebrew Yeshua is legitimate"
+ },
+ {
+  "q": "How is Isaiah 7:14 fulfilled?",
+  "expect": [
+   "Isaiah 7:14"
+  ],
+  "note": "Matthew's Greek parthenos is legitimate"
+ },
+ {
+  "q": "What is the word for love in Deuteronomy 6:5?",
+  "expect": [
+   "Deuteronomy 6:5"
+  ],
+  "note": "true positive if it says agape"
+ },
+ {
+  "q": "What is the word for spirit in Genesis 1:2?",
+  "expect": [
+   "Genesis 1:2"
+  ],
+  "note": "true positive if it says pneuma"
+ },
+ {
+  "q": "What is the word for grace in Ephesians 2:8?",
+  "expect": [
+   "Ephesians 2:8"
+  ],
+  "note": "true positive if it says chesed"
+ },
+ {
+  "q": "What does the word peace mean in Philippians 4:7?",
+  "expect": [
+   "Philippians 4:7"
+  ],
+  "note": "Hebrew shalom background is common and arguably fine"
+ },
+ {
+  "q": "What does steadfast love mean in Lamentations 3:22?",
+  "expect": [
+   "Lamentations 3:22"
+  ],
+  "note": "true positive if it gives a Greek word"
+ },
+ {
+  "q": "What Greek word is used for love in Deuteronomy 6:5?",
+  "expect": [
+   "Deuteronomy 6:5"
+  ],
+  "note": "bait: should say Hebrew ahav, or name the Septuagint"
+ },
+ {
+  "q": "What is the Greek word for shepherd in Psalm 23:1?",
+  "expect": [
+   "Psalm 23:1"
+  ],
+  "note": "bait: Hebrew ra'ah"
+ },
+ {
+  "q": "What Hebrew word is used for grace in Ephesians 2:8?",
+  "expect": [
+   "Ephesians 2:8"
+  ],
+  "note": "bait: Greek charis"
+ },
+ {
+  "q": "What is the Hebrew word for faith in Hebrews 11:1?",
+  "expect": [
+   "Hebrews 11:1"
+  ],
+  "note": "bait: Greek pistis"
+ }
+]

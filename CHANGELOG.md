@@ -13,7 +13,10 @@
   book first. Verbs in the word list carry their tense in plain words ("aorist active
   indicative") instead of codes.
 - The citation check now marks a Strong's number the answer gives that Berea never showed the
-  model, and notes an answer that calls an Old Testament word Greek or a New Testament word Hebrew.
+  model. When an answer speaks of Greek for an Old Testament passage, or of Hebrew for a New
+  Testament one, a quiet line under it says which language the passage was written in and points
+  to Words. A verse that names the language itself (John 19:13, "in Hebrew Gabbatha") or an
+  answer about the Septuagint does not raise it.
 - The Berean Standard Bible now shows its section headings, with the parallel passages under them
   and the five books of Psalms and the acrostic letters of Psalm 119 marked. Tap a heading to
   select its whole section, ready to highlight, ask about or add to a notebook; tap it again to

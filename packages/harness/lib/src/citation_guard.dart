@@ -510,6 +510,7 @@ class CitationGuard {
   );
   static final _greekWord = RegExp(r'\bGreek\b', caseSensitive: false);
   static final _hebrewWord = RegExp(r'\bHebrew\b', caseSensitive: false);
+  static final _septuagint = RegExp(r'\bSeptuagint\b|\bLXX\b', caseSensitive: false);
 
   /// Marks Strong's numbers the model was not shown. A code is only trusted when the LEXICON
   /// block or a shown word carries it, since rule 4 allows no other source of original words.
@@ -533,20 +534,29 @@ class CitationGuard {
   }
 
   /// Notes when every shown reference is in one testament yet the answer names the other
-  /// testament's language with no code of that language in the lexicon.
+  /// testament's language with no code of that language in the lexicon. A shown verse that names
+  /// the language itself (John 19:13, "in Hebrew Gabbatha") or a mention of the Septuagint, the
+  /// Greek Old Testament, makes the claim expected rather than suspect.
   List<String> _languageNotes(String text, StudyContext shown) {
     if (shown.refs.isEmpty) return const [];
+    final place = shown.refs.length == 1 ? shown.refs.single.label : 'This passage';
     final allOt = shown.refs.every((r) => r.book.id <= otBookCount);
     final allNt = shown.refs.every((r) => r.book.id > otBookCount);
     final codes = shown.lexicon.keys;
-    final notes = <String>[];
-    if (allOt && _greekWord.hasMatch(text) && !codes.any((k) => k.startsWith('G'))) {
-      notes.add('Answer says Greek but the passage shown is Old Testament (Hebrew)');
+    final verses = shown.allVerses.map((v) => v.text).join(' ');
+    bool suspect(RegExp word, String prefix) =>
+        word.hasMatch(text) && !word.hasMatch(verses) && !codes.any((k) => k.startsWith(prefix));
+    if (allOt && suspect(_greekWord, 'G') && !_septuagint.hasMatch(text)) {
+      return [
+        '$place was written in Hebrew, but the answer speaks of Greek. Check the word in Words.',
+      ];
     }
-    if (allNt && _hebrewWord.hasMatch(text) && !codes.any((k) => k.startsWith('H'))) {
-      notes.add('Answer says Hebrew but the passage shown is New Testament (Greek)');
+    if (allNt && suspect(_hebrewWord, 'H')) {
+      return [
+        '$place was written in Greek, but the answer speaks of Hebrew. Check the word in Words.',
+      ];
     }
-    return notes;
+    return const [];
   }
 
   /// Flags quotes found in no shown text and replaces clear misquotes of one verse. [sources] is

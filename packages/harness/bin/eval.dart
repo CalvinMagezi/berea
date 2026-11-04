@@ -1,5 +1,5 @@
 // Runs eval/golden.json through the harness, with --words the word study questions in
-// eval/word_study.json, or with --notebook eval/notebook.json against a fixture notebook. Exit 1 if any reference or source citation was invented. Add
+// eval/word_study.json, with --language the Greek and Hebrew note probes in eval/language.json, or with --notebook eval/notebook.json against a fixture notebook. Exit 1 if any reference or source citation was invented. Add
 // --commentary <pack.sqlite> to let notebook answers draw on an installed commentary pack, and
 // --show to print each notebook answer as the guard left it.
 import 'dart:convert';
@@ -9,6 +9,15 @@ import 'package:berea_harness/berea_harness.dart';
 
 import 'berea.dart';
 import 'notebook_fixture.dart';
+
+/// The language notes on an answer with the sentences that name a language, for review by eye.
+String _languageLines(GuardResult g, String text) {
+  if (g.languageNotes.isEmpty) return '';
+  final said = RegExp(
+    r'[^.!?\n]*\b(Greek|Hebrew)\b[^.!?\n]*',
+  ).allMatches(text).map((m) => m[0]!.trim());
+  return '\n    language: ${g.languageNotes.join('; ')}\n    said: ${said.join(' | ')}';
+}
 
 /// Unverified citations that only repeat the question's own bait are correct behaviour.
 /// References compare as references, so "Psalms 151" matches the bait "Psalm 151".
@@ -64,7 +73,11 @@ Future<void> main(List<String> args) async {
       : await _golden(
           h,
           args.contains('--brief'),
-          args.contains('--words') ? 'eval/word_study.json' : 'eval/golden.json',
+          args.contains('--words')
+              ? 'eval/word_study.json'
+              : args.contains('--language')
+              ? 'eval/language.json'
+              : 'eval/golden.json',
         );
   h.db.close();
   exit(ok ? 0 : 1);
@@ -77,10 +90,7 @@ Future<bool> _golden(Harness h, bool brief, String path) async {
   final sw = Stopwatch()..start();
   for (final c in cases) {
     h.history.clear();
-    final r = await h.ask(
-      c['q'] as String,
-      style: brief ? AnswerStyle.brief : AnswerStyle.full,
-    );
+    final r = await h.ask(c['q'] as String, style: brief ? AnswerStyle.brief : AnswerStyle.full);
     words += r.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
     final want = [for (final s in _strings(c, 'expect')) ...RefParser.parse(s)];
     final bait = _strings(c, 'bait');
@@ -108,7 +118,8 @@ Future<bool> _golden(Harness h, bool brief, String path) async {
       '${inventedHere.isEmpty ? '' : '  invented: ${inventedHere.join(', ')}'}'
       '${misattr ? '  misattributed: "${misSentence.trim()}"' : ''}'
       '${r.guard.unverifiedQuotes.isEmpty ? '' : '  bad quotes: ${r.guard.unverifiedQuotes.length}'}'
-      '${r.guard.nearMisses.isEmpty ? '' : '  near misses: ${r.guard.nearMisses.join(', ')}'}',
+      '${r.guard.nearMisses.isEmpty ? '' : '  near misses: ${r.guard.nearMisses.join(', ')}'}'
+      '${_languageLines(r.guard, r.text)}',
     );
   }
   stdout.writeln(

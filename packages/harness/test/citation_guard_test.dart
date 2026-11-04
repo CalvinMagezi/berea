@@ -222,8 +222,39 @@ void main() {
       final r = CitationGuard(
         db,
       ).apply('The Greek word here is wisdom.', withLexicon('Proverbs 1:7', ['H2451']));
-      expect(r.languageNotes, hasLength(1));
+      expect(r.languageNotes, [
+        'Proverbs 1:7 was written in Hebrew, but the answer speaks of Greek. Check the word in Words.',
+      ]);
       expect(r.text, 'The Greek word here is wisdom.');
+    });
+
+    test('a Greek claim that names the Septuagint is expected', () {
+      final r = CitationGuard(db).apply(
+        'The Septuagint renders it with the Greek sophia.',
+        withLexicon('Proverbs 1:7', ['H2451']),
+      );
+      expect(r.languageNotes, isEmpty);
+    });
+
+    test('a Hebrew claim is expected when the verse shown says Hebrew itself', () {
+      final ref = RefParser.parse('John 19:13').single;
+      final shown = StudyContext(
+        refs: [ref],
+        passages: [
+          Verse(
+            ref.book,
+            19,
+            13,
+            'a place called the Stone Pavement, which in Hebrew is Gabbatha.',
+          ),
+        ],
+        words: const [],
+        lexicon: const {},
+        xrefVerses: const [],
+        searchHits: const [],
+      );
+      final r = CitationGuard(db).apply('The place is Gabbatha in Hebrew (John 19:13).', shown);
+      expect(r.languageNotes, isEmpty);
     });
 
     test('notes a Hebrew claim on a New Testament passage', () {

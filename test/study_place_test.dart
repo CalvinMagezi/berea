@@ -536,6 +536,18 @@ void main() {
     expect(note.text, contains('Grace is a gift'));
   });
 
+  testWidgets('an answer naming Greek for an Old Testament verse shows a quiet language hint', (
+    tester,
+  ) async {
+    final engine = _Answer()
+      ..reply = 'The Greek word agape here means love (Deuteronomy 6:5, BSB).';
+    final s = await app(helper: const HelperReady(), engine: engine);
+    await tester.runAsync(() => s.send('What is the word for love in Deuteronomy 6:5?'));
+    await pumpStudy(tester, s);
+    expect(find.textContaining('was written in Hebrew'), findsOneWidget);
+    expect(find.textContaining('agape'), findsOneWidget, reason: 'the answer is left as written');
+  });
+
   testWidgets('Ask about this notebook during an answer switches once the answer is finished', (
     tester,
   ) async {

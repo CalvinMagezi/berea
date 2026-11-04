@@ -725,6 +725,7 @@ class _Citations extends StatelessWidget {
         notInScripture.isEmpty &&
         g.unverifiedQuotes == 0 &&
         g.unverifiedWords.isEmpty &&
+        g.languageNotes.isEmpty &&
         g.correctedQuotes == 0 &&
         g.sources.isEmpty &&
         g.unverifiedSources.isEmpty) {
@@ -773,6 +774,24 @@ class _Citations extends StatelessWidget {
                   if (g.nearMisses.isNotEmpty) nearMissNotice(g.nearMisses)!,
                 ].join(' · '),
                 style: TextStyle(color: scheme.error, fontSize: 13),
+              ),
+            ),
+          // A hint, not a fault: the answer may still be right, so it is not in the error colour.
+          for (final note in g.languageNotes)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.translate, size: 16, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      note,
+                      style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
