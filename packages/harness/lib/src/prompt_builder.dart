@@ -185,16 +185,16 @@ class PromptBuilder {
     ], shown);
   }
 
-  /// For a brief answer to a question naming several passages, a line naming each one. Under
-  /// "cite the verses you rely on" alone, Luke 15:11-32 with Luke 15:1-2 was cited in full in 1 of
-  /// 24 answers; with this line, 31 of 48 across the low and mid tiers (18 of 24 on low). It sits
-  /// after the question, where a small model reads it last.
-  static String _citeEach(List<Ref> refs, AnswerStyle style) {
+  /// For a brief answer to a question naming several passages, a line giving each citation as
+  /// it should be written. On Luke 15:11-32 with Luke 15:1-2 (gemma4:e2b, low and mid) both were
+  /// cited in 1 of 24 answers with no line, 31 of 48 when the line only named them, and 40 of 48
+  /// when it showed the written form, which a small model copies. It sits after the question.
+  String _citeEach(List<Ref> refs, AnswerStyle style) {
     if (style != AnswerStyle.brief || refs.length < 2) return '';
-    final names = refs.map((r) => r.label).toList();
-    final list = '${names.sublist(0, names.length - 1).join(', ')} and ${names.last}';
-    final which = names.length == 2 ? 'both' : 'all ${names.length}';
-    return '\n\nYour answer must cite $which: $list.';
+    final cites = [for (final r in refs) '(${r.label}, $translation)'];
+    final list = '${cites.sublist(0, cites.length - 1).join(', ')} and ${cites.last}';
+    final which = cites.length == 2 ? 'both' : 'all ${cites.length}';
+    return '\n\nYour answer must cite $which, written as $list.';
   }
 
   /// [userText] cut to a share of the budget, so a pasted page cannot crowd out every passage or

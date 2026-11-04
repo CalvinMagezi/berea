@@ -108,7 +108,9 @@ void main() {
         .content;
     expect(
       question(two, AnswerStyle.brief),
-      endsWith('Your answer must cite both: Luke 15:11-32 and Luke 15:1-2.'),
+      endsWith(
+        'Your answer must cite both, written as (Luke 15:11-32, BSB) and (Luke 15:1-2, BSB).',
+      ),
     );
     expect(question(two, AnswerStyle.full), isNot(contains('must cite')));
     expect(question('What does John 3:16 mean?', AnswerStyle.brief), isNot(contains('must cite')));
