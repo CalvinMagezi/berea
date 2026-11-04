@@ -1,4 +1,5 @@
 import 'bible_db.dart';
+import 'books.dart';
 import 'ref_parser.dart';
 import 'sources.dart';
 import 'tier.dart';
@@ -27,6 +28,41 @@ class StudyContext {
   /// Every verse in this context. For what the model was shown, use the context PromptBuilder
   /// returns: the budget may cut some of what was retrieved.
   Iterable<Verse> get allVerses => [...passages, ...xrefVerses, ...searchHits];
+}
+
+/// Names shorter than this are skipped as aliases: "is", "am" and "re" are ordinary words.
+const _minAliasLength = 4;
+
+/// Every book name and long alias, longest first, with flexible spacing ("1 Corinthians").
+final _bookName = () {
+  final names = <String>{
+    for (final b in books) ...[b.name, ...b.aliases.where((a) => a.length >= _minAliasLength)],
+  }.toList()..sort((a, b) => b.length.compareTo(a.length));
+  final alt = names.map((n) => RegExp.escape(n).replaceAll(' ', r'\s+')).join('|');
+  return RegExp('\\b(?:$alt)\\b', caseSensitive: false);
+}();
+
+/// Book names that are also everyday words ("my job", "acts of kindness"): only a capital makes
+/// them a book.
+const _everydayWords = {'job', 'mark', 'acts', 'numbers', 'judges', 'song', 'revelation'};
+
+/// The book names written in [text], skipping everyday words written in lower case.
+Iterable<Match> _bookMentions(String text) => _bookName.allMatches(text).where((m) {
+  final w = m[0]!;
+  return !_everydayWords.contains(w.toLowerCase()) || w[0] != w[0].toLowerCase();
+});
+
+/// The question with references and book names removed: they match the wrong verses in full text.
+String _searchText(String text) {
+  var out = text;
+  final spans = RefParser.matches(text).toList()..sort((a, b) => b.start.compareTo(a.start));
+  for (final m in spans) {
+    out = out.replaceRange(m.start, m.end, ' ');
+  }
+  for (final m in _bookMentions(out).toList().reversed) {
+    out = out.replaceRange(m.start, m.end, ' ');
+  }
+  return out;
 }
 
 class Retriever {
@@ -64,7 +100,7 @@ class Retriever {
         for (final s in w.strongs.split(' ')) {
           if (s.isEmpty || lexicon.containsKey(s) || lexicon.length >= tier.lexiconWords) continue;
           final e = db.lexicon(s);
-          if (e != null) lexicon[s] = e;
+          if (e != null && !isFunctionWord(e)) lexicon[s] = e;
         }
       }
       for (final x in db.xrefs(primary, k: tier.xrefK)) {
@@ -77,7 +113,9 @@ class Retriever {
 
     final hits = uses.isNotEmpty
         ? uses
-        : db.search(userText, translation: translation, k: tier.searchK);
+        : refs.isNotEmpty
+        ? const <Verse>[]
+        : _topicSearch(userText, tier);
     final searchHits = [
       for (final v in hits)
         if (seen.add(v.label)) v,
@@ -105,5 +143,17 @@ class Retriever {
       searchHits: searchHits,
       sources: sources,
     );
+  }
+
+  /// A book named without a chapter scopes the search to that book, falling back to the whole Bible.
+  List<Verse> _topicSearch(String userText, Tier tier) {
+    final text = _searchText(userText);
+    final book = _bookMentions(userText).firstOrNull;
+    final scope = book == null ? null : bookFor(book[0]!.replaceAll(RegExp(r'\s+'), ' '));
+    if (scope != null) {
+      final scoped = db.search(text, translation: translation, k: tier.searchK, book: scope);
+      if (scoped.isNotEmpty) return scoped;
+    }
+    return db.search(text, translation: translation, k: tier.searchK);
   }
 }

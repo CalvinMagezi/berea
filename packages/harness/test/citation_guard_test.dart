@@ -40,7 +40,15 @@ void main() {
   test('a short quote does not open a bogus long one', () {
     const output =
         'The word means "to create" (H1254A). Scope: "of heaven and earth" and more words here.';
-    final r = CitationGuard(db).apply(output, ctx);
+    final shownCode = StudyContext(
+      refs: ctx.refs,
+      passages: ctx.passages,
+      words: const [],
+      lexicon: const {'H1254': LexEntry('H1254', '', '', '', '', '')},
+      xrefVerses: const [],
+      searchHits: const [],
+    );
+    final r = CitationGuard(db).apply(output, shownCode);
     expect(r.unverifiedQuotes, isEmpty);
     expect(r.text, output);
   });
@@ -177,5 +185,46 @@ void main() {
     final range = RefParser.parse('Philippians 4:6-7').first;
     expect(range.overlaps(RefParser.parse('Philippians 4:7').first), isTrue);
     expect(range.overlaps(RefParser.parse('Philippians 4:8').first), isFalse);
+  });
+
+  group('original-language check', () {
+    StudyContext withLexicon(String ref, List<String> keys) => StudyContext(
+      refs: RefParser.parse(ref),
+      passages: const [],
+      words: const [],
+      lexicon: {for (final k in keys) k: LexEntry(k, '', '', '', '', '')},
+      xrefVerses: const [],
+      searchHits: const [],
+    );
+
+    test('flags a Strong\'s number that was not shown', () {
+      final r = CitationGuard(
+        db,
+      ).apply('The word is G25 here.', withLexicon('John 3:16', ['G0026']));
+      expect(r.unverifiedWords, ['G25']);
+      expect(r.text, contains('[unverified: G25]'));
+    });
+
+    test('passes shown codes in padded and unpadded forms', () {
+      final shown = withLexicon('John 3:16', ['G0025', 'H8549']);
+      final r = CitationGuard(db).apply('See G25, G0025 and H8549G.', shown);
+      expect(r.unverifiedWords, isEmpty);
+      expect(r.text, isNot(contains('unverified')));
+    });
+
+    test('notes a Greek claim on an Old Testament passage', () {
+      final r = CitationGuard(
+        db,
+      ).apply('The Greek word here is wisdom.', withLexicon('Proverbs 1:7', ['H2451']));
+      expect(r.languageNotes, hasLength(1));
+      expect(r.text, 'The Greek word here is wisdom.');
+    });
+
+    test('notes a Hebrew claim on a New Testament passage', () {
+      final r = CitationGuard(
+        db,
+      ).apply('The Hebrew word is love.', withLexicon('John 3:16', ['G0025']));
+      expect(r.languageNotes, hasLength(1));
+    });
   });
 }

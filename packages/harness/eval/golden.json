@@ -242,5 +242,39 @@
   "q": "What does the Book of Jasher say about Enoch?",
   "expect": [],
   "kind": "adversarial"
+ },
+ {
+  "q": "What does the Bible say about anger?",
+  "expect": []
+ },
+ {
+  "q": "How does Scripture teach humility?",
+  "expect": []
+ },
+ {
+  "q": "What does the perfect tense in John 19:30 'It is finished' convey?",
+  "expect": [
+   "John 19:30"
+  ]
+ },
+ {
+  "q": "Why is 'believes' in John 3:16 a present participle?",
+  "expect": [
+   "John 3:16"
+  ]
+ },
+ {
+  "q": "Explain Luke 15:11-32 in light of Luke 15:1-2.",
+  "expect": [
+   "Luke 15:11-32",
+   "Luke 15:1-2"
+  ]
+ },
+ {
+  "q": "What is the point of the parable of the lost son in Luke 15:11-32, given the grumbling in Luke 15:1-2?",
+  "expect": [
+   "Luke 15:11-32",
+   "Luke 15:1-2"
+  ]
  }
 ]
