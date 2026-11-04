@@ -2,11 +2,13 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:berea/app_state.dart';
+import 'package:berea/commentary_sheet.dart';
 import 'package:berea/home_shell.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/selection_bar.dart';
 import 'package:berea/study_button.dart';
 import 'package:berea/theme.dart';
+import 'package:berea/today.dart';
 import 'package:berea/voice.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
@@ -62,6 +64,8 @@ void main() {
       'readerBook': 43,
       'readerChapter': 3,
       'tipT14Done': true,
+      // Folded, as on any look after the first of the day.
+      'todayCardFullOn': dayKey(DateTime.now()),
     });
     final s = await AppState.bootstrap(
       supportDir: dir,
@@ -176,7 +180,9 @@ void main() {
     await tester.tap(find.text('Jesus and Nicodemus'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    final xs = [for (final a in ['Study notebook', 'Highlight']) tester.getCenter(action(a)).dx];
+    final xs = [
+      for (final a in ['Study notebook', 'Highlight']) tester.getCenter(action(a)).dx,
+    ];
     expect(xs.first, lessThan(xs.last));
   });
 
@@ -223,6 +229,27 @@ void main() {
     final text = state.db.passage(ref, translation: translation).single.text;
     expect(copied, '$text\nJohn 3:1 ($translation)');
     expect(find.byType(SelectionBar), findsNothing, reason: 'the selection clears');
+  });
+
+  testWidgets('swiping the card left opens Words and right opens Commentary', (tester) async {
+    await pumpSelected(tester, _roomyPhone, [1]);
+    await tester.drag(find.byType(SelectionBar), const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Greek'), findsOneWidget, reason: 'the Words sheet for John 3:1');
+    expect(find.text('imperfect active indicative'), findsOneWidget, reason: 'Ēn, "was", parsed');
+    Navigator.of(tester.element(find.text('Greek'))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(SelectionBar), const Offset(120, 0));
+    await tester.pumpAndSettle();
+    expect(find.byType(CommentaryPanel), findsOneWidget);
+    Navigator.of(tester.element(find.byType(CommentaryPanel))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(SelectionBar), const Offset(30, 0));
+    await tester.pumpAndSettle();
+    expect(find.byType(CommentaryPanel), findsNothing, reason: 'a short drag opens nothing');
+    expect(find.text('Greek'), findsNothing);
   });
 
   testWidgets('the Mac toolbar has Pray beside Words and Commentary', (tester) async {

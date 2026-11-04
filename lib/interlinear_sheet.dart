@@ -79,6 +79,8 @@ class _WordCard extends StatelessWidget {
             Text(w.original, style: const TextStyle(fontSize: 22)),
             Text(w.translit, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             Text(w.gloss, style: TextStyle(fontSize: 13, color: scheme.primary)),
+            if (verbSense(w.morph) case final sense?)
+              Text(sense, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
           ],
         ),
       ),
@@ -101,8 +103,11 @@ class _WordCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  [w.translit, if (partOfSpeech(entries.firstOrNull?.pos ?? '') case final p
-                      when p.isNotEmpty) p].join(' · '),
+                  [
+                    w.translit,
+                    if (partOfSpeech(entries.firstOrNull?.pos ?? '') case final p when p.isNotEmpty)
+                      p,
+                  ].join(' · '),
                   style: const TextStyle(fontSize: 13),
                 ),
                 const SizedBox(height: 12),

@@ -41,6 +41,9 @@ const tipT14 = 'Tap a verse to highlight it, write a note, pray it or ask about 
 /// Where the tip sits above the chapter bar, with no selection card under it.
 const _tipGap = 16.0;
 const _tipCardGap = 8.0;
+
+/// The most of the reader's height today's card takes before it scrolls.
+const _todayMaxShare = 0.6;
 const _toolbarTop = 8.0;
 const _toolbarInset = 8.0;
 
@@ -515,140 +518,151 @@ class _ReaderScreenState extends State<ReaderScreen> {
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-                    child: TodayCard(
-                      state: s,
-                      full: s.todayCardFull,
-                      onFull: (full) => setState(() => s.todayCardFull = full),
+              child: LayoutBuilder(
+                builder: (context, body) => Column(
+                  children: [
+                    // Capped, so the full card on a short screen or with large text scrolls
+                    // instead of pushing the chapter off the bottom.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: body.maxHeight * _todayMaxShare),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                        child: TodayCard(
+                          state: s,
+                          full: s.todayCardFull,
+                          onFull: (full) => setState(() => s.todayCardFull = full),
+                        ),
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: verses.isEmpty
-                        ? Center(
-                            child: Text(
-                              'No text for ${book.name} $chapter in $translation.',
-                              style: TextStyle(color: scheme.onSurfaceVariant),
-                            ),
-                          )
-                        : NotificationListener<ScrollNotification>(
-                            onNotification: _onScroll,
-                            child: ListView.builder(
-                              controller: _scroll,
-                              padding: const EdgeInsets.fromLTRB(20 - _markGutter, 12, 20, 160),
-                              itemCount: verses.length,
-                              itemBuilder: (_, i) {
-                                final v = verses[i];
-                                final on = _selected.contains(v.verse);
-                                final other = second[v.verse];
-                                final stopped = _resume?.verseStart == v.verse;
-                                final item = WordPressRegion(
-                                  key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
-                                  text: v.text,
-                                  prefixLength: '${v.verse} '.length,
-                                  textKey: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
-                                  labelFor: (hit) => _pressLabel(v, hit),
-                                  onWord: (hit) => _studyWord(v, hit),
-                                  onVerse: () =>
-                                      showInterlinear(context, s, Ref(book, chapter, v.verse)),
-                                  onTap: () => setState(
-                                    () => on ? _selected.remove(v.verse) : _selected.add(v.verse),
-                                  ),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: highlights.contains(v.verse)
-                                          ? scheme.primary.withValues(alpha: 0.18)
-                                          : stopped
-                                          ? scheme.surfaceContainerHighest
-                                          : null,
-                                      border: on
-                                          ? Border(
-                                              left: BorderSide(color: scheme.primary, width: 3),
-                                            )
-                                          : null,
+                    Expanded(
+                      child: verses.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No text for ${book.name} $chapter in $translation.',
+                                style: TextStyle(color: scheme.onSurfaceVariant),
+                              ),
+                            )
+                          : NotificationListener<ScrollNotification>(
+                              onNotification: _onScroll,
+                              child: ListView.builder(
+                                controller: _scroll,
+                                padding: const EdgeInsets.fromLTRB(20 - _markGutter, 12, 20, 160),
+                                itemCount: verses.length,
+                                itemBuilder: (_, i) {
+                                  final v = verses[i];
+                                  final on = _selected.contains(v.verse);
+                                  final other = second[v.verse];
+                                  final stopped = _resume?.verseStart == v.verse;
+                                  final item = WordPressRegion(
+                                    key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                    text: v.text,
+                                    prefixLength: '${v.verse} '.length,
+                                    textKey: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                    labelFor: (hit) => _pressLabel(v, hit),
+                                    onWord: (hit) => _studyWord(v, hit),
+                                    onVerse: () =>
+                                        showInterlinear(context, s, Ref(book, chapter, v.verse)),
+                                    onTap: () => setState(
+                                      () => on ? _selected.remove(v.verse) : _selected.add(v.verse),
                                     ),
-                                    child: _ParallelRow(
-                                      other: other,
-                                      otherLabel: parallel,
-                                      primary: Text.rich(
-                                        key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
-                                        TextSpan(
-                                          style: scriptureStyle(context)
-                                              .copyWith(fontSize: 18, height: 1.6),
-                                          children: [
-                                            TextSpan(
-                                              text: '${v.verse} ',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: scheme.primary,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            TextSpan(text: v.text),
-                                            if (noted.contains(v.verse))
-                                              WidgetSpan(
-                                                alignment: PlaceholderAlignment.middle,
-                                                child: Padding(
-                                                  padding: const EdgeInsets.only(left: 6),
-                                                  child: Icon(
-                                                    Icons.sticky_note_2_outlined,
-                                                    size: 14,
-                                                    color: scheme.onSurfaceVariant,
-                                                  ),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: highlights.contains(v.verse)
+                                            ? scheme.primary.withValues(alpha: 0.18)
+                                            : stopped
+                                            ? scheme.surfaceContainerHighest
+                                            : null,
+                                        border: on
+                                            ? Border(
+                                                left: BorderSide(color: scheme.primary, width: 3),
+                                              )
+                                            : null,
+                                      ),
+                                      child: _ParallelRow(
+                                        other: other,
+                                        otherLabel: parallel,
+                                        primary: Text.rich(
+                                          key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                          TextSpan(
+                                            style: scriptureStyle(context)
+                                                .copyWith(fontSize: 18, height: 1.6),
+                                            children: [
+                                              TextSpan(
+                                                text: '${v.verse} ',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: scheme.primary,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
-                                          ],
+                                              TextSpan(text: v.text),
+                                              if (noted.contains(v.verse))
+                                                WidgetSpan(
+                                                  alignment: PlaceholderAlignment.middle,
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.only(left: 6),
+                                                    child: Icon(
+                                                      Icons.sticky_note_2_outlined,
+                                                      size: 14,
+                                                      color: scheme.onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                );
-                                final verse = Ref(book, chapter, v.verse);
-                                final mine = ownFor[v.verse] ?? const <Prayer>[];
-                                final row = Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _PrayerMark(
-                                      verse: verse,
-                                      own: mine,
-                                      hasWords: wordsFor.containsKey(v.verse),
-                                      onTap: () => showPrayVerseSheet(context, s.prayerEnv, verse),
-                                    ),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          stopped
-                                              ? _StoppedMarker(at: s.resumeAt, child: item)
-                                              : item,
-                                          if (mine.isNotEmpty) _YourPrayer(mine.first),
-                                        ],
+                                  );
+                                  final verse = Ref(book, chapter, v.verse);
+                                  final mine = ownFor[v.verse] ?? const <Prayer>[];
+                                  final row = Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _PrayerMark(
+                                        verse: verse,
+                                        own: mine,
+                                        hasWords: wordsFor.containsKey(v.verse),
+                                        onTap: () =>
+                                            showPrayVerseSheet(context, s.prayerEnv, verse),
                                       ),
-                                    ),
-                                  ],
-                                );
-                                final above = headingsAt[v.verse];
-                                if (above == null) return row;
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    for (final h in above)
-                                      _SectionHeading(
-                                        heading: h,
-                                        selected: _sectionSelected(headings, h, verses),
-                                        onTap: () => _toggleSection(headings, h, verses),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            stopped
+                                                ? _StoppedMarker(at: s.resumeAt, child: item)
+                                                : item,
+                                            if (mine.isNotEmpty) _YourPrayer(mine.first),
+                                          ],
+                                        ),
                                       ),
-                                    row,
-                                  ],
-                                );
-                              },
+                                    ],
+                                  );
+                                  final above = headingsAt[v.verse];
+                                  if (above == null) return row;
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      for (final h in above)
+                                        _SectionHeading(
+                                          heading: h,
+                                          selected: _sectionSelected(headings, h, verses),
+                                          onTap: () => _toggleSection(headings, h, verses),
+                                        ),
+                                      row,
+                                    ],
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
