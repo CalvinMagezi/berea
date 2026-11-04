@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The site's reference check marks a Strong's number that does not exist ("G9999 is not a
+  Strong's number"), from a 106 KB list of the lexicon's codes. Browsers too old for the check
+  skip it and still check references and quotes.
+- On the mid and high tiers, a question about a passage also gets related verses from what it
+  asks beside the reference ("the parable of the rich fool"), with the reference and book names
+  left out of the search. The low tier, whose prompt the passage already fills, is unchanged.
 - Search finds the other English form of a word when the Bible's original-language glosses tie
   them together: "angry" also finds "anger" and "hungry" finds "hunger". "Is it wrong to be
   angry?" now finds Ephesians 4:26, and the Bible search box gains the same reach.

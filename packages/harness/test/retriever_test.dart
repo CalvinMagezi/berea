@@ -27,7 +27,16 @@ void main() {
     expect(ctx.lexicon.keys, isNot(contains('G1063')));
   });
 
-  test('a passage question gets no related verses', () {
+  test('a passage question on the mid tier searches its words beside the reference', () {
+    final ctx = retriever.retrieve(
+      'Exegete Luke 12:16-21, the parable of the rich fool.',
+      Tier.mid,
+    );
+    expect(ctx.searchHits, isNotEmpty);
+    expect(ctx.allVerses.where((v) => v.book.id == _colossians), isEmpty, reason: 'not "Luke"');
+  });
+
+  test('a passage question gets no related verses on the low tier', () {
     final ctx = retriever.retrieve(
       'Exegete Luke 12:16-21, the parable of the rich fool.',
       Tier.low,
