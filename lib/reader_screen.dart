@@ -417,6 +417,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  void _words() => _onePassage('Words', () => showInterlinear(context, s, _selection));
+  void _commentary() => _onePassage('Commentary', () => showCommentary(context, s, _selection));
+
+  /// How far the current sideways drag on the reader has gone, for [selectionSwipe].
+  double _dragDx = 0;
+
   Widget _selectionBar({required bool wide, Heading? section}) => SelectionBar(
     label: _selectionLabel,
     count: _selected.length,
@@ -433,8 +439,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       s.askAbout(_selection);
       setState(_selected.clear);
     }),
-    onWords: () => _onePassage('Words', () => showInterlinear(context, s, _selection)),
-    onCommentary: () => _onePassage('Commentary', () => showCommentary(context, s, _selection)),
+    onWords: _words,
+    onCommentary: _commentary,
     onStudyPage: () => _onePassage('Study page', _studyPage),
     onCopy: _copy,
     onShare: _share,
@@ -513,189 +519,206 @@ class _ReaderScreenState extends State<ReaderScreen> {
           const SizedBox(width: 12),
         ],
       ),
-      body: Stack(
-        children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-              child: LayoutBuilder(
-                builder: (context, body) => Column(
-                  children: [
-                    // Capped, so the full card on a short screen or with large text scrolls
-                    // instead of pushing the chapter off the bottom.
-                    ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: body.maxHeight * _todayMaxShare),
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-                        child: TodayCard(
-                          state: s,
-                          full: s.todayCardFull,
-                          onFull: (full) => setState(() => s.todayCardFull = full),
+      // With verses selected, a sideways swipe on the verse itself opens Words or Commentary, as
+      // on the card: readers swipe what they selected. Vertical scrolling is a separate gesture.
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: card == null ? null : (_) => _dragDx = 0,
+        onHorizontalDragUpdate: card == null ? null : (d) => _dragDx += d.delta.dx,
+        onHorizontalDragEnd: card == null
+            ? null
+            : (d) => selectionSwipe(
+                _dragDx,
+                d.primaryVelocity ?? 0,
+                onRight: _commentary,
+                onLeft: _words,
+              ),
+        child: Stack(
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: contentMaxWidth),
+                child: LayoutBuilder(
+                  builder: (context, body) => Column(
+                    children: [
+                      // Capped, so the full card on a short screen or with large text scrolls
+                      // instead of pushing the chapter off the bottom.
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: body.maxHeight * _todayMaxShare),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                          child: TodayCard(
+                            state: s,
+                            full: s.todayCardFull,
+                            onFull: (full) => setState(() => s.todayCardFull = full),
+                          ),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: verses.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No text for ${book.name} $chapter in $translation.',
-                                style: TextStyle(color: scheme.onSurfaceVariant),
-                              ),
-                            )
-                          : NotificationListener<ScrollNotification>(
-                              onNotification: _onScroll,
-                              child: ListView.builder(
-                                controller: _scroll,
-                                padding: const EdgeInsets.fromLTRB(20 - _markGutter, 12, 20, 160),
-                                itemCount: verses.length,
-                                itemBuilder: (_, i) {
-                                  final v = verses[i];
-                                  final on = _selected.contains(v.verse);
-                                  final other = second[v.verse];
-                                  final stopped = _resume?.verseStart == v.verse;
-                                  final item = WordPressRegion(
-                                    key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
-                                    text: v.text,
-                                    prefixLength: '${v.verse} '.length,
-                                    textKey: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
-                                    labelFor: (hit) => _pressLabel(v, hit),
-                                    onWord: (hit) => _studyWord(v, hit),
-                                    onVerse: () =>
-                                        showInterlinear(context, s, Ref(book, chapter, v.verse)),
-                                    onTap: () => setState(
-                                      () => on ? _selected.remove(v.verse) : _selected.add(v.verse),
-                                    ),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 6,
+                      Expanded(
+                        child: verses.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No text for ${book.name} $chapter in $translation.',
+                                  style: TextStyle(color: scheme.onSurfaceVariant),
+                                ),
+                              )
+                            : NotificationListener<ScrollNotification>(
+                                onNotification: _onScroll,
+                                child: ListView.builder(
+                                  controller: _scroll,
+                                  padding: const EdgeInsets.fromLTRB(20 - _markGutter, 12, 20, 160),
+                                  itemCount: verses.length,
+                                  itemBuilder: (_, i) {
+                                    final v = verses[i];
+                                    final on = _selected.contains(v.verse);
+                                    final other = second[v.verse];
+                                    final stopped = _resume?.verseStart == v.verse;
+                                    final item = WordPressRegion(
+                                      key: _verseKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                      text: v.text,
+                                      prefixLength: '${v.verse} '.length,
+                                      textKey: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                      labelFor: (hit) => _pressLabel(v, hit),
+                                      onWord: (hit) => _studyWord(v, hit),
+                                      onVerse: () =>
+                                          showInterlinear(context, s, Ref(book, chapter, v.verse)),
+                                      onTap: () => setState(
+                                        () =>
+                                            on ? _selected.remove(v.verse) : _selected.add(v.verse),
                                       ),
-                                      decoration: BoxDecoration(
-                                        color: highlights.contains(v.verse)
-                                            ? scheme.primary.withValues(alpha: 0.18)
-                                            : stopped
-                                            ? scheme.surfaceContainerHighest
-                                            : null,
-                                        border: on
-                                            ? Border(
-                                                left: BorderSide(color: scheme.primary, width: 3),
-                                              )
-                                            : null,
-                                      ),
-                                      child: _ParallelRow(
-                                        other: other,
-                                        otherLabel: parallel,
-                                        primary: Text.rich(
-                                          key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
-                                          TextSpan(
-                                            style: scriptureStyle(context)
-                                                .copyWith(fontSize: 18, height: 1.6),
-                                            children: [
-                                              TextSpan(
-                                                text: '${v.verse} ',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: scheme.primary,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              TextSpan(text: v.text),
-                                              if (noted.contains(v.verse))
-                                                WidgetSpan(
-                                                  alignment: PlaceholderAlignment.middle,
-                                                  child: Padding(
-                                                    padding: const EdgeInsets.only(left: 6),
-                                                    child: Icon(
-                                                      Icons.sticky_note_2_outlined,
-                                                      size: 14,
-                                                      color: scheme.onSurfaceVariant,
-                                                    ),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: highlights.contains(v.verse)
+                                              ? scheme.primary.withValues(alpha: 0.18)
+                                              : stopped
+                                              ? scheme.surfaceContainerHighest
+                                              : null,
+                                          border: on
+                                              ? Border(
+                                                  left: BorderSide(color: scheme.primary, width: 3),
+                                                )
+                                              : null,
+                                        ),
+                                        child: _ParallelRow(
+                                          other: other,
+                                          otherLabel: parallel,
+                                          primary: Text.rich(
+                                            key: _textKeys.putIfAbsent(v.verse, GlobalKey.new),
+                                            TextSpan(
+                                              style: scriptureStyle(context)
+                                                  .copyWith(fontSize: 18, height: 1.6),
+                                              children: [
+                                                TextSpan(
+                                                  text: '${v.verse} ',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: scheme.primary,
+                                                    fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
-                                            ],
+                                                TextSpan(text: v.text),
+                                                if (noted.contains(v.verse))
+                                                  WidgetSpan(
+                                                    alignment: PlaceholderAlignment.middle,
+                                                    child: Padding(
+                                                      padding: const EdgeInsets.only(left: 6),
+                                                      child: Icon(
+                                                        Icons.sticky_note_2_outlined,
+                                                        size: 14,
+                                                        color: scheme.onSurfaceVariant,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  );
-                                  final verse = Ref(book, chapter, v.verse);
-                                  final mine = ownFor[v.verse] ?? const <Prayer>[];
-                                  final row = Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      _PrayerMark(
-                                        verse: verse,
-                                        own: mine,
-                                        hasWords: wordsFor.containsKey(v.verse),
-                                        onTap: () =>
-                                            showPrayVerseSheet(context, s.prayerEnv, verse),
-                                      ),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            stopped
-                                                ? _StoppedMarker(at: s.resumeAt, child: item)
-                                                : item,
-                                            if (mine.isNotEmpty) _YourPrayer(mine.first),
-                                          ],
+                                    );
+                                    final verse = Ref(book, chapter, v.verse);
+                                    final mine = ownFor[v.verse] ?? const <Prayer>[];
+                                    final row = Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _PrayerMark(
+                                          verse: verse,
+                                          own: mine,
+                                          hasWords: wordsFor.containsKey(v.verse),
+                                          onTap: () =>
+                                              showPrayVerseSheet(context, s.prayerEnv, verse),
                                         ),
-                                      ),
-                                    ],
-                                  );
-                                  final above = headingsAt[v.verse];
-                                  if (above == null) return row;
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      for (final h in above)
-                                        _SectionHeading(
-                                          heading: h,
-                                          selected: _sectionSelected(headings, h, verses),
-                                          onTap: () => _toggleSection(headings, h, verses),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              stopped
+                                                  ? _StoppedMarker(at: s.resumeAt, child: item)
+                                                  : item,
+                                              if (mine.isNotEmpty) _YourPrayer(mine.first),
+                                            ],
+                                          ),
                                         ),
-                                      row,
-                                    ],
-                                  );
-                                },
+                                      ],
+                                    );
+                                    final above = headingsAt[v.verse];
+                                    if (above == null) return row;
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        for (final h in above)
+                                          _SectionHeading(
+                                            heading: h,
+                                            selected: _sectionSelected(headings, h, verses),
+                                            onTap: () => _toggleSection(headings, h, verses),
+                                          ),
+                                        row,
+                                      ],
+                                    );
+                                  },
+                                ),
                               ),
-                            ),
-                    ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (tip || card != null)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: card == null
+                    ? _tipGap
+                    : selectionBarGap + MediaQuery.paddingOf(context).bottom,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (tip)
+                      _Tip(onGotIt: _dismissTip, onTurnOff: () => _dismissTip(allTips: true)),
+                    if (tip && card != null) const SizedBox(height: _tipCardGap),
+                    ?card,
                   ],
                 ),
               ),
-            ),
-          ),
-          if (tip || card != null)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: card == null
-                  ? _tipGap
-                  : selectionBarGap + MediaQuery.paddingOf(context).bottom,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (tip) _Tip(onGotIt: _dismissTip, onTurnOff: () => _dismissTip(allTips: true)),
-                  if (tip && card != null) const SizedBox(height: _tipCardGap),
-                  ?card,
-                ],
-              ),
-            ),
-          if (wide && _selected.isNotEmpty)
-            Positioned(
-              top: _toolbarTop,
-              left: _toolbarInset,
-              right: _toolbarInset,
-              // A narrow Mac window leaves the reader less room than the toolbar's full width.
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: _selectionBar(wide: true, section: section),
+            if (wide && _selected.isNotEmpty)
+              Positioned(
+                top: _toolbarTop,
+                left: _toolbarInset,
+                right: _toolbarInset,
+                // A narrow Mac window leaves the reader less room than the toolbar's full width.
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: _selectionBar(wide: true, section: section),
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: card == null
           ? _ChapterNav(

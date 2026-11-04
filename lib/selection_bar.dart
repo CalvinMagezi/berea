@@ -23,8 +23,8 @@ const _swipeReturn = Duration(milliseconds: 180);
 enum _More { words, commentary, studyPage, copy, share }
 
 /// What a selection of verses can do: Highlight, Note, Pray, Ask and More on a phone card; on a
-/// wide screen a toolbar with Words and Commentary out of More. On a phone, swiping the card
-/// right opens Commentary and swiping it left opens Words.
+/// wide screen a toolbar with Words and Commentary out of More. On a phone, swiping the card, or
+/// anywhere on the reader while verses are selected, right opens Commentary and left opens Words.
 class SelectionBar extends StatelessWidget {
   final String label;
 
@@ -242,6 +242,21 @@ class _ActionFace extends StatelessWidget {
   );
 }
 
+/// Runs [onRight] or [onLeft] when a sideways drag of [dx] ending at [velocity] is a swipe: far
+/// enough, or quick in the direction it moved. Shared by the card and the reader around it.
+void selectionSwipe(
+  double dx,
+  double velocity, {
+  required VoidCallback onRight,
+  required VoidCallback onLeft,
+}) {
+  final right = dx >= _swipeDistance || (velocity >= _swipeVelocity && dx > 0);
+  final left = dx <= -_swipeDistance || (velocity <= -_swipeVelocity && dx < 0);
+  if (!right && !left) return;
+  HapticFeedback.selectionClick();
+  right ? onRight() : onLeft();
+}
+
 /// The phone card on a sideways drag, with the action it will open shown in the space it leaves.
 class _SwipeCard extends StatefulWidget {
   final VoidCallback onRight;
@@ -272,11 +287,7 @@ class _SwipeCardState extends State<_SwipeCard> with SingleTickerProviderStateMi
     final dx = _shift.value;
     final v = d.primaryVelocity ?? 0;
     _shift.animateTo(0, curve: Curves.easeOut);
-    final right = dx >= _swipeDistance || (v >= _swipeVelocity && dx > 0);
-    final left = dx <= -_swipeDistance || (v <= -_swipeVelocity && dx < 0);
-    if (!right && !left) return;
-    HapticFeedback.selectionClick();
-    right ? widget.onRight() : widget.onLeft();
+    selectionSwipe(dx, v, onRight: widget.onRight, onLeft: widget.onLeft);
   }
 
   @override

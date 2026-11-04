@@ -252,6 +252,31 @@ void main() {
     expect(find.text('Greek'), findsNothing);
   });
 
+  testWidgets('swiping the selected verse itself opens Words or Commentary', (tester) async {
+    await pumpSelected(tester, _tallPhone, [3]);
+    final verse = find.byWidgetPredicate(
+      (w) => w is Text && (w.textSpan?.toPlainText().startsWith('3 ') ?? false),
+    );
+    await tester.drag(verse.first, const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Greek'), findsOneWidget, reason: 'the Words sheet');
+    Navigator.of(tester.element(find.text('Greek'))).pop();
+    await tester.pumpAndSettle();
+    await tester.drag(verse.first, const Offset(120, 0));
+    await tester.pumpAndSettle();
+    expect(find.byType(CommentaryPanel), findsOneWidget);
+  });
+
+  testWidgets('with nothing selected a sideways swipe on a verse opens nothing', (tester) async {
+    await pumpSelected(tester, _tallPhone, []);
+    final verse = find.byWidgetPredicate(
+      (w) => w is Text && (w.textSpan?.toPlainText().startsWith('3 ') ?? false),
+    );
+    await tester.drag(verse.first, const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Greek'), findsNothing);
+  });
+
   testWidgets('the Mac toolbar has Pray beside Words and Commentary', (tester) async {
     await pumpSelected(tester, _mac, [1]);
     expect(tester.takeException(), isNull);

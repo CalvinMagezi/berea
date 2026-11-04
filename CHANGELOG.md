@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- With a verse selected, swipe the verse itself (not only the card below it) right for
+  Commentary or left for Words.
 - A brief answer to a question that names two or more passages is told to cite each one, so
   "Explain Luke 15:11-32 in light of Luke 15:1-2" cites both far more often.
 - The site's reference check marks a Strong's number that does not exist ("G9999 is not a
