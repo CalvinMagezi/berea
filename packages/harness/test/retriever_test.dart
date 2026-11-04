@@ -98,6 +98,22 @@ void main() {
     expect(brief.messages.last.content, isNot(contains('SURROUNDING VERSES')));
   });
 
+  test('a brief answer to a question naming two passages is told to cite both', () {
+    const two = 'Explain Luke 15:11-32 in light of Luke 15:1-2.';
+    final builder = PromptBuilder('SYS');
+    String question(String q, AnswerStyle style) => builder
+        .build(retriever.retrieve(q, Tier.low), const [], q, Tier.low, style: style)
+        .messages
+        .last
+        .content;
+    expect(
+      question(two, AnswerStyle.brief),
+      endsWith('Your answer must cite both: Luke 15:11-32 and Luke 15:1-2.'),
+    );
+    expect(question(two, AnswerStyle.full), isNot(contains('must cite')));
+    expect(question('What does John 3:16 mean?', AnswerStyle.brief), isNot(contains('must cite')));
+  });
+
   test('a long passage carries its own context', () {
     final ctx = retriever.retrieve('Explain Philippians 4:4-9.', Tier.low);
     expect(ctx.surrounding, isEmpty);

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'bible_db.dart';
 import 'engine.dart';
 import 'morph.dart';
+import 'ref_parser.dart';
 import 'retriever.dart';
 import 'sources.dart';
 import 'tier.dart';
@@ -99,7 +100,7 @@ class PromptBuilder {
       if (notebook) notebookRules,
       if (style == AnswerStyle.brief) briefRule,
     ].join('\n\n');
-    final question = _capQuestion(userText, tier);
+    final question = _capQuestion(userText, tier) + _citeEach(ctx.refs, style);
     final frame = 'CONTEXT (translation: $translation)\n\n\nQUESTION\n';
     var budget =
         tier.promptTokens -
@@ -182,6 +183,18 @@ class PromptBuilder {
       ...kept,
       ChatMessage.user('CONTEXT (translation: $translation)\n$context\n\nQUESTION\n$question'),
     ], shown);
+  }
+
+  /// For a brief answer to a question naming several passages, a line naming each one. Under
+  /// "cite the verses you rely on" alone, Luke 15:11-32 with Luke 15:1-2 was cited in full in 1 of
+  /// 24 answers; with this line, 31 of 48 across the low and mid tiers (18 of 24 on low). It sits
+  /// after the question, where a small model reads it last.
+  static String _citeEach(List<Ref> refs, AnswerStyle style) {
+    if (style != AnswerStyle.brief || refs.length < 2) return '';
+    final names = refs.map((r) => r.label).toList();
+    final list = '${names.sublist(0, names.length - 1).join(', ')} and ${names.last}';
+    final which = names.length == 2 ? 'both' : 'all ${names.length}';
+    return '\n\nYour answer must cite $which: $list.';
   }
 
   /// [userText] cut to a share of the budget, so a pasted page cannot crowd out every passage or
