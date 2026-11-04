@@ -333,6 +333,7 @@
       }
       if (!parts.length && r.verified.length) parts.push(`Verified: ${r.verified.join(', ')}.`);
       if (!parts.length) parts.push('No reference found. Add one the way an answer would cite it, such as John 3:16.');
+      parts.push(...(r.languageNotes || []));
       return parts.join(' ');
     };
 

@@ -13,6 +13,9 @@ class StudyContext {
   final List<Verse> xrefVerses;
   final List<Verse> searchHits;
 
+  /// The verses around a short passage, within its section.
+  final List<Verse> surrounding;
+
   /// Notebook and commentary passages for a notebook answer, best first.
   final List<SourceChunk> sources;
   const StudyContext({
@@ -22,16 +25,20 @@ class StudyContext {
     required this.lexicon,
     required this.xrefVerses,
     required this.searchHits,
+    this.surrounding = const [],
     this.sources = const [],
   });
 
   /// Every verse in this context. For what the model was shown, use the context PromptBuilder
   /// returns: the budget may cut some of what was retrieved.
-  Iterable<Verse> get allVerses => [...passages, ...xrefVerses, ...searchHits];
+  Iterable<Verse> get allVerses => [...passages, ...surrounding, ...xrefVerses, ...searchHits];
 }
 
 /// Names shorter than this are skipped as aliases: "is", "am" and "re" are ordinary words.
 const _minAliasLength = 4;
+
+/// Longer passages carry their own context; only these get the verses around them.
+const _maxContextualizedVerses = 3;
 
 /// Every book name and long alias, longest first, with flexible spacing ("1 Corinthians").
 final _bookName = () {
@@ -61,14 +68,19 @@ final _scopeBefore = RegExp(
 /// Words after a book name that make it the speaker: "Romans teach", "James says".
 final _scopeAfter = RegExp(r'^\s+(teach|teaches|say|says|tell|tells)\b', caseSensitive: false);
 
-/// The book a topical question asks to search within, or null. A bare name is not enough:
-/// "James and John" are people and "Who was Daniel?" wants every verse about him.
-Match? _bookScope(String text) {
+/// The book a topical question asks to search within, with the span of the name and its cue
+/// ("in Romans", "James says"), or null. A bare name is not enough: "James and John" are people
+/// and "Who was Daniel?" wants every verse about him.
+({Match name, int start, int end})? _bookScope(String text) {
   for (final m in _bookMentions(text)) {
-    final cued =
-        _scopeBefore.hasMatch(text.substring(0, m.start)) ||
-        _scopeAfter.hasMatch(text.substring(m.end));
-    if (cued) return m;
+    final before = _scopeBefore.firstMatch(text.substring(0, m.start));
+    final after = _scopeAfter.firstMatch(text.substring(m.end));
+    if (before == null && after == null) continue;
+    return (
+      name: m,
+      start: before?.start ?? m.start,
+      end: after == null ? m.end : m.end + after.end,
+    );
   }
   return null;
 }
@@ -119,6 +131,8 @@ class Retriever {
       }
     }
 
+    final surrounding = refs.length == 1 ? _surrounding(refs.single, tier, seen) : const <Verse>[];
+
     final hits = uses.isNotEmpty
         ? uses
         : passages.isNotEmpty
@@ -149,17 +163,42 @@ class Retriever {
       lexicon: lexicon,
       xrefVerses: xrefVerses,
       searchHits: searchHits,
+      surrounding: surrounding,
       sources: sources,
     );
   }
 
+  /// Up to [Tier.contextVerses] on each side of a passage of a few verses, kept inside the BSB
+  /// section that holds it so the window never runs into the next story.
+  List<Verse> _surrounding(Ref ref, Tier tier, Set<String> seen) {
+    final start = ref.verseStart;
+    if (start == null || tier.contextVerses == 0) return const [];
+    final end = ref.verseEnd ?? start;
+    if (end - start + 1 > _maxContextualizedVerses) return const [];
+    final breaks = {for (final h in db.headings(ref.book, ref.chapter)) h.verse};
+    var from = start;
+    while (from > 1 && start - from < tier.contextVerses && !breaks.contains(from)) {
+      from--;
+    }
+    var to = end;
+    while (to - end < tier.contextVerses && !breaks.contains(to + 1)) {
+      to++;
+    }
+    final window = Ref(ref.book, ref.chapter, from, to);
+    return [
+      for (final v in db.passage(window, translation: translation))
+        if (seen.add(v.label)) v,
+    ];
+  }
+
   /// A book named as the place to look scopes the search to it, falling back to the whole Bible.
   List<Verse> _topicSearch(String userText, Tier tier) {
-    final mention = _bookScope(userText);
-    final book = mention == null ? null : bookFor(mention[0]!.replaceAll(RegExp(r'\s+'), ' '));
+    final scope = _bookScope(userText);
+    final book = scope == null ? null : bookFor(scope.name[0]!.replaceAll(RegExp(r'\s+'), ' '));
     if (book != null) {
-      // The name is dropped from the search: every verse of the book is already in scope.
-      final text = userText.replaceRange(mention!.start, mention.end, ' ');
+      // The name and its cue are dropped: every verse of the book is already in scope, and "gospel"
+      // or "tells" would only rank verses that happen to use the word.
+      final text = userText.replaceRange(scope!.start, scope.end, ' ');
       final scoped = db.search(text, translation: translation, k: tier.searchK, book: book);
       if (scoped.isNotEmpty) return scoped;
     }

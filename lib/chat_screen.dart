@@ -710,6 +710,9 @@ class _Waiting extends StatelessWidget {
 /// Source chip labels stop here so one long file name cannot fill the row.
 const _sourceChipMaxWidth = 280.0;
 
+/// Where a reader can see the passage's own language, after a language note.
+const languageNoteHint = 'Check the word in Words.';
+
 class _Citations extends StatelessWidget {
   final ChatTurn g;
   final BibleDb db;
@@ -787,7 +790,7 @@ class _Citations extends StatelessWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      note,
+                      '$note $languageNoteHint',
                       style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
                     ),
                   ),

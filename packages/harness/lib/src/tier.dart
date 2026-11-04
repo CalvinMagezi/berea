@@ -9,6 +9,7 @@ enum Tier {
     sourceTokens: 700,
     sourceK: 3,
     commentaryK: 0,
+    contextVerses: 2,
   ),
   mid(
     promptTokens: 4000,
@@ -19,6 +20,7 @@ enum Tier {
     sourceTokens: 1400,
     sourceK: 6,
     commentaryK: 1,
+    contextVerses: 3,
   ),
   high(
     promptTokens: 8000,
@@ -29,6 +31,7 @@ enum Tier {
     sourceTokens: 3000,
     sourceK: 12,
     commentaryK: 2,
+    contextVerses: 4,
   );
 
   final int promptTokens;
@@ -45,6 +48,10 @@ enum Tier {
 
   /// Passages of installed commentary considered for a notebook answer.
   final int commentaryK;
+
+  /// Verses read on each side of a short passage, inside its section, so a verse is not studied
+  /// out of its context.
+  final int contextVerses;
   const Tier({
     required this.promptTokens,
     required this.searchK,
@@ -54,6 +61,7 @@ enum Tier {
     required this.sourceTokens,
     required this.sourceK,
     required this.commentaryK,
+    required this.contextVerses,
   });
 
   /// The context the engine is opened with: prompt budget, answer, and [contextPadding].

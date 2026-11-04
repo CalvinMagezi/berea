@@ -1,5 +1,6 @@
 // Runs eval/golden.json through the harness, with --words the word study questions in
-// eval/word_study.json, with --language the Greek and Hebrew note probes in eval/language.json, or with --notebook eval/notebook.json against a fixture notebook. Exit 1 if any reference or source citation was invented. Add
+// eval/word_study.json, with --language the Greek and Hebrew note probes in eval/language.json, with --context the
+// verses usually read out of context in eval/context.json, or with --notebook eval/notebook.json against a fixture notebook. Exit 1 if any reference or source citation was invented. Add
 // --commentary <pack.sqlite> to let notebook answers draw on an installed commentary pack, and
 // --show to print each notebook answer as the guard left it.
 import 'dart:convert';
@@ -77,6 +78,8 @@ Future<void> main(List<String> args) async {
               ? 'eval/word_study.json'
               : args.contains('--language')
               ? 'eval/language.json'
+              : args.contains('--context')
+              ? 'eval/context.json'
               : 'eval/golden.json',
         );
   h.db.close();
@@ -86,7 +89,7 @@ Future<void> main(List<String> args) async {
 Future<bool> _golden(Harness h, bool brief, String path) async {
   final cases = _cases(path);
   var invented = 0, badQuotes = 0, expected = 0, covered = 0, misattributed = 0, adversarialOk = 0;
-  var adversarial = 0, nearMisses = 0, words = 0;
+  var adversarial = 0, nearMisses = 0, words = 0, contextCases = 0, contextCited = 0;
   final sw = Stopwatch()..start();
   for (final c in cases) {
     h.history.clear();
@@ -95,6 +98,12 @@ Future<bool> _golden(Harness h, bool brief, String path) async {
     final want = [for (final s in _strings(c, 'expect')) ...RefParser.parse(s)];
     final bait = _strings(c, 'bait');
     final forbid = _strings(c, 'forbid');
+    final around = [for (final s in _strings(c, 'context')) ...RefParser.parse(s)];
+    final aroundHit = r.guard.verified.any((v) => around.any(v.overlaps));
+    if (around.isNotEmpty) {
+      contextCases++;
+      if (aroundHit) contextCited++;
+    }
     final hit = want.where((w) => r.guard.verified.any(w.overlaps)).length;
     final inventedHere = [
       ...r.guard.unverified.map((e) => e.label),
@@ -119,6 +128,7 @@ Future<bool> _golden(Harness h, bool brief, String path) async {
       '${misattr ? '  misattributed: "${misSentence.trim()}"' : ''}'
       '${r.guard.unverifiedQuotes.isEmpty ? '' : '  bad quotes: ${r.guard.unverifiedQuotes.length}'}'
       '${r.guard.nearMisses.isEmpty ? '' : '  near misses: ${r.guard.nearMisses.join(', ')}'}'
+      '${around.isEmpty ? '' : '  context cited: $aroundHit'}'
       '${_languageLines(r.guard, r.text)}',
     );
   }
@@ -129,7 +139,8 @@ Future<bool> _golden(Harness h, bool brief, String path) async {
   stdout.writeln(
     'invented refs: $invented | coverage: $covered/$expected | unverified quotes: $badQuotes'
     ' | misattributed sayings: $misattributed | adversarial passed: $adversarialOk/$adversarial'
-    ' | near misses to review: $nearMisses',
+    ' | near misses to review: $nearMisses'
+    '${contextCases == 0 ? '' : ' | context cited: $contextCited/$contextCases'}',
   );
   return invented == 0 && misattributed == 0;
 }

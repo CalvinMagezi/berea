@@ -449,7 +449,13 @@ class CitationGuard {
   /// Checks [output] against [shown], the context PromptBuilder says the model was shown. With
   /// [checkSources] (notebook answers), source tags are checked too, and a quote may come from a
   /// shown source chunk: from the cited source when it names one, never when it names a verse.
-  GuardResult apply(String output, StudyContext shown, {bool checkSources = false}) {
+  /// [checkWords] false skips the Strong's number check.
+  GuardResult apply(
+    String output,
+    StudyContext shown, {
+    bool checkSources = false,
+    bool checkWords = true,
+  }) {
     final verified = <Ref>{};
     final unverified = <Ref>{};
     final buf = StringBuffer();
@@ -483,7 +489,10 @@ class CitationGuard {
       checkSources ? tagged : null,
     );
 
-    final words = _checkOriginalWords(quotes.text, shown);
+    // The site never knows what a model was shown, so it cannot vouch for a Strong's number.
+    final words = checkWords
+        ? _checkOriginalWords(quotes.text, shown)
+        : (text: quotes.text, unverified: const <String>[]);
 
     return GuardResult(
       words.text,
@@ -547,14 +556,10 @@ class CitationGuard {
     bool suspect(RegExp word, String prefix) =>
         word.hasMatch(text) && !word.hasMatch(verses) && !codes.any((k) => k.startsWith(prefix));
     if (allOt && suspect(_greekWord, 'G') && !_septuagint.hasMatch(text)) {
-      return [
-        '$place was written in Hebrew, but the answer speaks of Greek. Check the word in Words.',
-      ];
+      return ['$place was written in Hebrew, but the answer speaks of Greek.'];
     }
     if (allNt && suspect(_hebrewWord, 'H')) {
-      return [
-        '$place was written in Greek, but the answer speaks of Hebrew. Check the word in Words.',
-      ];
+      return ['$place was written in Greek, but the answer speaks of Hebrew.'];
     }
     return const [];
   }

@@ -7,7 +7,7 @@ const require = createRequire(import.meta.url);
 const { create } = require('./check.js');
 const data = new URL('../data/', import.meta.url);
 const read = (path) => JSON.parse(fs.readFileSync(new URL(path, data), 'utf8'));
-const FIELDS = ['text', 'verified', 'unverified', 'unknownBooks', 'badQuotes', 'corrected'];
+const FIELDS = ['text', 'verified', 'unverified', 'unknownBooks', 'badQuotes', 'corrected', 'languageNotes'];
 
 const checker = create(read('books.json'), read('index.json'));
 const loadBook = async (id) => read(`bible/${id}.json`);
