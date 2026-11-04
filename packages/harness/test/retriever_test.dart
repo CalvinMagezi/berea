@@ -109,7 +109,8 @@ void main() {
     expect(
       question(two, AnswerStyle.brief),
       endsWith(
-        'Your answer must cite both, written as (Luke 15:11-32, BSB) and (Luke 15:1-2, BSB).',
+        'Your first sentence must cite (Luke 15:11-32, BSB), and your answer must cite both, '
+        'written as (Luke 15:11-32, BSB) and (Luke 15:1-2, BSB).',
       ),
     );
     expect(question(two, AnswerStyle.full), isNot(contains('must cite')));

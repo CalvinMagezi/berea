@@ -185,16 +185,17 @@ class PromptBuilder {
     ], shown);
   }
 
-  /// For a brief answer to a question naming several passages, a line giving each citation as
-  /// it should be written. On Luke 15:11-32 with Luke 15:1-2 (gemma4:e2b, low and mid) both were
-  /// cited in 1 of 24 answers with no line, 31 of 48 when the line only named them, and 40 of 48
-  /// when it showed the written form, which a small model copies. It sits after the question.
+  /// For a brief answer to a question naming several passages, a line asking the first sentence
+  /// to cite the first one and giving each citation as written. On Luke 15:11-32 with Luke 15:1-2
+  /// (gemma4:e2b) both were cited in 1 of 24 answers with no line; naming them gave 31 of 48,
+  /// writing them out 40 of 48, and anchoring the first sentence 72 of 72 (low and mid tiers).
   String _citeEach(List<Ref> refs, AnswerStyle style) {
     if (style != AnswerStyle.brief || refs.length < 2) return '';
     final cites = [for (final r in refs) '(${r.label}, $translation)'];
     final list = '${cites.sublist(0, cites.length - 1).join(', ')} and ${cites.last}';
     final which = cites.length == 2 ? 'both' : 'all ${cites.length}';
-    return '\n\nYour answer must cite $which, written as $list.';
+    return '\n\nYour first sentence must cite ${cites.first}, and your answer must cite $which, '
+        'written as $list.';
   }
 
   /// [userText] cut to a share of the budget, so a pasted page cannot crowd out every passage or
