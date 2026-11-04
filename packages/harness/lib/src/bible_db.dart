@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:sqlite3/sqlite3.dart';
 
@@ -312,6 +313,11 @@ class BibleDb {
   static final _word = RegExp(r"[A-Za-z']{3,}");
 
   /// Words that carry no topic: question scaffolding and very common English.
+  /// A gloss used this rarely for a word is too thin to tie two English words together.
+  static const _minFormUses = 2;
+  static const _formTail = 2;
+  static const _minFormRoot = 3;
+
   static const _stop = {
     'the',
     'and',
@@ -413,8 +419,48 @@ class BibleDb {
         .where((w) => !_stop.contains(w))
         .toSet();
     if (terms.isEmpty) return null;
-    return terms.map((t) => '"$t"').join(' OR ');
+    return {
+      for (final t in terms) ...{t, ...wordForms(t)},
+    }.map((t) => '"$t"').join(' OR ');
   }
+
+  /// Other English forms of [word] ("anger" for "angry", "hunger" for "hungry"): words STEP
+  /// glosses the same Hebrew or Greek word with that differ only in their last letters. The
+  /// search's porter stemmer keeps "angri" and "anger" apart, so "Is it wrong to be angry?"
+  /// missed Ephesians 4:26.
+  List<String> wordForms(String word) {
+    if (!_hasGlossIndex) return const [];
+    final stem = wordStem(word);
+    final root = stem.length - _formTail;
+    if (root < _minFormRoot) return const [];
+    // A range on the term key, so the lookup uses the table's index; a join on strongs would scan.
+    final prefix = stem.substring(0, root);
+    final rows = db.select(
+      'SELECT term, strongs FROM gloss_index WHERE term >= ? AND term < ? AND n >= ?',
+      [prefix, '$prefix\u{FFFF}', _minFormUses],
+    );
+    final own = {
+      for (final r in rows)
+        if (r['term'] == stem) r['strongs'] as String,
+    };
+    return {
+      for (final r in rows)
+        if (r['term'] != stem && own.contains(r['strongs']) && _sameWord(stem, r['term'] as String))
+          r['term'] as String,
+    }.toList();
+  }
+
+  /// Two stems are one word's forms when their lengths differ by at most one letter and they
+  /// share all but the shorter one's last [_formTail] letters; "fear" and "fearless" are not.
+  static bool _sameWord(String a, String b) {
+    if ((a.length - b.length).abs() > 1) return false;
+    final keep = min(a.length, b.length) - _formTail;
+    return keep >= _minFormRoot && a.substring(0, keep) == b.substring(0, keep);
+  }
+
+  late final bool _hasGlossIndex = db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'gloss_index'")
+      .isNotEmpty;
 
   List<Verse> search(
     String text, {
