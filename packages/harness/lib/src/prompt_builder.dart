@@ -20,8 +20,8 @@ const notebookRules = '''## Notebook sources
     from SOURCES.
 11. Never cite a source, page or section that is not in SOURCES. If the sources do not cover the
     question, say "The notebook's sources do not cover this." and answer from Scripture alone.
-12. Sources are not Scripture. Quote the Bible only from PASSAGES, CROSS REFERENCES and RELATED
-    VERSES. If a source quotes or describes a verse differently, say so and give the verse as
+12. Sources are not Scripture. Quote the Bible only from PASSAGES, CROSS REFERENCES, SURROUNDING
+    VERSES and RELATED VERSES. If a source quotes or describes a verse differently, say so and give the verse as
     those blocks have it.''';
 
 /// How much the model is asked to write. A phone that decodes a few tokens a second shows the
@@ -145,6 +145,12 @@ class PromptBuilder {
     }
     final lexicon = add('LEXICON', ctx.lexicon.entries, (e) => _lexLine(e.value));
     final wordLine = add('WORDS', _wordLines(ctx), (l) => l);
+    // Before cross references: a verse read in its own paragraph beats one read beside others.
+    // Brief answers skip it: on the A32 it cost up to 134 prompt tokens and a four-sentence
+    // answer cited none of it (eval --context, 2026-11-04).
+    final around = style == AnswerStyle.brief
+        ? const <Verse>[]
+        : add('SURROUNDING VERSES', ctx.surrounding, _verseLine);
     final xrefs = add('CROSS REFERENCES', ctx.xrefVerses, _verseLine);
     final hits = add('RELATED VERSES', ctx.searchHits, _verseLine);
 
@@ -168,6 +174,7 @@ class PromptBuilder {
       lexicon: Map.fromEntries(lexicon),
       xrefVerses: xrefs,
       searchHits: hits,
+      surrounding: around,
       sources: sources?.shown ?? const [],
     );
     return BuiltPrompt([

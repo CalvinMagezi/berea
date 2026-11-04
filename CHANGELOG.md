@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A full study of a verse or two now reads the verses around it in the same BSB section, so
+  Philippians 4:13 is read with "I have learned to be content" and Matthew 18:20 with the steps
+  before it. Brief answers stay as they were, to keep the phone's first words as quick.
+- A question that names where to look ("the letter to the Romans", "the gospel of John")
+  searches that book without searching for "letter" or "gospel" as well.
+- The site's reference check notes an answer that calls an Old Testament word Greek or a New
+  Testament word Hebrew, as Study does.
 - Answers now cite each verse they explain or paraphrase, not only the ones they quote. A word
   study on Philippians 4:7 sometimes explained the verse without naming it.
 - On a phone, swipe the selected verse's card right for Commentary or left for Words, the

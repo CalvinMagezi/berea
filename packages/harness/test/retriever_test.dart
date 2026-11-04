@@ -42,6 +42,16 @@ void main() {
     expect(ctx.searchHits.every((v) => v.book.id == _romans), isTrue);
   });
 
+  test('the cue that scopes a search is not searched for', () {
+    // Romans uses "letter" itself (2:29, 7:6), so a kept cue would pull those verses in.
+    final ctx = retriever.retrieve(
+      'What does the letter to the Romans tell about faith?',
+      Tier.low,
+    );
+    final plain = retriever.db.search('faith', k: Tier.low.searchK, book: bookById(_romans));
+    expect(ctx.searchHits.map((v) => v.label), plain.map((v) => v.label));
+  });
+
   test('an everyday word in lower case is not taken for a book', () {
     final ctx = retriever.retrieve('How should I work hard at my job?', Tier.low);
     expect(ctx.searchHits, isNotEmpty);
@@ -59,6 +69,29 @@ void main() {
     final ctx = retriever.retrieve('What does Romans 99:1 say about grace?', Tier.low);
     expect(ctx.passages, isEmpty);
     expect(ctx.searchHits, isNotEmpty);
+  });
+
+  test('a short passage brings the verses around it, inside its section', () {
+    // BSB starts a section at Philippians 4:10, so verses 8 and 9 belong to another paragraph.
+    final ctx = retriever.retrieve('What does Philippians 4:10 mean?', Tier.low);
+    expect(ctx.surrounding.map((v) => v.label), ['Philippians 4:11', 'Philippians 4:12']);
+  });
+
+  test('a full answer reads the surrounding verses and a brief one does not', () {
+    const q = 'What does Philippians 4:10 mean?';
+    final ctx = retriever.retrieve(q, Tier.low);
+    final builder = PromptBuilder('SYS');
+    final full = builder.build(ctx, const [], q, Tier.low);
+    final brief = builder.build(ctx, const [], q, Tier.low, style: AnswerStyle.brief);
+    expect(full.shown.surrounding, isNotEmpty);
+    expect(full.messages.last.content, contains('SURROUNDING VERSES'));
+    expect(brief.shown.surrounding, isEmpty);
+    expect(brief.messages.last.content, isNot(contains('SURROUNDING VERSES')));
+  });
+
+  test('a long passage carries its own context', () {
+    final ctx = retriever.retrieve('Explain Philippians 4:4-9.', Tier.low);
+    expect(ctx.surrounding, isEmpty);
   });
 
   test('a topical question still searches the whole Bible', () {

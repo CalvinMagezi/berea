@@ -47,6 +47,11 @@ const fixtureInputs = [
   '\u201c\u1f10\u03bd \u1f00\u03c1\u03c7\u1fc7 \u1f26\u03bd \u1f41 \u03bb\u03cc\u03b3\u03bf\u03c2, '
       '\u03ba\u03b1\u1f76 \u1f41 \u03bb\u03cc\u03b3\u03bf\u03c2\u201d (John 1:1)',
   '\u201c!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\u201d (John 1:1)',
+  'The Greek word agape is used in Deuteronomy 6:5.',
+  'Love here is the Greek agape (G26), as in John 3:16.',
+  'The Septuagint uses the Greek agapao in Deuteronomy 6:5.',
+  'John 19:13 says the place is called Gabbatha in Hebrew.',
+  'The Hebrew word for faith in Hebrews 11:1 is emunah.',
 ];
 
 String opt(List<String> args, String name, String fallback) {
@@ -87,7 +92,13 @@ void main(List<String> args) {
       final verses = chapters[c] ?? const <int, String>{};
       final top = verses.isEmpty ? 0 : verses.keys.reduce((a, v) => a > v ? a : v);
       text.add([for (var v = 1; v <= top; v++) verses[v]]);
-      idx.add([top, [for (var v = 1; v <= top; v++) if (!verses.containsKey(v)) v]]);
+      idx.add([
+        top,
+        [
+          for (var v = 1; v <= top; v++)
+            if (!verses.containsKey(v)) v,
+        ],
+      ]);
     }
     writeJson('$out/bible/${b.id}.json', text);
     index['${b.id}'] = idx;
@@ -105,7 +116,7 @@ void main(List<String> args) {
       xrefVerses: const [],
       searchHits: const [],
     );
-    final r = CitationGuard(db).apply(input, ctx);
+    final r = CitationGuard(db).apply(input, ctx, checkWords: false);
     fixture.add({
       'input': input,
       'text': r.text,
@@ -114,8 +125,11 @@ void main(List<String> args) {
       'unknownBooks': r.unknownBooks,
       'badQuotes': r.unverifiedQuotes,
       'corrected': r.correctedQuotes,
+      'languageNotes': r.languageNotes,
     });
   }
   writeJson('$out/fixture.json', fixture, pretty: true);
-  stdout.writeln('site data written to $out: ${books.length} books, ${fixture.length} fixture cases');
+  stdout.writeln(
+    'site data written to $out: ${books.length} books, ${fixture.length} fixture cases',
+  );
 }

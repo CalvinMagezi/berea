@@ -205,6 +205,16 @@ void main() {
       expect(r.text, contains('[unverified: G25]'));
     });
 
+    test('checkWords false leaves a bracketed unknown code alone', () {
+      final r = CitationGuard(db).apply(
+        'The word is love (G25) here.',
+        withLexicon('John 3:16', ['G0026']),
+        checkWords: false,
+      );
+      expect(r.unverifiedWords, isEmpty);
+      expect(r.text, 'The word is love (G25) here.');
+    });
+
     test('passes shown codes in padded and unpadded forms', () {
       final shown = withLexicon('John 3:16', ['G0025', 'H8549']);
       final r = CitationGuard(db).apply('See (G25), (agape, G0025) and Strong\'s H8549G.', shown);
@@ -223,7 +233,7 @@ void main() {
         db,
       ).apply('The Greek word here is wisdom.', withLexicon('Proverbs 1:7', ['H2451']));
       expect(r.languageNotes, [
-        'Proverbs 1:7 was written in Hebrew, but the answer speaks of Greek. Check the word in Words.',
+        'Proverbs 1:7 was written in Hebrew, but the answer speaks of Greek.',
       ]);
       expect(r.text, 'The Greek word here is wisdom.');
     });

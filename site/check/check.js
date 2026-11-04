@@ -197,6 +197,28 @@
       return bestSpan == null ? null : bestSpan.replace(/^[^\w‘“]+|[,;:]+$/g, '');
     }
 
+    const GREEK_WORD = /\bGreek\b/i;
+    const HEBREW_WORD = /\bHebrew\b/i;
+    const SEPTUAGINT = /\bSeptuagint\b|\bLXX\b/i;
+    const OT_BOOK_COUNT = 39;
+
+    // Port of the Dart _languageNotes with an empty lexicon.
+    function languageNotes(text, refs, verses) {
+      if (!refs.length) return [];
+      const place = refs.length === 1 ? label(refs[0]) : 'This passage';
+      const allOt = refs.every((r) => r.book.id <= OT_BOOK_COUNT);
+      const allNt = refs.every((r) => r.book.id > OT_BOOK_COUNT);
+      const shownText = verses.map((v) => v.text).join(' ');
+      const suspect = (word) => word.test(text) && !word.test(shownText);
+      if (allOt && suspect(GREEK_WORD) && !SEPTUAGINT.test(text)) {
+        return [`${place} was written in Hebrew, but the answer speaks of Greek.`];
+      }
+      if (allNt && suspect(HEBREW_WORD)) {
+        return [`${place} was written in Greek, but the answer speaks of Hebrew.`];
+      }
+      return [];
+    }
+
     // Runs the check on one piece of text. loadBook(id) returns that book's chapters.
     async function check(output, loadBook) {
       const found = matches(output);
@@ -232,10 +254,12 @@
 
       const seen = new Set();
       const shown = [];
+      const citedRefs = [];
       for (const m of found) {
         const key = refKey(m.ref);
         if (seen.has(key)) continue;
         seen.add(key);
+        citedRefs.push(m.ref);
         shown.push(...passage(m.ref, text));
       }
       const shownText = normalize(shown.map((v) => v.text).join(' '));
@@ -272,6 +296,7 @@
         unknownBooks,
         badQuotes,
         corrected,
+        languageNotes: languageNotes(out, citedRefs, shown),
         passages: shown.map((v) => ({ label: `${v.book.name} ${v.chapter}:${v.verse}`, text: v.text })),
       };
     }
