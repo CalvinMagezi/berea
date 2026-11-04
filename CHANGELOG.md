@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Answers now cite each verse they explain or paraphrase, not only the ones they quote. A word
+  study on Philippians 4:7 sometimes explained the verse without naming it.
 - On a phone, swipe the selected verse's card right for Commentary or left for Words, the
   Hebrew or Greek of the verse word by word. Each verb in Words shows its parsing from the
   tagged text ("imperfect active indicative"). Today's card in full no longer pushes the chapter
