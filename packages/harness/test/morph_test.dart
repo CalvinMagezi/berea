@@ -17,6 +17,9 @@ void main() {
     expect(verbSense('HVqw3ms'), 'qal wayyiqtol');
     expect(verbSense('HVqrmsc/Sp1bs'), 'qal active participle');
     expect(verbSense('Hc/Vqq1cs'), 'qal sequential perfect');
+    expect(verbSense('Hc/Vvw3mp'), 'hishtaphel wayyiqtol');
+    // A stem the table lacks still gives the conjugation.
+    expect(verbSense('HVuc'), 'infinitive construct');
   });
 
   test('non-verbs and garbage give null', () {

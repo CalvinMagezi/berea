@@ -200,16 +200,22 @@ void main() {
     test('flags a Strong\'s number that was not shown', () {
       final r = CitationGuard(
         db,
-      ).apply('The word is G25 here.', withLexicon('John 3:16', ['G0026']));
+      ).apply('The word is love (G25) here.', withLexicon('John 3:16', ['G0026']));
       expect(r.unverifiedWords, ['G25']);
       expect(r.text, contains('[unverified: G25]'));
     });
 
     test('passes shown codes in padded and unpadded forms', () {
       final shown = withLexicon('John 3:16', ['G0025', 'H8549']);
-      final r = CitationGuard(db).apply('See G25, G0025 and H8549G.', shown);
+      final r = CitationGuard(db).apply('See (G25), (agape, G0025) and Strong\'s H8549G.', shown);
       expect(r.unverifiedWords, isEmpty);
       expect(r.text, isNot(contains('unverified')));
+    });
+
+    test('leaves a code-like word in prose alone', () {
+      final r = CitationGuard(db).apply('Water is H2O; G20 met.', withLexicon('John 3:16', []));
+      expect(r.unverifiedWords, isEmpty);
+      expect(r.text, 'Water is H2O; G20 met.');
     });
 
     test('notes a Greek claim on an Old Testament passage', () {

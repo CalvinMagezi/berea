@@ -501,7 +501,13 @@ class CitationGuard {
     );
   }
 
-  static final _strongsCode = RegExp(r'\b[HG]\d{1,4}[A-Za-z]?\b');
+  static final _anyStrongs = RegExp(r'\b[HG]\d{1,4}[A-Za-z]?\b');
+
+  /// A Strong's number in brackets or after "Strong's", the way answers cite them; a bare "H2O" or
+  /// "G20" in prose is not one.
+  static final _strongsCode = RegExp(
+    r"(?<=[(\[]|[(\[][^)\]]*,\s*|Strong['’]s\s(?:number\s)?)[HG]\d{1,4}[A-Za-z]?\b",
+  );
   static final _greekWord = RegExp(r'\bGreek\b', caseSensitive: false);
   static final _hebrewWord = RegExp(r'\bHebrew\b', caseSensitive: false);
 
@@ -515,7 +521,7 @@ class CitationGuard {
           if (c.isNotEmpty) strongsBase(c),
       // A notebook source may name a Strong's number itself, and citing it from there is allowed.
       for (final c in shown.sources)
-        for (final m in _strongsCode.allMatches(c.text)) strongsBase(m[0]!),
+        for (final m in _anyStrongs.allMatches(c.text)) strongsBase(m[0]!),
     };
     final bad = <String>[];
     final out = text.replaceAllMapped(_strongsCode, (m) {

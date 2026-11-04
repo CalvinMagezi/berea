@@ -98,3 +98,5 @@
 | Site checker (site/check/check.js) lacks the Strong's number and language checks | Study-only accuracy pass; the site copy checks references and quotes only | 2026-11-04 | packages/harness/lib/src/citation_guard.dart:505 |
 | Pericope expansion and gloss-synonym search from the 2026-11-04 roadmap not built | Each adds prompt tokens or noise on the A32 low tier; needs its own measured experiment | 2026-11-04 | packages/harness/lib/src/retriever.dart:61 |
 | GuardResult.languageNotes is not shown in the app | Hint only; surfacing it needs a UI decision | 2026-11-04 | packages/harness/lib/src/citation_guard.dart:40 |
+| Passage questions skip RELATED VERSES on every tier, not only low | One rule keeps book-name noise out at every tier; mid and high could take topical hits from the question's non-reference words | 2026-11-04 | packages/harness/lib/src/retriever.dart:124 |
+| Scoped search keeps the cue word ("teach", "says") as a search term | Small bm25 bias; stripping needs the cue span from _bookScope | 2026-11-04 | packages/harness/lib/src/retriever.dart:163 |

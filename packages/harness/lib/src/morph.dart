@@ -14,10 +14,10 @@ const _greekVoice = {
   'M': 'middle',
   'P': 'passive',
   'E': 'middle or passive',
-  'D': 'deponent',
-  'N': 'deponent',
+  'D': 'middle deponent',
+  'N': 'middle deponent',
   'O': 'passive deponent',
-  'Q': 'deponent',
+  'Q': 'impersonal active',
 };
 
 const _greekMood = {
@@ -37,6 +37,11 @@ const _hebrewStem = {
   'h': 'hiphil',
   'H': 'hophal',
   't': 'hithpael',
+  'o': 'polel',
+  'O': 'polal',
+  'r': 'hithpolel',
+  'Q': 'qal passive',
+  'v': 'hishtaphel',
 };
 
 const _hebrewConjugation = {
@@ -81,10 +86,11 @@ String? _hebrewSense(String morph) {
     final code = part.startsWith('H') || part.startsWith('A') ? part : 'H$part';
     final prefix = _hebrewVerbPrefixes.where(code.startsWith);
     if (prefix.isEmpty || code.length < 4) continue;
-    final stem = _hebrewStem[code[2]];
     final conjugation = _hebrewConjugation[code[3]];
-    if (stem == null || conjugation == null) return null;
-    return '$stem $conjugation';
+    if (conjugation == null) continue;
+    // An Aramaic or rare stem still gives the reader its conjugation.
+    final stem = _hebrewStem[code[2]];
+    return stem == null ? conjugation : '$stem $conjugation';
   }
   return null;
 }

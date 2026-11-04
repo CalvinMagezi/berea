@@ -55,6 +55,12 @@ void main() {
     expect(apostles.searchHits.every((v) => v.book.id == _james), isFalse);
   });
 
+  test('a reference with no passage still searches', () {
+    final ctx = retriever.retrieve('What does Romans 99:1 say about grace?', Tier.low);
+    expect(ctx.passages, isEmpty);
+    expect(ctx.searchHits, isNotEmpty);
+  });
+
   test('a topical question still searches the whole Bible', () {
     final ctx = retriever.retrieve('What does the Bible say about forgiveness?', Tier.low);
     expect(ctx.searchHits, isNotEmpty);

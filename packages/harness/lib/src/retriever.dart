@@ -121,7 +121,7 @@ class Retriever {
 
     final hits = uses.isNotEmpty
         ? uses
-        : refs.isNotEmpty
+        : passages.isNotEmpty
         ? const <Verse>[]
         : _topicSearch(userText, tier);
     final searchHits = [
