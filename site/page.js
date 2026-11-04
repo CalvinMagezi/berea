@@ -303,13 +303,19 @@
     };
     let books;
     let index;
+    let strongs;
     try {
-      [books, index] = await Promise.all([getJson('data/books.json'), getJson('data/index.json')]);
+      [books, index, strongs] = await Promise.all([
+        getJson('data/books.json'),
+        getJson('data/index.json'),
+        // Optional: without it the check still runs, only the Strong's numbers go unchecked.
+        getJson('data/strongs.json').catch(() => null),
+      ]);
     } catch (e) {
       list.innerHTML = `<li class="result"><p class="result-verdict">The check could not load its Bible data (${escapeHtml(String(e.message || e))}). Reload the page to try again.</p></li>`;
       return;
     }
-    const checker = BereaCheck.create(books, index);
+    const checker = BereaCheck.create(books, index, strongs);
     const cache = new Map();
     const loadBook = (id) => {
       if (!cache.has(id)) {
@@ -330,6 +336,11 @@
         parts.push(r.verified.length
           ? 'The quotation is not in the verse it cites, so Berea marks it.'
           : 'The quotation cites no verse to check it against, so Berea marks it.');
+      }
+      if (r.unverifiedWords.length) {
+        parts.push(r.unverifiedWords.length === 1
+          ? `${r.unverifiedWords[0]} is not a Strong's number.`
+          : `${r.unverifiedWords.join(', ')} are not Strong's numbers.`);
       }
       if (!parts.length && r.verified.length) parts.push(`Verified: ${r.verified.join(', ')}.`);
       if (!parts.length) parts.push('No reference found. Add one the way an answer would cite it, such as John 3:16.');

@@ -41,7 +41,26 @@
 
   const contentWords = (s) => new Set(normalize(s).split(' ').filter((w) => w && !FUNCTION_WORDS.has(w)));
 
-  function create(books, index) {
+  // Port of the Dart _strongsCode and strongsBase.
+  // Built at run time: a lookbehind literal would stop the whole script parsing in Safari before
+  // 16.4, where the Strong's check is then skipped instead.
+  const STRONGS_CODE = (() => {
+    try {
+      return new RegExp("(?<=[(\\[]|[(\\[][^)\\]]*,\\s*|Strong['’]s\\s(?:number\\s)?)[HG]\\d{1,4}[A-Za-z]?\\b", 'g');
+    } catch (_) {
+      return null;
+    }
+  })();
+  const STRONGS_PARTS = /\b([HG])(\d{1,4})([A-Za-z])?\b/;
+  const STRONGS_PAD = 4;
+  const strongsBase = (code) => {
+    const m = STRONGS_PARTS.exec(code.trim());
+    return m ? m[1] + m[2].padStart(STRONGS_PAD, '0') : code.trim().replace(/[A-Za-z]$/, '');
+  };
+
+  // strongs is the space separated base codes of the lexicon; without it the check is skipped.
+  function create(books, index, strongs) {
+    const knownCodes = strongs ? new Set(strongs.split(' ')) : null;
     const byAlias = new Map();
     for (const b of books) {
       byAlias.set(normalizeBookKey(b.name), b);
@@ -289,6 +308,15 @@
       }
       out += withRefs.substring(cursor);
 
+      const unverifiedWords = [];
+      if (knownCodes && STRONGS_CODE) {
+        out = out.replace(STRONGS_CODE, (code) => {
+          if (knownCodes.has(strongsBase(code))) return code;
+          unverifiedWords.push(code);
+          return `[unverified: ${code}]`;
+        });
+      }
+
       return {
         text: out,
         verified: [...verified.values()].map(label),
@@ -296,6 +324,7 @@
         unknownBooks,
         badQuotes,
         corrected,
+        unverifiedWords,
         languageNotes: languageNotes(out, citedRefs, shown),
         passages: shown.map((v) => ({ label: `${v.book.name} ${v.chapter}:${v.verse}`, text: v.text })),
       };

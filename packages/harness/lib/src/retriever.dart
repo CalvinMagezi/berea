@@ -136,7 +136,7 @@ class Retriever {
     final hits = uses.isNotEmpty
         ? uses
         : passages.isNotEmpty
-        ? const <Verse>[]
+        ? _passageSearch(userText, tier)
         : _topicSearch(userText, tier);
     final searchHits = [
       for (final v in hits)
@@ -189,6 +189,22 @@ class Retriever {
       for (final v in db.passage(window, translation: translation))
         if (seen.add(v.label)) v,
     ];
+  }
+
+  /// Verses on what a passage question asks beside its reference ("the parable of the rich
+  /// fool"). References and book names are cut first: "Luke" would match Colossians 4:14.
+  List<Verse> _passageSearch(String userText, Tier tier) {
+    if (tier.passageSearchK == 0) return const [];
+    // Blanked rather than removed, so overlapping spans (a reference holds its book) keep offsets.
+    final chars = userText.split('');
+    for (final (start, end) in [
+      for (final m in RefParser.matches(userText)) (m.start, m.end),
+      for (final m in _bookMentions(userText)) (m.start, m.end),
+    ]) {
+      chars.fillRange(start, end, ' ');
+    }
+    final text = chars.join();
+    return db.search(text, translation: translation, k: tier.passageSearchK);
   }
 
   /// A book named as the place to look scopes the search to it, falling back to the whole Bible.

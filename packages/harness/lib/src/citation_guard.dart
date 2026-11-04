@@ -449,12 +449,13 @@ class CitationGuard {
   /// Checks [output] against [shown], the context PromptBuilder says the model was shown. With
   /// [checkSources] (notebook answers), source tags are checked too, and a quote may come from a
   /// shown source chunk: from the cited source when it names one, never when it names a verse.
-  /// [checkWords] false skips the Strong's number check.
+  /// [knownWords] are base Strong's codes trusted besides the shown ones; the site passes every
+  /// code in the lexicon, since it cannot know what a model was shown.
   GuardResult apply(
     String output,
     StudyContext shown, {
     bool checkSources = false,
-    bool checkWords = true,
+    Set<String> knownWords = const {},
   }) {
     final verified = <Ref>{};
     final unverified = <Ref>{};
@@ -489,10 +490,7 @@ class CitationGuard {
       checkSources ? tagged : null,
     );
 
-    // The site never knows what a model was shown, so it cannot vouch for a Strong's number.
-    final words = checkWords
-        ? _checkOriginalWords(quotes.text, shown)
-        : (text: quotes.text, unverified: const <String>[]);
+    final words = _checkOriginalWords(quotes.text, shown, knownWords);
 
     return GuardResult(
       words.text,
@@ -523,8 +521,13 @@ class CitationGuard {
 
   /// Marks Strong's numbers the model was not shown. A code is only trusted when the LEXICON
   /// block or a shown word carries it, since rule 4 allows no other source of original words.
-  ({String text, List<String> unverified}) _checkOriginalWords(String text, StudyContext shown) {
+  ({String text, List<String> unverified}) _checkOriginalWords(
+    String text,
+    StudyContext shown,
+    Set<String> knownWords,
+  ) {
     final known = {
+      ...knownWords,
       for (final k in shown.lexicon.keys) strongsBase(k),
       for (final w in shown.words)
         for (final c in w.strongs.split(' '))

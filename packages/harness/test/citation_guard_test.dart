@@ -205,14 +205,15 @@ void main() {
       expect(r.text, contains('[unverified: G25]'));
     });
 
-    test('checkWords false leaves a bracketed unknown code alone', () {
-      final r = CitationGuard(db).apply(
-        'The word is love (G25) here.',
-        withLexicon('John 3:16', ['G0026']),
-        checkWords: false,
-      );
-      expect(r.unverifiedWords, isEmpty);
-      expect(r.text, 'The word is love (G25) here.');
+    test('knownWords trusts a code and marks one it does not list', () {
+      final shown = withLexicon('John 3:16', ['G0026']);
+      final guard = CitationGuard(db);
+      final ok = guard.apply('The word is love (G25) here.', shown, knownWords: {'G0025'});
+      expect(ok.unverifiedWords, isEmpty);
+      expect(ok.text, 'The word is love (G25) here.');
+      final bad = guard.apply('The word is (G9999) here.', shown, knownWords: {'G0025'});
+      expect(bad.unverifiedWords, ['G9999']);
+      expect(bad.text, contains('[unverified: G9999]'));
     });
 
     test('passes shown codes in padded and unpadded forms', () {

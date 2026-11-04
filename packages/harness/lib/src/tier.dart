@@ -10,6 +10,7 @@ enum Tier {
     sourceK: 3,
     commentaryK: 0,
     contextVerses: 2,
+    passageSearchK: 0,
   ),
   mid(
     promptTokens: 4000,
@@ -21,6 +22,7 @@ enum Tier {
     sourceK: 6,
     commentaryK: 1,
     contextVerses: 3,
+    passageSearchK: 3,
   ),
   high(
     promptTokens: 8000,
@@ -32,6 +34,7 @@ enum Tier {
     sourceK: 12,
     commentaryK: 2,
     contextVerses: 4,
+    passageSearchK: 5,
   );
 
   final int promptTokens;
@@ -52,6 +55,10 @@ enum Tier {
   /// Verses read on each side of a short passage, inside its section, so a verse is not studied
   /// out of its context.
   final int contextVerses;
+
+  /// Related verses a passage question gets from its words beside the reference. None on the
+  /// low tier, whose prompt the passage, its words and context already fill.
+  final int passageSearchK;
   const Tier({
     required this.promptTokens,
     required this.searchK,
@@ -62,6 +69,7 @@ enum Tier {
     required this.sourceK,
     required this.commentaryK,
     required this.contextVerses,
+    required this.passageSearchK,
   });
 
   /// The context the engine is opened with: prompt budget, answer, and [contextPadding].

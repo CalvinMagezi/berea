@@ -52,6 +52,10 @@ const fixtureInputs = [
   'The Septuagint uses the Greek agapao in Deuteronomy 6:5.',
   'John 19:13 says the place is called Gabbatha in Hebrew.',
   'The Hebrew word for faith in Hebrews 11:1 is emunah.',
+  'Love here is agape (G26), as in John 3:16.',
+  'The word used is (G9999) in John 3:16.',
+  "Strong's H9999 is used in Genesis 1:1.",
+  'Water is H2O and G20 met in John 3:16.',
 ];
 
 String opt(List<String> args, String name, String fallback) {
@@ -105,6 +109,13 @@ void main(List<String> args) {
   }
   writeJson('$out/index.json', index);
 
+  // Every lexicon code, so the site can reject a Strong's number that does not exist.
+  final strongs = {
+    for (final r in db.db.select('SELECT key FROM lexicon')) strongsBase(r['key'] as String),
+  }.toList()..sort();
+  File('$out/strongs.json').writeAsStringSync('${jsonEncode(strongs.join(' '))}\n');
+  final known = strongs.toSet();
+
   final fixture = <Map<String, Object?>>[];
   for (final input in fixtureInputs) {
     final refs = RefParser.parse(input);
@@ -116,7 +127,7 @@ void main(List<String> args) {
       xrefVerses: const [],
       searchHits: const [],
     );
-    final r = CitationGuard(db).apply(input, ctx, checkWords: false);
+    final r = CitationGuard(db).apply(input, ctx, knownWords: known);
     fixture.add({
       'input': input,
       'text': r.text,
@@ -125,6 +136,7 @@ void main(List<String> args) {
       'unknownBooks': r.unknownBooks,
       'badQuotes': r.unverifiedQuotes,
       'corrected': r.correctedQuotes,
+      'unverifiedWords': r.unverifiedWords,
       'languageNotes': r.languageNotes,
     });
   }
