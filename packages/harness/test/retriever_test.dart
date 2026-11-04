@@ -94,6 +94,14 @@ void main() {
     expect(ctx.surrounding, isEmpty);
   });
 
+  test('a search finds the other English form of a word', () {
+    // Porter stems "angry" to "angri" and leaves "anger", so the forms never met before.
+    expect(retriever.db.wordForms('angry'), ['anger']);
+    expect(retriever.db.wordForms('fear'), isEmpty, reason: 'fearless is not a form of fear');
+    final ctx = retriever.retrieve('Is it wrong to be angry?', Tier.mid);
+    expect(ctx.searchHits.map((v) => v.label), contains('Ephesians 4:26'));
+  });
+
   test('a topical question still searches the whole Bible', () {
     final ctx = retriever.retrieve('What does the Bible say about forgiveness?', Tier.low);
     expect(ctx.searchHits, isNotEmpty);

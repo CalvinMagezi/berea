@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Search finds the other English form of a word when the Bible's original-language glosses tie
+  them together: "angry" also finds "anger" and "hungry" finds "hunger". "Is it wrong to be
+  angry?" now finds Ephesians 4:26, and the Bible search box gains the same reach.
 - A full study of a verse or two now reads the verses around it in the same BSB section, so
   Philippians 4:13 is read with "I have learned to be content" and Matthew 18:20 with the steps
   before it. Brief answers stay as they were, to keep the phone's first words as quick.
