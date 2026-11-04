@@ -175,6 +175,9 @@ class ChatTurn extends ChangeNotifier {
   /// Strong's numbers the answer gives that were not in the context shown.
   List<String> unverifiedWords = const [];
 
+  /// Hints that the answer names the other testament's language; the text is left as written.
+  List<String> languageNotes = const [];
+
   /// Notebook answers only: the chunks cited, and tags naming nothing that was shown.
   List<ShownSource> sources = const [];
   List<String> unverifiedSources = const [];
@@ -213,6 +216,7 @@ class ChatTurn extends ChangeNotifier {
     correctedQuotes = g.correctedQuotes.length;
     nearMisses = g.nearMisses;
     unverifiedWords = g.unverifiedWords;
+    languageNotes = g.languageNotes;
     sources = g.sources;
     unverifiedSources = g.unverifiedSources;
     rewordedQuotes = g.rewordedQuotes.length;
@@ -1892,6 +1896,7 @@ class AppState extends ChangeNotifier {
   Completer<void>? _speaking;
 
   Directory get voiceDir => Directory('${modelsDir.path}/supertonic-3');
+
   /// Whether the voice is on this device; replaced in tests, which have no voice files.
   @visibleForTesting
   bool Function(Directory dir) voicePresent = voiceInstalled;
