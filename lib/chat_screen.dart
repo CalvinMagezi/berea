@@ -724,6 +724,7 @@ class _Citations extends StatelessWidget {
     if (g.verified.isEmpty &&
         notInScripture.isEmpty &&
         g.unverifiedQuotes == 0 &&
+        g.unverifiedWords.isEmpty &&
         g.correctedQuotes == 0 &&
         g.sources.isEmpty &&
         g.unverifiedSources.isEmpty) {
@@ -749,6 +750,7 @@ class _Citations extends StatelessWidget {
           ),
           if (notInScripture.isNotEmpty ||
               g.unverifiedQuotes > 0 ||
+              g.unverifiedWords.isNotEmpty ||
               g.correctedQuotes > 0 ||
               g.rewordedQuotes > 0 ||
               g.nearMisses.isNotEmpty ||
@@ -758,6 +760,8 @@ class _Citations extends StatelessWidget {
               child: Text(
                 [
                   if (notInScripture.isNotEmpty) 'Not in Scripture: ${notInScripture.join(', ')}',
+                  if (g.unverifiedWords.isNotEmpty)
+                    'Word numbers not in the lexicon shown: ${g.unverifiedWords.join(', ')}',
                   if (g.unverifiedSources.isNotEmpty)
                     'Not among the sources shown: ${g.unverifiedSources.join(', ')}',
                   if (g.correctedQuotes > 0)

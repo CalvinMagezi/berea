@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Study answers draw on better context. A question about a passage no longer pulls in verses that
+  only share a book's name (asking about Luke 12 used to bring Colossians 4:14, "Luke the beloved
+  physician"), the word list skips "the", "and" and "for" so the lexicon holds the passage's real
+  words, and a book named without a chapter ("What does Romans teach about grace?") searches that
+  book first. Verbs in the word list carry their tense in plain words ("aorist active
+  indicative") instead of codes.
+- The citation check now marks a Strong's number the answer gives that Berea never showed the
+  model, and notes an answer that calls an Old Testament word Greek or a New Testament word Hebrew.
 - The Berean Standard Bible now shows its section headings, with the parallel passages under them
   and the five books of Psalms and the acrostic letters of Psalm 119 marked. Tap a heading to
   select its whole section, ready to highlight, ask about or add to a notebook; tap it again to

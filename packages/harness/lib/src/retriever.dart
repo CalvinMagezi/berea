@@ -1,4 +1,5 @@
 import 'bible_db.dart';
+import 'books.dart';
 import 'ref_parser.dart';
 import 'sources.dart';
 import 'tier.dart';
@@ -27,6 +28,49 @@ class StudyContext {
   /// Every verse in this context. For what the model was shown, use the context PromptBuilder
   /// returns: the budget may cut some of what was retrieved.
   Iterable<Verse> get allVerses => [...passages, ...xrefVerses, ...searchHits];
+}
+
+/// Names shorter than this are skipped as aliases: "is", "am" and "re" are ordinary words.
+const _minAliasLength = 4;
+
+/// Every book name and long alias, longest first, with flexible spacing ("1 Corinthians").
+final _bookName = () {
+  final names = <String>{
+    for (final b in books) ...[b.name, ...b.aliases.where((a) => a.length >= _minAliasLength)],
+  }.toList()..sort((a, b) => b.length.compareTo(a.length));
+  final alt = names.map((n) => RegExp.escape(n).replaceAll(' ', r'\s+')).join('|');
+  return RegExp('\\b(?:$alt)\\b', caseSensitive: false);
+}();
+
+/// Book names that are also everyday words ("my job", "acts of kindness"): only a capital makes
+/// them a book.
+const _everydayWords = {'job', 'mark', 'acts', 'numbers', 'judges', 'song', 'revelation'};
+
+/// The book names written in [text], skipping everyday words written in lower case.
+Iterable<Match> _bookMentions(String text) => _bookName.allMatches(text).where((m) {
+  final w = m[0]!;
+  return !_everydayWords.contains(w.toLowerCase()) || w[0] != w[0].toLowerCase();
+});
+
+/// Words before a book name that make it the place to look: "in Romans", "the book of Job".
+final _scopeBefore = RegExp(
+  r'\b(in|book of|gospel of|letter to|epistle to|epistle of)(\s+the)?\s*$',
+  caseSensitive: false,
+);
+
+/// Words after a book name that make it the speaker: "Romans teach", "James says".
+final _scopeAfter = RegExp(r'^\s+(teach|teaches|say|says|tell|tells)\b', caseSensitive: false);
+
+/// The book a topical question asks to search within, or null. A bare name is not enough:
+/// "James and John" are people and "Who was Daniel?" wants every verse about him.
+Match? _bookScope(String text) {
+  for (final m in _bookMentions(text)) {
+    final cued =
+        _scopeBefore.hasMatch(text.substring(0, m.start)) ||
+        _scopeAfter.hasMatch(text.substring(m.end));
+    if (cued) return m;
+  }
+  return null;
 }
 
 class Retriever {
@@ -64,7 +108,7 @@ class Retriever {
         for (final s in w.strongs.split(' ')) {
           if (s.isEmpty || lexicon.containsKey(s) || lexicon.length >= tier.lexiconWords) continue;
           final e = db.lexicon(s);
-          if (e != null) lexicon[s] = e;
+          if (e != null && !isFunctionWord(e)) lexicon[s] = e;
         }
       }
       for (final x in db.xrefs(primary, k: tier.xrefK)) {
@@ -77,7 +121,9 @@ class Retriever {
 
     final hits = uses.isNotEmpty
         ? uses
-        : db.search(userText, translation: translation, k: tier.searchK);
+        : passages.isNotEmpty
+        ? const <Verse>[]
+        : _topicSearch(userText, tier);
     final searchHits = [
       for (final v in hits)
         if (seen.add(v.label)) v,
@@ -105,5 +151,18 @@ class Retriever {
       searchHits: searchHits,
       sources: sources,
     );
+  }
+
+  /// A book named as the place to look scopes the search to it, falling back to the whole Bible.
+  List<Verse> _topicSearch(String userText, Tier tier) {
+    final mention = _bookScope(userText);
+    final book = mention == null ? null : bookFor(mention[0]!.replaceAll(RegExp(r'\s+'), ' '));
+    if (book != null) {
+      // The name is dropped from the search: every verse of the book is already in scope.
+      final text = userText.replaceRange(mention!.start, mention.end, ' ');
+      final scoped = db.search(text, translation: translation, k: tier.searchK, book: book);
+      if (scoped.isNotEmpty) return scoped;
+    }
+    return db.search(userText, translation: translation, k: tier.searchK);
   }
 }

@@ -416,15 +416,20 @@ class BibleDb {
     return terms.map((t) => '"$t"').join(' OR ');
   }
 
-  List<Verse> search(String text, {String translation = defaultTranslation, int k = 6}) {
+  List<Verse> search(
+    String text, {
+    String translation = defaultTranslation,
+    int k = 6,
+    Book? book,
+  }) {
     final q = ftsQuery(text);
     if (q == null) return const [];
     final rows = db.select(
       'SELECT v.book, v.chapter, v.verse, v.text FROM verses_fts f '
       'JOIN verses v ON v.id = f.rowid '
-      'WHERE verses_fts MATCH ? AND v.translation = ? '
+      'WHERE verses_fts MATCH ? AND v.translation = ? ${book == null ? '' : 'AND v.book = ? '}'
       'ORDER BY bm25(verses_fts) LIMIT ?',
-      [q, translation, k],
+      [q, translation, if (book != null) book.id, k],
     );
     return rows.map(_verse).toList();
   }

@@ -172,6 +172,9 @@ class ChatTurn extends ChangeNotifier {
   int correctedQuotes = 0;
   List<NearMiss> nearMisses = const [];
 
+  /// Strong's numbers the answer gives that were not in the context shown.
+  List<String> unverifiedWords = const [];
+
   /// Notebook answers only: the chunks cited, and tags naming nothing that was shown.
   List<ShownSource> sources = const [];
   List<String> unverifiedSources = const [];
@@ -209,6 +212,7 @@ class ChatTurn extends ChangeNotifier {
     unverifiedQuotes = g.unverifiedQuotes.length;
     correctedQuotes = g.correctedQuotes.length;
     nearMisses = g.nearMisses;
+    unverifiedWords = g.unverifiedWords;
     sources = g.sources;
     unverifiedSources = g.unverifiedSources;
     rewordedQuotes = g.rewordedQuotes.length;

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'bible_db.dart';
 import 'engine.dart';
+import 'morph.dart';
 import 'retriever.dart';
 import 'sources.dart';
 import 'tier.dart';
@@ -238,8 +239,12 @@ class PromptBuilder {
 
   Iterable<String> _wordLines(StudyContext ctx) {
     if (ctx.words.isEmpty) return const [];
+    // Only verbs keep a morph field, as plain English; noun and article codes cost tokens for nothing.
     final line = ctx.words
-        .map((w) => '${w.original} [${w.translit}, ${w.gloss}, ${w.strongs}, ${w.morph}]')
+        .map((w) {
+          final sense = verbSense(w.morph);
+          return '${w.original} [${w.translit}, ${w.gloss}, ${w.strongs}${sense == null ? '' : ', $sense'}]';
+        })
         .join('; ');
     return ['${ctx.refs.first.label}: $line'];
   }

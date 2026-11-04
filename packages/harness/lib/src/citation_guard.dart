@@ -5,6 +5,8 @@ import 'books.dart';
 import 'ref_parser.dart';
 import 'retriever.dart';
 import 'sources.dart';
+import 'sword.dart' show otBookCount;
+import 'word_study.dart' show strongsBase;
 
 class GuardResult {
   final String text;
@@ -31,6 +33,13 @@ class GuardResult {
   /// Notebook answers only: quotes a source supports that read as Scripture but are not its
   /// words, marked [differs from Scripture].
   final List<String> rewordedQuotes;
+
+  /// Strong's numbers in the answer that the model was not shown, marked [unverified: G25].
+  final List<String> unverifiedWords;
+
+  /// Hints that the answer names a language the shown passage is not written in. Not rewritten:
+  /// the Septuagint and New Testament quotations of the Old make this a hint, not an error.
+  final List<String> languageNotes;
   const GuardResult(
     this.text,
     this.verified,
@@ -42,6 +51,8 @@ class GuardResult {
     this.sources = const [],
     this.unverifiedSources = const [],
     this.rewordedQuotes = const [],
+    this.unverifiedWords = const [],
+    this.languageNotes = const [],
   });
 
   int get inventedCount => unverified.length + unknownBooks.length;
@@ -472,8 +483,10 @@ class CitationGuard {
       checkSources ? tagged : null,
     );
 
+    final words = _checkOriginalWords(quotes.text, shown);
+
     return GuardResult(
-      quotes.text,
+      words.text,
       verified.toList(),
       unverified.toList(),
       quotes.bad,
@@ -483,7 +496,57 @@ class CitationGuard {
       sources: sourceCheck?.cited ?? const [],
       unverifiedSources: sourceCheck?.unverified ?? const [],
       rewordedQuotes: quotes.reworded,
+      unverifiedWords: words.unverified,
+      languageNotes: _languageNotes(words.text, shown),
     );
+  }
+
+  static final _anyStrongs = RegExp(r'\b[HG]\d{1,4}[A-Za-z]?\b');
+
+  /// A Strong's number in brackets or after "Strong's", the way answers cite them; a bare "H2O" or
+  /// "G20" in prose is not one.
+  static final _strongsCode = RegExp(
+    r"(?<=[(\[]|[(\[][^)\]]*,\s*|Strong['’]s\s(?:number\s)?)[HG]\d{1,4}[A-Za-z]?\b",
+  );
+  static final _greekWord = RegExp(r'\bGreek\b', caseSensitive: false);
+  static final _hebrewWord = RegExp(r'\bHebrew\b', caseSensitive: false);
+
+  /// Marks Strong's numbers the model was not shown. A code is only trusted when the LEXICON
+  /// block or a shown word carries it, since rule 4 allows no other source of original words.
+  ({String text, List<String> unverified}) _checkOriginalWords(String text, StudyContext shown) {
+    final known = {
+      for (final k in shown.lexicon.keys) strongsBase(k),
+      for (final w in shown.words)
+        for (final c in w.strongs.split(' '))
+          if (c.isNotEmpty) strongsBase(c),
+      // A notebook source may name a Strong's number itself, and citing it from there is allowed.
+      for (final c in shown.sources)
+        for (final m in _anyStrongs.allMatches(c.text)) strongsBase(m[0]!),
+    };
+    final bad = <String>[];
+    final out = text.replaceAllMapped(_strongsCode, (m) {
+      if (known.contains(strongsBase(m[0]!))) return m[0]!;
+      bad.add(m[0]!);
+      return '[unverified: ${m[0]}]';
+    });
+    return (text: out, unverified: bad);
+  }
+
+  /// Notes when every shown reference is in one testament yet the answer names the other
+  /// testament's language with no code of that language in the lexicon.
+  List<String> _languageNotes(String text, StudyContext shown) {
+    if (shown.refs.isEmpty) return const [];
+    final allOt = shown.refs.every((r) => r.book.id <= otBookCount);
+    final allNt = shown.refs.every((r) => r.book.id > otBookCount);
+    final codes = shown.lexicon.keys;
+    final notes = <String>[];
+    if (allOt && _greekWord.hasMatch(text) && !codes.any((k) => k.startsWith('G'))) {
+      notes.add('Answer says Greek but the passage shown is Old Testament (Hebrew)');
+    }
+    if (allNt && _hebrewWord.hasMatch(text) && !codes.any((k) => k.startsWith('H'))) {
+      notes.add('Answer says Hebrew but the passage shown is New Testament (Greek)');
+    }
+    return notes;
   }
 
   /// Flags quotes found in no shown text and replaces clear misquotes of one verse. [sources] is

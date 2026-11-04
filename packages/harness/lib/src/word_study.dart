@@ -17,6 +17,14 @@ final _strongsSuffix = RegExp(r'[A-Za-z]$');
 /// grammar, not words to study.
 bool isParticleCode(String code) => code.startsWith('H9');
 
+final _functionPos = RegExp(
+  r'^(G:(T|CONJ|PREP|D|COND|R|X|I|F(-\d)?|P(-\d)?|PRT(-[A-Z])?)|[HA]:(Prep|Conj|Part|DemP)|Prefix|Punct\.)$',
+);
+
+/// Articles, conjunctions, prepositions, pronouns and particles: they fill a lexicon slot without
+/// teaching the reader anything about the passage.
+bool isFunctionWord(LexEntry e) => isParticleCode(e.key) || _functionPos.hasMatch(e.pos);
+
 /// H8549G and H8549 become H8549; G25 becomes G0025.
 String strongsBase(String code) {
   final m = _strongsInText.firstMatch(code.trim());
