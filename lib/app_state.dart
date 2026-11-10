@@ -650,6 +650,13 @@ class AppState extends ChangeNotifier {
     return skipped;
   }
 
+  /// Keeps the reader's choices (the translation) and tells listeners.
+  Future<void> updateSettings(Settings next) async {
+    settings = next;
+    await next.save(prefs);
+    notifyListeners();
+  }
+
   /// Two codes that normalise alike ("niv" and "NIV") stay apart as NIV and NIV2.
   String _uniqueCode(String code, Iterable<String> taken) {
     if (!taken.contains(code)) return code;
