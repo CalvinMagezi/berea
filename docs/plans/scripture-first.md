@@ -530,7 +530,7 @@ None is in Releases A to F except where section 14 says so.
   bring 50 real forwarded messages, because "Not found word for word in BSB, KJV, WEB" misleads
   when the message quotes a translation Berea does not carry. The reference pattern takes
   ordinary short words for book names when a number follows them: Luganda "ne 2" reads as
-  Nehemiah 2, Swahili "na 5" as Nahum 5, English "the job 3 days ago" as Job 3 `[code]`; it
+  Nehemiah 2, Swahili "na 5" as Nahum 5 (a chapter Nahum does not have), English "the job 3 days ago" as Job 3 `[code]`; it
   needs a strict grammar first. And its wording about books follows decision 10. The site
   already ships the BSB and a JavaScript copy of the check, so this could run in a browser with
   no install.
