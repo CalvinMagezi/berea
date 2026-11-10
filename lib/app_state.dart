@@ -445,19 +445,24 @@ class AppState extends ChangeNotifier {
     return plan == null ? null : planSchedule(plan)[planDay(plan) - 1];
   }
 
-  /// Today's prayer: a line from today's plan chapters, else the verse of the day's own line.
+  /// The first verse of the plan's reading for [date], which is the verse shown for the day.
+  /// Null when no plan runs: nothing stands in for it.
+  Ref? readingVerse(DateTime date) {
+    final plan = activePlan;
+    if (plan == null) return null;
+    final first = planSchedule(plan)[planDay(plan, on: date) - 1].firstOrNull;
+    return first == null ? null : Ref(first.book, first.chapter, 1, 1);
+  }
+
+  /// Today's prayer: a line from the chapters of today's plan.
   TodayPrayer? get prayerOfTheDay => prayerOn(DateTime.now());
 
-  /// The prayer for [date]: the reading plan's chapters that day, else the verse of the day's line.
+  /// The prayer for [date]: a line from the reading plan's chapters that day; null with no plan.
   TodayPrayer? prayerOn(DateTime date) {
     final plan = activePlan;
-    final day = plan == null ? 0 : planDay(plan, on: date);
-    return todaysPrayer(
-      prayerContent,
-      verseOfDay: verseOfTheDay(db, date),
-      reading: plan == null ? null : planSchedule(plan)[day - 1],
-      day: day,
-    );
+    if (plan == null) return null;
+    final day = planDay(plan, on: date);
+    return todaysPrayer(prayerContent, reading: planSchedule(plan)[day - 1], day: day);
   }
 
   /// The daily notification the reader chose, kept on this device. Off until turned on.
@@ -537,9 +542,8 @@ class AppState extends ChangeNotifier {
       buildReminders(
         now: DateTime.now(),
         settings: settings,
-        verseOn: (d) => verseOfTheDay(db, d),
+        verseOn: readingVerse,
         textOf: (v) => passageText(db.passage(v, translation: this.settings.translation)),
-        prayerOn: prayerOn,
       ),
     );
   }

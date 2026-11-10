@@ -9,7 +9,10 @@ import 'theme.dart';
 
 const _pagePadding = 16.0;
 const _cardRadius = 16.0;
-const _verseLines = 4;
+
+/// What the reader is told about a prayer point: the lines were written for Berea with a model.
+const prayerPointLabel =
+    'Written for Berea with a language model and checked against the verse. Not Scripture.';
 
 /// A topic's numbered points with Pray these now and Add to my list. The body of [TopicScreen],
 /// and what the Mac shows beside the Praying list.
@@ -361,19 +364,20 @@ class _LinesPrayerScreenState extends State<LinesPrayerScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(point.text, style: scriptureStyle(context).copyWith(fontSize: 22)),
-                const SizedBox(height: 16),
                 PrayerLabel('${point.ref} · ${widget.env.translation()}'),
                 if (verse.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  Text(
-                    verse,
-                    maxLines: _verseLines,
-                    overflow: TextOverflow.ellipsis,
-                    style: scriptureStyle(context)
-                        .copyWith(fontSize: 15, color: scheme.onSurfaceVariant),
-                  ),
+                  // The whole verse, in Scripture type, before anything Berea wrote.
+                  Text(verse, style: scriptureStyle(context).copyWith(fontSize: 22)),
+                  const SizedBox(height: 16),
                 ],
+                Text(
+                  prayerPointLabel,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant, fontStyle: FontStyle.italic),
+                ),
+                const SizedBox(height: 4),
+                Text(point.text, style: Theme.of(context).textTheme.bodyMedium),
               ],
             ),
           ),
@@ -385,7 +389,7 @@ class _LinesPrayerScreenState extends State<LinesPrayerScreen> {
   }
 }
 
-/// Today's prayer: a line from the reader's own reading, or the verse of the day, with Pray it.
+/// Today's prayer: a line from today's plan chapters, with Pray it.
 class TodayPrayerCard extends StatelessWidget {
   final TodayPrayer prayer;
   final VoidCallback onPray;

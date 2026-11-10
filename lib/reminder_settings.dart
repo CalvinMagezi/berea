@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'app_state.dart';
 import 'daily_reminder.dart';
 import 'prayer_sheet.dart' show passageText;
-import 'today.dart';
 
 const _sheetPadding = 24.0;
 
@@ -38,7 +37,7 @@ class ReminderSettingsSection extends StatelessWidget {
         Text('Daily prayer', style: Theme.of(context).textTheme.titleSmall),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Verse of the day and prayer'),
+          title: const Text("Today's reading"),
           subtitle: Text(
             'A notification each morning, set on this device. Your own prayers never appear in it.',
             style: muted,
@@ -111,11 +110,10 @@ class _ReminderSheetState extends State<_ReminderSheet> {
   /// Today's message as the notification will show it.
   (String, String) _preview() {
     final s = widget.state;
-    final verse = verseOfTheDay(s.db, DateTime.now());
-    if (_referenceOnly) return ('Verse of the day', verse.label);
-    final text = passageText(s.db.passage(verse, translation: s.settings.translation));
-    final prayer = s.prayerOfTheDay;
-    return (verse.label, [text, if (prayer != null) 'Pray: ${prayer.point.text}'].join('\n'));
+    final verse = s.readingVerse(DateTime.now());
+    if (verse == null) return ("Today's reading", 'Start a reading plan to have a verse to show.');
+    if (_referenceOnly) return ("Today's reading", verse.label);
+    return (verse.label, passageText(s.db.passage(verse, translation: s.settings.translation)));
   }
 
   @override
@@ -129,10 +127,10 @@ class _ReminderSheetState extends State<_ReminderSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Verse of the day and prayer', style: Theme.of(context).textTheme.titleLarge),
+          Text("Today's reading", style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 4),
           Text(
-            "Today's verse and a prayer at the time you choose. Set on this device; nothing is sent.",
+            "The first verse of today's reading in the plan you started, at the time you choose. Set on this device; nothing is sent.",
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 18),

@@ -16,9 +16,6 @@ const _months = [
   'Dec',
 ];
 
-/// Shown when the Bible was built before it had a daily list.
-const _fallbackDailyVerse = 'Acts 17:11';
-
 /// The local calendar day, for remembering what was done today.
 String dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
 
@@ -26,9 +23,6 @@ String dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
 String shortDate(DateTime d) => '${_weekdays[d.weekday - 1]} ${d.day} ${_months[d.month - 1]}';
 
 String weekdayName(DateTime d) => _weekdays[d.weekday - 1];
-
-Ref verseOfTheDay(BibleDb db, DateTime day) =>
-    db.dailyVerse(day) ?? RefParser.parse(_fallbackDailyVerse).first;
 
 /// Whole days from [from] to [to], by the calendar rather than by hours.
 int daysBetween(DateTime from, DateTime to) => DateTime.utc(

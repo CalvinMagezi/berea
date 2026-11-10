@@ -4,31 +4,19 @@ import 'package:berea_harness/berea_harness.dart';
 class TodayPrayer {
   final PrayerPoint point;
 
-  /// "in today's plan" or "from the verse of the day".
+  /// Where the line comes from: "in today's plan".
   final String source;
   const TodayPrayer(this.point, this.source);
 }
 
-/// Today's prayer: a line from the chapters of today's plan, a different one each day, or else
-/// the verse of the day's own line. Chosen on the device; null when there is no line for either.
-TodayPrayer? todaysPrayer(
-  PrayerContent content, {
-  required Ref verseOfDay,
-  List<Ref>? reading,
-  int day = 0,
-}) {
+/// Today's prayer: a line from the chapters of today's plan, a different one each day. Chosen on
+/// the device; null when the plan's chapters have no line.
+TodayPrayer? todaysPrayer(PrayerContent content, {List<Ref>? reading, int day = 0}) {
   final fromPlan = [
     for (final chapter in reading ?? const <Ref>[]) ...content.chapterPoints(chapter),
   ];
-  if (fromPlan.isNotEmpty) {
-    return TodayPrayer(fromPlan[day % fromPlan.length], "in today's plan");
-  }
-  final line = content.dailyLine(verseOfDay);
-  if (line == null) return null;
-  return TodayPrayer(
-    PrayerPoint(line, Ref(verseOfDay.book, verseOfDay.chapter, verseOfDay.verseStart).label),
-    "from today's verse",
-  );
+  if (fromPlan.isEmpty) return null;
+  return TodayPrayer(fromPlan[day % fromPlan.length], "in today's plan");
 }
 
 /// The lines to pray after the day's chapters: the first of each chapter, then more, up to
