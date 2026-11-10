@@ -159,7 +159,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
               ],
               for (final g in _groups) ...[
-                _GroupHeader(group: g),
+                _GroupHeader(state: widget.state, group: g),
                 for (final v in g.verses)
                   ListTile(
                     title: Text(
@@ -181,10 +181,18 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 }
 
+// True for search groups whose hits are Scripture rather than headings or dictionary entries.
+bool _isScriptureGroup(String label) =>
+    label.startsWith('Exact words') ||
+    label.startsWith('Other forms') ||
+    label.startsWith('All your words') ||
+    RegExp(r'^\d+\s+of\s+').hasMatch(label);
+
 /// Names how the verses below were found, and how many there are, so the order is checkable.
 class _GroupHeader extends StatelessWidget {
+  final AppState state;
   final SearchGroup group;
-  const _GroupHeader({required this.group});
+  const _GroupHeader({required this.state, required this.group});
 
   @override
   Widget build(BuildContext context) {
@@ -192,14 +200,39 @@ class _GroupHeader extends StatelessWidget {
     final count = shown < group.total
         ? '$shown of ${group.total} verses, in Bible order'
         : '${group.total} ${group.total == 1 ? 'verse' : 'verses'}, in Bible order';
+    final text = Text(
+      '${group.label} · $count',
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    );
+    final canSave = _isScriptureGroup(group.label);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-      child: Text(
-        '${group.label} · $count',
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
+      child: canSave
+          ? Row(
+              children: [
+                Expanded(child: text),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  onPressed: () {
+                    final refs = [
+                      for (final v in group.verses)
+                        Ref(v.book, v.chapter, v.verse, v.verse),
+                    ];
+                    state.practice.saveSet(refs);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Saved as a set.')),
+                    );
+                  },
+                  child: const Text('Save as a set'),
+                ),
+              ],
+            )
+          : text,
     );
   }
 }
