@@ -11,6 +11,24 @@ const _minQueryLength = 2;
 // Long enough that typing a word does not search each letter, short enough to feel immediate.
 const _searchDelay = Duration(milliseconds: 300);
 
+/// Opens the Bible search from any place.
+void openSearch(BuildContext context, AppState state) => Navigator.of(context).push(
+  MaterialPageRoute<void>(builder: (_) => SearchScreen(state: state)),
+);
+
+/// The search button every place carries, so search is one tap away wherever the reader is.
+class SearchButton extends StatelessWidget {
+  final AppState state;
+  const SearchButton({super.key, required this.state});
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: 'Search the Bible',
+    icon: const Icon(Icons.search),
+    onPressed: () => openSearch(context, state),
+  );
+}
+
 /// Full-text search over the current translation. A reference in the query jumps straight to it.
 class SearchScreen extends StatefulWidget {
   final AppState state;

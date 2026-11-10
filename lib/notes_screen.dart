@@ -7,6 +7,7 @@ import 'note_dialog.dart';
 import 'notebook_store.dart';
 import 'notebooks_screen.dart';
 import 'study_store.dart';
+import 'search_screen.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
 
@@ -113,9 +114,10 @@ class _NotesScreenState extends State<NotesScreen> {
                 style: TextStyle(fontFamilyFallback: scriptureFontFallback, fontSize: 24),
               ),
         actions: [
+          SearchButton(state: _s),
           IconButton(
-            tooltip: _searching ? 'Stop searching' : 'Search',
-            icon: Icon(_searching ? Icons.close : Icons.search),
+            tooltip: _searching ? 'Stop searching' : 'Search notes',
+            icon: Icon(_searching ? Icons.close : Icons.find_in_page_outlined),
             onPressed: () => setState(() {
               _searching = !_searching;
               _filter = '';

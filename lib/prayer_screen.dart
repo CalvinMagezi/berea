@@ -72,6 +72,9 @@ class PrayerScreen extends StatefulWidget {
 
   /// Opens Settings from the app bar; null hides the button.
   final VoidCallback? onSettings;
+
+  /// Opens the Bible search, so it is one tap from here.
+  final VoidCallback? onSearch;
   const PrayerScreen({
     super.key,
     required this.store,
@@ -82,6 +85,7 @@ class PrayerScreen extends StatefulWidget {
     this.todayPrayer,
     this.refresh,
     this.onSettings,
+    this.onSearch,
   });
 
   @override
@@ -214,6 +218,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
             today: widget.todayPrayer?.call(),
             onPrayToday: _prayToday,
             onSettings: widget.onSettings,
+            onSearch: widget.onSearch,
           );
         }
         final wide = c.maxWidth >= _wideBreakpoint;
@@ -296,6 +301,8 @@ class _PrayerScreenState extends State<PrayerScreen> {
             ),
           ),
           IconButton(tooltip: 'Add a prayer', onPressed: _add, icon: const Icon(Icons.add)),
+          if (widget.onSearch case final open?)
+            IconButton(tooltip: 'Search the Bible', icon: const Icon(Icons.search), onPressed: open),
           if (widget.onSettings case final open?)
             IconButton(tooltip: 'Settings', icon: const Icon(Icons.tune), onPressed: open),
         ],
@@ -575,6 +582,7 @@ class _FirstTime extends StatelessWidget {
   final TodayPrayer? today;
   final void Function(TodayPrayer) onPrayToday;
   final VoidCallback? onSettings;
+  final VoidCallback? onSearch;
   const _FirstTime({
     required this.passage,
     required this.translation,
@@ -584,6 +592,7 @@ class _FirstTime extends StatelessWidget {
     required this.today,
     required this.onPrayToday,
     this.onSettings,
+    this.onSearch,
   });
 
   @override
@@ -595,6 +604,8 @@ class _FirstTime extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Prayer'),
         actions: [
+          if (onSearch case final open?)
+            IconButton(tooltip: 'Search the Bible', icon: const Icon(Icons.search), onPressed: open),
           if (onSettings case final open?)
             IconButton(tooltip: 'Settings', icon: const Icon(Icons.tune), onPressed: open),
         ],

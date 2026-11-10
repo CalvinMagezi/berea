@@ -164,6 +164,7 @@ void main() {
       await tester.tap(find.text(place).first);
       await tester.pumpAndSettle();
       expect(find.byTooltip('Settings'), findsWidgets, reason: place);
+      expect(find.byTooltip('Search the Bible'), findsWidgets, reason: '$place has search');
     }
   });
 
