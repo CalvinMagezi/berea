@@ -63,4 +63,11 @@ void main() {
     expect(db.searchVerses('   '), isEmpty);
     expect(db.searchVerses('zzzqqq'), isEmpty);
   });
+
+  test('one content word among function words is not called a form of the word', () {
+    final labels = db.searchVerses('the Lord').map((g) => g.label);
+    expect(labels, contains('Exact words'));
+    expect(labels, isNot(contains('Other forms of the word')));
+    expect(labels, contains('Has "lord", without the other words'));
+  });
 }

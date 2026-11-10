@@ -546,9 +546,12 @@ class BibleDb {
       }
     }
 
-    final phraseQuery = '"${tokens.join(' ')}"';
+    // One query often serves two groups (a single word is its own phrase), so ask the index once.
+    final asked = <String, List<Verse>>{};
+    List<Verse> match(String query) => asked[query] ??= _match(query, translation);
+
     add('Exact words', [
-      for (final v in _match(phraseQuery, translation))
+      for (final v in match('"${tokens.join(' ')}"'))
         if (containsPhrase(searchTokens(v.text), tokens)) v,
     ]);
 
@@ -558,13 +561,17 @@ class BibleDb {
     }.toList();
     if (content.isEmpty) return groups;
     if (content.length == 1) {
-      add('Other forms of the word', _match('"${content.first}"', translation));
+      final word = content.first;
+      add(
+        tokens.length == 1 ? 'Other forms of the word' : 'Has "$word", without the other words',
+        match('"$word"'),
+      );
       return groups;
     }
     final stems = [for (final t in content) searchStem(t)];
-    add('All your words', _match(content.map((t) => '"$t"').join(' AND '), translation));
+    add('All your words', match(content.map((t) => '"$t"').join(' AND ')));
     final partial = <int, List<Verse>>{};
-    for (final v in _match(content.map((t) => '"$t"').join(' OR '), translation)) {
+    for (final v in match(content.map((t) => '"$t"').join(' OR '))) {
       final present = {for (final w in searchTokens(v.text)) searchStem(w)};
       final n = stems.where(present.contains).length;
       if (n >= minPartialWords && n < stems.length) (partial[n] ??= []).add(v);

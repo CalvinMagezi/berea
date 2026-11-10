@@ -15,6 +15,8 @@ const _timedQueries = 200;
 const _topTen = 10;
 const _targetTopTen = 93.0;
 const _targetFirst = 70.0;
+// Queries that match most of the Bible; the slowest case a reader can type.
+const _commonQueries = ['the', 'in the', 'the lord said', 'of the LORD your God', 'God', 'and'];
 
 String _opt(List<String> args, String name, String fallback) {
   final i = args.indexOf('--$name');
@@ -92,6 +94,12 @@ void main(List<String> args) {
     'time per search: p50 ${millis[millis.length ~/ 2]} ms, '
     'p95 ${millis[(millis.length * 95) ~/ 100]} ms over ${millis.length} searches',
   );
+
+  for (final q in _commonQueries) {
+    final watch = Stopwatch()..start();
+    db.searchVerses(q);
+    stdout.writeln('common query "$q": ${watch.elapsedMilliseconds} ms');
+  }
 
   final pass = 100 * newTen / n >= _targetTopTen && 100 * newFirst / n >= _targetFirst && misses == 0;
   stdout.writeln(pass ? 'PASS' : 'FAIL');

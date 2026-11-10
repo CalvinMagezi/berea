@@ -23,6 +23,8 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   var _query = '';
   var _groups = const <SearchGroup>[];
+  // The empty-state line waits for a finished search, not the pause before it.
+  var _searched = false;
   Timer? _pending;
 
   @override
@@ -33,7 +35,10 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _onChanged(String value) {
     final query = value.trim();
-    setState(() => _query = query);
+    setState(() {
+      _query = query;
+      _searched = false;
+    });
     _pending?.cancel();
     if (query.length < _minQueryLength) {
       setState(() => _groups = const []);
@@ -46,7 +51,11 @@ class _SearchScreenState extends State<SearchScreen> {
         translation: translation,
         perGroup: searchResultLimit,
       );
-      if (mounted) setState(() => _groups = found);
+      if (!mounted) return;
+      setState(() {
+        _groups = found;
+        _searched = true;
+      });
     });
   }
 
@@ -85,7 +94,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   title: Text('Go to ${r.label}'),
                   onTap: () => _open(r),
                 ),
-              if (_query.length >= _minQueryLength && _groups.isEmpty && refs.isEmpty)
+              if (_searched && _groups.isEmpty && refs.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(

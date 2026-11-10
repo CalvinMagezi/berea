@@ -662,6 +662,8 @@ class AppState extends ChangeNotifier {
         await stamp.writeAsString(bundled);
       } on FileSystemException catch (e) {
         debugPrint('The Bible was not copied into place: $e');
+        // A cut-short copy would keep taking the room the next attempt needs.
+        if (part.existsSync()) part.deleteSync();
         // The stamp is written last, so a copy cut short is made again on the next launch.
         if (e.osError?.errorCode == _noSpaceErrno) throw const StartupFailure(bibleNoSpace);
         rethrow;
