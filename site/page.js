@@ -14,15 +14,6 @@
   const MOTE_COUNT = 46;
   const MOTE_RISE_PX = 260;
   const MOTE_SWAY = 6;
-  const STEPS = 5;
-  const SCENE_FADE = 0.12;
-  const TYPE_END = 0.45;
-  const STREAM_END = 0.85;
-  const CHIP_STEP = 0.07;
-  const CHIP_FADE = 0.12;
-  const VERSE_AT = [0.5, 0.66];
-  const VERSE_FADE = 0.14;
-  const SOFT_EDGE = 6;
   const PEAK_HANDOVER = 0.8;
   const PEAK_FOCUS_P = 0.88;
   const DEMO_FADE = 0.08;
@@ -76,45 +67,6 @@
     canvas.width = Math.round(canvas.clientWidth * dpr);
     canvas.height = Math.round(canvas.clientHeight * dpr);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-  }
-
-  // Splits an element's text into per-character spans, keeping inline markup such as <mark>.
-  function splitChars(el) {
-    const spans = [];
-    const walk = (node) => {
-      for (const child of [...node.childNodes]) {
-        if (child.nodeType !== Node.TEXT_NODE) { walk(child); continue; }
-        const frag = document.createDocumentFragment();
-        for (const ch of child.textContent) {
-          const s = document.createElement('span');
-          s.className = 'ch';
-          s.textContent = ch;
-          frag.append(s);
-          spans.push(s);
-        }
-        child.replaceWith(frag);
-      }
-    };
-    walk(el);
-    return spans;
-  }
-
-  function splitWords(el) {
-    const words = el.textContent.split(' ');
-    el.textContent = '';
-    return words.map((w, i) => {
-      const s = document.createElement('span');
-      s.className = 'ch';
-      s.textContent = i < words.length - 1 ? `${w} ` : w;
-      el.append(s);
-      return s;
-    });
-  }
-
-  // Each unit fades in over a few neighbours, so a reveal reads as a soft sweep, not a ticker.
-  function sweep(units, amount) {
-    const edge = amount * (units.length + SOFT_EDGE);
-    units.forEach((u, i) => { u.style.opacity = clamp01((edge - i) / SOFT_EDGE).toFixed(3); });
   }
 
   // The hero film: 120 stills drawn from eased progress, blending neighbours for in-between frames.
@@ -224,66 +176,6 @@
         ctx.fill();
       }
     });
-  }
-
-  // One real run, five scenes that crossfade continuously with scroll.
-  function method() {
-    const act = document.querySelector('[data-method]');
-    if (!act) return;
-    const stage = act.querySelector('[data-sc-stage]');
-    const items = [...act.querySelectorAll('.steps li')];
-    const scenes = [...act.querySelectorAll('.scene')];
-    const askChars = splitChars(act.querySelector('[data-typed]'));
-    const answerWords = splitWords(act.querySelector('[data-streamed]'));
-    const verses = [...act.querySelectorAll('.verse')];
-    const chips = [...act.querySelectorAll('.chips li')];
-    const meter = act.querySelector('[data-meter]');
-    const progress = eased(() => pinned(act));
-    let last = -1;
-
-    // Scenes hand over without overlapping: the old one clears before the new one arrives.
-    const sceneOpacity = (k, pos) => {
-      const fadeIn = k === 1 ? 1 : clamp01((pos - (k - 1)) / SCENE_FADE);
-      const fadeOut = k === STEPS ? 1 : clamp01((k - pos) / SCENE_FADE);
-      return Math.min(fadeIn, fadeOut);
-    };
-    const askMarks = [...act.querySelectorAll('[data-typed] mark')];
-
-    const render = () => {
-      const p = reduced ? 1 : progress.step();
-      if (Math.abs(p - last) < SETTLE) return;
-      last = p;
-      const pos = p * STEPS;
-      const step = Math.min(STEPS, Math.floor(pos) + 1);
-      const local = clamp01(pos - (step - 1));
-      stage.dataset.scVerifyState = pos.toFixed(2);
-      items.forEach((li, i) => li.classList.toggle('is-on', i + 1 === step));
-      scenes.forEach((s, i) => {
-        const o = sceneOpacity(i + 1, pos);
-        s.style.opacity = o.toFixed(3);
-        s.style.transform = `translateY(${((1 - o) * 10).toFixed(1)}px)`;
-        s.style.visibility = o > 0.001 ? 'visible' : 'hidden';
-      });
-      const first = step === 1 ? local : 1;
-      sweep(askChars, clamp01(first / TYPE_END));
-      askMarks.forEach((m) => { m.style.opacity = m.lastElementChild?.style.opacity ?? '1'; });
-      verses.forEach((v, i) => {
-        const o = clamp01((first - VERSE_AT[i]) / VERSE_FADE);
-        v.style.opacity = o.toFixed(3);
-        v.style.transform = `translateX(${((1 - o) * -8).toFixed(1)}px)`;
-      });
-      const second = step === 2 ? local : step > 2 ? 1 : 0;
-      chips.forEach((c, i) => {
-        const o = clamp01((second - i * CHIP_STEP) / CHIP_FADE);
-        c.style.opacity = o.toFixed(3);
-        c.style.transform = `scale(${(0.95 + 0.05 * o).toFixed(3)})`;
-      });
-      const third = step === 3 ? local : step > 3 ? 1 : 0;
-      meter.style.transform = `scaleX(${clamp01(third / 0.6).toFixed(3)})`;
-      const fourth = step === 4 ? local : step > 4 ? 1 : 0;
-      sweep(answerWords, clamp01(fourth / STREAM_END));
-    };
-    whileVisible(act, render);
   }
 
   // The live check. Book text is fetched from this site on demand and cached.
@@ -432,6 +324,5 @@
 
   film();
   motes();
-  method();
   peak();
 })();
