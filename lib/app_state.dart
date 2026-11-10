@@ -18,6 +18,7 @@ import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'reminder_platform.dart';
 import 'plans.dart';
+import 'practice_store.dart';
 import 'prayer_plan_store.dart';
 import 'prayer_sheet.dart' show passageText;
 import 'prayer_store.dart';
@@ -105,6 +106,7 @@ class AppState extends ChangeNotifier {
   /// Prayers share study.sqlite, so they are backed up and restored with the notes.
   late final PrayerStore prayers = PrayerStore(study.db);
   late final PrayerPlanStore prayerPlans = PrayerPlanStore(study.db);
+  late final PracticeStore practice = PracticeStore(study.db);
 
   /// The prayer lines bundled with the app. Empty when the file cannot be read, so Prayer still
   /// works without them.
@@ -640,6 +642,7 @@ class AppState extends ChangeNotifier {
     notebooks.refresh();
     prayers.refresh();
     prayerPlans.refresh();
+    practice.refresh();
     dayChanged.value++;
     _keepTranslationValid();
     return skipped;

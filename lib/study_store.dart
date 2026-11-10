@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'practice_store.dart';
 import 'provenance.dart';
 
 import 'notebook_store.dart';
@@ -189,6 +190,7 @@ class StudyStore {
     notebookKeySchema,
     prayerPlanSchema,
     provenanceSchema,
+    practiceSchema,
   ];
 
   static int get schemaVersion => migrations.length;
@@ -832,6 +834,7 @@ class StudyStore {
     'notebook_messages',
     ...prayerTables,
     ...prayerPlanTables,
+    ...practiceTables,
   ];
 
   Map<String, List<Map<String, Object?>>> exportTables() => {
@@ -885,6 +888,7 @@ class StudyStore {
     },
     ...prayerColumnTypes,
     ...prayerPlanColumnTypes,
+    ...practiceColumnTypes,
   };
 
   /// Columns a backup may lack, older ones having been written before they existed. When
@@ -940,6 +944,7 @@ class StudyStore {
     _validateNotebooks(tables);
     validatePrayerTables(tables);
     validatePrayerPlanTables(tables);
+    validatePracticeTables(tables);
   }
 
   void _validateColumns(Map<String, List<Map<String, Object?>>> tables) {
@@ -1075,6 +1080,8 @@ class StudyStore {
         if (!tables.containsKey('prayers') && prayerTables.contains(t)) continue;
         // A backup from before prayer plans leaves the plans on the device alone.
         if (!tables.containsKey('prayer_plan_runs') && prayerPlanTables.contains(t)) continue;
+        // A backup from before Practice leaves the sets and items on the device alone.
+        if (!tables.containsKey('practice_sets') && practiceTables.contains(t)) continue;
         db.execute('DELETE FROM $t');
         for (final row in tables[t] ?? const <Map<String, Object?>>[]) {
           final cols = row.keys.toList();
