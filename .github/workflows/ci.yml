@@ -18,6 +18,8 @@ jobs:
         working-directory: packages/harness
       - run: dart analyze --fatal-infos
         working-directory: packages/harness
+      - run: dart run bin/build_bsb_only_db.dart --out ../../assets/berea.sqlite
+        working-directory: packages/harness
       - run: dart test
         working-directory: packages/harness
       # The prayer lines pass the writing rules and the bundled file is their compiled form. Review
@@ -33,8 +35,10 @@ jobs:
         with:
           channel: stable
       - run: sudo apt-get install -y libsqlite3-dev
-      # The Bible database is built, not committed; tests do not open it.
-      - run: mkdir -p assets && touch assets/berea.sqlite && echo ci > assets/berea.sqlite.version
+      - run: dart pub get
+        working-directory: packages/harness
+      - run: dart run bin/build_bsb_only_db.dart --out ../../assets/berea.sqlite
+        working-directory: packages/harness
       - run: flutter pub get
       # PDFium checked by SHA-256 before pdfium_dart's hook would download it unchecked.
       - run: bash tool/pin_pdfium.sh linux-x64

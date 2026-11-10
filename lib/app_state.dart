@@ -367,6 +367,7 @@ const _beforeNotesMerge = 2;
 
 /// The error code for a full disk on Android, iOS, macOS and Linux.
 const _noSpaceErrno = 28;
+const _searchMmapBytes = 256 * 1024 * 1024;
 
 const helperDownloadFailed = 'The download stopped. Check the connection and try again.';
 const helperDownloadDamaged =
@@ -645,7 +646,7 @@ class AppState extends ChangeNotifier {
   }
 
   /// Copies the bundled database next to the app when the bundled build changes. The build
-  /// stamp is a separate tiny asset, so a normal launch never loads the 67 MB database.
+  /// stamp is a separate tiny asset, so a normal launch never loads the 81 MB database.
   static Future<String> _ensureDb(Directory dir, VoidCallback? onFirstSetup) async {
     final file = File('${dir.path}/berea.sqlite');
     final stamp = File('${dir.path}/berea.sqlite.asset');
@@ -654,11 +655,16 @@ class AppState extends ChangeNotifier {
     if (!file.existsSync() || current != bundled) {
       onFirstSetup?.call();
       final data = await rootBundle.load('assets/berea.sqlite');
+      final part = File('${file.path}.part');
       try {
-        await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        await part.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        // Renamed only once whole, so a copy cut short never leaves a Bible that opens half-empty.
+        await part.rename(file.path);
         await stamp.writeAsString(bundled);
       } on FileSystemException catch (e) {
         debugPrint('The Bible was not copied into place: $e');
+        // A cut-short copy would keep taking the room the next attempt needs.
+        if (part.existsSync()) part.deleteSync();
         // The stamp is written last, so a copy cut short is made again on the next launch.
         if (e.osError?.errorCode == _noSpaceErrno) throw const StartupFailure(bibleNoSpace);
         rethrow;
@@ -729,6 +735,25 @@ class AppState extends ChangeNotifier {
     if (db.bundledTranslations().contains(code)) {
       throw ReaderMessage('$code is built in. Choose another code.');
     }
+  }
+
+  /// Searches the Bible off the UI isolate, on a read-only connection of its own, so a slow
+  /// search cannot freeze the screen. A database held in memory is searched in place.
+  Future<SearchResult> searchVerses(String query, {required String translation, int perGroup = 100}) {
+    final path = db.filePath;
+    if (path == null) {
+      return Future.value(db.searchResult(query, translation: translation, perGroup: perGroup));
+    }
+    return Isolate.run(() {
+      final reader = BibleDb(sqlite3.open(path, mode: OpenMode.readOnly));
+      // Lets the system's file cache serve the index instead of this connection's small one.
+      reader.db.execute('PRAGMA mmap_size = $_searchMmapBytes');
+      try {
+        return reader.searchResult(query, translation: translation, perGroup: perGroup);
+      } finally {
+        reader.close();
+      }
+    });
   }
 
   /// Imports a user-owned translation from CSV, USFM, OSIS, Zefania or a zip of those, and keeps
