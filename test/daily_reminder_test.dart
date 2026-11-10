@@ -45,6 +45,9 @@ class FakePlatform implements ReminderPlatform {
 
 Ref _verse(DateTime day) => Ref(bookById(23), 41, 1 + day.day % 10);
 
+// A name no verse of the day contains; 'Sam' is inside 'Samuel'.
+const _readerName = 'Wanjiru';
+
 void main() {
   final verseText = {for (var v = 1; v <= 10; v++) 'Isaiah 41:$v': 'Verse text $v.'};
 
@@ -269,12 +272,16 @@ void main() {
                   'Line for the day.',
           },
         );
-        s.prayers.add(title: "Sam's surgery on Friday", forWhom: 'Sam', note: 'sick and afraid');
+        s.prayers.add(
+          title: "$_readerName's surgery on Friday",
+          forWhom: _readerName,
+          note: 'sick and afraid',
+        );
         await s.turnOnReminder(390, referenceOnly: false);
         expect(p.scheduled.length, reminderDaysAhead);
         for (final m in p.scheduled) {
           expect(m.body, contains('Pray: Line for the day.'));
-          expect(m.title + m.body, isNot(contains('Sam')));
+          expect(m.title + m.body, isNot(contains(_readerName)));
           expect(m.body, isNot(contains('surgery')));
         }
       },
