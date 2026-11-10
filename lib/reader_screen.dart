@@ -435,10 +435,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     },
     onNote: () => _onePassage('Note', _note),
     onPray: () => _onePassage('Pray', _pray),
-    onAsk: () => _onePassage('Ask', () {
-      s.askAbout(_selection);
-      setState(_selected.clear);
-    }),
     onWords: _words,
     onCommentary: _commentary,
     onStudyPage: () => _onePassage('Study page', _studyPage),

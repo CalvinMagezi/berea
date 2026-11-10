@@ -6,15 +6,12 @@ import 'package:berea/commentary_sheet.dart';
 import 'package:berea/home_shell.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/selection_bar.dart';
-import 'package:berea/study_button.dart';
 import 'package:berea/theme.dart';
 import 'package:berea/today.dart';
-import 'package:berea/voice.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/bible.dart';
@@ -30,17 +27,11 @@ const _roomyPhone = Size(_chapterBarWidth, 900);
 /// Tall enough that verse 3 of John 3 sits above the selection card in the test font.
 const _tallPhone = Size(_chapterBarWidth, 1600);
 const _phones = [Size(360, 800), Size(412, 915)];
-const _phoneActions = ['Highlight', 'Note', 'Pray', 'Ask', 'More'];
+const _phoneActions = ['Highlight', 'Note', 'Pray', 'More'];
 
 /// An action on the selection bar.
 Finder action(String label) =>
     find.descendant(of: find.byType(SelectionBar), matching: find.bySemanticsLabel(label));
-
-/// The notebook's composer asks whether voice is in use; tests have no microphone plugin.
-class _NoRecorder implements AudioRecorder {
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 void main() {
   if (needsFullDatabase case final why?) {
@@ -61,7 +52,6 @@ void main() {
     final dir = Directory.systemTemp.createTempSync('berea-selection-bar');
     dirs.add(dir);
     SharedPreferences.setMockInitialValues({
-      'engine': EngineKind.ollama.name,
       'readerBook': 43,
       'readerChapter': 3,
       'tipT14Done': true,
@@ -73,12 +63,7 @@ void main() {
       prefs: await SharedPreferences.getInstance(),
       prayerContent: PrayerContent.empty,
     );
-    return s
-      ..voice = VoiceInput(
-        transcribe: (_) async => '',
-        recorder: _NoRecorder(),
-        cacheDir: () async => dir,
-      );
+    return s;
   }
 
   /// Opens the shell at [size] with verses [verses] of John 3 selected. The verses are tapped at
@@ -108,7 +93,7 @@ void main() {
     return state;
   }
 
-  testWidgets('selecting a verse shows Highlight, Note, Pray, Ask and More in order', (
+  testWidgets('selecting a verse shows Highlight, Note, Pray and More in order', (
     tester,
   ) async {
     await pumpSelected(tester, _phones.first, [1]);
@@ -122,21 +107,6 @@ void main() {
     }
     expect(action('Words'), findsNothing, reason: 'Words sits under More');
   });
-
-  for (final size in _phones) {
-    testWidgets('the card floats 24 px above the bar and the raised Study button at $size', (
-      tester,
-    ) async {
-      await pumpSelected(tester, size, [1]);
-      expect(tester.takeException(), isNull, reason: 'no overflow');
-      final card = tester.getRect(find.byType(SelectionBar));
-      final study = tester.getRect(find.byType(StudyButton));
-      final barTop = tester.getRect(find.byType(ReaderScreen)).bottom;
-      expect(study.top, greaterThanOrEqualTo(barTop), reason: 'the bar holds the raised button');
-      expect(card.bottom, lessThanOrEqualTo(barTop - selectionBarGap));
-      expect(card.bottom, lessThan(study.top));
-    });
-  }
 
   testWidgets('tapping a BSB heading selects its section, and tapping again clears it', (
     tester,
@@ -167,7 +137,6 @@ void main() {
     final made = state.notebooks.notebooks().single;
     expect(state.notebooks.sources(made.id).first.title, startsWith('John 3:1-21'));
     expect(state.study.notebookNotes(made.id).where((n) => n.isKeptWord), isNotEmpty);
-    expect(find.byTooltip('Listen'), findsOneWidget);
     expect(find.byTooltip('Synthesize'), findsOneWidget);
   });
 
@@ -281,7 +250,7 @@ void main() {
   testWidgets('the Mac toolbar has Pray beside Words and Commentary', (tester) async {
     await pumpSelected(tester, _mac, [1]);
     expect(tester.takeException(), isNull);
-    final names = ['Highlight', 'Note', 'Pray', 'Ask', 'Words', 'Commentary', 'More'];
+    final names = ['Highlight', 'Note', 'Pray', 'Words', 'Commentary', 'More'];
     final xs = [for (final a in names) tester.getCenter(action(a)).dx];
     expect(xs, [...xs]..sort());
     final bar = tester.getRect(find.byType(SelectionBar));

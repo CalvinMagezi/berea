@@ -1,15 +1,12 @@
 import 'dart:typed_data';
 
-import 'package:berea_harness/berea_harness.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'backup.dart';
 import 'commentary_settings.dart';
-import 'models.dart';
 import 'reminder_settings.dart';
-import 'terms.dart';
 
 const minPassphraseLength = 8;
 
@@ -45,8 +42,6 @@ class _SettingsDialog extends StatefulWidget {
 
 class _SettingsDialogState extends State<_SettingsDialog> {
   late Settings draft = widget.state.settings;
-  late final _url = TextEditingController(text: draft.ollamaUrl);
-  late final _model = TextEditingController(text: draft.model);
 
   final _parts = {for (final p in SettingsPart.values) p: GlobalKey()};
 
@@ -65,8 +60,6 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   @override
   void dispose() {
     widget.state.removeListener(_refresh);
-    _url.dispose();
-    _model.dispose();
     super.dispose();
   }
 
@@ -274,13 +267,11 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     }
   }
 
-  Settings get _merged => draft.copyWith(ollamaUrl: _url.text.trim(), model: _model.text.trim());
-
   @override
   Widget build(BuildContext context) {
     final translations = widget.state.db.translations();
     return AlertDialog(
-      title: const Text('Engine'),
+      title: const Text('Settings'),
       content: SizedBox(
         width: 440,
         child: SingleChildScrollView(
@@ -288,110 +279,6 @@ class _SettingsDialogState extends State<_SettingsDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SegmentedButton<EngineKind>(
-                segments: const [
-                  ButtonSegment(value: EngineKind.device, label: Text('On device')),
-                  ButtonSegment(value: EngineKind.ollama, label: Text('Ollama')),
-                ],
-                selected: {draft.engine},
-                onSelectionChanged: (s) => setState(() => draft = draft.copyWith(engine: s.first)),
-              ),
-              const SizedBox(height: 16),
-              if (draft.engine == EngineKind.ollama) ...[
-                TextField(
-                  controller: _url,
-                  decoration: const InputDecoration(labelText: 'Ollama URL'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _model,
-                  decoration: const InputDecoration(labelText: 'Model'),
-                ),
-              ] else ...[
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  initialValue: draft.deviceModelId,
-                  decoration: const InputDecoration(labelText: 'Model'),
-                  items: [
-                    for (final m in edgeModels)
-                      DropdownMenuItem(value: m.id, child: Text('${m.label} · ${m.sizeGb} GB')),
-                  ],
-                  // The model cannot change under a download; its part file belongs to it.
-                  onChanged: widget.state.helperState is HelperDownloading
-                      ? null
-                      : (id) => setState(
-                          () => draft = draft.copyWith(
-                            deviceModelId: id,
-                            tier: recommendedTier(edgeModelById(id!), widget.state.deviceGb),
-                          ),
-                        ),
-                ),
-                if (widget.state.helperState is HelperDownloading)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'A helper is downloading. Cancel it in Study to choose another model.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                if (widget.state.deviceGb != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'This device has ${widget.state.deviceGb!.toStringAsFixed(1)} GB of memory. '
-                      'Recommended: ${_recommendation(widget.state.deviceGb)}.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                if (draft.deviceModel.notice != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${draft.deviceModel.notice}. Use of this model is also subject to the '
-                          'Gemma Prohibited Use Policy at $gemmaProhibitedUse.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(context)
-                              .push(MaterialPageRoute<void>(builder: (_) => const TermsScreen())),
-                          child: const Text('Read the terms'),
-                        ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                _DeviceModelStatus(state: widget.state, draft: _merged),
-              ],
-              const SizedBox(height: 12),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Brief answers first'),
-                subtitle: const Text('A few sentences sooner; tap Go deeper for the full study.'),
-                value: draft.briefFirst,
-                onChanged: (v) => setState(() => draft = draft.copyWith(briefFirst: v)),
-              ),
-              DropdownButtonFormField<Tier>(
-                initialValue: draft.tier,
-                decoration: const InputDecoration(labelText: 'Tier (prompt budget)'),
-                items: [
-                  for (final t in Tier.values)
-                    DropdownMenuItem(value: t, child: Text('${t.name} · ${t.promptTokens} tokens')),
-                ],
-                onChanged: (t) => setState(() => draft = draft.copyWith(tier: t)),
-              ),
-              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: draft.translation,
                 decoration: const InputDecoration(labelText: 'Translation'),
@@ -498,78 +385,12 @@ class _SettingsDialogState extends State<_SettingsDialog> {
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(
           onPressed: () {
-            widget.state.updateSettings(_merged);
+            widget.state.updateSettings(draft);
             Navigator.pop(context);
           },
           child: const Text('Save'),
         ),
       ],
     );
-  }
-}
-
-String _recommendation(double? gb) {
-  final m = recommendedModel(gb);
-  return '${m.label}, ${recommendedTier(m, gb).name} tier';
-}
-
-class _DeviceModelStatus extends StatelessWidget {
-  final AppState state;
-  final Settings draft;
-  const _DeviceModelStatus({required this.state, required this.draft});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final sameModel = draft.deviceModelId == state.settings.deviceModelId;
-    final st = sameModel ? state.deviceState : DeviceModelState.notInstalled;
-    switch (st) {
-      case DeviceModelState.downloading:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            LinearProgressIndicator(value: state.downloadProgress / 100),
-            const SizedBox(height: 6),
-            Text('Downloading ${state.downloadProgress}%'),
-          ],
-        );
-      case DeviceModelState.loading:
-        return const Text('Loading model…');
-      case DeviceModelState.ready:
-        return Text('Installed and loaded', style: TextStyle(color: scheme.primary));
-      case DeviceModelState.notInstalled:
-        // Study is where a helper is chosen and downloaded, with Wi-Fi only and its progress.
-        return Text(
-          sameModel
-              ? 'Not downloaded. Choose and download the helper in Study.'
-              : 'Save, then download ${draft.deviceModel.label} in Study.',
-          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-        );
-      case DeviceModelState.failed:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (state.deviceError != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  state.deviceError!,
-                  style: TextStyle(color: scheme.error, fontSize: 12),
-                ),
-              ),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.build_outlined),
-                label: Text('Repair (${draft.deviceModel.sizeGb} GB)'),
-                onPressed: () async {
-                  if (!await confirmModelTerms(context, state, draft.deviceModel)) return;
-                  await state.downloadModelFor(draft);
-                },
-              ),
-            ),
-          ],
-        );
-    }
   }
 }

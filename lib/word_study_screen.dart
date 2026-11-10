@@ -40,10 +40,6 @@ Future<void> showWordStudy(
         pos: pos,
         translation: s.settings.translation,
         onGetLexicon: () => showSettingsSheet(ctx, s, show: SettingsPart.lexicon),
-        onAsk: (question) {
-          Navigator.of(ctx).popUntil((r) => r.isFirst);
-          s.askAboutWord(question);
-        },
         onOpen: (verse) {
           Navigator.of(ctx).popUntil((r) => r.isFirst);
           s.openInReader(verse);
@@ -128,7 +124,6 @@ class WordStudyScreen extends StatefulWidget {
   final int? wordIndex;
   final int? pos;
   final String translation;
-  final void Function(String question) onAsk;
   final void Function(Ref verse) onOpen;
 
   /// Opens Settings at the full Greek lexicon; null where Settings cannot be reached.
@@ -141,7 +136,6 @@ class WordStudyScreen extends StatefulWidget {
     super.key,
     required this.db,
     required this.ref,
-    required this.onAsk,
     required this.onOpen,
     this.onGetLexicon,
     this.english,
@@ -349,7 +343,6 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
 
   List<Widget> _header(ColorScheme scheme) {
     final e = _entry;
-    final tag = _tag;
     final lemma = e?.lemma ?? _hereForm;
     final pos = e == null ? '' : partOfSpeech(e.pos);
     return [
@@ -373,18 +366,6 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            FilledButton.icon(
-              icon: const Icon(Icons.auto_stories_outlined),
-              label: Text('Ask Berea about $lemma'),
-              onPressed: () => widget.onAsk(
-                wordStudyQuestion(
-                  entry: e,
-                  language: _language,
-                  english: tag == null ? null : widget.english,
-                  ref: tag == null ? null : widget.ref,
-                ),
-              ),
-            ),
             if (widget.onKeep != null)
               OutlinedButton.icon(
                 icon: const Icon(Icons.bookmark_add_outlined),
