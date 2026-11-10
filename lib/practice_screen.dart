@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'app_state.dart';
 import 'confirm.dart';
 import 'practice_store.dart';
+import 'search_screen.dart';
 import 'step_through_screen.dart';
 import 'theme.dart';
 
@@ -26,7 +27,7 @@ class PracticeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Practice')),
+      appBar: AppBar(title: const Text('Practice'), actions: [SearchButton(state: state)]),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: contentMaxWidth),
