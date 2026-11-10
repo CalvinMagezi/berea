@@ -549,6 +549,30 @@ class BibleDb {
   }) {
     final tokens = searchTokens(text);
     if (tokens.isEmpty || searchIsTooCommon(text)) return const [];
+    return [
+      ..._verseGroups(tokens, translation, perGroup),
+      ..._headingGroup(tokens, translation, perGroup),
+    ];
+  }
+
+  /// The headings the translation's publisher printed that hold every word searched for, listed
+  /// last and at the verse each one stands above. They are the publisher's, not Bible text.
+  List<SearchGroup> _headingGroup(List<String> tokens, String translation, int perGroup) {
+    if (!_hasHeadings) return const [];
+    final found = <Verse>[];
+    for (final r in db.select(
+      'SELECT book, chapter, verse, text FROM headings WHERE translation = ?',
+      [translation],
+    )) {
+      final words = searchTokens(r['text'] as String).toSet();
+      if (tokens.every(words.contains)) found.add(_verse(r));
+    }
+    if (found.isEmpty) return const [];
+    final label = 'Section headings, printed by the $translation publisher';
+    return [SearchGroup(label, found.take(perGroup).toList(), found.length)];
+  }
+
+  List<SearchGroup> _verseGroups(List<String> tokens, String translation, int perGroup) {
     final groups = <SearchGroup>[];
     final taken = <int>{};
     void add(String label, Iterable<int> ids) {

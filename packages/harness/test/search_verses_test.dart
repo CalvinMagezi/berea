@@ -120,4 +120,13 @@ void main() {
     final thee = db.searchVerses('thee');
     expect(thee.map((g) => g.label), ['Exact words in KJV']);
   }, skip: needsFullDatabase);
+
+  test('a printed section heading is found, listed last under the publisher\'s name', () {
+    final groups = db.searchVerses('the creation');
+    final last = groups.last;
+    expect(last.label, 'Section headings, printed by the BSB publisher');
+    expect(last.verses.map((v) => v.label), contains('Genesis 1:1'));
+    expect(last.verses.firstWhere((v) => v.label == 'Genesis 1:1').text, 'The Creation');
+    expect(db.searchVerses('zzzqqq'), isEmpty);
+  }, skip: needsFullDatabase);
 }
