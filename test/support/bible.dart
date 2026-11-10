@@ -92,6 +92,3 @@ final String? needsFullDatabase = () {
   }
   return null;
 }();
-
-@Deprecated('Use needsBibleText or needsFullDatabase')
-final String? needsBuiltBible = needsFullDatabase;
