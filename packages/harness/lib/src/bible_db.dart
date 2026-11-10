@@ -6,6 +6,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'books.dart';
 import 'importers.dart';
 import 'ref_parser.dart';
+import 'search_text.dart';
 import 'sword.dart';
 import 'word_study.dart';
 
@@ -16,6 +17,15 @@ class Verse {
   final String text;
   const Verse(this.book, this.chapter, this.verse, this.text);
   String get label => '${book.name} $chapter:$verse';
+}
+
+/// One labelled run of search hits, in Bible order. [total] counts them all; [verses] holds at
+/// most the first few.
+class SearchGroup {
+  final String label;
+  final List<Verse> verses;
+  final int total;
+  const SearchGroup(this.label, this.verses, this.total);
 }
 
 class WordTag {
@@ -100,6 +110,9 @@ const defaultTranslation = 'BSB';
 const translationCodeMax = 8;
 final translationCode = RegExp('^[A-Z0-9]{1,$translationCodeMax}\$');
 const maxPassageVerses = 40;
+
+/// A verse with fewer of the query's words than this is not listed as a partial match.
+const minPartialWords = 2;
 
 /// SQLite reads a negative LIMIT as no limit.
 const _noLimit = -1;
@@ -507,6 +520,67 @@ class BibleDb {
       'WHERE verses_fts MATCH ? AND v.translation = ? ${book == null ? '' : 'AND v.book = ? '}'
       'ORDER BY bm25(verses_fts) LIMIT ?',
       [q, translation, if (book != null) book.id, k],
+    );
+    return rows.map(_verse).toList();
+  }
+
+  /// What the search box shows: groups that each say how their verses were found, every group
+  /// in Bible order so no ranking is hidden. "Exact words" are confirmed against the verse text,
+  /// because the index matches stems. [perGroup] caps how many verses a group lists.
+  List<SearchGroup> searchVerses(
+    String text, {
+    String translation = defaultTranslation,
+    int perGroup = 100,
+  }) {
+    final tokens = searchTokens(text);
+    if (tokens.isEmpty) return const [];
+    final groups = <SearchGroup>[];
+    final seen = <String>{};
+    void add(String label, List<Verse> found) {
+      final fresh = [
+        for (final v in found)
+          if (seen.add(v.label)) v,
+      ];
+      if (fresh.isNotEmpty) {
+        groups.add(SearchGroup(label, fresh.take(perGroup).toList(), fresh.length));
+      }
+    }
+
+    final phraseQuery = '"${tokens.join(' ')}"';
+    add('Exact words', [
+      for (final v in _match(phraseQuery, translation))
+        if (containsPhrase(searchTokens(v.text), tokens)) v,
+    ]);
+
+    final content = {
+      for (final t in tokens)
+        if (!searchStopWords.contains(t)) t,
+    }.toList();
+    if (content.isEmpty) return groups;
+    if (content.length == 1) {
+      add('Other forms of the word', _match('"${content.first}"', translation));
+      return groups;
+    }
+    final stems = [for (final t in content) searchStem(t)];
+    add('All your words', _match(content.map((t) => '"$t"').join(' AND '), translation));
+    final partial = <int, List<Verse>>{};
+    for (final v in _match(content.map((t) => '"$t"').join(' OR '), translation)) {
+      final present = {for (final w in searchTokens(v.text)) searchStem(w)};
+      final n = stems.where(present.contains).length;
+      if (n >= minPartialWords && n < stems.length) (partial[n] ??= []).add(v);
+    }
+    for (final n in (partial.keys.toList()..sort()).reversed) {
+      add('$n of ${stems.length} words', partial[n]!);
+    }
+    return groups;
+  }
+
+  List<Verse> _match(String ftsQuery, String translation) {
+    final rows = db.select(
+      'SELECT v.book, v.chapter, v.verse, v.text FROM verses_fts f '
+      'JOIN verses v ON v.id = f.rowid '
+      'WHERE verses_fts MATCH ? AND v.translation = ? ORDER BY v.book, v.chapter, v.verse',
+      [ftsQuery, translation],
     );
     return rows.map(_verse).toList();
   }
