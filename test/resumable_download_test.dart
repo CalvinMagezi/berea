@@ -295,7 +295,7 @@ void main() {
     expect(verified.existsSync(), isTrue);
   });
 
-  group('across a restart', skip: needsBuiltBible, () {
+  group('across a restart', skip: needsBibleText, () {
     final m = edgeModelById('gemma-4-e2b');
     late StreamController<bool> network;
     late int downloads;
@@ -331,6 +331,7 @@ void main() {
       });
       network = StreamController<bool>();
       downloads = 0;
+      ensureBereaDbAssets();
       final s = await AppState.bootstrap(
         supportDir: dir,
         prefs: await SharedPreferences.getInstance(),

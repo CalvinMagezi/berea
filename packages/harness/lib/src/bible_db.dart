@@ -104,6 +104,37 @@ const maxPassageVerses = 40;
 /// SQLite reads a negative LIMIT as no limit.
 const _noLimit = -1;
 
+/// The initial schema for the Bible database: verses, search, words, lexicon, xrefs and meta.
+void createBibleSchema(Database db) => db.execute('''
+  PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;
+  CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, chapter INTEGER, verse INTEGER, text TEXT);
+  CREATE VIRTUAL TABLE verses_fts USING fts5(text, content='verses', content_rowid='id', tokenize='porter unicode61');
+  CREATE TABLE words(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, original TEXT, translit TEXT, gloss TEXT, strongs TEXT, morph TEXT, PRIMARY KEY(book, chapter, verse, pos)) WITHOUT ROWID;
+  CREATE TABLE lexicon(key TEXT PRIMARY KEY, base TEXT, lemma TEXT, translit TEXT, pos TEXT, gloss TEXT, definition TEXT);
+  CREATE INDEX lexicon_base ON lexicon(base);
+  CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER);
+  CREATE INDEX xrefs_from ON xrefs(from_book, from_chapter, from_verse);
+  CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
+  CREATE INDEX verses_ref ON verses(translation, book, chapter, verse);
+''');
+
+/// Inserts verse rows into verses under code.
+void loadVerseRows(Database db, String code, Iterable<VerseRow> rows) {
+  final stmt = db.prepare(
+    'INSERT INTO verses(translation, book, chapter, verse, text) VALUES (?, ?, ?, ?, ?)',
+  );
+  db.execute('BEGIN');
+  for (final r in rows) {
+    stmt.execute([code, r.book.id, r.chapter, r.verse, r.text]);
+  }
+  db.execute('COMMIT');
+  stmt.dispose();
+}
+
+/// Rebuilds the search index from the current verses table.
+void rebuildVersesFts(Database db) =>
+    db.execute("INSERT INTO verses_fts(verses_fts) VALUES('rebuild')");
+
 class BibleDb {
   final Database db;
   BibleDb(this.db);

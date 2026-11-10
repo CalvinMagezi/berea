@@ -1,8 +1,9 @@
-import 'dart:io';
 
 import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
+
+import 'support/bible.dart';
 
 /// About the size of the real system prompt, in characters.
 const _systemChars = 3000;
@@ -38,13 +39,12 @@ class _Echo implements LlmEngine {
 }
 
 void main() {
-  final bible = File('../../assets/berea.sqlite');
-  if (!bible.existsSync() || bible.lengthSync() == 0) {
-    test('these tests open the built Bible', () {}, skip: 'needs assets/berea.sqlite');
+  if (needsFullDatabase case final why?) {
+    test('these tests open the built Bible', () {}, skip: why);
     return;
   }
   late BibleDb db;
-  setUpAll(() => db = BibleDb(sqlite3.open(bible.path, mode: OpenMode.readOnly)));
+  setUpAll(() => db = BibleDb(sqlite3.open(bibleDbFile().path, mode: OpenMode.readOnly)));
   final system = 'S' * _systemChars;
 
   StudyPacket packet(String refs) => buildStudyPacket(db, RefParser.parse(refs));

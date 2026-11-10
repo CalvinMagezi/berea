@@ -19,11 +19,12 @@ final _streakCount = RegExp(
 );
 
 void main() {
-  if (needsBuiltBible case final why?) {
+  if (needsBibleText case final why?) {
     test('these tests open the built Bible', () {}, skip: why);
     return;
   }
   TestWidgetsFlutterBinding.ensureInitialized();
+  ensureBereaDbAssets();
   final dirs = <Directory>[];
   tearDownAll(() {
     for (final d in dirs) {

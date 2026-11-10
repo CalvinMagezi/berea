@@ -126,12 +126,13 @@ void main() {
     });
   });
 
-  final why = needsBuiltBible;
+  final why = needsBibleText;
   if (why != null) {
     test('the settings tests open the built Bible', () {}, skip: why);
     return;
   }
   TestWidgetsFlutterBinding.ensureInitialized();
+  ensureBereaDbAssets();
   final dirs = <Directory>[];
   tearDownAll(() {
     for (final d in dirs) {
