@@ -28,6 +28,20 @@ class SearchGroup {
   const SearchGroup(this.label, this.verses, this.total);
 }
 
+/// A word the search could not find, with every word of the translation one letter away from it.
+class Spelling {
+  final String word;
+  final List<(String, int)> near;
+  const Spelling(this.word, this.near);
+}
+
+/// What the search box shows: the groups, or, when there are none, a spelling line.
+class SearchResult {
+  final List<SearchGroup> groups;
+  final Spelling? spelling;
+  const SearchResult(this.groups, this.spelling);
+}
+
 class WordTag {
   final String original;
   final String translit;
@@ -546,7 +560,17 @@ class BibleDb {
       groups.add(SearchGroup(label, _versesById(fresh.take(perGroup)), fresh.length));
     }
 
-    add('Exact words', _exactIds('"${tokens.join(' ')}"', phrasePattern(tokens), translation));
+    final phraseQuery = '"${tokens.join(' ')}"';
+    final phrase = phrasePattern(tokens);
+    add('Exact words', _exactIds(phraseQuery, phrase, translation));
+    if (groups.isEmpty) {
+      for (final other in bundledTranslations().where((t) => t != translation)) {
+        final ids = _exactIds(phraseQuery, phrase, other);
+        if (ids.isEmpty) continue;
+        add('Exact words in $other', ids);
+        break;
+      }
+    }
 
     final content = {
       for (final t in tokens)
@@ -559,6 +583,7 @@ class BibleDb {
         tokens.length == 1 ? 'Other forms of the word' : 'Has "$word", without the other words',
         _matchIds('"$word"', translation),
       );
+      if (tokens.length == 1) groups.addAll(_glossedGroups(word, translation));
       return groups;
     }
     final perTerm = [for (final t in content) _matchIds('"$t"', translation).toSet()];
@@ -577,6 +602,141 @@ class BibleDb {
       );
     }
     return groups;
+  }
+
+  /// The search with its spelling line: when nothing is found, the first word that no verse of the
+  /// translation has, and every word one letter away from it that some verse does have.
+  SearchResult searchResult(
+    String text, {
+    String translation = defaultTranslation,
+    int perGroup = 100,
+  }) {
+    final groups = searchVerses(text, translation: translation, perGroup: perGroup);
+    if (groups.isNotEmpty || searchIsTooCommon(text)) return SearchResult(groups, null);
+    return SearchResult(groups, _spelling(searchTokens(text), translation));
+  }
+
+  /// Notes every word of each translation with the number of verses that hold it, for the
+  /// spelling line. A builder calls this once the verses are loaded.
+  void buildVocabulary() {
+    final counts = <String, Map<String, int>>{};
+    final rows = db.select('SELECT translation, text FROM verses');
+    for (final r in rows) {
+      final byWord = counts.putIfAbsent(r['translation'] as String, () => {});
+      for (final w in searchTokens(r['text'] as String).toSet()) {
+        byWord[w] = (byWord[w] ?? 0) + 1;
+      }
+    }
+    db.execute('DROP TABLE IF EXISTS vocab');
+    db.execute(
+      'CREATE TABLE vocab(translation TEXT, word TEXT, verses INTEGER, '
+      'PRIMARY KEY(translation, word)) WITHOUT ROWID',
+    );
+    final insert = db.prepare('INSERT INTO vocab VALUES (?, ?, ?)');
+    db.execute('BEGIN');
+    for (final t in counts.entries) {
+      for (final w in t.value.entries) {
+        insert.execute([t.key, w.key, w.value]);
+      }
+    }
+    db.execute('COMMIT');
+    insert.dispose();
+  }
+
+  late final bool _hasVocab = db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vocab'")
+      .isNotEmpty;
+
+  static const _alphabet = 'abcdefghijklmnopqrstuvwxyz';
+  static final _plainWord = RegExp(r'^[a-z]{3,}$');
+
+  Spelling? _spelling(List<String> tokens, String translation) {
+    if (!_hasVocab) return null;
+    final known = db.prepare('SELECT 1 FROM vocab WHERE translation = ? AND word = ?');
+    try {
+      for (final word in tokens) {
+        if (!_plainWord.hasMatch(word) || known.select([translation, word]).isNotEmpty) continue;
+        final near = _oneLetterAway(word, translation);
+        return near.isEmpty ? null : Spelling(word, near);
+      }
+    } finally {
+      known.dispose();
+    }
+    return null;
+  }
+
+  List<(String, int)> _oneLetterAway(String word, String translation) {
+    final edits = <String>{};
+    for (var i = 0; i <= word.length; i++) {
+      final head = word.substring(0, i), tail = word.substring(i);
+      if (tail.isNotEmpty) edits.add(head + tail.substring(1));
+      if (tail.length > 1) edits.add(head + tail[1] + tail[0] + tail.substring(2));
+      for (final c in _alphabet.split('')) {
+        if (tail.isNotEmpty) edits.add(head + c + tail.substring(1));
+        edits.add(head + c + tail);
+      }
+    }
+    edits.remove(word);
+    final list = edits.toList();
+    final rows = db.select(
+      'SELECT word, verses FROM vocab WHERE translation = ? AND word IN '
+      '(${List.filled(list.length, '?').join(',')}) ORDER BY verses DESC, word',
+      [translation, ...list],
+    );
+    return [for (final r in rows) (r['word'] as String, r['verses'] as int)];
+  }
+
+  static const _glossedVersesShown = 5;
+
+  /// One group for every Hebrew or Greek word STEPBible's tagging glosses with [word], most
+  /// often first, each listing the verses that use it. None is picked over another.
+  List<SearchGroup> _glossedGroups(String word, String translation) {
+    if (!_hasGlossIndex || !RegExp(r'^[a-z]+$').hasMatch(word)) return const [];
+    // "thee" stems to "the", which STEPBible's tagging glosses on thousands of unrelated words.
+    final stem = wordStem(word);
+    if (searchStopWords.contains(stem)) return const [];
+    final tagged = db.select(
+      'SELECT strongs, n FROM gloss_index WHERE term = ? AND n >= ? ORDER BY n DESC, strongs',
+      [stem, _minFormUses],
+    );
+    final lookup = db.prepare(
+      'SELECT text FROM verses WHERE translation = ? AND book = ? AND chapter = ? AND verse = ?',
+    );
+    try {
+      return [
+        for (final t in tagged)
+          ?_glossedGroup(t['strongs'] as String, t['n'] as int, word, translation, lookup),
+      ];
+    } finally {
+      lookup.dispose();
+    }
+  }
+
+  SearchGroup? _glossedGroup(
+    String code,
+    int times,
+    String word,
+    String translation,
+    PreparedStatement lookup,
+  ) {
+    final refs = db.select(
+      'SELECT book, chapter, verse FROM word_index WHERE strongs = ? '
+      'GROUP BY book, chapter, verse',
+      [strongsBase(code)],
+    );
+    if (refs.isEmpty) return null;
+    final verses = <Verse>[];
+    for (final r in refs.take(_glossedVersesShown)) {
+      final text = lookup.select([translation, r['book'], r['chapter'], r['verse']]);
+      if (text.isNotEmpty) {
+        verses.add(Verse(bookById(r['book'] as int), r['chapter'] as int, r['verse'] as int,
+            text.first['text'] as String));
+      }
+    }
+    final lemma = lexicon(code)?.lemma;
+    final name = lemma == null ? code : '$lemma ($code)';
+    final label = 'Verses with $name, which STEPBible\'s tagging glosses "$word" $times times';
+    return SearchGroup(label, verses, refs.length);
   }
 
   static const _byBibleOrder = 'ORDER BY v.book, v.chapter, v.verse';

@@ -103,4 +103,21 @@ void main() {
     plain.recordBibleOrder();
     expect(raw.select("SELECT value FROM meta WHERE key = 'bible_order'").single['value'], '');
   });
+
+  test('a word no verse has comes back with the words one letter away and their verse counts', () {
+    final result = db.searchResult('jeus wept');
+    expect(result.groups, isEmpty);
+    expect(result.spelling!.word, 'jeus');
+    expect(result.spelling!.near.map((w) => w.$1), contains('jesus'));
+    expect(result.spelling!.near.firstWhere((w) => w.$1 == 'jesus').$2, greaterThan(500));
+    expect(db.searchResult('Jesus').spelling, isNull);
+    expect(db.searchResult('zzzqqq').spelling, isNull);
+  });
+
+  test('a word STEPBible tags, and an archaic form only the KJV has', () {
+    final love = db.searchVerses('love').map((g) => g.label);
+    expect(love.where((l) => l.contains('(G0025)') && l.contains('glosses "love"')), hasLength(1));
+    final thee = db.searchVerses('thee');
+    expect(thee.map((g) => g.label), ['Exact words in KJV']);
+  }, skip: needsFullDatabase);
 }

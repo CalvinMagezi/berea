@@ -63,6 +63,7 @@ void main(List<String> args) {
       loadVerseRows(db, 'BSB', bsb);
       rebuildVersesFts(db);
       BibleDb(db).recordBibleOrder();
+      BibleDb(db).buildVocabulary();
       built = DateTime.now().toUtc().toIso8601String();
       final meta = db.prepare('INSERT INTO meta VALUES (?, ?)');
       meta

@@ -74,4 +74,17 @@ void main() {
     await search(tester, state, 'the');
     expect(find.text('"the" is in too many verses to list. Add another word.'), findsOneWidget);
   });
+
+  testWidgets('a misspelt word offers the words one letter away, and a tap searches the word', (
+    tester,
+  ) async {
+    final state = (await tester.runAsync(open))!;
+    await search(tester, state, 'jeus');
+    expect(find.text('No verses have "jeus". Words one letter away that verses do have:'), findsOneWidget);
+    await tester.tap(find.text('jesus'));
+    await tester.pump(_afterDelay);
+    await tester.runAsync(() => Future<void>.delayed(_searchWait));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Exact words ·'), findsOneWidget);
+  });
 }

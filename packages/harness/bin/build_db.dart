@@ -100,6 +100,7 @@ Future<void> main(List<String> args) async {
       _createSchema(db);
       await _loadData(db, bsb, cache);
       BibleDb(db).recordBibleOrder();
+      BibleDb(db).buildVocabulary();
       built = _writeMeta(db);
     } finally {
       db.dispose();

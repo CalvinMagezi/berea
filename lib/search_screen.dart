@@ -23,6 +23,8 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   var _query = '';
   var _groups = const <SearchGroup>[];
+  Spelling? _spelling;
+  final _field = TextEditingController();
   // The empty-state line waits for a finished search, not the pause before it.
   var _searched = false;
   var _searching = false;
@@ -32,6 +34,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void dispose() {
     _pending?.cancel();
+    _field.dispose();
     super.dispose();
   }
 
@@ -45,7 +48,10 @@ class _SearchScreenState extends State<SearchScreen> {
     });
     _pending?.cancel();
     if (query.length < _minQueryLength) {
-      setState(() => _groups = const []);
+      setState(() {
+        _groups = const [];
+        _spelling = null;
+      });
       return;
     }
     _pending = Timer(_searchDelay, () => _run(query));
@@ -54,7 +60,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _run(String query) async {
     final request = ++_request;
     setState(() => _searching = true);
-    var found = const <SearchGroup>[];
+    var found = const SearchResult([], null);
     try {
       found = await widget.state.searchVerses(
         query,
@@ -67,7 +73,8 @@ class _SearchScreenState extends State<SearchScreen> {
     // A newer keystroke owns the screen; its answer is the one to show.
     if (!mounted || request != _request) return;
     setState(() {
-      _groups = found;
+      _groups = found.groups;
+      _spelling = found.spelling;
       _searched = true;
       _searching = false;
     });
@@ -88,6 +95,7 @@ class _SearchScreenState extends State<SearchScreen> {
       appBar: AppBar(
         title: TextField(
           autofocus: true,
+          controller: _field,
           onChanged: _onChanged,
           decoration: InputDecoration(
             hintText: 'Search $translation or type a reference',
@@ -109,7 +117,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   title: Text('Go to ${r.label}'),
                   onTap: () => _open(r),
                 ),
-              if (_searched && _groups.isEmpty && refs.isEmpty)
+              if (_searched && _groups.isEmpty && _spelling == null && refs.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
@@ -119,6 +127,24 @@ class _SearchScreenState extends State<SearchScreen> {
                     style: TextStyle(color: scheme.onSurfaceVariant),
                   ),
                 ),
+              if (_searched && _groups.isEmpty && _spelling != null) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+                  child: Text(
+                    'No verses have "${_spelling!.word}". Words one letter away that verses do have:',
+                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  ),
+                ),
+                for (final (word, verses) in _spelling!.near)
+                  ListTile(
+                    title: Text(word),
+                    subtitle: Text('$verses ${verses == 1 ? 'verse' : 'verses'}'),
+                    onTap: () {
+                      _field.text = _query.replaceAll(_spelling!.word, word);
+                      _onChanged(_field.text);
+                    },
+                  ),
+              ],
               for (final g in _groups) ...[
                 _GroupHeader(group: g),
                 for (final v in g.verses)

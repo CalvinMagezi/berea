@@ -739,17 +739,17 @@ class AppState extends ChangeNotifier {
 
   /// Searches the Bible off the UI isolate, on a read-only connection of its own, so a slow
   /// search cannot freeze the screen. A database held in memory is searched in place.
-  Future<List<SearchGroup>> searchVerses(String query, {required String translation, int perGroup = 100}) {
+  Future<SearchResult> searchVerses(String query, {required String translation, int perGroup = 100}) {
     final path = db.filePath;
     if (path == null) {
-      return Future.value(db.searchVerses(query, translation: translation, perGroup: perGroup));
+      return Future.value(db.searchResult(query, translation: translation, perGroup: perGroup));
     }
     return Isolate.run(() {
       final reader = BibleDb(sqlite3.open(path, mode: OpenMode.readOnly));
       // Lets the system's file cache serve the index instead of this connection's small one.
       reader.db.execute('PRAGMA mmap_size = $_searchMmapBytes');
       try {
-        return reader.searchVerses(query, translation: translation, perGroup: perGroup);
+        return reader.searchResult(query, translation: translation, perGroup: perGroup);
       } finally {
         reader.close();
       }
