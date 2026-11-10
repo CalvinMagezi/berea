@@ -672,7 +672,7 @@ class BibleDb {
       .isNotEmpty;
 
   static const _alphabet = 'abcdefghijklmnopqrstuvwxyz';
-  static final _plainWord = RegExp(r'^[a-z]{3,}$');
+  static final _plainWord = RegExp(r'^[a-z]{3,40}$');
 
   Spelling? _spelling(List<String> tokens, String translation) {
     if (!_hasVocab) return null;
@@ -681,7 +681,7 @@ class BibleDb {
       for (final word in tokens) {
         if (!_plainWord.hasMatch(word) || known.select([translation, word]).isNotEmpty) continue;
         final near = _oneLetterAway(word, translation);
-        return near.isEmpty ? null : Spelling(word, near);
+        if (near.isNotEmpty) return Spelling(word, near);
       }
     } finally {
       known.dispose();
@@ -748,9 +748,16 @@ class BibleDb {
       'GROUP BY book, chapter, verse',
       [strongsBase(code)],
     );
-    if (refs.isEmpty) return null;
+    // A translation the reader imported may lack books; list and count only verses it has.
+    final present = _orderedRanges.containsKey(translation)
+        ? refs.toList()
+        : [
+            for (final r in refs)
+              if (lookup.select([translation, r['book'], r['chapter'], r['verse']]).isNotEmpty) r,
+          ];
+    if (present.isEmpty) return null;
     final verses = <Verse>[];
-    for (final r in refs.take(_glossedVersesShown)) {
+    for (final r in present.take(_glossedVersesShown)) {
       final text = lookup.select([translation, r['book'], r['chapter'], r['verse']]);
       if (text.isNotEmpty) {
         verses.add(Verse(bookById(r['book'] as int), r['chapter'] as int, r['verse'] as int,
@@ -760,7 +767,7 @@ class BibleDb {
     final lemma = lexicon(code)?.lemma;
     final name = lemma == null ? code : '$lemma ($code)';
     final label = 'Verses with $name, which STEPBible\'s tagging glosses "$word" $times times';
-    return SearchGroup(label, verses, refs.length);
+    return SearchGroup(label, verses, present.length);
   }
 
   static const _byBibleOrder = 'ORDER BY v.book, v.chapter, v.verse';

@@ -1,5 +1,4 @@
 import 'package:berea_harness/berea_harness.dart';
-import 'package:berea_harness/src/search_text.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
@@ -129,4 +128,9 @@ void main() {
     expect(last.verses.firstWhere((v) => v.label == 'Genesis 1:1').text, 'The Creation');
     expect(db.searchVerses('zzzqqq'), isEmpty);
   }, skip: needsFullDatabase);
+
+  test('a spelling line is found even when an earlier unknown word has no near words', () {
+    final result = db.searchResult('xqzv jeus');
+    expect(result.spelling?.word, 'jeus');
+  });
 }

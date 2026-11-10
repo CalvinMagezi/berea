@@ -28,6 +28,7 @@ class _SearchScreenState extends State<SearchScreen> {
   // The empty-state line waits for a finished search, not the pause before it.
   var _searched = false;
   var _searching = false;
+  var _failed = false;
   var _request = 0;
   Timer? _pending;
 
@@ -45,6 +46,7 @@ class _SearchScreenState extends State<SearchScreen> {
       _query = query;
       _searched = false;
       _searching = false;
+      _failed = false;
     });
     _pending?.cancel();
     if (query.length < _minQueryLength) {
@@ -61,6 +63,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final request = ++_request;
     setState(() => _searching = true);
     var found = const SearchResult([], null);
+    var failed = false;
     try {
       found = await widget.state.searchVerses(
         query,
@@ -69,13 +72,15 @@ class _SearchScreenState extends State<SearchScreen> {
       );
     } on Object catch (e) {
       debugPrint('Search failed: $e');
+      failed = true;
     }
     // A newer keystroke owns the screen; its answer is the one to show.
     if (!mounted || request != _request) return;
     setState(() {
       _groups = found.groups;
       _spelling = found.spelling;
-      _searched = true;
+      _searched = !failed;
+      _failed = failed;
       _searching = false;
     });
   }
@@ -117,6 +122,14 @@ class _SearchScreenState extends State<SearchScreen> {
                   title: Text('Go to ${r.label}'),
                   onTap: () => _open(r),
                 ),
+              if (_failed)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'The search could not be run. Try typing it again.',
+                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  ),
+                ),
               if (_searched && _groups.isEmpty && _spelling == null && refs.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(24),
@@ -140,7 +153,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     title: Text(word),
                     subtitle: Text('$verses ${verses == 1 ? 'verse' : 'verses'}'),
                     onTap: () {
-                      _field.text = _query.replaceAll(_spelling!.word, word);
+                      _field.text = _query.replaceAll(phrasePattern([_spelling!.word]), word);
                       _onChanged(_field.text);
                     },
                   ),

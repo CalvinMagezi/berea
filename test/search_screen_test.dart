@@ -79,7 +79,7 @@ void main() {
     tester,
   ) async {
     final state = (await tester.runAsync(open))!;
-    await search(tester, state, 'jeus');
+    await search(tester, state, 'Jeus');
     expect(find.text('No verses have "jeus". Words one letter away that verses do have:'), findsOneWidget);
     await tester.tap(find.text('jesus'));
     await tester.pump(_afterDelay);
