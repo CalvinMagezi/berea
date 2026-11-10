@@ -43,8 +43,9 @@ void main() {
 
   test(
     'a first note on a verse shows its notebook to anyone listening',
-    skip: needsBuiltBible,
+    skip: needsBibleText,
     () async {
+    ensureBereaDbAssets();
     final s = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),

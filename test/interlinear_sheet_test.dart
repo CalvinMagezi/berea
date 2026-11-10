@@ -11,11 +11,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'support/bible.dart';
 
 void main() {
-  if (needsBuiltBible case final why?) {
+  if (needsFullDatabase case final why?) {
     test('these tests open the built Bible', () {}, skip: why);
     return;
   }
   TestWidgetsFlutterBinding.ensureInitialized();
+  ensureBereaDbAssets();
   late Directory dir;
   late AppState s;
 

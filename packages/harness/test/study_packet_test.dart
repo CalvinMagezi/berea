@@ -4,20 +4,21 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import 'support/bible.dart';
+
 /// About the size of the real system prompt and a beat instruction, in characters.
 const _systemChars = 3000;
 const _instructionChars = 800;
 
 void main() {
-  final bible = File('../../assets/berea.sqlite');
-  if (!bible.existsSync() || bible.lengthSync() == 0) {
-    test('these tests open the built Bible', () {}, skip: 'needs assets/berea.sqlite');
+  if (needsFullDatabase case final why?) {
+    test('these tests open the built Bible', () {}, skip: why);
     return;
   }
   late BibleDb db;
   late Directory dir;
   setUpAll(() {
-    db = BibleDb(sqlite3.open(bible.path, mode: OpenMode.readOnly));
+    db = BibleDb(sqlite3.open(bibleDbFile().path, mode: OpenMode.readOnly));
     dir = Directory.systemTemp.createTempSync('berea_packet');
   });
   tearDownAll(() => dir.deleteSync(recursive: true));

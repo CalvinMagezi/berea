@@ -109,18 +109,7 @@ Future<void> main(List<String> args) async {
   }
 }
 
-void _createSchema(Database db) => db.execute('''
-  PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;
-  CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, chapter INTEGER, verse INTEGER, text TEXT);
-  CREATE VIRTUAL TABLE verses_fts USING fts5(text, content='verses', content_rowid='id', tokenize='porter unicode61');
-  CREATE TABLE words(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, original TEXT, translit TEXT, gloss TEXT, strongs TEXT, morph TEXT, PRIMARY KEY(book, chapter, verse, pos)) WITHOUT ROWID;
-  CREATE TABLE lexicon(key TEXT PRIMARY KEY, base TEXT, lemma TEXT, translit TEXT, pos TEXT, gloss TEXT, definition TEXT);
-  CREATE INDEX lexicon_base ON lexicon(base);
-  CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER);
-  CREATE INDEX xrefs_from ON xrefs(from_book, from_chapter, from_verse);
-  CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
-  CREATE INDEX verses_ref ON verses(translation, book, chapter, verse);
-''');
+void _createSchema(Database db) => createBibleSchema(db);
 
 Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
   _loadRows(db, 'BSB', bsb);
@@ -266,15 +255,7 @@ void _loadTranslation(Database db, String translation, String csv) {
 }
 
 void _loadRows(Database db, String translation, List<VerseRow> rows) {
-  final stmt = db.prepare(
-    'INSERT INTO verses(translation, book, chapter, verse, text) VALUES (?, ?, ?, ?, ?)',
-  );
-  db.execute('BEGIN');
-  for (final r in rows) {
-    stmt.execute([translation, r.book.id, r.chapter, r.verse, r.text]);
-  }
-  db.execute('COMMIT');
-  stmt.dispose();
+  loadVerseRows(db, translation, rows);
   stdout.writeln('$translation: ${rows.length} verses');
 }
 

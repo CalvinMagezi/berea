@@ -112,7 +112,7 @@ void main() {
     expect(store.planChaptersDone('nt-90'), {days[0].first});
   });
 
-  group('on a new phone', skip: needsBuiltBible, () {
+  group('on a new phone', skip: needsBibleText, () {
     late Directory dir;
     late AppState s;
     final started = DateTime(2026, 10, 1, 7);
@@ -120,6 +120,7 @@ void main() {
     setUp(() async {
       dir = Directory.systemTemp.createTempSync('berea-plan-restore');
       SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name});
+      ensureBereaDbAssets();
       s = await AppState.bootstrap(supportDir: dir, prefs: await SharedPreferences.getInstance());
       s.startPlan(plan);
       s.prefs.setString('activePlanStart', started.toIso8601String());

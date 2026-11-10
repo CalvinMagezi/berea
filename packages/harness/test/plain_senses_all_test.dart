@@ -1,17 +1,17 @@
-import 'dart:io';
 
 import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import 'support/bible.dart';
+
 void main() {
-  final bible = File('../../assets/berea.sqlite');
-  if (!bible.existsSync() || bible.lengthSync() == 0) {
-    test('this test opens the built Bible', () {}, skip: 'needs assets/berea.sqlite');
+  if (needsFullDatabase case final why?) {
+    test('this test opens the built Bible', () {}, skip: why);
     return;
   }
   test('every lexicon entry cleans without throwing and without script or references', () {
-    final db = sqlite3.open(bible.path, mode: OpenMode.readOnly);
+    final db = sqlite3.open(bibleDbFile().path, mode: OpenMode.readOnly);
     addTearDown(db.dispose);
     var empty = 0;
     final rows = db.select('SELECT definition FROM lexicon');

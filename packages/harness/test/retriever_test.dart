@@ -1,8 +1,9 @@
-import 'dart:io';
 
 import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
+
+import 'support/bible.dart';
 
 const _colossians = 51;
 const _romans = 45;
@@ -10,14 +11,13 @@ const _job = 18;
 const _james = 59;
 
 void main() {
-  final bible = File('../../assets/berea.sqlite');
-  if (!bible.existsSync() || bible.lengthSync() == 0) {
-    test('these tests open the built Bible', () {}, skip: 'needs assets/berea.sqlite');
+  if (needsFullDatabase case final why?) {
+    test('these tests open the built Bible', () {}, skip: why);
     return;
   }
   late Retriever retriever;
   setUpAll(() {
-    retriever = Retriever(BibleDb(sqlite3.open(bible.path, mode: OpenMode.readOnly)));
+    retriever = Retriever(BibleDb(sqlite3.open(bibleDbFile().path, mode: OpenMode.readOnly)));
   });
 
   test('John 3:16 lexicon keeps content words and drops function words', () {

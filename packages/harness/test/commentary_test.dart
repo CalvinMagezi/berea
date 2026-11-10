@@ -7,6 +7,8 @@ import 'package:berea_harness/src/sword.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import 'support/bible.dart';
+
 /// Every book with one chapter of [verses] verses: small enough to write by hand.
 Versification tinyV11n([int verses = 5]) => [
   for (var b = 0; b < otBookCount + ntBookCount; b++) [verses],
@@ -72,9 +74,8 @@ void main() {
     });
 
     test('the real KJV layout gives the index sizes of CrossWire modules', () {
-      final bible = File('../../assets/berea.sqlite');
-      if (!bible.existsSync()) return markTestSkipped('needs assets/berea.sqlite');
-      final db = sqlite3.open(bible.path, mode: OpenMode.readOnly);
+      if (needsFullDatabase case final why?) return markTestSkipped(why);
+      final db = sqlite3.open(bibleDbFile().path, mode: OpenMode.readOnly);
       final v11n = [
         for (var b = 1; b <= 66; b++)
           [
