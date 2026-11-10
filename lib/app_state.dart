@@ -645,7 +645,7 @@ class AppState extends ChangeNotifier {
   }
 
   /// Copies the bundled database next to the app when the bundled build changes. The build
-  /// stamp is a separate tiny asset, so a normal launch never loads the 67 MB database.
+  /// stamp is a separate tiny asset, so a normal launch never loads the 81 MB database.
   static Future<String> _ensureDb(Directory dir, VoidCallback? onFirstSetup) async {
     final file = File('${dir.path}/berea.sqlite');
     final stamp = File('${dir.path}/berea.sqlite.asset');
@@ -654,8 +654,11 @@ class AppState extends ChangeNotifier {
     if (!file.existsSync() || current != bundled) {
       onFirstSetup?.call();
       final data = await rootBundle.load('assets/berea.sqlite');
+      final part = File('${file.path}.part');
       try {
-        await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        await part.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        // Renamed only once whole, so a copy cut short never leaves a Bible that opens half-empty.
+        await part.rename(file.path);
         await stamp.writeAsString(bundled);
       } on FileSystemException catch (e) {
         debugPrint('The Bible was not copied into place: $e');
