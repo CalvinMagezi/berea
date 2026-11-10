@@ -42,6 +42,21 @@ const practiceColumnTypes = <String, Map<String, Type>>{
   },
 };
 
+/// Days until the next recall, by rung. A pass climbs a rung and a miss returns to the first. One
+/// sentence explains it, which a fitted scheduler could not do. The pass mark and the reset are
+/// provisional until a panel session has tried them.
+const recallLadderDays = [1, 2, 4, 8, 16, 32, 64, 128];
+
+const checkRecall = 'recall';
+const resultWordForWord = 'word_for_word';
+const resultNotYet = 'not_yet';
+
+const _millisPerDay = 86400000;
+
+/// A local calendar day as a whole number of days since 1970, so due days compare as integers and
+/// a phone that was off for a week loses nothing.
+int epochDay(DateTime d) => DateTime.utc(d.year, d.month, d.day).millisecondsSinceEpoch ~/ _millisPerDay;
+
 const madeByPerson = 'person';
 const madeByReceived = 'received';
 const _madeBy = {madeByPerson, madeByReceived};
@@ -93,6 +108,31 @@ class PracticeSet {
   String get label => title != null && title!.isNotEmpty
       ? title!
       : refs.map((r) => r.label).join('; ');
+}
+
+/// A passage on the recall ladder.
+class PracticeItem {
+  final int id;
+  final Ref ref;
+  final String translation;
+
+  /// The ladder step the next pass is measured on; 0 is a new item or one just missed.
+  final int rung;
+  final int dueDay;
+  final DateTime? lastAt;
+  final String? lastResult;
+  const PracticeItem(
+    this.id,
+    this.ref,
+    this.translation,
+    this.rung,
+    this.dueDay,
+    this.lastAt,
+    this.lastResult,
+  );
+
+  /// When the person last said it word for word, if they have: the last pass, not the last try.
+  DateTime? get lastWordForWord => lastResult == resultWordForWord ? lastAt : null;
 }
 
 /// Practice sets, kept in study.sqlite beside the notes. A set is references only; the words come
@@ -182,4 +222,88 @@ class PracticeStore extends ChangeNotifier {
     db.execute('DELETE FROM practice_sets WHERE id = ?', [id]);
     notifyListeners();
   }
+
+  /// Puts [ref] on the ladder, due today. A passage already there stays where it is.
+  int addItem(Ref ref, String translation) {
+    final vs = ref.verseStart ?? 1;
+    final ve = ref.verseEnd ?? vs;
+    final existing = db.select(
+      'SELECT id FROM practice_items WHERE book = ? AND chapter = ? AND verse_start = ? '
+      'AND verse_end = ? AND translation = ?',
+      [ref.book.id, ref.chapter, vs, ve, translation],
+    );
+    if (existing.isNotEmpty) return existing.first['id'] as int;
+    db.execute(
+      'INSERT INTO practice_items(book, chapter, verse_start, verse_end, translation, rung, '
+      'due_day, check_kind) VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+      [ref.book.id, ref.chapter, vs, ve, translation, epochDay(now()), checkRecall],
+    );
+    notifyListeners();
+    return db.lastInsertRowId;
+  }
+
+  PracticeItem _item(Row r) => PracticeItem(
+    r['id'] as int,
+    Ref(bookById(r['book'] as int), r['chapter'] as int, r['verse_start'] as int, r['verse_end'] as int),
+    r['translation'] as String,
+    r['rung'] as int,
+    r['due_day'] as int,
+    r['last_at'] == null ? null : DateTime.fromMillisecondsSinceEpoch(r['last_at'] as int),
+    r['last_result'] as String?,
+  );
+
+  List<PracticeItem> items() => [
+    for (final r in db.select('SELECT * FROM practice_items ORDER BY due_day, id')) _item(r),
+  ];
+
+  /// The items whose day has come, oldest due first. Worked out from the stored day every time,
+  /// never from whether a notification fired.
+  List<PracticeItem> due({DateTime? on}) => [
+    for (final r in db.select(
+      'SELECT * FROM practice_items WHERE due_day <= ? ORDER BY due_day, id',
+      [epochDay(on ?? now())],
+    ))
+      _item(r),
+  ];
+
+  /// The most recent word-for-word recall of any item, for the line under Due.
+  DateTime? get lastWordForWord {
+    final r = db.select(
+      "SELECT MAX(last_at) AS at FROM practice_items WHERE last_result = '$resultWordForWord'",
+    );
+    final at = r.first['at'];
+    return at == null ? null : DateTime.fromMillisecondsSinceEpoch(at as int);
+  }
+
+  /// Records a recall. A pass is due again after this rung's days and climbs a rung; a miss goes
+  /// back to the first rung and is due tomorrow.
+  void record(int id, {required bool passed}) {
+    final rows = db.select('SELECT rung FROM practice_items WHERE id = ?', [id]);
+    if (rows.isEmpty) return;
+    final rung = rows.first['rung'] as int;
+    final next = passed ? (rung + 1).clamp(0, recallLadderDays.length - 1) : 0;
+    final wait = recallLadderDays[passed ? rung : 0];
+    db.execute(
+      'UPDATE practice_items SET rung = ?, due_day = ?, last_at = ?, last_result = ? WHERE id = ?',
+      [
+        next,
+        epochDay(now()) + wait,
+        now().millisecondsSinceEpoch,
+        passed ? resultWordForWord : resultNotYet,
+        id,
+      ],
+    );
+    notifyListeners();
+  }
+
+  void removeItem(int id) {
+    db.execute('DELETE FROM practice_items WHERE id = ?', [id]);
+    notifyListeners();
+  }
+
+  /// Items whose passage lies in a chapter of today's reading.
+  List<PracticeItem> inReading(List<Ref> chapters) => [
+    for (final i in items())
+      if (chapters.any((c) => c.book.id == i.ref.book.id && c.chapter == i.ref.chapter)) i,
+  ];
 }
