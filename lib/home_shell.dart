@@ -5,28 +5,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_state.dart';
-import 'brand/lamp_mark.dart';
 import 'brand/prayer_icon.dart';
-import 'chat_screen.dart';
-import 'download_details_sheet.dart';
+import 'bible_button.dart';
 import 'notes_screen.dart';
 import 'plans_screen.dart';
+import 'practice_screen.dart';
 import 'prayer_screen.dart';
 import 'reader_screen.dart';
-import 'setup_screen.dart';
-import 'study_button.dart';
+import 'search_screen.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
 
 const sidebarWidth = 232.0;
 
-/// The five places, in the order they appear on the bar and in the sidebar.
-enum HomeTab { bible, plans, study, prayer, notes }
+/// The five places, in the order of the sidebar and the shortcut digits.
+enum HomeTab { bible, plans, practice, prayer, notes }
+
+/// The phone bar puts the Bible in the raised middle slot.
+const barOrder = [HomeTab.plans, HomeTab.practice, HomeTab.bible, HomeTab.prayer, HomeTab.notes];
 
 const _placeLabels = {
   HomeTab.bible: 'Bible',
   HomeTab.plans: 'Plans',
-  HomeTab.study: 'Study',
+  HomeTab.practice: 'Practice',
   HomeTab.prayer: 'Prayer',
   HomeTab.notes: 'Notes',
 };
@@ -43,8 +44,6 @@ const _sidebarRow = 40.0;
 /// Sidebar rows keep a full touch target where a finger, not a pointer, taps them.
 const _sidebarTouchRow = 48.0;
 const _sidebarIcon = 20.0;
-const _sidebarMark = 22.0;
-const _statusDot = 8.0;
 const _radius = 10.0;
 
 class HomeShell extends StatefulWidget {
@@ -62,21 +61,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    widget.state.pendingQuestion.addListener(_jumpToStudy);
     widget.state.openReaderRequest.addListener(_jumpToBible);
-    widget.state.openStudyRequest.addListener(_openStudy);
     widget.state.openNotebookRequest.addListener(_openRequestedNotebook);
     widget.state.openPlansRequest.addListener(_openPlans);
-    // The Bible is on screen first; the helper loads behind it.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.state.startHelper();
-      unawaited(widget.state.syncReminder());
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(widget.state.syncReminder()));
   }
 
   void _jumpToBible() => _select(HomeTab.bible);
-
-  void _openStudy() => _select(HomeTab.study);
 
   void _openRequestedNotebook() {
     final id = widget.state.openNotebookRequest.value;
@@ -87,35 +78,26 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   void _openPlans() => _select(HomeTab.plans);
 
-  /// The microphone stops listening as soon as Berea is not in front.
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    widget.state.voice.onLifecycle(state);
-    // A day or more may have passed: schedule the next days of notifications again.
+  void didChangeAppLifecycleState(AppLifecycleState state) {    // A day or more may have passed: schedule the next days of notifications again.
     if (state == AppLifecycleState.resumed) unawaited(widget.state.syncReminder());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    widget.state.pendingQuestion.removeListener(_jumpToStudy);
     widget.state.openReaderRequest.removeListener(_jumpToBible);
-    widget.state.openStudyRequest.removeListener(_openStudy);
     widget.state.openNotebookRequest.removeListener(_openRequestedNotebook);
     widget.state.openPlansRequest.removeListener(_openPlans);
     _notesRoutes.open.dispose();
     super.dispose();
   }
 
-  void _jumpToStudy() {
-    if (widget.state.pendingQuestion.value != null) _select(HomeTab.study);
-  }
+  void _select(HomeTab t) => setState(() => _tab = t);
 
-  void _select(HomeTab t) {
-    // A hidden Study tab must not keep listening.
-    if (t != _tab) widget.state.voice.cancelRecording();
-    setState(() => _tab = t);
-  }
+  void _openSearch() => Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => SearchScreen(state: widget.state)),
+  );
 
   /// The Notes place keeps its own pages, so a notebook opens under the bar or beside the
   /// sidebar, as the other places do.
@@ -143,6 +125,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       for (final t in HomeTab.values)
         SingleActivator(digits[t.index], meta: Platform.isMacOS, control: !Platform.isMacOS): () =>
             _select(t),
+      SingleActivator(
+        LogicalKeyboardKey.keyF,
+        meta: Platform.isMacOS,
+        control: !Platform.isMacOS,
+      ): _openSearch,
       // Cmd comma, where a Mac app keeps its settings.
       SingleActivator(
         LogicalKeyboardKey.comma,
@@ -160,7 +147,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       children: [
         ReaderScreen(state: s),
         PlansScreen(state: s),
-        ChatScreen(state: s),
+        PracticeScreen(state: s),
         PrayerScreen(
           store: s.prayers,
           passage: passageLookupFor(s.db, () => s.settings.translation),
@@ -225,10 +212,10 @@ Widget _placeIcon(HomeTab t, {required bool selected}) => switch (t) {
   HomeTab.plans => Icon(selected ? Icons.calendar_today : Icons.calendar_today_outlined),
   HomeTab.prayer => const PrayerIcon(),
   HomeTab.notes => Icon(selected ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined),
-  HomeTab.study => const SizedBox.shrink(),
+  HomeTab.practice => const Icon(Icons.repeat),
 };
 
-/// The phone bar: five equal places with Study raised in the middle, its circle cut from the bar.
+/// The phone bar: five equal places with the Bible raised in the middle, its circle cut from the bar.
 class _PlaceBar extends StatelessWidget {
   final AppState state;
   final HomeTab selected;
@@ -259,17 +246,10 @@ class _PlaceBar extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final t in HomeTab.values)
+                for (final t in barOrder)
                   Expanded(
-                    child: t == HomeTab.study
-                        ? _StudyPlace(
-                            state: state,
-                            selected: selected == t,
-                            // While the helper downloads, the button opens its details.
-                            onTap: () => state.helperState is HelperDownloading
-                                ? showDownloadDetails(context, state)
-                                : onSelect(t),
-                          )
+                    child: t == HomeTab.bible
+                        ? _BiblePlace(selected: selected == t, onTap: () => onSelect(t))
                         : _Place(tab: t, selected: selected == t, onTap: () => onSelect(t)),
                   ),
               ],
@@ -332,12 +312,11 @@ class _Place extends StatelessWidget {
   }
 }
 
-/// Study's place: the circle and its label are one target, like the other places.
-class _StudyPlace extends StatelessWidget {
-  final AppState state;
+/// The Bible's place: the circle and its label are one target, like the other places.
+class _BiblePlace extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
-  const _StudyPlace({required this.state, required this.selected, required this.onTap});
+  const _BiblePlace({required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -351,17 +330,9 @@ class _StudyPlace extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            ListenableBuilder(
-              listenable: state,
-              builder: (context, _) => StudyButton(
-                helper: state.helperState,
-                selected: selected,
-                writing: state.answering,
-                onPressed: onTap,
-              ),
-            ),
+            BibleButton(selected: selected, onPressed: onTap),
             ExcludeSemantics(
-              child: Text(_placeLabels[HomeTab.study]!, style: _labelStyle(scheme, selected)),
+              child: Text(_placeLabels[HomeTab.bible]!, style: _labelStyle(scheme, selected)),
             ),
           ],
         ),
@@ -370,22 +341,7 @@ class _StudyPlace extends StatelessWidget {
   }
 }
 
-/// The helper's state in a sentence for the sidebar footer, such as "Helper ready, Ollama on
-/// this Mac".
-String helperFooter(AppState s) {
-  final words = helperStatusWords(s.helperState);
-  final status = '${words[0].toUpperCase()}${words.substring(1)}';
-  final engine = switch (s.settings.engine) {
-    EngineKind.ollama => switch (s.offDeviceHost) {
-      final host? => 'Ollama at $host',
-      null => 'Ollama on this $deviceNoun',
-    },
-    EngineKind.device => s.settings.deviceModel.label,
-  };
-  return '$status · $engine';
-}
-
-/// The wide layout: the five places in the same order, notebooks under Notes, the helper below.
+/// The wide layout: the five places in the sidebar's order, with the notebooks below.
 class _Sidebar extends StatelessWidget {
   final AppState state;
   final HomeTab selected;
@@ -422,14 +378,8 @@ class _Sidebar extends StatelessWidget {
                   ListenableBuilder(
                     listenable: state,
                     builder: (context, _) => _SidebarRow(
-                      leading: t == HomeTab.study
-                          ? const _SidebarMark()
-                          : _placeIcon(t, selected: selected == t),
+                      leading: _placeIcon(t, selected: selected == t),
                       label: _placeLabels[t]!,
-                      // Study says what the raised button says: ask Berea, and the helper's state.
-                      semanticsLabel: t == HomeTab.study
-                          ? studySemanticsLabel(state.helperState, writing: state.answering)
-                          : null,
                       shortcut: '${Platform.isMacOS ? '⌘' : 'Ctrl+'}${t.index + 1}',
                       selected: selected == t && (t != HomeTab.notes || openNotebook == null),
                       onTap: () => onSelect(t),
@@ -469,11 +419,6 @@ class _Sidebar extends StatelessWidget {
                   selected: false,
                   onTap: () => showSettingsSheet(context, state),
                 ),
-                const Divider(),
-                ListenableBuilder(
-                  listenable: state,
-                  builder: (context, _) => _HelperFooter(state: state),
-                ),
               ],
             ),
           ),
@@ -485,23 +430,6 @@ class _Sidebar extends StatelessWidget {
 
 const _notebooksCaption = 'Notebooks';
 
-class _SidebarMark extends StatelessWidget {
-  const _SidebarMark();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: _sidebarMark,
-    height: _sidebarMark,
-    decoration: const BoxDecoration(color: BereaColors.night, shape: BoxShape.circle),
-    alignment: Alignment.center,
-    child: const LampMark(
-      size: _sidebarMark * 0.7,
-      ink: BereaColors.linen,
-      flame: BereaColors.goldDark,
-    ),
-  );
-}
-
 class _SidebarRow extends StatelessWidget {
   final Widget leading;
   final String label;
@@ -509,15 +437,12 @@ class _SidebarRow extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  /// What a screen reader hears in place of [label], when it needs more.
-  final String? semanticsLabel;
   const _SidebarRow({
     required this.leading,
     required this.label,
     required this.selected,
     required this.onTap,
     this.shortcut,
-    this.semanticsLabel,
   });
 
   @override
@@ -531,9 +456,6 @@ class _SidebarRow extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: semanticsLabel,
-      excludeSemantics: semanticsLabel != null,
-      onTap: semanticsLabel == null ? null : onTap,
       child: Material(
         color: selected ? scheme.onSurfaceVariant : Colors.transparent,
         borderRadius: BorderRadius.circular(_radius),
@@ -570,41 +492,6 @@ class _SidebarRow extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _HelperFooter extends StatelessWidget {
-  final AppState state;
-  const _HelperFooter({required this.state});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final dot = switch (state.helperState) {
-      HelperReady() => scheme.primary,
-      HelperFailed() => scheme.error,
-      _ => scheme.onSurfaceVariant,
-    };
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-      child: Row(
-        children: [
-          Container(
-            width: _statusDot,
-            height: _statusDot,
-            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              helperFooter(state),
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ),
-        ],
       ),
     );
   }
