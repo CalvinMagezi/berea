@@ -1,4 +1,3 @@
-import 'dart:io';
 
 import 'package:berea/plans.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -19,8 +18,8 @@ void main() {
     expect(planById('bible-year')!.schedule().expand((d) => d).length, 1189);
   });
 
-  test('the fixed chapter counts match every translation of the bundled Bible', skip: needsBuiltBible, () {
-    final db = BibleDb.open(File('assets/berea.sqlite').absolute.path);
+  test('the fixed chapter counts match every translation of the bundled Bible', skip: needsBibleText, () {
+    final db = BibleDb.open(bibleDbFile().absolute.path);
     for (final t in db.translations()) {
       for (final b in books) {
         expect(chapterCount(b), db.chapterCount(b, translation: t), reason: '${b.name} $t');

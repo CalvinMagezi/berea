@@ -71,7 +71,11 @@ List<PrayerProblem> _againstBible(VerseIndex index, List<String> daily) {
       out.add(PrayerProblem('verse-counts.txt', '${b.name} has $chapters chapters in the Bible'));
     }
   }
-  final built = _builtDaily(bible);
+  // A BSB-only database, as CI builds, has no verse of the day list to compare with.
+  final hasDaily = bible.db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'daily_verses'")
+      .isNotEmpty;
+  final built = hasDaily ? _builtDaily(bible) : const <String>[];
   if (built.toSet().difference(daily.toSet()).isNotEmpty) {
     out.add(
       const PrayerProblem('daily-verses.txt', 'is behind the Bible\'s verse of the day list'),

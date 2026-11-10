@@ -19,11 +19,12 @@ final _streakCount = RegExp(
 );
 
 void main() {
-  if (needsBuiltBible case final why?) {
+  if (needsBibleText case final why?) {
     test('these tests open the built Bible', () {}, skip: why);
     return;
   }
   TestWidgetsFlutterBinding.ensureInitialized();
+  ensureBereaDbAssets();
   final dirs = <Directory>[];
   tearDownAll(() {
     for (final d in dirs) {
@@ -108,7 +109,11 @@ void main() {
     expect(find.text(readingLabel(days[2])), findsOneWidget);
     expect(find.text('One earlier day to catch up'), findsOneWidget);
     expect(find.text(readingLabel(days[1])), findsOneWidget);
-    expect(find.byIcon(Icons.check), findsWidgets, reason: 'day 1 is ticked in the week row');
+    // The week row runs Monday to Sunday, so day 1 shows only when the plan started this week.
+    final monday = DateTime.now().subtract(Duration(days: DateTime.now().weekday - 1));
+    if (start.isAfter(DateTime(monday.year, monday.month, monday.day))) {
+      expect(find.byIcon(Icons.check), findsWidgets, reason: 'day 1 is ticked in the week row');
+    }
     expectNoStreakCount(tester);
 
     await tester.tap(find.text('Catch up'));

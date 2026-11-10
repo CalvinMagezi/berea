@@ -34,11 +34,12 @@ const _places = ['Bible', 'Plans', 'Study', 'Prayer', 'Notes'];
 final _model = edgeModels.first;
 
 void main() {
-  if (needsBuiltBible case final why?) {
+  if (needsBibleText case final why?) {
     test('these tests open the built Bible', () {}, skip: why);
     return;
   }
   TestWidgetsFlutterBinding.ensureInitialized();
+  ensureBereaDbAssets();
   late Directory dir;
   late AppState state;
   var setUpCalls = 0;

@@ -6,6 +6,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'books.dart';
 import 'importers.dart';
 import 'ref_parser.dart';
+import 'search_text.dart';
 import 'sword.dart';
 import 'word_study.dart';
 
@@ -16,6 +17,29 @@ class Verse {
   final String text;
   const Verse(this.book, this.chapter, this.verse, this.text);
   String get label => '${book.name} $chapter:$verse';
+}
+
+/// One labelled run of search hits, in Bible order. [total] counts them all; [verses] holds at
+/// most the first few.
+class SearchGroup {
+  final String label;
+  final List<Verse> verses;
+  final int total;
+  const SearchGroup(this.label, this.verses, this.total);
+}
+
+/// A word the search could not find, with every word of the translation one letter away from it.
+class Spelling {
+  final String word;
+  final List<(String, int)> near;
+  const Spelling(this.word, this.near);
+}
+
+/// What the search box shows: the groups, or, when there are none, a spelling line.
+class SearchResult {
+  final List<SearchGroup> groups;
+  final Spelling? spelling;
+  const SearchResult(this.groups, this.spelling);
 }
 
 class WordTag {
@@ -101,8 +125,42 @@ const translationCodeMax = 8;
 final translationCode = RegExp('^[A-Z0-9]{1,$translationCodeMax}\$');
 const maxPassageVerses = 40;
 
+/// A verse with fewer of the query's words than this is not listed as a partial match.
+const minPartialWords = 2;
+
 /// SQLite reads a negative LIMIT as no limit.
 const _noLimit = -1;
+
+/// The initial schema for the Bible database: verses, search, words, lexicon, xrefs and meta.
+void createBibleSchema(Database db) => db.execute('''
+  PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;
+  CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, chapter INTEGER, verse INTEGER, text TEXT);
+  CREATE VIRTUAL TABLE verses_fts USING fts5(text, content='verses', content_rowid='id', tokenize='porter unicode61');
+  CREATE TABLE words(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, original TEXT, translit TEXT, gloss TEXT, strongs TEXT, morph TEXT, PRIMARY KEY(book, chapter, verse, pos)) WITHOUT ROWID;
+  CREATE TABLE lexicon(key TEXT PRIMARY KEY, base TEXT, lemma TEXT, translit TEXT, pos TEXT, gloss TEXT, definition TEXT);
+  CREATE INDEX lexicon_base ON lexicon(base);
+  CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER);
+  CREATE INDEX xrefs_from ON xrefs(from_book, from_chapter, from_verse);
+  CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
+  CREATE INDEX verses_ref ON verses(translation, book, chapter, verse);
+''');
+
+/// Inserts verse rows into verses under code.
+void loadVerseRows(Database db, String code, Iterable<VerseRow> rows) {
+  final stmt = db.prepare(
+    'INSERT INTO verses(translation, book, chapter, verse, text) VALUES (?, ?, ?, ?, ?)',
+  );
+  db.execute('BEGIN');
+  for (final r in rows) {
+    stmt.execute([code, r.book.id, r.chapter, r.verse, r.text]);
+  }
+  db.execute('COMMIT');
+  stmt.dispose();
+}
+
+/// Rebuilds the search index from the current verses table.
+void rebuildVersesFts(Database db) =>
+    db.execute("INSERT INTO verses_fts(verses_fts) VALUES('rebuild')");
 
 class BibleDb {
   final Database db;
@@ -478,6 +536,353 @@ class BibleDb {
       [q, translation, if (book != null) book.id, k],
     );
     return rows.map(_verse).toList();
+  }
+
+  /// What the search box shows: groups that each say how their verses were found, every group
+  /// in Bible order so no ranking is hidden. "Exact words" are confirmed against the verse text,
+  /// because the index matches stems. Everything else is counted from the index's row ids, so no
+  /// verse text is read for a verse that is not listed. [perGroup] caps how many a group lists.
+  List<SearchGroup> searchVerses(
+    String text, {
+    String translation = defaultTranslation,
+    int perGroup = 100,
+  }) {
+    final tokens = searchTokens(text);
+    if (tokens.isEmpty || searchIsTooCommon(text)) return const [];
+    return [
+      ..._verseGroups(tokens, translation, perGroup),
+      ..._headingGroup(tokens, translation, perGroup),
+    ];
+  }
+
+  /// The headings the translation's publisher printed that hold every word searched for, listed
+  /// last and at the verse each one stands above. They are the publisher's, not Bible text.
+  List<SearchGroup> _headingGroup(List<String> tokens, String translation, int perGroup) {
+    if (!_hasHeadings) return const [];
+    final found = <Verse>[];
+    for (final r in db.select(
+      'SELECT book, chapter, verse, text FROM headings WHERE translation = ?',
+      [translation],
+    )) {
+      final words = searchTokens(r['text'] as String).toSet();
+      if (tokens.every(words.contains)) found.add(_verse(r));
+    }
+    if (found.isEmpty) return const [];
+    final label = 'Section headings, printed by the $translation publisher';
+    return [SearchGroup(label, found.take(perGroup).toList(), found.length)];
+  }
+
+  List<SearchGroup> _verseGroups(List<String> tokens, String translation, int perGroup) {
+    final groups = <SearchGroup>[];
+    final taken = <int>{};
+    void add(String label, Iterable<int> ids) {
+      final fresh = [
+        for (final id in ids)
+          if (taken.add(id)) id,
+      ];
+      if (fresh.isEmpty) return;
+      groups.add(SearchGroup(label, _versesById(fresh.take(perGroup)), fresh.length));
+    }
+
+    final phraseQuery = '"${tokens.join(' ')}"';
+    final phrase = phrasePattern(tokens);
+    add('Exact words', _exactIds(phraseQuery, phrase, translation));
+    if (groups.isEmpty) {
+      for (final other in bundledTranslations().where((t) => t != translation)) {
+        final ids = _exactIds(phraseQuery, phrase, other);
+        if (ids.isEmpty) continue;
+        add('Exact words in $other', ids);
+        break;
+      }
+    }
+
+    final content = {
+      for (final t in tokens)
+        if (!searchStopWords.contains(t)) t,
+    }.toList();
+    if (content.isEmpty) return groups;
+    if (content.length == 1) {
+      final word = content.first;
+      add(
+        tokens.length == 1 ? 'Other forms of the word' : 'Has "$word", without the other words',
+        _matchIds('"$word"', translation),
+      );
+      if (tokens.length == 1) groups.addAll(_glossedGroups(word, translation));
+      return groups;
+    }
+    final perTerm = [for (final t in content) _matchIds('"$t"', translation).toSet()];
+    final counts = <int, int>{};
+    for (final ids in perTerm) {
+      for (final id in ids) {
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
+    }
+    // Every id is in some term's set, so ordering the union by Bible order orders all groups.
+    final inOrder = _matchIds(content.map((t) => '"$t"').join(' OR '), translation);
+    for (var n = content.length; n >= minPartialWords; n--) {
+      add(
+        n == content.length ? 'All your words' : '$n of ${content.length} words',
+        inOrder.where((id) => counts[id] == n),
+      );
+    }
+    return groups;
+  }
+
+  /// The search with its spelling line: when nothing is found, the first word that no verse of the
+  /// translation has, and every word one letter away from it that some verse does have.
+  SearchResult searchResult(
+    String text, {
+    String translation = defaultTranslation,
+    int perGroup = 100,
+  }) {
+    final groups = searchVerses(text, translation: translation, perGroup: perGroup);
+    if (groups.isNotEmpty || searchIsTooCommon(text)) return SearchResult(groups, null);
+    return SearchResult(groups, _spelling(searchTokens(text), translation));
+  }
+
+  /// Notes every word of each translation with the number of verses that hold it, for the
+  /// spelling line. A builder calls this once the verses are loaded.
+  void buildVocabulary() {
+    final counts = <String, Map<String, int>>{};
+    final rows = db.select('SELECT translation, text FROM verses');
+    for (final r in rows) {
+      final byWord = counts.putIfAbsent(r['translation'] as String, () => {});
+      for (final w in searchTokens(r['text'] as String).toSet()) {
+        byWord[w] = (byWord[w] ?? 0) + 1;
+      }
+    }
+    db.execute('DROP TABLE IF EXISTS vocab');
+    db.execute(
+      'CREATE TABLE vocab(translation TEXT, word TEXT, verses INTEGER, '
+      'PRIMARY KEY(translation, word)) WITHOUT ROWID',
+    );
+    final insert = db.prepare('INSERT INTO vocab VALUES (?, ?, ?)');
+    db.execute('BEGIN');
+    for (final t in counts.entries) {
+      for (final w in t.value.entries) {
+        insert.execute([t.key, w.key, w.value]);
+      }
+    }
+    db.execute('COMMIT');
+    insert.dispose();
+  }
+
+  late final bool _hasVocab = db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vocab'")
+      .isNotEmpty;
+
+  static const _alphabet = 'abcdefghijklmnopqrstuvwxyz';
+  static final _plainWord = RegExp(r'^[a-z]{3,40}$');
+
+  Spelling? _spelling(List<String> tokens, String translation) {
+    if (!_hasVocab) return null;
+    final known = db.prepare('SELECT 1 FROM vocab WHERE translation = ? AND word = ?');
+    try {
+      for (final word in tokens) {
+        if (!_plainWord.hasMatch(word) || known.select([translation, word]).isNotEmpty) continue;
+        final near = _oneLetterAway(word, translation);
+        if (near.isNotEmpty) return Spelling(word, near);
+      }
+    } finally {
+      known.dispose();
+    }
+    return null;
+  }
+
+  List<(String, int)> _oneLetterAway(String word, String translation) {
+    final edits = <String>{};
+    for (var i = 0; i <= word.length; i++) {
+      final head = word.substring(0, i), tail = word.substring(i);
+      if (tail.isNotEmpty) edits.add(head + tail.substring(1));
+      if (tail.length > 1) edits.add(head + tail[1] + tail[0] + tail.substring(2));
+      for (final c in _alphabet.split('')) {
+        if (tail.isNotEmpty) edits.add(head + c + tail.substring(1));
+        edits.add(head + c + tail);
+      }
+    }
+    edits.remove(word);
+    final list = edits.toList();
+    final rows = db.select(
+      'SELECT word, verses FROM vocab WHERE translation = ? AND word IN '
+      '(${List.filled(list.length, '?').join(',')}) ORDER BY verses DESC, word',
+      [translation, ...list],
+    );
+    return [for (final r in rows) (r['word'] as String, r['verses'] as int)];
+  }
+
+  static const _glossedVersesShown = 5;
+
+  /// One group for every Hebrew or Greek word STEPBible's tagging glosses with [word], most
+  /// often first, each listing the verses that use it. None is picked over another.
+  List<SearchGroup> _glossedGroups(String word, String translation) {
+    if (!_hasGlossIndex || !RegExp(r'^[a-z]+$').hasMatch(word)) return const [];
+    // "thee" stems to "the", which STEPBible's tagging glosses on thousands of unrelated words.
+    final stem = wordStem(word);
+    if (searchStopWords.contains(stem)) return const [];
+    final tagged = db.select(
+      'SELECT strongs, n FROM gloss_index WHERE term = ? AND n >= ? ORDER BY n DESC, strongs',
+      [stem, _minFormUses],
+    );
+    final lookup = db.prepare(
+      'SELECT text FROM verses WHERE translation = ? AND book = ? AND chapter = ? AND verse = ?',
+    );
+    try {
+      return [
+        for (final t in tagged)
+          ?_glossedGroup(t['strongs'] as String, t['n'] as int, word, translation, lookup),
+      ];
+    } finally {
+      lookup.dispose();
+    }
+  }
+
+  SearchGroup? _glossedGroup(
+    String code,
+    int times,
+    String word,
+    String translation,
+    PreparedStatement lookup,
+  ) {
+    final refs = db.select(
+      'SELECT book, chapter, verse FROM word_index WHERE strongs = ? '
+      'GROUP BY book, chapter, verse',
+      [strongsBase(code)],
+    );
+    // A translation the reader imported may lack books; list and count only verses it has.
+    final present = _orderedRanges.containsKey(translation)
+        ? refs.toList()
+        : [
+            for (final r in refs)
+              if (lookup.select([translation, r['book'], r['chapter'], r['verse']]).isNotEmpty) r,
+          ];
+    if (present.isEmpty) return null;
+    final verses = <Verse>[];
+    for (final r in present.take(_glossedVersesShown)) {
+      final text = lookup.select([translation, r['book'], r['chapter'], r['verse']]);
+      if (text.isNotEmpty) {
+        verses.add(Verse(bookById(r['book'] as int), r['chapter'] as int, r['verse'] as int,
+            text.first['text'] as String));
+      }
+    }
+    final lemma = lexicon(code)?.lemma;
+    final name = lemma == null ? code : '$lemma ($code)';
+    final label = 'Verses with $name, which STEPBible\'s tagging glosses "$word" $times times';
+    return SearchGroup(label, verses, present.length);
+  }
+
+  static const _byBibleOrder = 'ORDER BY v.book, v.chapter, v.verse';
+  static const _orderMetaKey = 'bible_order';
+  static const _textChunk = 500;
+
+  /// Row-id ranges of the translations stored in Bible order, one contiguous run each, from the
+  /// meta row [recordBibleOrder] writes. For these the index answers in Bible order by itself, with
+  /// no join to the verse table, which is thousands of random reads on a phone.
+  late final Map<String, (int, int)> _orderedRanges = () {
+    try {
+      final rows = db.select('SELECT value FROM meta WHERE key = ?', [_orderMetaKey]);
+      if (rows.isEmpty) return const <String, (int, int)>{};
+      return {
+        for (final part in (rows.first['value'] as String).split(','))
+          if (RegExp(r'^[^:]+:\d+-\d+$').hasMatch(part))
+            part.split(':').first: (
+              int.parse(part.split(':').last.split('-').first),
+              int.parse(part.split('-').last),
+            ),
+      };
+    } on SqliteException {
+      return const <String, (int, int)>{};
+    }
+  }();
+
+  /// Notes which translations hold their verses in one run of rows in Bible order. A builder calls
+  /// this once the verses are loaded; a translation that fails the check is left out, and its
+  /// searches take the slower join.
+  void recordBibleOrder() {
+    final last = <String, ({int first, int last, int count, int ordered})>{};
+    final prev = <String, (int, int, int)>{};
+    final rows = db.select(
+      'SELECT id, translation, book, chapter, verse FROM verses ORDER BY id',
+    );
+    for (final r in rows) {
+      final t = r['translation'] as String;
+      final key = (r['book'] as int, r['chapter'] as int, r['verse'] as int);
+      final id = r['id'] as int;
+      final old = last[t];
+      final p = prev[t];
+      final inOrder = p == null ||
+          key.$1 > p.$1 ||
+          (key.$1 == p.$1 && (key.$2 > p.$2 || (key.$2 == p.$2 && key.$3 > p.$3)));
+      last[t] = old == null
+          ? (first: id, last: id, count: 1, ordered: inOrder ? 1 : 0)
+          : (
+              first: old.first,
+              last: id,
+              count: old.count + 1,
+              ordered: old.ordered + (inOrder ? 1 : 0),
+            );
+      prev[t] = key;
+    }
+    final kept = [
+      for (final e in last.entries)
+        if (e.value.count == e.value.last - e.value.first + 1 && e.value.ordered == e.value.count)
+          '${e.key}:${e.value.first}-${e.value.last}',
+    ];
+    db.execute('DELETE FROM meta WHERE key = ?', [_orderMetaKey]);
+    db.execute('INSERT INTO meta VALUES (?, ?)', [_orderMetaKey, kept.join(',')]);
+  }
+
+  /// Row ids of the verses the index matches, in Bible order. No verse text is read.
+  List<int> _matchIds(String ftsQuery, String translation) {
+    final range = _orderedRanges[translation];
+    final rows = range != null
+        ? db.select(
+            'SELECT rowid AS id FROM verses_fts WHERE verses_fts MATCH ? '
+            'AND rowid BETWEEN ? AND ? ORDER BY rowid',
+            [ftsQuery, range.$1, range.$2],
+          )
+        : db.select(
+            'SELECT v.id FROM verses_fts f JOIN verses v ON v.id = f.rowid '
+            'WHERE verses_fts MATCH ? AND v.translation = ? $_byBibleOrder',
+            [ftsQuery, translation],
+          );
+    return [for (final r in rows) r['id'] as int];
+  }
+
+  /// Like [_matchIds], keeping only verses whose text holds the words themselves, not a stem.
+  List<int> _exactIds(String ftsQuery, RegExp exact, String translation) {
+    final candidates = _matchIds(ftsQuery, translation);
+    final kept = <int>{};
+    for (var i = 0; i < candidates.length; i += _textChunk) {
+      final chunk = candidates.sublist(i, min(i + _textChunk, candidates.length));
+      final rows = db.select(
+        'SELECT id, text FROM verses WHERE id IN (${List.filled(chunk.length, '?').join(',')})',
+        chunk,
+      );
+      for (final r in rows) {
+        if (exact.hasMatch(r['text'] as String)) kept.add(r['id'] as int);
+      }
+    }
+    return [
+      for (final id in candidates)
+        if (kept.contains(id)) id,
+    ];
+  }
+
+  List<Verse> _versesById(Iterable<int> ids) {
+    final list = ids.toList();
+    if (list.isEmpty) return const [];
+    final rows = db.select(
+      'SELECT v.book, v.chapter, v.verse, v.text FROM verses v '
+      'WHERE v.id IN (${List.filled(list.length, '?').join(',')}) $_byBibleOrder',
+      list,
+    );
+    return rows.map(_verse).toList();
+  }
+
+  /// The file this database was opened from, or null for one held in memory.
+  String? get filePath {
+    final file = db.select('PRAGMA database_list').firstWhere((r) => r['name'] == 'main')['file'];
+    return file is String && file.isNotEmpty ? file : null;
   }
 
   List<WordTag> words(Ref ref) {

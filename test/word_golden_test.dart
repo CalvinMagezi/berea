@@ -1,4 +1,3 @@
-import 'dart:io';
 
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -133,10 +132,10 @@ const _namesOnOtherWords = [
 ];
 
 void main() {
-  final skip = needsBuiltBible;
+  final skip = needsFullDatabase;
   late BibleDb db;
   setUpAll(() {
-    if (skip == null) db = BibleDb.open(File('assets/berea.sqlite').absolute.path);
+    if (skip == null) db = BibleDb.open(bibleDbFile().absolute.path);
   });
 
   PressedWord? press(String ref, String word, int nth) {

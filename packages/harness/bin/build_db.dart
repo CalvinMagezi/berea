@@ -13,8 +13,12 @@ import 'package:berea_harness/src/word_study.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 
+// Third-party repositories are fetched at a commit, never a branch, and every file is checked
+// against a SHA-256, so a moved upstream cannot change the shipped database unseen.
+const _scrollmapperCommit = '59b18c5af5845728c275d5b7178ad0d024172b1f';
 const _scrollmapper =
-    'https://raw.githubusercontent.com/scrollmapper/bible_databases/master/formats/csv';
+    'https://raw.githubusercontent.com/scrollmapper/bible_databases/$_scrollmapperCommit/formats/csv';
+const _kjvSha256 = 'a1051b4395bee78d01e239984425f3919563db5caee6fc162d4ddc7faff7eaa8';
 const _bsb = 'https://bereanbible.com/bsb.txt';
 // Bump only after reading the diff report for the new text; the narrated audio follows it.
 const _bsbSha256 = '2ac3af1de52d4e68261cba91d85c320b7eadc6560e830d99e591767b8ff5ca96';
@@ -37,29 +41,40 @@ const _watchedVerses = [
   'Romans 8:15',
   'Revelation 22:8',
 ];
-const _step = 'https://raw.githubusercontent.com/STEPBible/STEPBible-Data/master';
+const _stepCommit = '5de0a47f35f0fc13dfe1430d104e5db8a4285f9c';
+const _step = 'https://raw.githubusercontent.com/STEPBible/STEPBible-Data/$_stepCommit';
 const _stepText = '$_step/Translators%20Amalgamated%20OT%2BNT';
 const _stepLex = '$_step/Lexicons';
 const _xrefs = 'https://a.openbible.info/data/cross-references.zip';
+const _xrefsSha256 = '19aafdf923275142d0849fb02c7d9965a8d1a9dafc691e9abbe146fa31895c73';
 const _web = 'https://ebible.org/Scriptures/engwebp_usfm.zip';
+const _webSha256 = '674fb7eeffa9d64b90c4565a3678ffed61a1ddba47dff9b6a618528e2aaa8c67';
 // The BSB in USFM, public domain like bsb.txt, read only for its section headings and parallel
 // passage lines; the verse text still comes from bsb.txt.
 const _bsbUsfm = 'https://ebible.org/Scriptures/engbsb_usfm.zip';
 const _bsbUsfmSha256 = 'ce8bb27e62ab433e9eae460b65bf10710fabfd74017a9535aa8904343866e257';
 
 const scrollmapperTranslations = ['KJV'];
-const stepTextFiles = [
-  'TAHOT%20Gen-Deu%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt',
-  'TAHOT%20Jos-Est%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt',
-  'TAHOT%20Job-Sng%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt',
-  'TAHOT%20Isa-Mal%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt',
-  'TAGNT%20Mat-Jhn%20-%20Translators%20Amalgamated%20Greek%20NT%20-%20STEPBible.org%20CC-BY.txt',
-  'TAGNT%20Act-Rev%20-%20Translators%20Amalgamated%20Greek%20NT%20-%20STEPBible.org%20CC-BY.txt',
-];
-const stepLexFiles = [
-  'TBESH%20-%20Translators%20Brief%20lexicon%20of%20Extended%20Strongs%20for%20Hebrew%20-%20STEPBible.org%20CC%20BY.txt',
-  'TBESG%20-%20Translators%20Brief%20lexicon%20of%20Extended%20Strongs%20for%20Greek%20-%20STEPBible.org%20CC%20BY.txt',
-];
+const stepTextFiles = <String, String>{
+  'TAHOT%20Gen-Deu%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt':
+      '7763ef367bb0e6e1c1a95fb9b652e1d611b2481827611433e82abbf229216d70',
+  'TAHOT%20Jos-Est%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt':
+      'b79add01a8c95673e31ec3ab8ad86183d2312cd96421ddf21f3d1f74377526a7',
+  'TAHOT%20Job-Sng%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt':
+      'e0416880bb78f46715bb17ce526b623c3051da0ef83f7bf83beaad350e6272e8',
+  'TAHOT%20Isa-Mal%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt':
+      'd5a609f5a4b9f7757a2615e55877b07f9f6931a8afccef012c0b4bf662caf540',
+  'TAGNT%20Mat-Jhn%20-%20Translators%20Amalgamated%20Greek%20NT%20-%20STEPBible.org%20CC-BY.txt':
+      'd4c0c820fdf9f2b450c9f96ce6103d6875028affd2e44094d753f1329ca1fd85',
+  'TAGNT%20Act-Rev%20-%20Translators%20Amalgamated%20Greek%20NT%20-%20STEPBible.org%20CC-BY.txt':
+      '122040eeeaeba50d6abbf67b39cacaff687211bda69b080e5d53927c830d9968',
+};
+const stepLexFiles = <String, String>{
+  'TBESH%20-%20Translators%20Brief%20lexicon%20of%20Extended%20Strongs%20for%20Hebrew%20-%20STEPBible.org%20CC%20BY.txt':
+      '848eef2ac16753a43694897dbb9e8f266725e7cc9da4809f367ee5b990f05dbb',
+  'TBESG%20-%20Translators%20Brief%20lexicon%20of%20Extended%20Strongs%20for%20Greek%20-%20STEPBible.org%20CC%20BY.txt':
+      '734a5b64a1152f67604bf09d32f15c0ba537151961752fcf168087b41b4d93ea',
+};
 const maxDefinitionChars = 600;
 
 Future<void> main(List<String> args) async {
@@ -84,6 +99,8 @@ Future<void> main(List<String> args) async {
     try {
       _createSchema(db);
       await _loadData(db, bsb, cache);
+      BibleDb(db).recordBibleOrder();
+      BibleDb(db).buildVocabulary();
       built = _writeMeta(db);
     } finally {
       db.dispose();
@@ -94,41 +111,30 @@ Future<void> main(List<String> args) async {
   }
 }
 
-void _createSchema(Database db) => db.execute('''
-  PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;
-  CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, chapter INTEGER, verse INTEGER, text TEXT);
-  CREATE VIRTUAL TABLE verses_fts USING fts5(text, content='verses', content_rowid='id', tokenize='porter unicode61');
-  CREATE TABLE words(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, original TEXT, translit TEXT, gloss TEXT, strongs TEXT, morph TEXT, PRIMARY KEY(book, chapter, verse, pos)) WITHOUT ROWID;
-  CREATE TABLE lexicon(key TEXT PRIMARY KEY, base TEXT, lemma TEXT, translit TEXT, pos TEXT, gloss TEXT, definition TEXT);
-  CREATE INDEX lexicon_base ON lexicon(base);
-  CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER);
-  CREATE INDEX xrefs_from ON xrefs(from_book, from_chapter, from_verse);
-  CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
-  CREATE INDEX verses_ref ON verses(translation, book, chapter, verse);
-''');
+void _createSchema(Database db) => createBibleSchema(db);
 
 Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
   _loadRows(db, 'BSB', bsb);
   for (final t in scrollmapperTranslations) {
-    _loadTranslation(db, t, await _fetch('$_scrollmapper/$t.csv', '$cache/$t.csv'));
+    _loadTranslation(db, t, await _fetch('$_scrollmapper/$t.csv', '$cache/$t.csv', pin: _kjvSha256));
   }
-  final web = await _fetchBytes(_web, '$cache/engwebp_usfm.zip');
+  final web = await _fetchBytes(_web, '$cache/engwebp_usfm.zip', pin: _webSha256);
   _loadRows(db, 'WEB', parseBibleFile('engwebp_usfm.zip', web));
   db.execute("INSERT INTO verses_fts(verses_fts) VALUES('rebuild')");
   final bsbUsfm = await _fetchBytes(_bsbUsfm, '$cache/engbsb_usfm.zip', pin: _bsbUsfmSha256);
   _loadHeadings(db, 'BSB', parseUsfmZipHeadings(bsbUsfm));
   _loadHeadings(db, 'WEB', parseUsfmZipHeadings(web));
 
-  for (final f in stepTextFiles) {
-    final text = await _fetch('$_stepText/$f', '$cache/${Uri.decodeComponent(f)}');
+  for (final MapEntry(key: f, value: sha) in stepTextFiles.entries) {
+    final text = await _fetch('$_stepText/$f', '$cache/${Uri.decodeComponent(f)}', pin: sha);
     f.startsWith('TAHOT') ? _loadHebrew(db, text) : _loadGreek(db, text);
   }
-  for (final f in stepLexFiles) {
-    _loadLexicon(db, await _fetch('$_stepLex/$f', '$cache/${Uri.decodeComponent(f)}'));
+  for (final MapEntry(key: f, value: sha) in stepLexFiles.entries) {
+    _loadLexicon(db, await _fetch('$_stepLex/$f', '$cache/${Uri.decodeComponent(f)}', pin: sha));
   }
 
   final zip = '$cache/cross-references.zip';
-  await _fetchBytes(_xrefs, zip);
+  await _fetchBytes(_xrefs, zip, pin: _xrefsSha256);
   final unzip = await Process.run('unzip', ['-o', '-q', zip, '-d', '$cache/xrefs']);
   if (unzip.exitCode != 0) throw StateError('unzip failed: ${unzip.stderr}');
   _loadXrefs(db, File('$cache/xrefs/cross_references.txt').readAsStringSync());
@@ -251,15 +257,7 @@ void _loadTranslation(Database db, String translation, String csv) {
 }
 
 void _loadRows(Database db, String translation, List<VerseRow> rows) {
-  final stmt = db.prepare(
-    'INSERT INTO verses(translation, book, chapter, verse, text) VALUES (?, ?, ?, ?, ?)',
-  );
-  db.execute('BEGIN');
-  for (final r in rows) {
-    stmt.execute([translation, r.book.id, r.chapter, r.verse, r.text]);
-  }
-  db.execute('COMMIT');
-  stmt.dispose();
+  loadVerseRows(db, translation, rows);
   stdout.writeln('$translation: ${rows.length} verses');
 }
 
