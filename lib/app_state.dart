@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'daily_reminder.dart';
 import 'device.dart';
+import 'helper_cleanup.dart';
 import 'backup.dart';
 import 'commentary_packs.dart';
 import 'notebook_store.dart';
@@ -108,6 +109,9 @@ class AppState extends ChangeNotifier {
   late final PrayerPlanStore prayerPlans = PrayerPlanStore(study.db);
   late final PracticeStore practice = PracticeStore(study.db);
 
+  /// Said once after an update that removed the helper or the chat; null otherwise.
+  String? upgradeNotice;
+
   /// The prayer lines bundled with the app. Empty when the file cannot be read, so Prayer still
   /// works without them.
   PrayerContent prayerContent = PrayerContent.empty;
@@ -149,6 +153,10 @@ class AppState extends ChangeNotifier {
       s.reminderPlatform = LocalNotificationsPlatform();
     }
     s.prefs = prefs ?? await SharedPreferences.getInstance();
+    s.upgradeNotice = upgradeNoticeText(
+      freedBytes: await removeHelperFiles(s.supportDir, s.prefs),
+      chatsDeleted: s.study.chatsDeleted,
+    );
     await Settings.dropLegacyKeys(s.prefs);
     s.settings = Settings.load(s.prefs);
     s._loadReader();

@@ -155,6 +155,9 @@ const preNotesMergeSuffix = '.pre-notes-merge';
 
 class StudyStore {
   final Database db;
+
+  /// How many saved conversations this open deleted, so the reader can be told once.
+  int chatsDeleted = 0;
   StudyStore(this.db) {
     db.execute('''
       PRAGMA journal_mode = WAL;
@@ -1165,6 +1168,7 @@ class StudyStore {
   /// The chat is gone from the app; its saved conversations are deleted. Notes the reader kept
   /// from an answer stay, labelled by [labelExistingText].
   void deleteChatTranscripts() {
+    chatsDeleted += db.select('SELECT COUNT(*) AS n FROM conversations').first['n'] as int;
     db.execute('DELETE FROM notebook_messages');
     db.execute('DELETE FROM messages');
     db.execute('DELETE FROM conversations');

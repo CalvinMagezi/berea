@@ -64,7 +64,25 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.openReaderRequest.addListener(_jumpToBible);
     widget.state.openNotebookRequest.addListener(_openRequestedNotebook);
     widget.state.openPlansRequest.addListener(_openPlans);
-    WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(widget.state.syncReminder()));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(widget.state.syncReminder());
+      _sayUpgrade();
+    });
+  }
+
+  /// What an update removed, said once; the files and chats are already gone.
+  void _sayUpgrade() {
+    final notice = widget.state.upgradeNotice;
+    if (notice == null) return;
+    widget.state.upgradeNotice = null;
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Updated'),
+        content: Text(notice),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+      ),
+    );
   }
 
   void _jumpToBible() => _select(HomeTab.bible);
