@@ -272,7 +272,7 @@ class BibleDb {
     }
   }();
 
-  /// Every verse of a chapter, for reading. [passage] caps what goes into a prompt instead.
+  /// Every verse of a chapter, for reading. [passage] caps its length instead.
   List<Verse> chapter(Book book, int chapter, {String translation = defaultTranslation}) => db
       .select(
         'SELECT book, chapter, verse, text FROM verses '
@@ -283,11 +283,11 @@ class BibleDb {
       .toList();
 
   /// At most [maxPassageVerses] verses, so a whole chapter named in a question cannot crowd out
-  /// the rest of a prompt.
+  /// the rest of an answer.
   List<Verse> passage(Ref ref, {String translation = defaultTranslation}) =>
       _range(ref, translation, maxPassageVerses);
 
-  /// Every verse of [ref], for reading or keeping; [passage] caps what goes into a prompt.
+  /// Every verse of [ref], for reading or keeping; [passage] caps its length.
   List<Verse> verses(Ref ref, {String translation = defaultTranslation}) =>
       _range(ref, translation, _noLimit);
 

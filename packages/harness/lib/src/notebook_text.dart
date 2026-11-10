@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'commentary.dart';
 import 'importers.dart';
 
-/// A chunk aims for this many characters, so a few fit a small model's prompt with room to cite.
+/// A chunk aims for this many characters, so a few fit together with room to cite.
 const notebookChunkChars = 1200;
 
 /// A break is not taken before this many characters, so chunks do not shrink to a line each.

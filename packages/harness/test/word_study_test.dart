@@ -314,39 +314,6 @@ void main() {
     expect(across, startsWith('Word study: the Hebrew word תָּם (tam, H8535), "complete".'));
     expect(across, contains('used in Scripture'));
     expect(RefParser.parse(across), isEmpty);
-    final ctx = Retriever(db).retrieve(across, Tier.low);
-    expect(ctx.passages, isEmpty);
-    expect(ctx.searchHits.single.label, 'Job 1:1');
-  });
-
-  test('a word study question puts the word and its other uses in front of the model', () {
-    final db = wordBible();
-    final q = wordStudyQuestion(
-      english: 'perfect',
-      ref: RefParser.parse('Matthew 5:48').first,
-      entry: db.lexicon('G5046')!,
-      language: 'Greek',
-    );
-    final ctx = Retriever(db).retrieve(q, Tier.low);
-    expect(ctx.passages.single.label, 'Matthew 5:48');
-    expect(ctx.lexicon.keys.first, 'G5046');
-    // The other use replaces search hits; the verse being studied is not repeated.
-    expect(ctx.searchHits.map((v) => v.label), ['James 1:4']);
-
-    final prompt = PromptBuilder('system').build(ctx, const [], q, Tier.low);
-    final user = prompt.messages.last.content;
-    expect(user, contains('LEXICON\nG5046 τέλειος (teleios)'));
-    expect(user, contains('RELATED VERSES\n(James 1:4, BSB)'));
-    expect(prompt.shown.searchHits.single.label, 'James 1:4');
-  });
-
-  test('a question without a known Strong number searches as before', () {
-    final db = wordBible();
-    final plain = Retriever(db).retrieve('What does mature mean?', Tier.low);
-    expect(plain.searchHits.map((v) => v.label), ['James 1:4']);
-    expect(plain.lexicon, isEmpty);
-    final unknown = Retriever(db).retrieve('What is G9999 about maturity, mature?', Tier.low);
-    expect(unknown.searchHits.map((v) => v.label), ['James 1:4']);
   });
 
   test('the BSB tables file is read by column name, in English order', () {
