@@ -585,6 +585,14 @@ class StudyStore {
     db.execute('DELETE FROM notes WHERE id = ?', [id]);
   });
 
+  /// Every highlighted verse, in Bible order, one reference each.
+  List<Ref> highlightedVerses() => [
+    for (final r in db.select(
+      'SELECT book, chapter, verse FROM highlights ORDER BY book, chapter, verse',
+    ))
+      Ref(bookById(r['book'] as int), r['chapter'] as int, r['verse'] as int, r['verse'] as int),
+  ];
+
   Set<int> highlights(Book book, int chapter) => {
     for (final r in db.select('SELECT verse FROM highlights WHERE book = ? AND chapter = ?', [
       book.id,
