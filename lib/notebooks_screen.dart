@@ -7,12 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app_state.dart';
-import 'brand/lamp_mark.dart';
 import 'confirm.dart';
 import 'keep_sheet.dart';
-import 'listen_screen.dart';
 import 'note_dialog.dart';
-import 'notebook_ask_panel.dart';
 import 'notebook_store.dart';
 import 'study_packet_screen.dart';
 import 'study_page_screen.dart';
@@ -28,7 +25,6 @@ const _citedMarkWidth = 3.0;
 const _citedPadding = 12.0;
 const _kindLabelSize = 11.0;
 const _bottomBarPadding = 12.0;
-const _askMarkSize = 18.0;
 
 /// Measured on the room the Notes place has beside the sidebar, not the window; local rather
 /// than the shell's constant, so the Notes screens do not import the shell.
@@ -488,22 +484,6 @@ class _NotebookScreenState extends State<NotebookScreen> {
   (Type, int)? _selected;
   var _wide = false;
 
-  /// The ask panel's question box, focused by Ask about this notebook on a wide screen.
-  final _askFocus = FocusNode();
-
-  @override
-  void dispose() {
-    _askFocus.dispose();
-    super.dispose();
-  }
-
-  /// On a wide screen the conversation is beside the list; elsewhere Study opens scoped here.
-  void _ask() {
-    if (!_wide) return _s.askAboutNotebook(notebookId);
-    setState(() => _selected = null);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _askFocus.requestFocus());
-  }
-
   AppState get _s => widget.state;
   NotebookStore get store => _s.notebooks;
   int get notebookId => widget.notebookId;
@@ -538,7 +518,6 @@ class _NotebookScreenState extends State<NotebookScreen> {
                 ),
               ),
             ),
-            ListenButton(state: _s, notebookId: notebookId, title: notebook.title),
             _NotebookMenu(
               store: store,
               notebook: notebook,
@@ -567,7 +546,7 @@ class _NotebookScreenState extends State<NotebookScreen> {
             return ListAndDetail(
               list: list,
               detail: chosen == null
-                  ? NotebookAskPanel(state: _s, notebookId: notebookId, focus: _askFocus)
+                  ? StudyPacketScreen(state: _s, notebookId: notebookId)
                   : EntryDetail(state: _s, entry: chosen, onChanged: () => setState(() {})),
             );
           },
@@ -635,14 +614,14 @@ class _NotebookScreenState extends State<NotebookScreen> {
               const SizedBox(width: _bottomBarPadding),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _ask,
-                  icon: Builder(
-                    builder: (context) {
-                      final on = Theme.of(context).colorScheme.onPrimary;
-                      return LampMark(size: _askMarkSize, ink: on, flame: on);
-                    },
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => NotebookSearchScreen(state: _s, notebookId: notebookId),
+                    ),
                   ),
-                  label: const Text('Ask about this notebook'),
+                  icon: const Icon(Icons.search),
+                  label: const Text('Search this notebook'),
                 ),
               ),
             ],
@@ -1143,6 +1122,77 @@ class _SectionView extends StatelessWidget {
               : text,
         ),
       ],
+    );
+  }
+}
+
+/// How many matching chunks the notebook search lists.
+const _searchResultLimit = 30;
+
+/// A search over the notebook's own readings: the chunks that match, each under its source.
+class NotebookSearchScreen extends StatefulWidget {
+  final AppState state;
+  final int notebookId;
+  const NotebookSearchScreen({super.key, required this.state, required this.notebookId});
+
+  @override
+  State<NotebookSearchScreen> createState() => _NotebookSearchScreenState();
+}
+
+class _NotebookSearchScreenState extends State<NotebookSearchScreen> {
+  var _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hits = _query.trim().isEmpty
+        ? const <SourceChunk>[]
+        : widget.state.notebooks.search(widget.notebookId, _query, limit: _searchResultLimit);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Search this notebook')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: contentMaxWidth),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: TextField(
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'Words to find in your readings',
+                  ),
+                  onChanged: (v) => setState(() => _query = v),
+                ),
+              ),
+              Expanded(
+                child: _query.trim().isEmpty
+                    ? const SizedBox.shrink()
+                    : hits.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Text(
+                          'Nothing in this notebook matches.',
+                          style: TextStyle(color: scheme.onSurfaceVariant),
+                        ),
+                      )
+                    : ListView(
+                        children: [
+                          for (final h in hits)
+                            ListTile(
+                              title: Text(h.title),
+                              subtitle: Text(h.text, maxLines: 4, overflow: TextOverflow.ellipsis),
+                              isThreeLine: true,
+                            ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

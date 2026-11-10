@@ -113,11 +113,9 @@ void main() {
   late BibleDb db;
   // The page, not the row of the verse's words that also scrolls.
   final page = find.byType(Scrollable).first;
-  final asked = <String>[];
   final opened = <Ref>[];
   setUp(() {
     db = wordBible();
-    asked.clear();
     opened.clear();
   });
 
@@ -143,7 +141,6 @@ void main() {
           occurrence: occurrence,
           wordIndex: wordIndex,
           translation: translation,
-          onAsk: asked.add,
           onOpen: opened.add,
         ),
       ),
@@ -175,13 +172,6 @@ void main() {
     expect(opened.single.label, 'James 1:4');
   });
 
-  testWidgets('asking sends a question that names the word and the verse', (tester) async {
-    await open(tester, 'Matthew 5:48', english: 'perfect');
-    await tester.tap(find.text('Ask Berea about τέλειος'));
-    expect(asked.single, contains('"perfect" in Matthew 5:48 is the Greek word τέλειος'));
-    expect(strongsIn(asked.single), 'G5046');
-  });
-
   testWidgets('another word glossed the same opens without the verse', (tester) async {
     await open(tester, 'Matthew 5:48', english: 'perfect');
     await tester.scrollUntilVisible(find.text('τελειόω  teleioō'), 200, scrollable: page);
@@ -189,9 +179,6 @@ void main() {
     await tester.pump();
     await tester.scrollUntilVisible(find.text('teleioō · Greek · verb'), -200, scrollable: page);
     expect(find.text('You will find it once in 1 verse across 1 book.'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Ask Berea about τελειόω'), -200, scrollable: page);
-    await tester.tap(find.text('Ask Berea about τελειόω'));
-    expect(asked.single, startsWith('Word study: the Greek word τελειόω'));
   });
 
   testWidgets('a word with no match asks the reader to choose one', (tester) async {
@@ -329,7 +316,6 @@ void main() {
           ref: RefParser.parse('Matthew 5:48').first,
           english: 'perfect',
           wordIndex: 1,
-          onAsk: asked.add,
           onOpen: opened.add,
           onKeep: ({required title, required body, required subtitle, verse}) async {
             kept = await showModalBottomSheet<int>(
@@ -383,7 +369,6 @@ void main() {
           ref: RefParser.parse('Matthew 5:48').first,
           english: 'perfect',
           wordIndex: 1,
-          onAsk: asked.add,
           onOpen: opened.add,
           onKeep: ({required title, required body, required subtitle, verse}) {},
         ),
