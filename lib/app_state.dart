@@ -367,6 +367,7 @@ const _beforeNotesMerge = 2;
 
 /// The error code for a full disk on Android, iOS, macOS and Linux.
 const _noSpaceErrno = 28;
+const _searchMmapBytes = 256 * 1024 * 1024;
 
 const helperDownloadFailed = 'The download stopped. Check the connection and try again.';
 const helperDownloadDamaged =
@@ -734,6 +735,25 @@ class AppState extends ChangeNotifier {
     if (db.bundledTranslations().contains(code)) {
       throw ReaderMessage('$code is built in. Choose another code.');
     }
+  }
+
+  /// Searches the Bible off the UI isolate, on a read-only connection of its own, so a slow
+  /// search cannot freeze the screen. A database held in memory is searched in place.
+  Future<List<SearchGroup>> searchVerses(String query, {required String translation, int perGroup = 100}) {
+    final path = db.filePath;
+    if (path == null) {
+      return Future.value(db.searchVerses(query, translation: translation, perGroup: perGroup));
+    }
+    return Isolate.run(() {
+      final reader = BibleDb(sqlite3.open(path, mode: OpenMode.readOnly));
+      // Lets the system's file cache serve the index instead of this connection's small one.
+      reader.db.execute('PRAGMA mmap_size = $_searchMmapBytes');
+      try {
+        return reader.searchVerses(query, translation: translation, perGroup: perGroup);
+      } finally {
+        reader.close();
+      }
+    });
   }
 
   /// Imports a user-owned translation from CSV, USFM, OSIS, Zefania or a zip of those, and keeps

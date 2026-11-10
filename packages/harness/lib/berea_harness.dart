@@ -15,6 +15,7 @@ export 'src/prayer_content.dart';
 export 'src/prompt_builder.dart';
 export 'src/ref_parser.dart';
 export 'src/retriever.dart';
+export 'src/search_text.dart' show searchIsTooCommon;
 export 'src/sources.dart';
 export 'src/speech_text.dart';
 export 'src/study_packet.dart';

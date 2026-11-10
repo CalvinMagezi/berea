@@ -526,34 +526,27 @@ class BibleDb {
 
   /// What the search box shows: groups that each say how their verses were found, every group
   /// in Bible order so no ranking is hidden. "Exact words" are confirmed against the verse text,
-  /// because the index matches stems. [perGroup] caps how many verses a group lists.
+  /// because the index matches stems. Everything else is counted from the index's row ids, so no
+  /// verse text is read for a verse that is not listed. [perGroup] caps how many a group lists.
   List<SearchGroup> searchVerses(
     String text, {
     String translation = defaultTranslation,
     int perGroup = 100,
   }) {
     final tokens = searchTokens(text);
-    if (tokens.isEmpty) return const [];
+    if (tokens.isEmpty || searchIsTooCommon(text)) return const [];
     final groups = <SearchGroup>[];
-    final seen = <String>{};
-    void add(String label, List<Verse> found) {
+    final taken = <int>{};
+    void add(String label, Iterable<int> ids) {
       final fresh = [
-        for (final v in found)
-          if (seen.add(v.label)) v,
+        for (final id in ids)
+          if (taken.add(id)) id,
       ];
-      if (fresh.isNotEmpty) {
-        groups.add(SearchGroup(label, fresh.take(perGroup).toList(), fresh.length));
-      }
+      if (fresh.isEmpty) return;
+      groups.add(SearchGroup(label, _versesById(fresh.take(perGroup)), fresh.length));
     }
 
-    // One query often serves two groups (a single word is its own phrase), so ask the index once.
-    final asked = <String, List<Verse>>{};
-    List<Verse> match(String query) => asked[query] ??= _match(query, translation);
-
-    add('Exact words', [
-      for (final v in match('"${tokens.join(' ')}"'))
-        if (containsPhrase(searchTokens(v.text), tokens)) v,
-    ]);
+    add('Exact words', _exactIds('"${tokens.join(' ')}"', phrasePattern(tokens), translation));
 
     final content = {
       for (final t in tokens)
@@ -564,32 +557,141 @@ class BibleDb {
       final word = content.first;
       add(
         tokens.length == 1 ? 'Other forms of the word' : 'Has "$word", without the other words',
-        match('"$word"'),
+        _matchIds('"$word"', translation),
       );
       return groups;
     }
-    final stems = [for (final t in content) searchStem(t)];
-    add('All your words', match(content.map((t) => '"$t"').join(' AND ')));
-    final partial = <int, List<Verse>>{};
-    for (final v in match(content.map((t) => '"$t"').join(' OR '))) {
-      final present = {for (final w in searchTokens(v.text)) searchStem(w)};
-      final n = stems.where(present.contains).length;
-      if (n >= minPartialWords && n < stems.length) (partial[n] ??= []).add(v);
+    final perTerm = [for (final t in content) _matchIds('"$t"', translation).toSet()];
+    final counts = <int, int>{};
+    for (final ids in perTerm) {
+      for (final id in ids) {
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
     }
-    for (final n in (partial.keys.toList()..sort()).reversed) {
-      add('$n of ${stems.length} words', partial[n]!);
+    // Every id is in some term's set, so ordering the union by Bible order orders all groups.
+    final inOrder = _matchIds(content.map((t) => '"$t"').join(' OR '), translation);
+    for (var n = content.length; n >= minPartialWords; n--) {
+      add(
+        n == content.length ? 'All your words' : '$n of ${content.length} words',
+        inOrder.where((id) => counts[id] == n),
+      );
     }
     return groups;
   }
 
-  List<Verse> _match(String ftsQuery, String translation) {
+  static const _byBibleOrder = 'ORDER BY v.book, v.chapter, v.verse';
+  static const _orderMetaKey = 'bible_order';
+  static const _textChunk = 500;
+
+  /// Row-id ranges of the translations stored in Bible order, one contiguous run each, from the
+  /// meta row [recordBibleOrder] writes. For these the index answers in Bible order by itself, with
+  /// no join to the verse table, which is thousands of random reads on a phone.
+  late final Map<String, (int, int)> _orderedRanges = () {
+    try {
+      final rows = db.select('SELECT value FROM meta WHERE key = ?', [_orderMetaKey]);
+      if (rows.isEmpty) return const <String, (int, int)>{};
+      return {
+        for (final part in (rows.first['value'] as String).split(','))
+          if (RegExp(r'^[^:]+:\d+-\d+$').hasMatch(part))
+            part.split(':').first: (
+              int.parse(part.split(':').last.split('-').first),
+              int.parse(part.split('-').last),
+            ),
+      };
+    } on SqliteException {
+      return const <String, (int, int)>{};
+    }
+  }();
+
+  /// Notes which translations hold their verses in one run of rows in Bible order. A builder calls
+  /// this once the verses are loaded; a translation that fails the check is left out, and its
+  /// searches take the slower join.
+  void recordBibleOrder() {
+    final last = <String, ({int first, int last, int count, int ordered})>{};
+    final prev = <String, (int, int, int)>{};
     final rows = db.select(
-      'SELECT v.book, v.chapter, v.verse, v.text FROM verses_fts f '
-      'JOIN verses v ON v.id = f.rowid '
-      'WHERE verses_fts MATCH ? AND v.translation = ? ORDER BY v.book, v.chapter, v.verse',
-      [ftsQuery, translation],
+      'SELECT id, translation, book, chapter, verse FROM verses ORDER BY id',
+    );
+    for (final r in rows) {
+      final t = r['translation'] as String;
+      final key = (r['book'] as int, r['chapter'] as int, r['verse'] as int);
+      final id = r['id'] as int;
+      final old = last[t];
+      final p = prev[t];
+      final inOrder = p == null ||
+          key.$1 > p.$1 ||
+          (key.$1 == p.$1 && (key.$2 > p.$2 || (key.$2 == p.$2 && key.$3 > p.$3)));
+      last[t] = old == null
+          ? (first: id, last: id, count: 1, ordered: inOrder ? 1 : 0)
+          : (
+              first: old.first,
+              last: id,
+              count: old.count + 1,
+              ordered: old.ordered + (inOrder ? 1 : 0),
+            );
+      prev[t] = key;
+    }
+    final kept = [
+      for (final e in last.entries)
+        if (e.value.count == e.value.last - e.value.first + 1 && e.value.ordered == e.value.count)
+          '${e.key}:${e.value.first}-${e.value.last}',
+    ];
+    db.execute('DELETE FROM meta WHERE key = ?', [_orderMetaKey]);
+    db.execute('INSERT INTO meta VALUES (?, ?)', [_orderMetaKey, kept.join(',')]);
+  }
+
+  /// Row ids of the verses the index matches, in Bible order. No verse text is read.
+  List<int> _matchIds(String ftsQuery, String translation) {
+    final range = _orderedRanges[translation];
+    final rows = range != null
+        ? db.select(
+            'SELECT rowid AS id FROM verses_fts WHERE verses_fts MATCH ? '
+            'AND rowid BETWEEN ? AND ? ORDER BY rowid',
+            [ftsQuery, range.$1, range.$2],
+          )
+        : db.select(
+            'SELECT v.id FROM verses_fts f JOIN verses v ON v.id = f.rowid '
+            'WHERE verses_fts MATCH ? AND v.translation = ? $_byBibleOrder',
+            [ftsQuery, translation],
+          );
+    return [for (final r in rows) r['id'] as int];
+  }
+
+  /// Like [_matchIds], keeping only verses whose text holds the words themselves, not a stem.
+  List<int> _exactIds(String ftsQuery, RegExp exact, String translation) {
+    final candidates = _matchIds(ftsQuery, translation);
+    final kept = <int>{};
+    for (var i = 0; i < candidates.length; i += _textChunk) {
+      final chunk = candidates.sublist(i, min(i + _textChunk, candidates.length));
+      final rows = db.select(
+        'SELECT id, text FROM verses WHERE id IN (${List.filled(chunk.length, '?').join(',')})',
+        chunk,
+      );
+      for (final r in rows) {
+        if (exact.hasMatch(r['text'] as String)) kept.add(r['id'] as int);
+      }
+    }
+    return [
+      for (final id in candidates)
+        if (kept.contains(id)) id,
+    ];
+  }
+
+  List<Verse> _versesById(Iterable<int> ids) {
+    final list = ids.toList();
+    if (list.isEmpty) return const [];
+    final rows = db.select(
+      'SELECT v.book, v.chapter, v.verse, v.text FROM verses v '
+      'WHERE v.id IN (${List.filled(list.length, '?').join(',')}) $_byBibleOrder',
+      list,
     );
     return rows.map(_verse).toList();
+  }
+
+  /// The file this database was opened from, or null for one held in memory.
+  String? get filePath {
+    final file = db.select('PRAGMA database_list').firstWhere((r) => r['name'] == 'main')['file'];
+    return file is String && file.isNotEmpty ? file : null;
   }
 
   List<WordTag> words(Ref ref) {

@@ -25,6 +25,8 @@ class _SearchScreenState extends State<SearchScreen> {
   var _groups = const <SearchGroup>[];
   // The empty-state line waits for a finished search, not the pause before it.
   var _searched = false;
+  var _searching = false;
+  var _request = 0;
   Timer? _pending;
 
   @override
@@ -35,27 +37,39 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _onChanged(String value) {
     final query = value.trim();
+    _request++;
     setState(() {
       _query = query;
       _searched = false;
+      _searching = false;
     });
     _pending?.cancel();
     if (query.length < _minQueryLength) {
       setState(() => _groups = const []);
       return;
     }
-    _pending = Timer(_searchDelay, () {
-      final translation = widget.state.settings.translation;
-      final found = widget.state.db.searchVerses(
+    _pending = Timer(_searchDelay, () => _run(query));
+  }
+
+  Future<void> _run(String query) async {
+    final request = ++_request;
+    setState(() => _searching = true);
+    var found = const <SearchGroup>[];
+    try {
+      found = await widget.state.searchVerses(
         query,
-        translation: translation,
+        translation: widget.state.settings.translation,
         perGroup: searchResultLimit,
       );
-      if (!mounted) return;
-      setState(() {
-        _groups = found;
-        _searched = true;
-      });
+    } on Object catch (e) {
+      debugPrint('Search failed: $e');
+    }
+    // A newer keystroke owns the screen; its answer is the one to show.
+    if (!mounted || request != _request) return;
+    setState(() {
+      _groups = found;
+      _searched = true;
+      _searching = false;
     });
   }
 
@@ -88,6 +102,7 @@ class _SearchScreenState extends State<SearchScreen> {
           child: ListView(
             padding: const EdgeInsets.only(bottom: 24),
             children: [
+              if (_searching) const LinearProgressIndicator(),
               for (final r in refs)
                 ListTile(
                   leading: Icon(Icons.arrow_forward, color: scheme.primary),
@@ -98,7 +113,9 @@ class _SearchScreenState extends State<SearchScreen> {
                 Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
-                    'No verse in the $translation has those words.',
+                    searchIsTooCommon(_query)
+                        ? '"$_query" is in too many verses to list. Add another word.'
+                        : 'No verse in the $translation has those words.',
                     style: TextStyle(color: scheme.onSurfaceVariant),
                   ),
                 ),

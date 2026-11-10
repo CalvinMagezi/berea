@@ -16,7 +16,16 @@ const _topTen = 10;
 const _targetTopTen = 93.0;
 const _targetFirst = 70.0;
 // Queries that match most of the Bible; the slowest case a reader can type.
-const _commonQueries = ['the', 'in the', 'the lord said', 'of the LORD your God', 'God', 'and'];
+const _commonQueries = [
+  'the',
+  'in the',
+  'the lord said',
+  'of the LORD your God',
+  'God',
+  'and',
+  'jesus wept',
+  'love one another',
+];
 
 String _opt(List<String> args, String name, String fallback) {
   final i = args.indexOf('--$name');
@@ -70,7 +79,8 @@ void main(List<String> args) {
   final vocabulary = <String>{
     for (final v in verses)
       for (final t in searchTokens(v.text))
-        if (t.length >= _minVocabularyLength) t,
+        // A lone function word is deliberately not listed, so it is not a vocabulary miss.
+        if (t.length >= _minVocabularyLength && !searchStopWords.contains(t)) t,
   }.toList()..sort();
   final step = vocabulary.length ~/ _vocabularySize;
   var misses = 0;

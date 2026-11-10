@@ -27,7 +27,7 @@ void main() {
     final exact = group(db.searchVerses('Jesus wept'), 'Exact words');
     expect(exact.verses.map((v) => v.label), contains('John 11:35'));
     for (final v in exact.verses) {
-      expect(containsPhrase(searchTokens(v.text), ['jesus', 'wept']), isTrue, reason: v.label);
+      expect(phrasePattern(['jesus', 'wept']).hasMatch(v.text), isTrue, reason: v.label);
     }
   });
 
@@ -69,5 +69,38 @@ void main() {
     expect(labels, contains('Exact words'));
     expect(labels, isNot(contains('Other forms of the word')));
     expect(labels, contains('Has "lord", without the other words'));
+  });
+
+  test('a lone function word lists nothing, and a phrase pattern matches whole words only', () {
+    expect(searchIsTooCommon('The'), isTrue);
+    expect(searchIsTooCommon('the lord'), isFalse);
+    expect(db.searchVerses('the'), isEmpty);
+    final pattern = phrasePattern(['god', 's', 'love']);
+    expect(pattern.hasMatch("For GOD'S love is"), isTrue);
+    expect(phrasePattern(['wept']).hasMatch('He swept the floor'), isFalse);
+    expect(phrasePattern(['jesus', 'wept']).hasMatch('Jesus, wept.'), isTrue);
+  });
+
+  test('a database held in memory has no file path, and a built one does', () {
+    expect(BibleDb(sqlite3.openInMemory()).filePath, isNull);
+    expect(db.filePath, endsWith('.sqlite'));
+  });
+
+  test('a translation not recorded as ordered is searched through the verse table, same answers', () {
+    final raw = sqlite3.openInMemory();
+    createBibleSchema(raw);
+    final rows = [
+      (book: bookById(43), chapter: 11, verse: 35, text: 'Jesus wept.'),
+      (book: bookById(1), chapter: 1, verse: 1, text: 'In the beginning God created.'),
+    ];
+    loadVerseRows(raw, 'TEST', rows);
+    rebuildVersesFts(raw);
+    final plain = BibleDb(raw);
+    expect(plain.searchVerses('jesus wept', translation: 'TEST').first.verses.single.label, 'John 11:35');
+    final all = plain.searchVerses('beginning created', translation: 'TEST');
+    expect(all.single.label, 'All your words');
+    expect(all.single.verses.single.label, 'Genesis 1:1');
+    plain.recordBibleOrder();
+    expect(raw.select("SELECT value FROM meta WHERE key = 'bible_order'").single['value'], '');
   });
 }

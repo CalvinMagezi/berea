@@ -12,6 +12,7 @@ import 'support/bible.dart';
 
 const _phone = Size(600, 1000);
 const _afterDelay = Duration(milliseconds: 400);
+const _searchWait = Duration(seconds: 3);
 
 void main() {
   if (needsBibleText case final why?) {
@@ -47,6 +48,8 @@ void main() {
     );
     await tester.enterText(find.byType(TextField), query);
     await tester.pump(_afterDelay);
+    // The search runs on another isolate, which only real time advances.
+    await tester.runAsync(() => Future<void>.delayed(_searchWait));
     await tester.pumpAndSettle();
   }
 
@@ -64,5 +67,11 @@ void main() {
     final state = (await tester.runAsync(open))!;
     await search(tester, state, 'zzzqqq');
     expect(find.text('No verse in the ${state.settings.translation} has those words.'), findsOneWidget);
+  });
+
+  testWidgets('a lone function word says it is in too many verses', (tester) async {
+    final state = (await tester.runAsync(open))!;
+    await search(tester, state, 'the');
+    expect(find.text('"the" is in too many verses to list. Add another word.'), findsOneWidget);
   });
 }
