@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
-  test('study and notes export to Markdown with cited passages', () {
+  test('notes export to Markdown, and text a person did not write says so', () {
     final raw = sqlite3.openInMemory()
       ..execute('''
         CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, chapter INTEGER, verse INTEGER, text TEXT);
@@ -15,17 +15,13 @@ void main() {
     final store = StudyStore(sqlite3.openInMemory());
     final ref = RefParser.parse('John 3:16').first;
     store.addNote(ref, 'Loved first.');
-    final c = store.createConversation('What does John 3:16 teach?');
-    store.addMessage(c, 'user', 'What does John 3:16 teach?', const []);
-    store.addMessage(c, 'assistant', 'It teaches love.', [ref]);
-
-    final study = studyMarkdown(store, db, c, 'BSB');
-    expect(study, startsWith('# What does John 3:16 teach?'));
-    expect(study, contains('> **John 3:16** For God so loved the world.'));
+    final verses = StudyStore.notesOnVersesNotebook(store.db);
+    store.addNotebookNote(verses, 'agape', kind: 'word', title: 'agape', verse: ref);
 
     final all = allNotesMarkdown(store, db, 'BSB');
     expect(all, contains('### John 3:16'));
+    expect(all, contains('> For God so loved the world.'));
     expect(all, contains('Loved first.'));
-    expect(all, contains('## What does John 3:16 teach?'));
+    expect(all, contains('_Shortened by an earlier version of Berea from a lexicon entry.'));
   });
 }

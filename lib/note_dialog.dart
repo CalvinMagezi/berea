@@ -4,6 +4,7 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'provenance_line.dart';
 import 'brand/prayer_icon.dart';
 import 'keep_sheet.dart';
 import 'notebooks_screen.dart';
@@ -339,6 +340,7 @@ class _NoteEditorState extends State<NoteEditor> {
                   noteDate(widget.note?.updated ?? DateTime.now()),
                   style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
                 ),
+                if (widget.note case final n?) ProvenanceLine(n.provenance),
                 if (_verse case final v?) ...[
                   const SizedBox(height: 8),
                   Align(

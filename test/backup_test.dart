@@ -31,7 +31,8 @@ void main() {
     expect(target.highlights(bookById(43), 3), {16});
     expect(target.planDaysDone('nt-90'), {1});
     expect(target.studyPageFor(RefParser.parse('Psalm 23:1').first)!.application, 'A');
-    expect(target.messages(c).single.text, 'Q?');
+    // The chat is gone from the app; a backup that holds it brings none of it back.
+    expect(target.messages(c), isEmpty);
     expect(contents.imports.keys, ['NIV']);
   });
 

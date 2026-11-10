@@ -2,6 +2,8 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'provenance.dart';
+import 'provenance_line.dart';
 import 'theme.dart';
 
 /// Observation, interpretation and application for one passage. The user writes it and
@@ -21,11 +23,13 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
   final _application = TextEditingController();
 
   AppState get s => widget.state;
+  var _provenance = provenancePerson;
 
   @override
   void initState() {
     super.initState();
     final saved = s.study.studyPageFor(widget.ref);
+    _provenance = saved?.provenance ?? provenancePerson;
     if (saved != null) {
       _observation.text = saved.observation;
       _interpretation.text = saved.interpretation;
@@ -71,7 +75,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
                 verses.map((v) => '${v.verse} ${v.text}').join(' '),
                 style: scriptureStyle(context).copyWith(fontSize: 17),
               ),
-              const SizedBox(height: 16),
+              ProvenanceLine(_provenance),
               const SizedBox(height: 16),
               _Section('Observation', 'What does the text say?', _observation),
               _Section('Interpretation', 'What does it mean?', _interpretation),

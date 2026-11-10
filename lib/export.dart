@@ -7,35 +7,10 @@ import 'package:file_picker/file_picker.dart';
 import 'plans.dart';
 import 'prayer_plan_store.dart';
 import 'prayer_store.dart';
+import 'provenance.dart';
 import 'study_store.dart';
 
-String _date(DateTime d) =>
-    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-/// One saved study as Markdown, with the verified passages it cited.
-String studyMarkdown(StudyStore store, BibleDb db, int conversationId, String translation) {
-  final c = store.conversation(conversationId)!;
-  final b = StringBuffer('# ${c.title}\n\n_Berea study, ${_date(c.updated)}_\n\n');
-  final cited = <Ref>{};
-  for (final m in store.messages(conversationId)) {
-    if (m.isUser) {
-      b.writeln('## ${m.text}\n');
-    } else {
-      b.writeln('${m.text}\n');
-      cited.addAll(m.refs);
-    }
-  }
-  if (cited.isNotEmpty) {
-    b.writeln('## Passages ($translation)\n');
-    for (final r in cited) {
-      final text = db.verses(r, translation: translation).map((v) => v.text).join(' ');
-      b.writeln('> **${r.label}** $text\n');
-    }
-  }
-  return b.toString();
-}
-
-/// Every note, notebook by notebook, and every saved study as one Markdown document.
+/// Every note, notebook by notebook, and the prayers as one Markdown document.
 String allNotesMarkdown(
   StudyStore store,
   BibleDb db,
@@ -51,13 +26,6 @@ String allNotesMarkdown(
     for (final n in notes) {
       b.writeln(_noteMarkdown(n, db, translation));
     }
-  }
-  final studies = [
-    ...store.conversations(),
-    for (final nb in notebooks) ...store.conversations(notebookId: nb['id'] as int),
-  ];
-  for (final c in studies) {
-    b.writeln(studyMarkdown(store, db, c.id, translation).replaceFirst('# ', '## '));
   }
   if (store.db.select('SELECT 1 FROM prayers LIMIT 1').isNotEmpty) {
     // One level down, so Prayer sits beside the notebooks under the document title.
@@ -80,7 +48,9 @@ String _noteMarkdown(Note n, BibleDb db, String translation) {
   final quote = verse == null
       ? ''
       : '> ${db.verses(verse, translation: translation).map((v) => v.text).join(' ')}\n\n';
-  return '### ${heading.isEmpty ? 'Note' : heading}\n\n$quote${n.text}\n';
+  final label = provenanceLabel(n.provenance);
+  final provenance = label == null ? '' : '_${label}_\n\n';
+  return '### ${heading.isEmpty ? 'Note' : heading}\n\n$quote$provenance${n.text}\n';
 }
 
 /// Lets the user choose where the file goes. Nothing is uploaded.

@@ -458,9 +458,10 @@ class NotebookStore extends ChangeNotifier {
     late int sourceId;
     _transaction(() {
       db.execute(
-        'INSERT INTO notebook_sources(notebook_id, kind, title, origin, text, note_id, created) '
-        'VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [notebookId, r.kind.name, r.title, r.origin, chunked.text, noteId, _now()],
+        'INSERT INTO notebook_sources(notebook_id, kind, title, origin, text, note_id, provenance, '
+        "created) VALUES (?, ?, ?, ?, ?, ?, COALESCE((SELECT provenance FROM notes WHERE id = ?), "
+        "'person'), ?)",
+        [notebookId, r.kind.name, r.title, r.origin, chunked.text, noteId, noteId, _now()],
       );
       sourceId = db.lastInsertRowId;
       final insert = db.prepare(

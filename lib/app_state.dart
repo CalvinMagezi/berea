@@ -141,7 +141,6 @@ class AppState extends ChangeNotifier {
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir, onFirstSetup));
     s.study = openStudy('${s.supportDir.path}/study.sqlite');
-    s.study.copyNotebookChats();
     s.prayerContent = prayerContent ?? await _loadPrayerContent();
     // Tests give their own support folder and never touch the notification plugin.
     if (supportDir == null && LocalNotificationsPlatform.supported) {
