@@ -56,7 +56,7 @@ void main() {
 
   /// Amen on the frame or a prayer, then past the moment in which a second tap is ignored.
   Future<void> amen(WidgetTester tester) async {
-    await tester.tap(find.text('Amen, next'));
+    await tester.tap(find.text('Next'));
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
   }
@@ -97,7 +97,7 @@ void main() {
     await amen(tester);
     expect(find.text('Bless the seed.'), findsOneWidget);
     await amen(tester);
-    await tester.tap(find.text('Amen'));
+    await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
     expect(find.text('Farming, rain and harvest'), findsWidgets);
   });
@@ -346,9 +346,9 @@ void main() {
     await tester.pumpWidget(app());
     await tester.tap(find.text('Pray now \u00B7 1 prayer'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Amen, next'));
+    await tester.tap(find.text('Next'));
     await tester.pump();
-    await tester.tap(find.text('Amen, next'));
+    await tester.tap(find.text('Next'));
     await tester.pump();
     expect(find.text('Confess line.'), findsOneWidget);
     expect(store.prayer(id)!.daysPrayed, 0);

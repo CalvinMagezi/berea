@@ -36,7 +36,7 @@ const parallelSideBySideWidth = 560.0;
 /// Tip T14, shown once on the first chapter until it is dismissed.
 const _tipKey = 'tipT14Done';
 const tipsOffKey = 'tipsOff';
-const tipT14 = 'Tap a verse to highlight it, write a note, pray it or ask about it.';
+const tipT14 = 'Tap a verse to highlight it, write a note or pray it.';
 
 /// Where the tip sits above the chapter bar, with no selection card under it.
 const _tipGap = 16.0;

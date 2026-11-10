@@ -205,7 +205,7 @@ void main() {
     expect(find.text(isaiah4110), findsOneWidget);
     expect(find.text('Wisdom in the new job'), findsNothing);
 
-    await tester.tap(find.text('Amen, next'));
+    await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
     expect(store.prayer(older)!.daysPrayed, 1);
     expect(find.text('2 of 2'), findsOneWidget);
@@ -230,7 +230,7 @@ void main() {
       await tester.pump();
       expect(find.text(lordsPrayerLines[i]), findsOneWidget);
     }
-    await tester.tap(find.text('Amen'));
+    await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
     expect(find.text('Bring it to God, and remember the answer'), findsOneWidget);
   });
@@ -245,7 +245,7 @@ void main() {
     await tester.pumpWidget(app());
 
     expect(find.text('ANSWERED · 1'), findsOneWidget);
-    expect(find.text('Amen, next'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
     expect(find.text('Our cell group on Thursday'), findsNWidgets(2));
     expect(find.byType(Switch), findsNothing);
 
@@ -402,9 +402,9 @@ void main() {
         home: PrayNowScreen(store: store, passage: fakePassage, translation: () => 'BSB'),
       ),
     );
-    await tester.tap(find.text('Amen, next'));
+    await tester.tap(find.text('Next'));
     await tester.pump();
-    await tester.tap(find.text('Amen, next'));
+    await tester.tap(find.text('Next'));
     await tester.pump();
     expect(store.prayer(second)!.daysPrayed, 0);
     expect(find.text('2 of 2'), findsOneWidget);
@@ -413,7 +413,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pump();
-    await tester.tap(find.text('Amen, next'));
+    await tester.tap(find.text('Next'));
     await tester.pump(const Duration(seconds: 1));
     await tester.tap(find.text('Skip'));
     await tester.pump();

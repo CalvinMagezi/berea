@@ -382,7 +382,7 @@ class _LinesPrayerScreenState extends State<LinesPrayerScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          FilledButton(onPressed: _next, child: Text(last ? 'Amen' : 'Amen, next')),
+          FilledButton(onPressed: _next, child: Text(last ? 'Done' : 'Next')),
         ],
       ),
     );

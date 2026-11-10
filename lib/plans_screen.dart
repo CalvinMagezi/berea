@@ -183,7 +183,7 @@ class _PlansScreenState extends State<PlansScreen> {
                     label: const Text('Pray these'),
                   ),
                   Text(
-                    prayed ? 'Day ${p.today} prayed' : 'Amen ticks day ${p.today}',
+                    prayed ? 'Day ${p.today} prayed' : 'Done ticks day ${p.today}',
                     style: _muted(context),
                   ),
                 ],
