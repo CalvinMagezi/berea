@@ -6,10 +6,6 @@ import 'package:test/test.dart';
 
 import 'support/bible.dart';
 
-/// About the size of the real system prompt and a beat instruction, in characters.
-const _systemChars = 3000;
-const _instructionChars = 800;
-
 void main() {
   if (needsFullDatabase case final why?) {
     test('these tests open the built Bible', () {}, skip: why);
@@ -88,7 +84,7 @@ void main() {
       'Psalms 119:9-16: BETH',
       'Psalms 119:17-24: GIMEL',
     ]);
-    expect(packet('Genesis 24').verses, hasLength(67), reason: 'past the prompt cap of 40');
+    expect(packet('Genesis 24').verses, hasLength(67), reason: 'past the cap of 40');
   });
 
   test('an Old Testament reading takes its witnesses from the New', () {
@@ -158,55 +154,12 @@ void main() {
       final to = p.witnesses.map((w) => w.to.label).toList();
       expect(to.toSet(), hasLength(to.length), reason: reading);
       expect(p.witnesses.every((w) => p.verses.any((v) => v.label == w.from.label)), isTrue);
-      final fits = promptFits(PromptBuilder('x' * _systemChars), 'y' * _instructionChars, Tier.mid);
-      final beat = packetBeats(p, fits).where((b) => b.beat == Beat.witnesses).single;
-      final shown = beat.context.passages.map((v) => v.label).toList();
-      expect(shown.toSet(), hasLength(shown.length), reason: 'no verse twice');
     }
   });
 
-  test('a whole long chapter builds and cuts quickly', () {
+  test('a whole long chapter builds quickly', () {
     final sw = Stopwatch()..start();
-    final p = packet('Psalm 119');
-    final fits = promptFits(PromptBuilder('x' * _systemChars), 'y' * _instructionChars, Tier.low);
-    final beats = packetBeats(p, fits);
-    expect(p.sections, hasLength(22));
-    expect(beats.where((b) => b.beat == Beat.verseWalk).length, greaterThanOrEqualTo(22));
+    expect(packet('Psalm 119').sections, hasLength(22));
     expect(sw.elapsed, lessThan(const Duration(seconds: 5)));
-  });
-
-  for (final tier in Tier.values) {
-    test('every beat reaches the $tier prompt whole, and the walk keeps every verse once', () {
-      final builder = PromptBuilder('x' * _systemChars);
-      final fits = promptFits(builder, 'y' * _instructionChars, tier);
-      for (final reading in ['John 3:1-21', 'Genesis 24', 'Psalm 119:1-24']) {
-        final p = packet(reading, commentary: longPack());
-        final beats = packetBeats(p, fits);
-        expect(beats.first.beat, Beat.opening);
-        expect(beats.last.beat, Beat.close);
-        for (final b in beats) {
-          expect(fits(b.context), isTrue, reason: '$reading ${b.beat} on $tier');
-        }
-        final walked = [
-          for (final b in beats.where((b) => b.beat == Beat.verseWalk)) ...b.context.passages,
-        ];
-        expect(walked.map((v) => v.label), p.verses.map((v) => v.label), reason: reading);
-      }
-    });
-  }
-
-  test('the low tier still shows commentary in the verse walk', () {
-    final fits = promptFits(PromptBuilder('x' * _systemChars), 'y' * _instructionChars, Tier.low);
-    final beats = packetBeats(packet('John 3:1-21', commentary: longPack()), fits);
-    expect(
-      beats.where((b) => b.beat == Beat.verseWalk).expand((b) => b.context.sources),
-      isNotEmpty,
-    );
-  });
-
-  test('an empty packet has no beats', () {
-    final p = buildStudyPacket(db, const []);
-    expect(p.isEmpty, isTrue);
-    expect(packetBeats(p, (_) => true), isEmpty);
   });
 }

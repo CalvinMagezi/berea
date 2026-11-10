@@ -1,5 +1,5 @@
 name: berea_harness
-description: Pure Dart grounding harness for Berea. Retrieval, prompt building, citation guard, engines.
+description: Pure Dart harness for Berea. Scripture search, notebook index, citation guard, site export.
 version: 0.1.0
 publish_to: none
 
