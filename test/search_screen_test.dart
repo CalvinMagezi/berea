@@ -31,7 +31,7 @@ void main() {
   Future<AppState> open() async {
     final dir = Directory.systemTemp.createTempSync('berea-search');
     dirs.add(dir);
-    SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name, 'tipT14Done': true});
+    SharedPreferences.setMockInitialValues({'tipT14Done': true});
     return AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),

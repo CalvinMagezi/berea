@@ -22,7 +22,7 @@ void main() {
 
   setUp(() async {
     dir = Directory.systemTemp.createTempSync('berea-words');
-    SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name});
+    SharedPreferences.setMockInitialValues({});
     s = await AppState.bootstrap(supportDir: dir, prefs: await SharedPreferences.getInstance());
   });
   tearDown(() => dir.deleteSync(recursive: true));

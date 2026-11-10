@@ -66,7 +66,6 @@ void main() {
     final dir = Directory.systemTemp.createTempSync('berea-ties');
     dirs.add(dir);
     SharedPreferences.setMockInitialValues({
-      'engine': EngineKind.ollama.name,
       'tipT14Done': true,
       // Folded, as on any look after the first of the day.
       'todayCardFullOn': dayKey(DateTime.now()),

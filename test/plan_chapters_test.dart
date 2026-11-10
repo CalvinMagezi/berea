@@ -119,7 +119,7 @@ void main() {
 
     setUp(() async {
       dir = Directory.systemTemp.createTempSync('berea-plan-restore');
-      SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name});
+      SharedPreferences.setMockInitialValues({});
       ensureBereaDbAssets();
       s = await AppState.bootstrap(supportDir: dir, prefs: await SharedPreferences.getInstance());
       s.startPlan(plan);

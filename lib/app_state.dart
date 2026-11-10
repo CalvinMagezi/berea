@@ -232,10 +232,6 @@ class AppState extends ChangeNotifier {
     return file.path;
   }
 
-  static String _stripFrontMatter(String raw) {
-    final i = raw.indexOf('\n---\n');
-    return (i < 0 ? raw : raw.substring(i + 5)).trim();
-  }
 
   Directory get importsDir => Directory('${supportDir.path}/imports')..createSync(recursive: true);
 

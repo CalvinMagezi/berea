@@ -5,7 +5,6 @@ import 'package:berea/app_state.dart';
 import 'package:berea/home_shell.dart';
 import 'package:berea/licences.dart';
 import 'package:berea/notebook_store.dart';
-import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -119,46 +118,14 @@ Future<void> addPdf(WidgetTester tester, AppState s, int id, Directory dir) asyn
   await tester.pumpAndSettle();
 }
 
-/// Answers with fixed text in place of a model, so the chat path runs without one.
-class _Scripted implements LlmEngine {
-  final String text;
-  _Scripted(this.text);
-
-  @override
-  String get name => 'scripted';
-
-  @override
-  Stream<String> generate(List<ChatMessage> messages, {required int maxTokens}) async* {
-    yield text;
-  }
-}
-
-/// Pins the PDF, asks in the notebook's chat, and opens the cited page from its chip.
-Future<void> chatWithNotebook(WidgetTester tester, AppState s, int id) async {
-  final pdf = s.notebooks.sources(id).firstWhere((x) => x.kind == SourceKind.pdf);
-  await tester.tap(find.byTooltip('Pin to every answer').last);
+/// Searches the notebook from its own screen and finds the PDF's second page.
+Future<void> searchNotebook(WidgetTester tester, AppState s, int id) async {
+  await tester.tap(find.text('Search this notebook'));
   await tester.pumpAndSettle();
-  expect(s.notebooks.pinnedSources(id), [pdf.id]);
-  s.harness = Harness(
-    db: s.db,
-    engine: _Scripted('The second page speaks of peace [S${pdf.id} p.2].'),
-    systemPrompt: s.systemPrompt,
-  );
-  s.touch();
-  await tester.tap(find.text('Ask about these sources'));
+  await tester.enterText(find.byType(TextField), 'loving peace');
+  await tester.testTextInput.receiveAction(TextInputAction.search);
   await tester.pumpAndSettle();
-  expect(find.text('Ask about your sources'), findsOneWidget);
-  await tester.enterText(find.byType(TextField), 'What is on the second page?');
-  await tester.testTextInput.receiveAction(TextInputAction.send);
-  final chip = find.textContaining('S${pdf.id} p.2 · smoke-two-pages.pdf');
-  await pumpUntil(tester, chip);
-  expect(s.notebooks.messages(id), hasLength(2));
-  await tester.tap(chip);
-  await tester.pumpAndSettle();
-  expect(find.byKey(const ValueKey('cited-section')), findsOneWidget);
-  expect(find.text('PAGE 2'), findsOneWidget);
-  await tester.pageBack();
-  await tester.pumpAndSettle();
+  expect(find.textContaining('smoke-two-pages.pdf'), findsWidgets);
   await tester.pageBack();
   await tester.pumpAndSettle();
 }
@@ -200,7 +167,7 @@ void main() {
     expect(hits.map((h) => h.title), contains('smoke-two-pages.pdf'));
     expect(hits.firstWhere((h) => h.kind == SourceKind.pdf).page, 2);
     expect(s.notebooks.search(id, 'separate').map((h) => h.kind).toSet(), {SourceKind.passage});
-    await chatWithNotebook(tester, s, id);
+    await searchNotebook(tester, s, id);
 
     await deleteNotebook(tester);
     expect(s.notebooks.notebook(id), isNull);

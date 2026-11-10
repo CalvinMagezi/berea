@@ -146,7 +146,7 @@ void main() {
   Future<AppState> open({Map<String, Object> prefs = const {}, FakePlatform? platform}) async {
     final dir = Directory.systemTemp.createTempSync('berea-reminder');
     dirs.add(dir);
-    SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name, ...prefs});
+    SharedPreferences.setMockInitialValues({...prefs});
     final s = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),

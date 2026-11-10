@@ -1,17 +1,16 @@
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
-import 'package:berea/chat_screen.dart';
+import 'package:berea/bible_button.dart';
 import 'package:berea/home_shell.dart';
-import 'package:berea/models.dart';
-import 'package:berea/notebook_ask_panel.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/notes_screen.dart';
 import 'package:berea/plans_screen.dart';
 import 'package:berea/prayer_pray_now.dart';
 import 'package:berea/prayer_screen.dart';
 import 'package:berea/reader_screen.dart';
-import 'package:berea/study_button.dart';
+import 'package:berea/practice_screen.dart';
+import 'package:berea/search_screen.dart';
 import 'package:berea/theme.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
@@ -29,9 +28,8 @@ const _shortPhoneHeight = 560.0;
 /// Over the shell's breakpoint, so the sidebar shows, but leaves the places too little room for
 /// two panes.
 const _narrowMac = Size(900, 800);
-const _places = ['Bible', 'Plans', 'Study', 'Prayer', 'Notes'];
-
-final _model = edgeModels.first;
+const _places = ['Bible', 'Plans', 'Practice', 'Prayer', 'Notes'];
+const _barPlaces = ['Plans', 'Practice', 'Bible', 'Prayer', 'Notes'];
 
 void main() {
   if (needsBibleText case final why?) {
@@ -47,7 +45,7 @@ void main() {
 
   setUpAll(() async {
     dir = Directory.systemTemp.createTempSync('berea-shell-test');
-    SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name});
+    SharedPreferences.setMockInitialValues({});
     launch.start();
     state = await AppState.bootstrap(
       supportDir: dir,
@@ -59,9 +57,6 @@ void main() {
   });
   tearDownAll(() => dir.deleteSync(recursive: true));
 
-  /// Whether the helper had not yet started when the shell first built.
-  bool? shellBeforeHelper;
-
   Future<void> pumpShell(WidgetTester tester, Size size, {TargetPlatform? platform}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -69,62 +64,53 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: bereaTheme(Brightness.light).copyWith(platform: platform),
-        home: Builder(
-          builder: (context) {
-            shellBeforeHelper ??= state.harness == null && state.helperState is HelperChecking;
-            return HomeShell(state: state);
-          },
-        ),
+        home: HomeShell(state: state),
       ),
     );
   }
 
-  test('bootstrap opens the Bible without loading the helper', () {
+  test('bootstrap opens the Bible and reports how long it took', () {
     // A fresh folder copies the bundled Bible, which is when the setup screen says so.
     expect(setUpCalls, 1);
-    expect(state.harness, isNull);
-    expect(state.helperState, isA<HelperChecking>());
     // ignore: avoid_print
     print('Bootstrap to Bible ready: ${launch.elapsedMilliseconds} ms (first launch, with copy)');
   });
 
-  testWidgets('the Bible is on screen in the first frame, before the helper is ready', (
+  testWidgets('the Bible is on screen in the first frame', (tester) async {
+    await pumpShell(tester, _phone);
+    expect(find.byType(ReaderScreen), findsOneWidget);
+    expect(find.byType(PracticeScreen), findsNothing, reason: 'Practice waits offstage');
+  });
+
+  testWidgets('the phone bar has five places in order, the Bible raised in the middle', (
     tester,
   ) async {
     await pumpShell(tester, _phone);
-    expect(shellBeforeHelper, isTrue, reason: 'the helper starts after the first frame');
-    expect(find.byType(ReaderScreen), findsOneWidget);
-    expect(find.byType(ChatScreen), findsNothing, reason: 'Study waits offstage');
-    await tester.pump();
-    await tester.pump();
-    expect(state.helperState, isA<HelperReady>());
-    expect(state.harness, isNotNull);
-  });
-
-  testWidgets('the phone bar has five places in order, Study raised in the middle', (tester) async {
-    await pumpShell(tester, _phone);
-    final xs = [for (final p in _places) tester.getCenter(find.text(p).last).dx];
+    final xs = [for (final p in _barPlaces) tester.getCenter(find.text(p).last).dx];
     expect(xs, [...xs]..sort());
-    final study = tester.getRect(find.byType(StudyButton));
-    final bible = tester.getRect(find.text('Bible').last);
-    expect(study.top, lessThan(bible.top - studyButtonSize / 2), reason: 'Study is raised');
-    expect((study.center.dx - _phone.width / 2).abs(), lessThan(1));
+    final bibleButton = tester.getRect(find.byType(BibleButton));
+    final plans = tester.getRect(find.text('Plans').last);
+    expect(bibleButton.top, lessThan(plans.top - bibleButtonSize / 2), reason: 'the Bible is raised');
+    expect((bibleButton.center.dx - _phone.width / 2).abs(), lessThan(1));
 
-    await tester.tap(find.text('Study').last);
+    await tester.tap(find.text('Practice').last);
     await tester.pump();
-    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(find.byType(PracticeScreen), findsOneWidget);
     expect(find.byType(ReaderScreen), findsNothing);
-    expect(find.byTooltip('Ask Berea'), findsNothing, reason: 'Study is always one tap');
+
+    await tester.tap(find.byType(BibleButton));
+    await tester.pump();
+    expect(find.byType(ReaderScreen), findsOneWidget);
   });
 
   testWidgets('the bar hides under the keyboard', (tester) async {
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetViewInsets);
     await pumpShell(tester, _phone);
-    expect(find.byType(StudyButton), findsNothing);
+    expect(find.byType(BibleButton), findsNothing);
   });
 
-  testWidgets('the Mac sidebar keeps the order, takes Cmd 1 to 5 and shows the helper', (
+  testWidgets('the Mac sidebar keeps the order, takes Cmd 1 to 5 and Cmd F', (
     tester,
   ) async {
     await pumpShell(tester, _mac);
@@ -132,20 +118,25 @@ void main() {
     final ys = [for (final p in _places) tester.getCenter(find.text(p).first).dy];
     expect(ys, [...ys]..sort());
     expect(tester.getSize(find.text('NOTEBOOKS')).width, greaterThan(0));
-    expect(find.textContaining('Helper ready · Ollama on this'), findsOneWidget);
 
     final modifier = Platform.isMacOS ? LogicalKeyboardKey.meta : LogicalKeyboardKey.control;
     await tester.sendKeyDownEvent(modifier);
     await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
     await tester.sendKeyUpEvent(modifier);
     await tester.pump();
-    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(find.byType(PracticeScreen), findsOneWidget);
 
     await tester.sendKeyDownEvent(modifier);
     await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
     await tester.sendKeyUpEvent(modifier);
     await tester.pump();
     expect(find.byType(ReaderScreen), findsOneWidget);
+
+    await tester.sendKeyDownEvent(modifier);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(modifier);
+    await tester.pumpAndSettle();
+    expect(find.byType(SearchScreen), findsOneWidget);
   });
 
   testWidgets('Settings opens from the sidebar, from Cmd comma, and from each place', (
@@ -153,10 +144,10 @@ void main() {
   ) async {
     await pumpShell(tester, _mac);
     await tester.pump();
-    final engine = find.text('Engine');
+    final dialog = find.text('Cancel');
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
-    expect(engine, findsOneWidget);
+    expect(dialog, findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
@@ -165,7 +156,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.comma);
     await tester.sendKeyUpEvent(modifier);
     await tester.pumpAndSettle();
-    expect(engine, findsOneWidget);
+    expect(dialog, findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
@@ -176,21 +167,12 @@ void main() {
     }
   });
 
-  testWidgets('the sidebar speaks Study as the button does, and reads its caption as a word', (
+  testWidgets('the sidebar reads its caption as a word, with a row sized for the pointer', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
     await pumpShell(tester, _mac, platform: TargetPlatform.macOS);
     await tester.pump();
-    expect(
-      tester.getSemantics(find.bySemanticsLabel('Study, ask Berea, helper ready')),
-      matchesSemantics(
-        label: 'Study, ask Berea, helper ready',
-        isButton: true,
-        hasSelectedState: true,
-        hasTapAction: true,
-      ),
-    );
     expect(find.bySemanticsLabel('Notebooks'), findsOneWidget);
     expect(find.bySemanticsLabel('NOTEBOOKS'), findsNothing);
     final row = find.ancestor(of: find.text('Plans'), matching: find.byType(SizedBox)).first;
@@ -212,12 +194,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(NotebookScreen), findsOneWidget);
     expect(find.text('NOTEBOOKS'), findsOneWidget);
-
-    // Ask about this notebook, from inside it, keeps the notebook and talks beside it.
-    await tester.tap(find.widgetWithText(FilledButton, 'Ask about this notebook'));
-    await tester.pumpAndSettle();
-    expect(find.byType(NotebookScreen), findsOneWidget);
-    expect(find.byType(NotebookAskPanel), findsOneWidget);
     state.notebooks.deleteNotebook(id);
   });
 
@@ -243,7 +219,7 @@ void main() {
     expect(lit('Sunday sermons'), isTrue);
     expect(lit('Notes'), isFalse);
 
-    await tester.tap(find.byType(BackButton));
+    await tester.tap(find.byType(BackButton).first);
     await tester.pumpAndSettle();
     expect(lit('Notes'), isTrue);
     // Notes beside the sidebar is wide enough for its list and detail.
@@ -293,7 +269,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(NotebookScreen), findsOneWidget);
     // The bar stays under a notebook.
-    expect(find.byType(StudyButton), findsOneWidget);
+    expect(find.byType(BibleButton), findsOneWidget);
     state.notebooks.deleteNotebook(id);
   });
 
@@ -321,37 +297,6 @@ void main() {
     await tester.tap(find.text('Start a reading plan'));
     await tester.pumpAndSettle();
     expect(find.byType(PlansScreen), findsOneWidget);
-  });
-
-  testWidgets('Ask about this notebook opens Study scoped to it', (tester) async {
-    final id = state.notebooks.createNotebook('Romans with the youth');
-    await pumpShell(tester, _phone);
-    state.askAboutNotebook(id);
-    await tester.pump();
-    expect(find.byType(ChatScreen), findsOneWidget);
-    expect(state.studyScope.value, id);
-    state.studyScope.value = null;
-    state.notebooks.deleteNotebook(id);
-  });
-
-  testWidgets('while the helper downloads, the Study button opens the download details', (
-    tester,
-  ) async {
-    await pumpShell(tester, _phone);
-    final before = state.helperState;
-    state.helperState = HelperDownloading(
-      0.42,
-      model: _model,
-      total: 2600000000,
-      waitingForWifi: true,
-    );
-    await tester.pump();
-    await tester.tap(find.byType(StudyButton));
-    await tester.pumpAndSettle();
-    expect(find.text('Paused, waiting for Wi-Fi'), findsOneWidget);
-    expect(find.text('Use mobile data for the 1.5 GB left'), findsOneWidget);
-    expect(find.byType(ReaderScreen), findsOneWidget, reason: 'the Bible stays the place');
-    state.helperState = before;
   });
 
   testWidgets('reading stays quiet: the chapter footer has Previous and Next, no Ask', (

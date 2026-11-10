@@ -33,7 +33,7 @@ void main() {
   Future<AppState> open(Map<String, Object> prefs) async {
     final dir = Directory.systemTemp.createTempSync('berea-bible-home');
     dirs.add(dir);
-    SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name, ...prefs});
+    SharedPreferences.setMockInitialValues({...prefs});
     return AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
