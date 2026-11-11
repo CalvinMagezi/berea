@@ -11,12 +11,7 @@ const _minQueryLength = 2;
 // Long enough that typing a word does not search each letter, short enough to feel immediate.
 const _searchDelay = Duration(milliseconds: 300);
 
-/// Opens the Bible search from any place.
-void openSearch(BuildContext context, AppState state) => Navigator.of(context).push(
-  MaterialPageRoute<void>(builder: (_) => SearchScreen(state: state)),
-);
-
-/// The search button every place carries, so search is one tap away wherever the reader is.
+/// The search icon some places carry; it shows the Search place.
 class SearchButton extends StatelessWidget {
   final AppState state;
   const SearchButton({super.key, required this.state});
@@ -25,14 +20,17 @@ class SearchButton extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(
     tooltip: 'Search the Bible',
     icon: const Icon(Icons.search),
-    onPressed: () => openSearch(context, state),
+    onPressed: state.openSearch,
   );
 }
 
 /// Full-text search over the current translation. A reference in the query jumps straight to it.
 class SearchScreen extends StatefulWidget {
   final AppState state;
-  const SearchScreen({super.key, required this.state});
+
+  /// True while Search is the place on screen. It takes the keyboard when it becomes so.
+  final bool active;
+  const SearchScreen({super.key, required this.state, this.active = true});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -43,6 +41,7 @@ class _SearchScreenState extends State<SearchScreen> {
   var _groups = const <SearchGroup>[];
   Spelling? _spelling;
   final _field = TextEditingController();
+  final _focus = FocusNode();
   // The empty-state line waits for a finished search, not the pause before it.
   var _searched = false;
   var _searching = false;
@@ -51,10 +50,40 @@ class _SearchScreenState extends State<SearchScreen> {
   Timer? _pending;
 
   @override
+  void didUpdateWidget(SearchScreen old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !old.active) {
+      // The place is on screen only after this frame; focus then, not while it is still hidden.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.active) _focus.requestFocus();
+      });
+    } else if (!widget.active && old.active) {
+      _release();
+    }
+  }
+
+  @override
   void dispose() {
     _pending?.cancel();
     _field.dispose();
+    _focus.dispose();
     super.dispose();
+  }
+
+  /// Puts the keyboard away by handing focus back to the shell, which owns the place shortcuts.
+  /// Unfocusing the field alone would leave focus on the route, above the shortcuts.
+  void _release() {
+    // The places sit in an IndexedStack, whose own focus node cannot take focus; the next one up
+    // is the shell's.
+    var holder = Focus.maybeOf(context);
+    while (holder != null && !holder.canRequestFocus) {
+      holder = holder.parent;
+    }
+    if (holder != null) {
+      holder.requestFocus();
+    } else {
+      _focus.unfocus();
+    }
   }
 
   void _onChanged(String value) {
@@ -104,8 +133,8 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _open(Ref ref) {
-    widget.state.setReader(ref.book, ref.chapter, ref.verseStart);
-    Navigator.pop(context);
+    _release();
+    widget.state.openInReader(ref);
   }
 
   @override
@@ -117,9 +146,11 @@ class _SearchScreenState extends State<SearchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: TextField(
-          autofocus: true,
+          autofocus: widget.active,
           controller: _field,
+          focusNode: _focus,
           onChanged: _onChanged,
+          textInputAction: TextInputAction.search,
           decoration: InputDecoration(
             hintText: 'Search $translation or type a reference',
             filled: false,
@@ -132,6 +163,7 @@ class _SearchScreenState extends State<SearchScreen> {
           constraints: const BoxConstraints(maxWidth: contentMaxWidth),
           child: ListView(
             padding: const EdgeInsets.only(bottom: 24),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               if (_searching) const LinearProgressIndicator(),
               for (final r in refs)
@@ -177,7 +209,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
               ],
               for (final g in _groups) ...[
-                _GroupHeader(state: widget.state, group: g),
+                _GroupHeader(group: g),
                 for (final v in g.verses)
                   ListTile(
                     title: Text(
@@ -199,18 +231,10 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 }
 
-// True for search groups whose hits are Scripture rather than headings or dictionary entries.
-bool _isScriptureGroup(String label) =>
-    label.startsWith('Exact words') ||
-    label.startsWith('Other forms') ||
-    label.startsWith('All your words') ||
-    RegExp(r'^\d+\s+of\s+').hasMatch(label);
-
 /// Names how the verses below were found, and how many there are, so the order is checkable.
 class _GroupHeader extends StatelessWidget {
-  final AppState state;
   final SearchGroup group;
-  const _GroupHeader({required this.state, required this.group});
+  const _GroupHeader({required this.group});
 
   @override
   Widget build(BuildContext context) {
@@ -218,39 +242,14 @@ class _GroupHeader extends StatelessWidget {
     final count = shown < group.total
         ? '$shown of ${group.total} verses, in Bible order'
         : '${group.total} ${group.total == 1 ? 'verse' : 'verses'}, in Bible order';
-    final text = Text(
-      '${group.label} · $count',
-      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-    );
-    final canSave = _isScriptureGroup(group.label);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-      child: canSave
-          ? Row(
-              children: [
-                Expanded(child: text),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  onPressed: () {
-                    final refs = [
-                      for (final v in group.verses)
-                        Ref(v.book, v.chapter, v.verse, v.verse),
-                    ];
-                    state.practice.saveSet(refs);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Saved as a set.')),
-                    );
-                  },
-                  child: const Text('Save as a set'),
-                ),
-              ],
-            )
-          : text,
+      child: Text(
+        '${group.label} · $count',
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     );
   }
 }

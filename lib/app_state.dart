@@ -19,7 +19,6 @@ import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'reminder_platform.dart';
 import 'plans.dart';
-import 'practice_store.dart';
 import 'prayer_plan_store.dart';
 import 'prayer_sheet.dart' show passageText;
 import 'prayer_store.dart';
@@ -107,7 +106,6 @@ class AppState extends ChangeNotifier {
   /// Prayers share study.sqlite, so they are backed up and restored with the notes.
   late final PrayerStore prayers = PrayerStore(study.db);
   late final PrayerPlanStore prayerPlans = PrayerPlanStore(study.db);
-  late final PracticeStore practice = PracticeStore(study.db);
 
   /// Said once after an update that removed the helper or the chat; null otherwise.
   String? upgradeNotice;
@@ -356,6 +354,11 @@ class AppState extends ChangeNotifier {
 
   /// Asks the shell to show Plans.
   final openPlansRequest = ValueNotifier<int>(0);
+
+  /// Asks the shell to show Search, with the keyboard up.
+  final openSearchRequest = ValueNotifier<int>(0);
+
+  void openSearch() => openSearchRequest.value++;
 
   /// Bumped when what Prayer shows for today may have changed: a new day, a plan started or stopped
   /// or a restore. The Prayer place listens to this, not to every change of the app.
@@ -654,7 +657,6 @@ class AppState extends ChangeNotifier {
     notebooks.refresh();
     prayers.refresh();
     prayerPlans.refresh();
-    practice.refresh();
     dayChanged.value++;
     _keepTranslationValid();
     return skipped;

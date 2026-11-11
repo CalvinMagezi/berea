@@ -16,7 +16,6 @@ import 'prayer_sheet.dart' show passageText, shareOrigin, shareText;
 import 'selection_bar.dart';
 import 'settings_sheet.dart';
 import 'study_page_screen.dart';
-import 'search_screen.dart';
 import 'section_notebook.dart';
 import 'theme.dart';
 import 'today_card.dart';
@@ -489,10 +488,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           IconButton(
             tooltip: 'Search',
             icon: const Icon(Icons.search),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(builder: (_) => SearchScreen(state: s)),
-            ),
+            onPressed: s.openSearch,
           ),
           PopupMenuButton<String?>(
             tooltip: 'Parallel translation',

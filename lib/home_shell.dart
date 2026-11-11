@@ -6,28 +6,25 @@ import 'package:flutter/services.dart';
 
 import 'app_state.dart';
 import 'brand/prayer_icon.dart';
-import 'bible_button.dart';
 import 'notes_screen.dart';
 import 'plans_screen.dart';
-import 'practice_screen.dart';
 import 'prayer_screen.dart';
 import 'reader_screen.dart';
+import 'search_place_button.dart';
 import 'search_screen.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
 
 const sidebarWidth = 232.0;
 
-/// The five places, in the order of the sidebar and the shortcut digits.
-enum HomeTab { bible, plans, practice, prayer, notes }
-
-/// The phone bar puts the Bible in the raised middle slot.
-const barOrder = [HomeTab.plans, HomeTab.practice, HomeTab.bible, HomeTab.prayer, HomeTab.notes];
+/// The five places, in the order of the phone bar, the sidebar and the shortcut digits: the Bible
+/// first, and Search raised in the middle of the phone bar.
+enum HomeTab { bible, plans, search, prayer, notes }
 
 const _placeLabels = {
   HomeTab.bible: 'Bible',
   HomeTab.plans: 'Plans',
-  HomeTab.practice: 'Practice',
+  HomeTab.search: 'Search',
   HomeTab.prayer: 'Prayer',
   HomeTab.notes: 'Notes',
 };
@@ -64,6 +61,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.openReaderRequest.addListener(_jumpToBible);
     widget.state.openNotebookRequest.addListener(_openRequestedNotebook);
     widget.state.openPlansRequest.addListener(_openPlans);
+    widget.state.openSearchRequest.addListener(_openSearch);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(widget.state.syncReminder());
       _sayUpgrade();
@@ -96,6 +94,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   void _openPlans() => _select(HomeTab.plans);
 
+  void _openSearch() => _select(HomeTab.search);
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {    // A day or more may have passed: schedule the next days of notifications again.
     if (state == AppLifecycleState.resumed) unawaited(widget.state.syncReminder());
@@ -107,15 +107,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.openReaderRequest.removeListener(_jumpToBible);
     widget.state.openNotebookRequest.removeListener(_openRequestedNotebook);
     widget.state.openPlansRequest.removeListener(_openPlans);
+    widget.state.openSearchRequest.removeListener(_openSearch);
     _notesRoutes.open.dispose();
     super.dispose();
   }
 
   void _select(HomeTab t) => setState(() => _tab = t);
-
-  void _openSearch() => Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => SearchScreen(state: widget.state)),
-  );
 
   /// The Notes place keeps its own pages, so a notebook opens under the bar or beside the
   /// sidebar, as the other places do.
@@ -147,7 +144,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         LogicalKeyboardKey.keyF,
         meta: Platform.isMacOS,
         control: !Platform.isMacOS,
-      ): _openSearch,
+      ): widget.state.openSearch,
       // Cmd comma, where a Mac app keeps its settings.
       SingleActivator(
         LogicalKeyboardKey.comma,
@@ -165,7 +162,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       children: [
         ReaderScreen(state: s),
         PlansScreen(state: s),
-        PracticeScreen(state: s),
+        SearchScreen(state: s, active: _tab == HomeTab.search),
         PrayerScreen(
           store: s.prayers,
           passage: passageLookupFor(s.db, () => s.settings.translation),
@@ -174,7 +171,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           todayPrayer: () => s.prayerOfTheDay,
           refresh: s.dayChanged,
           onSettings: () => showSettingsSheet(context, s),
-          onSearch: _openSearch,
+          onSearch: s.openSearch,
         ),
         NavigatorPopHandler(
           enabled: _tab == HomeTab.notes,
@@ -231,10 +228,11 @@ Widget _placeIcon(HomeTab t, {required bool selected}) => switch (t) {
   HomeTab.plans => Icon(selected ? Icons.calendar_today : Icons.calendar_today_outlined),
   HomeTab.prayer => const PrayerIcon(),
   HomeTab.notes => Icon(selected ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined),
-  HomeTab.practice => const Icon(Icons.repeat),
+  // Search is the raised button on the phone bar; this is the sidebar's row.
+  HomeTab.search => const Icon(Icons.search),
 };
 
-/// The phone bar: five equal places with the Bible raised in the middle, its circle cut from the bar.
+/// The phone bar: five equal places with Search raised in the middle, its circle cut from the bar.
 class _PlaceBar extends StatelessWidget {
   final AppState state;
   final HomeTab selected;
@@ -265,10 +263,10 @@ class _PlaceBar extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final t in barOrder)
+                for (final t in HomeTab.values)
                   Expanded(
-                    child: t == HomeTab.bible
-                        ? _BiblePlace(selected: selected == t, onTap: () => onSelect(t))
+                    child: t == HomeTab.search
+                        ? _SearchPlace(selected: selected == t, onTap: () => onSelect(t))
                         : _Place(tab: t, selected: selected == t, onTap: () => onSelect(t)),
                   ),
               ],
@@ -331,11 +329,11 @@ class _Place extends StatelessWidget {
   }
 }
 
-/// The Bible's place: the circle and its label are one target, like the other places.
-class _BiblePlace extends StatelessWidget {
+/// Search's place: the circle and its label are one target, like the other places.
+class _SearchPlace extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
-  const _BiblePlace({required this.selected, required this.onTap});
+  const _SearchPlace({required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -349,9 +347,9 @@ class _BiblePlace extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            BibleButton(selected: selected, onPressed: onTap),
+            SearchPlaceButton(selected: selected, onPressed: onTap),
             ExcludeSemantics(
-              child: Text(_placeLabels[HomeTab.bible]!, style: _labelStyle(scheme, selected)),
+              child: Text(_placeLabels[HomeTab.search]!, style: _labelStyle(scheme, selected)),
             ),
           ],
         ),

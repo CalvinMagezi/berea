@@ -9,12 +9,10 @@ and your own words, and nothing in it writes text for you.
   dictation, the helper download and its settings, and Gemma and Ollama support. The Android APK is
   58 MB where 0.8.0 was 102 MB. Updating deletes the downloaded model and voice files, which can free
   several GB, and the saved questions and answers. Notes you kept from an answer stay, and say so.
-- **The Bible is the middle button.** The phone bar is Plans, Practice, Bible, Prayer, Notes, with
-  the Bible raised. Search is one tap from every place, and Cmd or Ctrl F opens it on a computer.
-- **Practice.** Step through a passage a verse at a time, keep sets of passages (from your
-  highlights, from a search group, or one you save), hide words stage by stage, and recall a verse on
-  a ladder of 1, 2, 4, 8, 16, 32, 64 and 128 days. Due is worked out from the dates, so a phone that
-  was off for a week loses nothing. There are no streaks, scores or praise.
+- **The Bible comes first, and Search is the middle button.** The phone bar is Bible, Plans, Search,
+  Prayer, Notes, with Search raised. Search is a place of its own: it keeps your query while you read
+  a verse it found, and on a computer Cmd or Ctrl F opens it from anywhere. There is no Practice
+  place.
 - **Search that finds.** "Jesus" finds Jesus. Results come in groups, each in Bible order, each
   saying how its verses were found: exact words, other forms, all your words, some of them, one
   group for each Hebrew or Greek word STEPBible's tagging glosses with your word, and the headings
