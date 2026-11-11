@@ -2,6 +2,16 @@
 
 A plan, written 2026-11-10. Nothing in it is built.
 
+> **Update, 2026-11-11: Practice is dropped.** There is no Practice place and no mechanics for it
+> (section 7, the Practice items of sections 5, 11 and 12, Release C2, and decisions 2 and 3 as
+> they concern it). The bar stays Bible first, then Plans, **Search raised in the middle**, Prayer
+> and Notes, and the sidebar adds Study after them. The middle button opens Search, which now
+> looks past the verses: a word lists the Hebrew and Greek words behind it, and what the
+> installed commentaries say about it. That replaces "the centre button opens the Bible" and the
+> bar order in section 5. The chat is **not** removed by this note: Study stays, opened from
+> Search ("Ask Berea about ..."), from the sidebar and from the Ask buttons. The rest of the
+> plan is as written, and still unbuilt.
+
 It answers one request: remove the chat, put the Bible in the centre, add a place called
 Practice built solely from Scripture, shrink the AI to something that never writes, and make word
 study, commentary per verse and study depth more exact, with no personal opinions or ideas

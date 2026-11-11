@@ -6,7 +6,7 @@ import 'package:berea/commentary_sheet.dart';
 import 'package:berea/home_shell.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/selection_bar.dart';
-import 'package:berea/study_button.dart';
+import 'package:berea/search_button.dart';
 import 'package:berea/theme.dart';
 import 'package:berea/today.dart';
 import 'package:berea/voice.dart';
@@ -124,17 +124,17 @@ void main() {
   });
 
   for (final size in _phones) {
-    testWidgets('the card floats 24 px above the bar and the raised Study button at $size', (
+    testWidgets('the card floats 24 px above the bar and the raised Search button at $size', (
       tester,
     ) async {
       await pumpSelected(tester, size, [1]);
       expect(tester.takeException(), isNull, reason: 'no overflow');
       final card = tester.getRect(find.byType(SelectionBar));
-      final study = tester.getRect(find.byType(StudyButton));
+      final search = tester.getRect(find.byType(SearchButton));
       final barTop = tester.getRect(find.byType(ReaderScreen)).bottom;
-      expect(study.top, greaterThanOrEqualTo(barTop), reason: 'the bar holds the raised button');
+      expect(search.top, greaterThanOrEqualTo(barTop), reason: 'the bar holds the raised button');
       expect(card.bottom, lessThanOrEqualTo(barTop - selectionBarGap));
-      expect(card.bottom, lessThan(study.top));
+      expect(card.bottom, lessThan(search.top));
     });
   }
 

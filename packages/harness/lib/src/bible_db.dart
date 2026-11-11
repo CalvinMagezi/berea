@@ -91,6 +91,52 @@ class XRef {
   const XRef(this.to, this.votes);
 }
 
+/// How a Hebrew or Greek word came to be listed for a search.
+enum WordMatchKind {
+  /// The search was the word's Strong's number, such as G40.
+  number,
+
+  /// The search was the word's spelling in English letters ("hagios") or its own script.
+  original,
+
+  /// STEPBible's tagging glosses the word with an English word of the search.
+  glossed,
+
+  /// The lexicon's own gloss for the word holds an English word of the search.
+  defined,
+}
+
+/// A Hebrew or Greek word a search found, and why. Opens as a word study by its [code].
+class WordMatch {
+  final LexEntry entry;
+
+  /// The base Strong's number, such as H6918.
+  final String code;
+  final WordMatchKind kind;
+
+  /// The English word of the search that found it; empty for a number or a spelling.
+  final String term;
+
+  /// Times STEPBible's tagging glosses the word with [term]; 0 unless [kind] is
+  /// [WordMatchKind.glossed].
+  final int glossed;
+
+  /// Times and verses the word is used in the Bible.
+  final int uses;
+  final int verses;
+  const WordMatch({
+    required this.entry,
+    required this.code,
+    required this.kind,
+    required this.term,
+    required this.glossed,
+    required this.uses,
+    required this.verses,
+  });
+
+  String get language => entry.pos.startsWith('A:') ? 'Aramaic' : languageOf(code);
+}
+
 /// A heading printed before [verse]; see [HeadingRow] for the kinds.
 class Heading {
   final int verse;
@@ -116,6 +162,35 @@ const _headingRanks = ['ms', 's1', 's2', 'qa'];
     start: heading.verse,
     end: next.isEmpty ? last : next.reduce((a, b) => a < b ? a : b) - 1,
   );
+}
+
+/// How a word came to be a candidate for the word search, best first.
+enum _WordTier {
+  glossed(WordMatchKind.glossed),
+  defined(WordMatchKind.defined),
+  spelled(WordMatchKind.original);
+
+  final WordMatchKind kind;
+  const _WordTier(this.kind);
+}
+
+/// A word the search is considering, with everything that tied it to the query.
+class _WordCandidate {
+  final String code;
+  _WordTier? _tier;
+  final terms = <String>{};
+
+  /// The most times any of the query's words is the gloss STEPBible gives this word.
+  var glossed = 0;
+  _WordCandidate(this.code);
+
+  _WordTier get tier => _tier!;
+
+  void add(_WordTier tier, String term, {int glossed = 0}) {
+    if (_tier == null || tier.index < _tier!.index) _tier = tier;
+    if (term.isNotEmpty) terms.add(term);
+    if (glossed > this.glossed) this.glossed = glossed;
+  }
 }
 
 const defaultTranslation = 'BSB';
@@ -768,6 +843,143 @@ class BibleDb {
     final name = lemma == null ? code : '$lemma ($code)';
     final label = 'Verses with $name, which STEPBible\'s tagging glosses "$word" $times times';
     return SearchGroup(label, verses, present.length);
+  }
+
+  static final _strongsOnly = RegExp(r'^[HG]\d{1,4}[A-Z]?$');
+  static final _englishWord = RegExp(r'^[a-z]+$');
+  static final _spelledLetters = RegExp(r"^[A-Za-z.'\-·]+$");
+
+  /// Most words the lexicon scan and the gloss index may bring forward before ranking.
+  static const _wordCandidates = 300;
+
+  /// The shortest spelling that is searched by its first letters, so "ha" does not list every
+  /// word that starts with it, and the shortest that is searched at all.
+  static const _minSpellingPrefix = 4;
+  static const _minSpellingWord = 3;
+
+  /// The Hebrew and Greek words behind a search, for the search box's "Word studies" section.
+  /// None is picked over another, and each says why it is listed:
+  ///
+  /// 1. A Strong's number ("G40") lists that word alone.
+  /// 2. STEPBible's tagging glosses the word with an English word of the search, most often
+  ///    first ("holy" lists hagios and qadosh before the words glossed "holy" only now and then).
+  /// 3. The lexicon's own gloss for the word holds an English word of the search.
+  /// 4. The search is the word's spelling in English letters ("hagios", "qadosh") or its script.
+  ///
+  /// A word that holds more of the search's words comes before one that holds fewer. Empty when
+  /// the database has no word index, as the BSB-only database has none. It reads and never
+  /// writes, so a read-only connection may call it.
+  List<WordMatch> searchWords(String text, {int limit = 40}) {
+    if (!_hasGlossIndex || limit <= 0) return const [];
+    final typed = text.trim();
+    final tokens = searchTokens(text);
+    if (tokens.isEmpty) return const [];
+    if (_strongsOnly.hasMatch(typed.toUpperCase())) {
+      final code = strongsBase(typed.toUpperCase());
+      final entry = lexicon(code);
+      if (entry == null) return const [];
+      return [_wordMatch(entry, code, WordMatchKind.number, '', 0)];
+    }
+
+    final found = <String, _WordCandidate>{};
+    _WordCandidate candidate(String code) => found.putIfAbsent(code, () => _WordCandidate(code));
+    final content = {
+      for (final t in tokens)
+        if (t.length >= 2 && !searchStopWords.contains(t)) t,
+    };
+    for (final t in content) {
+      if (!_englishWord.hasMatch(t)) continue;
+      final stem = wordStem(t);
+      if (stem.length < 2 || searchStopWords.contains(stem)) continue;
+      for (final r in db.select(
+        'SELECT strongs, n FROM gloss_index WHERE term = ? AND n >= ? ORDER BY n DESC, strongs LIMIT ?',
+        [stem, _minFormUses, _wordCandidates],
+      )) {
+        candidate(r['strongs'] as String).add(_WordTier.glossed, t, glossed: r['n'] as int);
+      }
+      // "LIKE" narrows the lexicon to rows that might hold the word; the stems decide.
+      for (final r in db.select('SELECT base, gloss FROM lexicon WHERE gloss LIKE ?', ['%$t%'])) {
+        if (glossStems(r['gloss'] as String).contains(stem)) {
+          candidate(r['base'] as String).add(_WordTier.defined, t);
+        }
+      }
+    }
+    _spelledWords(typed, candidate);
+
+    // One grouped count for every candidate, so ranking by use is not a query per word.
+    final codes = found.keys.toList();
+    final uses = <String, int>{};
+    for (var i = 0; i < codes.length; i += _textChunk) {
+      final chunk = codes.sublist(i, min(i + _textChunk, codes.length));
+      for (final r in db.select(
+        'SELECT strongs, COUNT(*) AS n FROM word_index WHERE strongs IN '
+        '(${List.filled(chunk.length, '?').join(',')}) GROUP BY strongs',
+        chunk,
+      )) {
+        uses[r['strongs'] as String] = r['n'] as int;
+      }
+    }
+    // More of the search's words first; then how the word was found; then how much it is used.
+    int weight(_WordCandidate c) => c.tier == _WordTier.glossed ? c.glossed : uses[c.code] ?? 0;
+    final ranked = found.values.toList()
+      ..sort((a, b) {
+        final byWords = b.terms.length.compareTo(a.terms.length);
+        if (byWords != 0) return byWords;
+        final byTier = a.tier.index.compareTo(b.tier.index);
+        if (byTier != 0) return byTier;
+        final byUse = weight(b).compareTo(weight(a));
+        return byUse != 0 ? byUse : a.code.compareTo(b.code);
+      });
+
+    final out = <WordMatch>[];
+    for (final c in ranked) {
+      if (out.length >= limit) break;
+      final entry = lexicon(c.code);
+      if (entry == null) continue;
+      // A word that only fills a slot in a sentence says nothing about the search's word.
+      if (c.tier != _WordTier.spelled && isFunctionWord(entry)) continue;
+      out.add(_wordMatch(entry, c.code, c.tier.kind, c.terms.firstOrNull ?? '', c.glossed));
+    }
+    return out;
+  }
+
+  /// Adds the words whose spelling in English letters is [typed], or begins with it, or whose
+  /// own script is [typed].
+  void _spelledWords(String typed, _WordCandidate Function(String code) candidate) {
+    if (typed.isEmpty || typed.contains(RegExp(r'\s'))) return;
+    if (!_spelledLetters.hasMatch(typed)) {
+      for (final r in db.select('SELECT base FROM lexicon WHERE lemma = ?', [typed])) {
+        candidate(r['base'] as String).add(_WordTier.spelled, '');
+      }
+      return;
+    }
+    final plain = typed.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+    if (plain.length < _minSpellingWord) return;
+    // STEPBible spells Hebrew with dots between syllables ("qa.dosh").
+    const letters = "REPLACE(REPLACE(REPLACE(LOWER(translit), '.', ''), '-', ''), '·', '')";
+    final rows = plain.length >= _minSpellingPrefix
+        ? db.select('SELECT base FROM lexicon WHERE $letters LIKE ?', ['$plain%'])
+        : db.select('SELECT base FROM lexicon WHERE $letters = ?', [plain]);
+    for (final r in rows) {
+      candidate(r['base'] as String).add(_WordTier.spelled, '');
+    }
+  }
+
+  WordMatch _wordMatch(LexEntry entry, String code, WordMatchKind kind, String term, int glossed) {
+    final r = db.select(
+      "SELECT COUNT(*) AS n, COUNT(DISTINCT book || ':' || chapter || ':' || verse) AS v "
+      'FROM word_index WHERE strongs = ?',
+      [code],
+    ).first;
+    return WordMatch(
+      entry: entry,
+      code: code,
+      kind: kind,
+      term: term,
+      glossed: glossed,
+      uses: r['n'] as int,
+      verses: r['v'] as int,
+    );
   }
 
   static const _byBibleOrder = 'ORDER BY v.book, v.chapter, v.verse';

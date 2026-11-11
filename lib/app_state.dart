@@ -756,6 +756,38 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  /// The Hebrew and Greek words behind [query], found off the UI isolate like [searchVerses].
+  Future<List<WordMatch>> searchWords(String query, {int limit = 40}) {
+    final path = db.filePath;
+    if (path == null) return Future.value(db.searchWords(query, limit: limit));
+    return Isolate.run(() {
+      final reader = BibleDb(sqlite3.open(path, mode: OpenMode.readOnly));
+      try {
+        return reader.searchWords(query, limit: limit);
+      } finally {
+        reader.close();
+      }
+    });
+  }
+
+  /// What the installed commentaries say about [query], found off the UI isolate on connections
+  /// of its own, since the open packs belong to this one. Empty when none is installed.
+  Future<CommentarySearch> searchCommentary(String query, {int perModule = 5}) {
+    final packs = commentary.installedFiles();
+    if (packs.isEmpty) return Future.value(CommentarySearch.empty);
+    return Isolate.run(() {
+      final library = CommentaryLibrary();
+      try {
+        for (final (id, path) in packs) {
+          library.open(id, path);
+        }
+        return library.search(query, perModule: perModule);
+      } finally {
+        library.closeAll();
+      }
+    });
+  }
+
   /// Imports a user-owned translation from CSV, USFM, OSIS, Zefania or a zip of those, and keeps
   /// a normalised CSV copy so it survives database rebuilds. Parsing runs off the UI isolate, and
   /// an existing copy is only replaced once the new one has imported. Returns the verse count.
@@ -1131,11 +1163,23 @@ class AppState extends ChangeNotifier {
     openReaderRequest.value++;
   }
 
+  /// Asks the shell to show Search, with the keyboard up.
+  final openSearchRequest = ValueNotifier<int>(0);
+
+  void openSearch() => openSearchRequest.value++;
+
   void askAbout(Ref ref) =>
       pendingQuestion.value = 'Study ${ref.label}. What does it mean and how does it apply?';
 
   /// Sends a word study's question (see [wordStudyQuestion]) to the Study tab.
   void askAboutWord(String question) => pendingQuestion.value = question;
+
+  /// Sends what was typed in Search to the Study tab: a question as it was asked, and words as
+  /// "What does the Bible say about ...?", so a lone "holy" is something Study can answer.
+  void askBerea(String typed) {
+    final text = typed.trim();
+    pendingQuestion.value = text.endsWith('?') ? text : 'What does the Bible say about "$text"?';
+  }
 
   /// What Study answers from: a notebook's id, or null for the whole Bible.
   final studyScope = ValueNotifier<int?>(null);

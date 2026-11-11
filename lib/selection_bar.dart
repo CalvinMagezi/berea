@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'brand/lamp_mark.dart';
 import 'brand/prayer_icon.dart';
 
-/// Space between the phone card and the five-place bar, so the raised Study button never covers
+/// Space between the phone card and the five-place bar, so the raised Search button never covers
 /// an action.
 const selectionBarGap = 24.0;
 

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- The middle button on the phone bar now opens Search, and Bible is the first place on the bar:
+  Bible, Plans, Search, Prayer, Notes. The reader's search icon opens the same Search, and on a
+  computer Cmd or Ctrl F does. Study has no place on the bar any more. It opens from Search
+  ("Ask Berea about ..."), from the sidebar in a wide window (Cmd or Ctrl 6), and from the Ask
+  buttons in the reader, in word study and in notebooks. While the helper downloads, tapping the
+  sidebar's footer opens the download details that the Study button used to open.
+- Search goes past the verses. A word or short phrase also lists the Hebrew and Greek words behind
+  it, most used first, each saying why it is listed: "holy" finds qodesh, hagios and qadosh, and
+  "STEPBible glosses it 'holy' 168 times". It also searches the commentaries you have downloaded
+  and shows the best comments of each work with the words in bold, how many comments each work
+  has, and the passage each one is on. Choose Verses, Word studies or Commentary with the chips,
+  or tap a word to open its study with no verse to start from. A Strong's number ("G26") or a
+  Hebrew or Greek word spelled in English letters ("hagios", "qadosh") finds the word itself. A
+  short query lists the word studies and commentary first; a longer one, most likely a verse
+  being recalled, lists the verses first.
 - With a verse selected, swipe the verse itself (not only the card below it) right for
   Commentary or left for Words.
 - A brief answer to a question that names two or more passages is told to cite each one, so

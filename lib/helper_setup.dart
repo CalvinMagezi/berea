@@ -15,7 +15,7 @@ const _sectionGap = 20.0;
 const _labelSpacing = 1.2;
 const _labelSize = 12.0;
 
-/// The Berea mark in a Night circle, as on the Study button, in both themes.
+/// The Berea mark in a Night circle, as on the Search button, in both themes.
 class HelperMark extends StatelessWidget {
   final double size;
   const HelperMark({super.key, this.size = helperMarkSize});

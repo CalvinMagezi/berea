@@ -8,7 +8,7 @@ const _panelRadius = 14.0;
 const _progressHeight = 4.0;
 const _noteSize = 12.0;
 
-/// Download details, opened from the Study button while the helper downloads.
+/// Download details, opened from the sidebar's helper footer while the helper downloads.
 Future<void> showDownloadDetails(BuildContext context, AppState state) =>
     showModalBottomSheet<void>(
       context: context,

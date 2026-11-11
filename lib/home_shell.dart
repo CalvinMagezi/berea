@@ -9,26 +9,34 @@ import 'brand/lamp_mark.dart';
 import 'brand/prayer_icon.dart';
 import 'chat_screen.dart';
 import 'download_details_sheet.dart';
+import 'helper_status.dart';
 import 'notes_screen.dart';
 import 'plans_screen.dart';
 import 'prayer_screen.dart';
 import 'reader_screen.dart';
+import 'search_button.dart';
+import 'search_screen.dart';
 import 'setup_screen.dart';
-import 'study_button.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
 
 const sidebarWidth = 232.0;
 
-/// The five places, in the order they appear on the bar and in the sidebar.
-enum HomeTab { bible, plans, study, prayer, notes }
+/// The places, in the order of the sidebar and of Cmd or Ctrl 1 to 6. The first five are the
+/// phone bar, Bible first and Search raised in the middle. Study has no place on the bar: it
+/// opens from Search, from the sidebar, and from the Ask Berea buttons in the reader, in word
+/// study and in notebooks.
+enum HomeTab { bible, plans, search, prayer, notes, study }
+
+const _barPlaces = [HomeTab.bible, HomeTab.plans, HomeTab.search, HomeTab.prayer, HomeTab.notes];
 
 const _placeLabels = {
   HomeTab.bible: 'Bible',
   HomeTab.plans: 'Plans',
-  HomeTab.study: 'Study',
+  HomeTab.search: 'Search',
   HomeTab.prayer: 'Prayer',
   HomeTab.notes: 'Notes',
+  HomeTab.study: 'Study',
 };
 
 const _raise = 16.0;
@@ -67,6 +75,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.openStudyRequest.addListener(_openStudy);
     widget.state.openNotebookRequest.addListener(_openRequestedNotebook);
     widget.state.openPlansRequest.addListener(_openPlans);
+    widget.state.openSearchRequest.addListener(_openSearch);
     // The Bible is on screen first; the helper loads behind it.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.state.startHelper();
@@ -87,6 +96,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   void _openPlans() => _select(HomeTab.plans);
 
+  void _openSearch() => _select(HomeTab.search);
+
   /// The microphone stops listening as soon as Berea is not in front.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -103,6 +114,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.openStudyRequest.removeListener(_openStudy);
     widget.state.openNotebookRequest.removeListener(_openRequestedNotebook);
     widget.state.openPlansRequest.removeListener(_openPlans);
+    widget.state.openSearchRequest.removeListener(_openSearch);
     _notesRoutes.open.dispose();
     super.dispose();
   }
@@ -130,7 +142,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     nav.push(notebookRoute(widget.state, id));
   }
 
-  /// Cmd 1 to Cmd 5 on a Mac, Ctrl elsewhere, in the order of the places.
+  /// Cmd 1 to Cmd 6 on a Mac, Ctrl elsewhere, in the order of the places; and F for Search.
   Map<ShortcutActivator, VoidCallback> get _shortcuts {
     const digits = [
       LogicalKeyboardKey.digit1,
@@ -138,11 +150,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       LogicalKeyboardKey.digit3,
       LogicalKeyboardKey.digit4,
       LogicalKeyboardKey.digit5,
+      LogicalKeyboardKey.digit6,
     ];
     return {
       for (final t in HomeTab.values)
         SingleActivator(digits[t.index], meta: Platform.isMacOS, control: !Platform.isMacOS): () =>
             _select(t),
+      SingleActivator(
+        LogicalKeyboardKey.keyF,
+        meta: Platform.isMacOS,
+        control: !Platform.isMacOS,
+      ): widget.state.openSearch,
       // Cmd comma, where a Mac app keeps its settings.
       SingleActivator(
         LogicalKeyboardKey.comma,
@@ -160,7 +178,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       children: [
         ReaderScreen(state: s),
         PlansScreen(state: s),
-        ChatScreen(state: s),
+        SearchScreen(state: s, active: _tab == HomeTab.search),
         PrayerScreen(
           store: s.prayers,
           passage: passageLookupFor(s.db, () => s.settings.translation),
@@ -181,6 +199,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => NotesScreen(state: s)),
           ),
         ),
+        ChatScreen(state: s),
       ],
     );
     return CallbackShortcuts(
@@ -220,15 +239,18 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 }
 
+/// The icon of a place on the bar and in the sidebar. Search is the raised button on the bar, so
+/// this one is the sidebar's; Study's is the Berea mark, which the sidebar draws itself.
 Widget _placeIcon(HomeTab t, {required bool selected}) => switch (t) {
   HomeTab.bible => Icon(selected ? Icons.book : Icons.book_outlined),
   HomeTab.plans => Icon(selected ? Icons.calendar_today : Icons.calendar_today_outlined),
+  HomeTab.search => const Icon(Icons.search),
   HomeTab.prayer => const PrayerIcon(),
   HomeTab.notes => Icon(selected ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined),
   HomeTab.study => const SizedBox.shrink(),
 };
 
-/// The phone bar: five equal places with Study raised in the middle, its circle cut from the bar.
+/// The phone bar: five equal places with Search raised in the middle, its circle cut from the bar.
 class _PlaceBar extends StatelessWidget {
   final AppState state;
   final HomeTab selected;
@@ -259,17 +281,10 @@ class _PlaceBar extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final t in HomeTab.values)
+                for (final t in _barPlaces)
                   Expanded(
-                    child: t == HomeTab.study
-                        ? _StudyPlace(
-                            state: state,
-                            selected: selected == t,
-                            // While the helper downloads, the button opens its details.
-                            onTap: () => state.helperState is HelperDownloading
-                                ? showDownloadDetails(context, state)
-                                : onSelect(t),
-                          )
+                    child: t == HomeTab.search
+                        ? _SearchPlace(selected: selected == t, onTap: () => onSelect(t))
                         : _Place(tab: t, selected: selected == t, onTap: () => onSelect(t)),
                   ),
               ],
@@ -332,12 +347,11 @@ class _Place extends StatelessWidget {
   }
 }
 
-/// Study's place: the circle and its label are one target, like the other places.
-class _StudyPlace extends StatelessWidget {
-  final AppState state;
+/// Search's place: the circle and its label are one target, like the other places.
+class _SearchPlace extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
-  const _StudyPlace({required this.state, required this.selected, required this.onTap});
+  const _SearchPlace({required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -351,17 +365,9 @@ class _StudyPlace extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            ListenableBuilder(
-              listenable: state,
-              builder: (context, _) => StudyButton(
-                helper: state.helperState,
-                selected: selected,
-                writing: state.answering,
-                onPressed: onTap,
-              ),
-            ),
+            SearchButton(selected: selected, onPressed: onTap),
             ExcludeSemantics(
-              child: Text(_placeLabels[HomeTab.study]!, style: _labelStyle(scheme, selected)),
+              child: Text(_placeLabels[HomeTab.search]!, style: _labelStyle(scheme, selected)),
             ),
           ],
         ),
@@ -385,7 +391,8 @@ String helperFooter(AppState s) {
   return '$status · $engine';
 }
 
-/// The wide layout: the five places in the same order, notebooks under Notes, the helper below.
+/// The wide layout: the places in the same order with Study after them, notebooks below, the
+/// helper at the foot.
 class _Sidebar extends StatelessWidget {
   final AppState state;
   final HomeTab selected;
@@ -426,7 +433,7 @@ class _Sidebar extends StatelessWidget {
                           ? const _SidebarMark()
                           : _placeIcon(t, selected: selected == t),
                       label: _placeLabels[t]!,
-                      // Study says what the raised button says: ask Berea, and the helper's state.
+                      // Study speaks as it did on the bar: ask Berea, and the helper's state.
                       semanticsLabel: t == HomeTab.study
                           ? studySemanticsLabel(state.helperState, writing: state.answering)
                           : null,
@@ -587,7 +594,7 @@ class _HelperFooter extends StatelessWidget {
       HelperFailed() => scheme.error,
       _ => scheme.onSurfaceVariant,
     };
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
       child: Row(
         children: [
@@ -607,5 +614,8 @@ class _HelperFooter extends StatelessWidget {
         ],
       ),
     );
+    // While the helper downloads, the footer opens what it waits for and how much is left.
+    if (state.helperState is! HelperDownloading) return row;
+    return InkWell(onTap: () => showDownloadDetails(context, state), child: row);
   }
 }

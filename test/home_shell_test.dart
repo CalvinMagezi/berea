@@ -11,7 +11,8 @@ import 'package:berea/plans_screen.dart';
 import 'package:berea/prayer_pray_now.dart';
 import 'package:berea/prayer_screen.dart';
 import 'package:berea/reader_screen.dart';
-import 'package:berea/study_button.dart';
+import 'package:berea/search_button.dart';
+import 'package:berea/search_screen.dart';
 import 'package:berea/theme.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
@@ -29,7 +30,7 @@ const _shortPhoneHeight = 560.0;
 /// Over the shell's breakpoint, so the sidebar shows, but leaves the places too little room for
 /// two panes.
 const _narrowMac = Size(900, 800);
-const _places = ['Bible', 'Plans', 'Study', 'Prayer', 'Notes'];
+const _places = ['Bible', 'Plans', 'Search', 'Prayer', 'Notes'];
 
 final _model = edgeModels.first;
 
@@ -101,30 +102,70 @@ void main() {
     expect(state.harness, isNotNull);
   });
 
-  testWidgets('the phone bar has five places in order, Study raised in the middle', (tester) async {
+  testWidgets('the phone bar has five places, Bible first and Search raised in the middle', (
+    tester,
+  ) async {
     await pumpShell(tester, _phone);
     final xs = [for (final p in _places) tester.getCenter(find.text(p).last).dx];
     expect(xs, [...xs]..sort());
-    final study = tester.getRect(find.byType(StudyButton));
+    expect(xs.first, lessThan(_phone.width / 5), reason: 'Bible is the first place');
+    final search = tester.getRect(find.byType(SearchButton));
     final bible = tester.getRect(find.text('Bible').last);
-    expect(study.top, lessThan(bible.top - studyButtonSize / 2), reason: 'Study is raised');
-    expect((study.center.dx - _phone.width / 2).abs(), lessThan(1));
+    expect(search.top, lessThan(bible.top - searchButtonSize / 2), reason: 'Search is raised');
+    expect((search.center.dx - _phone.width / 2).abs(), lessThan(1));
+    expect(find.text('Study'), findsNothing, reason: 'Study has no place on the bar');
 
-    await tester.tap(find.text('Study').last);
+    await tester.tap(find.text('Search').last);
     await tester.pump();
-    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(find.byType(SearchScreen), findsOneWidget);
     expect(find.byType(ReaderScreen), findsNothing);
-    expect(find.byTooltip('Ask Berea'), findsNothing, reason: 'Study is always one tap');
+    expect(find.byType(ChatScreen), findsNothing);
+
+    await tester.tap(find.text('Bible').last);
+    await tester.pump();
+    expect(find.byType(ReaderScreen), findsOneWidget);
+    expect(find.byType(SearchScreen), findsNothing);
+  });
+
+  testWidgets('the reader\'s search icon opens Search with the keyboard up', (tester) async {
+    await pumpShell(tester, _phone);
+    await tester.tap(find.byTooltip('Search'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SearchScreen), findsOneWidget);
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.focusNode!.hasFocus, isTrue);
+  });
+
+  testWidgets('a verse chosen in Search opens in the Bible, and Search keeps the query', (
+    tester,
+  ) async {
+    await pumpShell(tester, _phone);
+    await tester.tap(find.text('Search').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Romans 8');
+    await tester.pump(const Duration(milliseconds: 400));
+    // The search is still running behind the tap; its progress bar never settles.
+    await tester.tap(find.text('Go to Romans 8'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(ReaderScreen), findsOneWidget);
+    expect(state.readerBook, 45, reason: 'Romans');
+    expect(state.readerChapter, 8);
+
+    await tester.tap(find.text('Search').last);
+    await tester.pump();
+    await tester.pump();
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'Romans 8');
   });
 
   testWidgets('the bar hides under the keyboard', (tester) async {
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetViewInsets);
     await pumpShell(tester, _phone);
-    expect(find.byType(StudyButton), findsNothing);
+    expect(find.byType(SearchButton), findsNothing);
   });
 
-  testWidgets('the Mac sidebar keeps the order, takes Cmd 1 to 5 and shows the helper', (
+  testWidgets('the Mac sidebar keeps the order, takes Cmd 1 to 6 and shows the helper', (
     tester,
   ) async {
     await pumpShell(tester, _mac);
@@ -135,17 +176,22 @@ void main() {
     expect(find.textContaining('Helper ready · Ollama on this'), findsOneWidget);
 
     final modifier = Platform.isMacOS ? LogicalKeyboardKey.meta : LogicalKeyboardKey.control;
-    await tester.sendKeyDownEvent(modifier);
-    await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
-    await tester.sendKeyUpEvent(modifier);
-    await tester.pump();
-    expect(find.byType(ChatScreen), findsOneWidget);
+    Future<void> chord(LogicalKeyboardKey key) async {
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(key);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pump();
+    }
 
-    await tester.sendKeyDownEvent(modifier);
-    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
-    await tester.sendKeyUpEvent(modifier);
-    await tester.pump();
+    await chord(LogicalKeyboardKey.digit3);
+    expect(find.byType(SearchScreen), findsOneWidget);
+    await chord(LogicalKeyboardKey.digit6);
+    expect(find.byType(ChatScreen), findsOneWidget, reason: 'Study is the sixth place');
+    await chord(LogicalKeyboardKey.digit1);
     expect(find.byType(ReaderScreen), findsOneWidget);
+    await chord(LogicalKeyboardKey.keyF);
+    expect(find.byType(SearchScreen), findsOneWidget, reason: 'F opens Search from anywhere');
+    expect(find.text('Study'), findsOneWidget, reason: 'the sidebar has a Study row');
   });
 
   testWidgets('Settings opens from the sidebar, from Cmd comma, and from each place', (
@@ -293,7 +339,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(NotebookScreen), findsOneWidget);
     // The bar stays under a notebook.
-    expect(find.byType(StudyButton), findsOneWidget);
+    expect(find.byType(SearchButton), findsOneWidget);
     state.notebooks.deleteNotebook(id);
   });
 
@@ -334,10 +380,10 @@ void main() {
     state.notebooks.deleteNotebook(id);
   });
 
-  testWidgets('while the helper downloads, the Study button opens the download details', (
+  testWidgets('while the helper downloads, the sidebar footer opens the download details', (
     tester,
   ) async {
-    await pumpShell(tester, _phone);
+    await pumpShell(tester, _mac);
     final before = state.helperState;
     state.helperState = HelperDownloading(
       0.42,
@@ -345,13 +391,15 @@ void main() {
       total: 2600000000,
       waitingForWifi: true,
     );
+    state.notifyListeners();
     await tester.pump();
-    await tester.tap(find.byType(StudyButton));
+    await tester.tap(find.textContaining('Helper waiting for Wi-Fi'));
     await tester.pumpAndSettle();
     expect(find.text('Paused, waiting for Wi-Fi'), findsOneWidget);
     expect(find.text('Use mobile data for the 1.5 GB left'), findsOneWidget);
     expect(find.byType(ReaderScreen), findsOneWidget, reason: 'the Bible stays the place');
     state.helperState = before;
+    state.notifyListeners();
   });
 
   testWidgets('reading stays quiet: the chapter footer has Previous and Next, no Ask', (

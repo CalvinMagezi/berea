@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:sqlite3/sqlite3.dart';
 
+import 'search_text.dart';
+
 /// A public domain commentary Berea can carry, with the attribution shown beside its text.
 class CommentaryModule {
   /// The CrossWire SWORD module name; also the `module` column of a pack.
@@ -237,6 +239,53 @@ String decodeHtmlEntities(String s) => s
     })
     .replaceAllMapped(_namedEntity, (m) => _entities[m[1]] ?? m[0]!);
 
+/// A comment that holds the words searched for, cut to the passage around the first of them.
+class CommentaryHit {
+  final String module;
+  final int book;
+  final int chapter;
+  final int verseStart;
+  final int verseEnd;
+
+  /// A few lines of the comment around the words, with an ellipsis where it was cut.
+  final String snippet;
+
+  /// Character ranges of [snippet] that are the searched words, or forms of them.
+  final List<(int, int)> marks;
+  const CommentaryHit(
+    this.module,
+    this.book,
+    this.chapter,
+    this.verseStart,
+    this.verseEnd,
+    this.snippet,
+    this.marks,
+  );
+
+  bool get isIntroduction => chapter == 0 || verseStart == 0;
+}
+
+/// What the commentary search found: the best comments of each work, and how many each work has.
+class CommentarySearch {
+  /// The best matches of each work, in catalog order and, within a work, best match first.
+  final List<CommentaryHit> hits;
+
+  /// Comments that hold the words, by work, whether or not they are in [hits].
+  final Map<String, int> totals;
+  const CommentarySearch(this.hits, this.totals);
+
+  static const empty = CommentarySearch([], {});
+
+  int get total => totals.values.fold(0, (a, b) => a + b);
+}
+
+/// Characters before and after the first match that a snippet keeps.
+const _snippetBefore = 90;
+const _snippetAfter = 190;
+
+/// The shortest stem a snippet marks, so a mark is a word's form and not any word it begins.
+const _minMarkStem = 3;
+
 const _packTables = {'entries', 'modules', 'meta'};
 
 /// The installed packs, each its own read-only SQLite file apart from the Bible database.
@@ -350,6 +399,112 @@ class CommentaryLibrary {
     'ORDER BY chapter, id',
     [book, chapter],
   );
+
+  /// The comments, across the installed packs, that hold every word of [text] (or its exact
+  /// words in order, when it is only function words). Each work's [perModule] best matches come
+  /// back with the words marked, and [CommentarySearch.totals] counts all of a work's. A work with
+  /// no comment on the words is left out.
+  CommentarySearch search(String text, {int perModule = 5}) {
+    final tokens = searchTokens(text);
+    if (tokens.isEmpty || searchIsTooCommon(text)) return CommentarySearch.empty;
+    final words = [
+      for (final t in tokens)
+        if (!searchStopWords.contains(t)) t,
+    ];
+    final match = words.isEmpty ? '"${tokens.join(' ')}"' : words.map((t) => '"$t"').join(' ');
+    final marker = _markerFor(words.isEmpty ? tokens : words);
+    final phrase = words.length > 1 ? phrasePattern(words) : null;
+    final hits = <(int, CommentaryHit)>[];
+    final totals = <String, int>{};
+    for (final db in _packs.values) {
+      try {
+        final counts = db.select(
+          'SELECT e.module AS module, COUNT(*) AS n FROM entries_fts f '
+          'JOIN entries e ON e.id = f.rowid WHERE entries_fts MATCH ? GROUP BY e.module',
+          [match],
+        );
+        for (final c in counts) {
+          final module = c['module'] as String;
+          totals[module] = (totals[module] ?? 0) + (c['n'] as int);
+          // A few more than are kept, so an exact phrase can come ahead of a better-scored scatter.
+          final rows = db.select(
+            'SELECT e.module, e.book, e.chapter, e.verse_start, e.verse_end, e.html_or_text '
+            'FROM entries_fts f JOIN entries e ON e.id = f.rowid '
+            'WHERE entries_fts MATCH ? AND e.module = ? ORDER BY bm25(entries_fts) LIMIT ?',
+            [match, module, perModule * _phraseLookahead],
+          );
+          final ranked = [
+            for (final r in rows)
+              if (_entryOf(r) case final e?) (e, phrase != null && phrase.hasMatch(e.text)),
+          ];
+          // Dart's sort is not stable, so the score order is carried in the key.
+          final order = {for (var i = 0; i < ranked.length; i++) ranked[i].$1: i};
+          ranked.sort((a, b) {
+            if (a.$2 != b.$2) return a.$2 ? -1 : 1;
+            return order[a.$1]!.compareTo(order[b.$1]!);
+          });
+          for (final (e, _) in ranked.take(perModule)) {
+            hits.add((_order(module), _hitOf(e, marker)));
+          }
+        }
+      } on SqliteException {
+        continue;
+      }
+    }
+    // Ties keep the order they were added in: the best match of a work first.
+    final indexed = [for (var i = 0; i < hits.length; i++) (i, hits[i])];
+    indexed.sort((a, b) {
+      final byModule = a.$2.$1.compareTo(b.$2.$1);
+      return byModule != 0 ? byModule : a.$1.compareTo(b.$1);
+    });
+    return CommentarySearch([for (final h in indexed) h.$2.$2], totals);
+  }
+
+  static const _phraseLookahead = 4;
+  static const _maxMarks = 8;
+
+  /// Finds each of [words], or a form of it, as a whole word's start: "holy" marks "holiness".
+  static RegExp _markerFor(List<String> words) {
+    final stems = {for (final w in words) _markStem(w)}.map(RegExp.escape).join('|');
+    return RegExp(
+      '(?<![\\p{L}\\p{M}\\p{N}])(?:$stems)[\\p{L}\\p{M}\\p{N}]*',
+      unicode: true,
+      caseSensitive: false,
+    );
+  }
+
+  /// A word without its ending, so its other forms share it; never shorter than [_minMarkStem].
+  static String _markStem(String word) {
+    for (final tail in const ['ness', 'ing', 'ies', 'ed', 'es', 'ly', 's', 'y', 'e']) {
+      if (word.endsWith(tail) && word.length - tail.length >= _minMarkStem) {
+        return word.substring(0, word.length - tail.length);
+      }
+    }
+    return word;
+  }
+
+  /// The comment cut to a line or two around the first of the words, at spaces, with the words
+  /// marked.
+  static CommentaryHit _hitOf(CommentaryEntry e, RegExp marker) {
+    final text = e.text;
+    final first = marker.firstMatch(text)?.start ?? 0;
+    var from = first > _snippetBefore ? first - _snippetBefore : 0;
+    var to = first + _snippetAfter < text.length ? first + _snippetAfter : text.length;
+    if (from > 0) {
+      final space = text.indexOf(RegExp(r'\s'), from);
+      from = space < 0 || space > first ? from : space + 1;
+    }
+    if (to < text.length) {
+      final space = text.lastIndexOf(RegExp(r'\s'), to);
+      to = space > first ? space : to;
+    }
+    final body = text.substring(from, to).replaceAll(RegExp(r'\s+'), ' ').trim();
+    final snippet = '${from > 0 ? '…' : ''}$body${to < text.length ? '…' : ''}';
+    final marks = [
+      for (final m in marker.allMatches(snippet).take(_maxMarks)) (m.start, m.end),
+    ];
+    return CommentaryHit(e.module, e.book, e.chapter, e.verseStart, e.verseEnd, snippet, marks);
+  }
 
   /// Rows from every pack; a pack that cannot be read, or a malformed row, is skipped.
   List<CommentaryEntry> _query(String where, List<Object> args) {
