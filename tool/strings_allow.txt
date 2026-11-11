@@ -8,5 +8,5 @@ lib/study_packet_screen.dart	Key words
 lib/study_page_screen.dart	How should I live?
 lib/study_page_screen.dart	What does it mean?
 lib/study_store.dart	notebook tables must be backed up together
-lib/word_study_screen.dart	Chosen by meaning. Not the word you meant? Choose another from ${widget.ref.label}:
+lib/word_study_screen.dart	Chosen by meaning. Not the word you meant? Choose another from ${_ref.label}:
 lib/word_study_screen.dart	What it means

@@ -36,6 +36,12 @@ words, verses with some of them, one group for every Hebrew or Greek word STEPBi
 glosses with your word, and the headings the BSB's publisher printed. A word no verse has comes
 back with the words one letter away. Each group says how its verses were found.
 
+Search also looks past the verses. A word or short phrase lists the Hebrew and Greek words behind
+it (found through STEPBible's glosses and the lexicon, most used first, each saying why it is
+listed) and, from the commentary packs you have installed, the best comments of each work with the
+words marked. A Strong's number (G26) or a spelling in English letters (hagios) finds the word
+itself.
+
 **Word study.** Long-press a word in the reader for the Hebrew or Greek word behind it (τέλειος,
 teleios, G5046): its lexicon entry, how often it is used and in which books, how STEPBible glosses
 it, and every verse that uses it, with the English words that render it marked. In the BSB the
@@ -232,7 +238,8 @@ lib/
   home_shell.dart      the five places, the phone bar with the raised Search button, the sidebar
   search_place_button.dart  the Berea mark in a Night circle
   reader_screen.dart   offline reader, parallel text, selection bar, chapter picker
-  search_screen.dart   the Search place: grouped Bible search on its own isolate
+  search_screen.dart   the Search place: verses, the words behind a word, and commentary, each on
+                       its own isolate
   interlinear_sheet.dart  Hebrew and Greek words with lexicon entries
   word_study_screen.dart  a word's use, renderings and every verse
   commentary_sheet.dart, commentary_packs.dart  commentary, and the optional packs

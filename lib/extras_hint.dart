@@ -6,6 +6,9 @@ import 'settings_sheet.dart';
 const commentaryHint =
     'No commentaries are downloaded yet. They are free, and add what Matthew Henry, Barnes and '
     'others wrote on each passage.';
+const searchCommentaryHint =
+    'No commentaries are downloaded yet, so none were searched. They are free, and add what '
+    'Matthew Henry, Barnes and others wrote on each passage.';
 const listenCommentaryHint =
     'The deep dive can quote commentators once commentaries are downloaded. They are free.';
 const lexiconHint =

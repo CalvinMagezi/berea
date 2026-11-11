@@ -70,6 +70,12 @@ class CommentaryShelf {
 
   bool isInstalled(String id) => library.installed.contains(id);
 
+  /// The id and file of each installed pack, for a search that opens connections of its own.
+  List<(String, String)> installedFiles() => [
+    for (final spec in commentaryPackSpecs)
+      if (isInstalled(spec.id)) (spec.id, _path(spec)),
+  ];
+
   Future<void> download(CommentaryPackSpec spec) async {
     final pin = commentaryPins[spec.id];
     if (pin == null) throw StateError('No published pack for ${spec.id}.');

@@ -19,6 +19,15 @@ and your own words, and nothing in it writes text for you.
   the BSB's publisher printed. A phrase the open translation lacks is searched in the other
   translations. A word no verse has comes back with the words one letter away. On a Galaxy A32 a
   search takes under a quarter of a second; the first version took 7 to 15 seconds.
+- **Search goes past the verses.** A word or short phrase also lists the Hebrew and Greek words
+  behind it, most used first, each saying why it is listed: "holy" finds qodesh, hagios and qadosh,
+  and "STEPBible glosses it 'holy' 168 times". It also searches the commentaries you have
+  downloaded and shows the best comments of each work with the words in bold, how many comments
+  each work has, and the passage each is on. Choose Verses, Word studies or Commentary with the
+  chips, or tap a word to open its study with no verse to start from. A Strong's number ("G26") or a
+  Hebrew or Greek word spelled in English letters ("hagios", "qadosh") finds the word itself. A
+  short query lists word studies and commentary first; a longer one, most likely a verse being
+  recalled, lists the verses first.
 - **Who wrote it.** Notes, study pages and notebook sources record who wrote them. Text a person did
   not write says so where it is shown and in Markdown exports. Backups are version 4; older backups
   still restore, labelled.
