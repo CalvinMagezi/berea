@@ -670,6 +670,16 @@ the model is never fetched at run time the way HQ does it. It would be a pinned 
 | Psalm titles at verse 0. | 478 rows in 116 psalms `[measured]` | Through the same `verse_map`. |
 | Inputs fetched from a moving branch. | 11 of 15 build inputs have no pin `[code]` | Pin by commit and hash. |
 
+Done 2026-11-12 (E2 phase 1, first slice): the Greek verses with bracketed numbers (350 rows, all
+48 verses) load and no BSB verse is left without words (8 had none); five-digit Strong's numbers
+are read whole (3 tokens, 2 lexicon entries kept because the text uses them); the Hebrew rows a
+clash dropped (75) are kept by numbering a verse's second Hebrew source, and STEPBible's
+reconstructed words (type X), after the first, with `word_types` holding the text type of every
+row that is not plain Leningrad text (1,795). Gates: rows read equal rows stored (447,743) and
+every non-empty BSB verse has word rows. Open from this table: the 20 verses listed in TECHDEBT,
+the lookup by bare number, the Greek editions per word, Hebrew and Aramaic morphology, and the
+pins (done in Stage A).
+
 Each fix comes with a build gate: rows read equal rows stored plus a named, counted list of
 exclusions; every non-empty BSB verse has word rows; every stored number equals the number in
 its source cell.

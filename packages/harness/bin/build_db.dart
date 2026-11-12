@@ -9,6 +9,7 @@ import 'package:berea_harness/src/books.dart';
 import 'package:berea_harness/src/bsb_marks.dart';
 import 'package:berea_harness/src/csv.dart';
 import 'package:berea_harness/src/importers.dart';
+import 'package:berea_harness/src/ref_parser.dart';
 import 'package:berea_harness/src/source_checks.dart';
 import 'package:berea_harness/src/word_study.dart';
 import 'package:http/http.dart' as http;
@@ -128,9 +129,11 @@ Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
   _loadHeadings(db, 'BSB', parseUsfmZipHeadings(bsbUsfm));
   _loadHeadings(db, 'WEB', parseUsfmZipHeadings(web));
 
+  final tablesText = await _fetch(_bsbTables, '$cache/bsb_tables.tsv', pin: _bsbTablesSha256);
+  final tables = parseBsbTables(tablesText);
   for (final MapEntry(key: f, value: sha) in stepTextFiles.entries) {
     final text = await _fetch('$_stepText/$f', '$cache/${Uri.decodeComponent(f)}', pin: sha);
-    f.startsWith('TAHOT') ? _loadHebrew(db, text) : _loadGreek(db, text);
+    f.startsWith('TAHOT') ? _loadHebrew(db, text) : _loadGreek(db, text, tables);
   }
   for (final MapEntry(key: f, value: sha) in stepLexFiles.entries) {
     _loadLexicon(db, await _fetch('$_stepLex/$f', '$cache/${Uri.decodeComponent(f)}', pin: sha));
@@ -143,8 +146,6 @@ Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
   _loadXrefs(db, File('$cache/xrefs/cross_references.txt').readAsStringSync());
   _buildDailyVerses(db);
   final bible = BibleDb(db)..buildWordIndex();
-  final tablesText = await _fetch(_bsbTables, '$cache/bsb_tables.tsv', pin: _bsbTablesSha256);
-  final tables = parseBsbTables(tablesText);
   stdout.writeln(
     'BSB words aligned to the translation tables: ${bible.importBsbAlignment(tables)} verses',
   );
@@ -156,11 +157,34 @@ Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
       '$_maxUnreconciledMarks',
     );
   }
+  _requireWordsForEveryVerse(db);
   bible.importMarks(marks, 'BSB');
   stdout.writeln(
     'BSB marks: ${marks.verses.length} verses; left out because the files differ: '
     '${marks.unreconciled.map((r) => r.label).join(', ')}',
   );
+}
+
+/// Word rows read from the STEPBible files; every one must end up stored, none dropped by a clash.
+var _wordRowsRead = 0;
+
+/// Every BSB verse with text has Hebrew or Greek word rows. A verse without them means a numbering
+/// or parsing defect upstream of the reader, so the build stops and names the verses.
+void _requireWordsForEveryVerse(Database db) {
+  final stored = db.select('SELECT COUNT(*) AS n FROM words').first['n'] as int;
+  if (stored != _wordRowsRead) {
+    throw StateError('Word rows: read $_wordRowsRead from the STEPBible files but stored $stored');
+  }
+  final missing = db.select(
+    "SELECT book, chapter, verse FROM verses v WHERE translation = 'BSB' AND trim(text) != '' "
+    'AND NOT EXISTS (SELECT 1 FROM words w WHERE w.book = v.book AND w.chapter = v.chapter '
+    'AND w.verse = v.verse)',
+  );
+  if (missing.isEmpty) return;
+  final names = [
+    for (final r in missing) '${bookById(r['book'] as int).name} ${r['chapter']}:${r['verse']}',
+  ];
+  throw StateError('BSB verses without original-language words: ${names.join(', ')}');
 }
 
 /// Writes the meta rows and compacts the database; returns the build stamp.
@@ -292,73 +316,200 @@ void _buildDailyVerses(Database db) {
   stdout.writeln('daily verses: ${db.select('SELECT COUNT(*) AS n FROM daily_verses').first['n']}');
 }
 
-final _stepRef = RegExp(r'^([1-3]?[A-Za-z]{2,3})\.(\d+)\.(\d+)(?:\(\d+\.\d+\))?#(\d+)');
-final _strongs = RegExp(r'[HG]\d{4}[A-Za-z]?');
+/// A STEPBible reference: book, chapter and verse, then optionally the verse number in another
+/// tradition's numbering, in square or curly brackets ("Act.2.11[2.10]", "Rom.16.25{14.24}").
+final _stepRef = RegExp(
+  r'^([1-3]?[A-Za-z]{2,3})\.(\d+)\.(\d+)(?:[\[\{](\d+)\.(\d+)[\]\}])?(?:\((\d+\.\d+)\))?#(\d+)(?:=(\S*))?',
+);
+/// STEPBible's extended Strong's numbers have five digits (G20447); cut to four they name another word.
+final _strongs = RegExp(r'[HG]\d{4,5}(?![0-9])[A-Za-z]?');
 
-(int, int, int, int)? _ref(String col) {
+typedef _StepRef = ({int book, int chapter, int verse, int pos, (int, int)? other, String? hebrew, String type});
+
+_StepRef? _ref(String col) {
   final m = _stepRef.firstMatch(col);
   if (m == null) return null;
   final book = bookFor(m[1]!);
   if (book == null) throw StateError('unknown STEP book ${m[1]}');
-  return (book.id, int.parse(m[2]!), int.parse(m[3]!), int.parse(m[4]!));
+  return (
+    book: book.id,
+    chapter: int.parse(m[2]!),
+    verse: int.parse(m[3]!),
+    pos: int.parse(m[7]!),
+    other: m[4] == null ? null : (int.parse(m[4]!), int.parse(m[5]!)),
+    hebrew: m[6],
+    type: m[8] ?? '',
+  );
 }
 
+/// Hebrew rows. STEPBible's Hebrew references name the verse in English numbering and, in
+/// parentheses, the Hebrew verse it came from, so one English verse can hold the words of two
+/// Hebrew verses (Num.26.1 holds Num 25:19 and 26:1; a psalm's title at verse 0 holds its first
+/// two Hebrew verses). Their positions both start at 1, so a later Hebrew verse is placed after
+/// the earlier one's words rather than over them.
 void _loadHebrew(Database db, String text) {
-  final stmt = db.prepare('INSERT OR IGNORE INTO words VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  db.execute(
+    'CREATE TABLE IF NOT EXISTS word_types(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, '
+    'type TEXT, PRIMARY KEY(book, chapter, verse, pos)) WITHOUT ROWID',
+  );
+  final kinds = db.prepare('INSERT INTO word_types VALUES (?, ?, ?, ?, ?)');
+  final stmt = db.prepare('INSERT INTO words VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
   db.execute('BEGIN');
-  var n = 0;
+  var n = 0, typed = 0;
+  final longest = <String, int>{};
+  final offsets = <String, int>{};
   for (final line in text.split('\n')) {
     final c = line.split('\t');
     if (c.length < 6) continue;
     final r = _ref(c[0]);
     if (r == null) continue;
+    final verse = '${r.book}:${r.chapter}:${r.verse}';
+    // Words STEPBible reconstructs (type X) are numbered apart from the Leningrad words, so each
+    // kind of numbering starts again at 1 inside the verse.
+    final source = '$verse|${r.hebrew}|${r.type == 'X'}';
+    final offset = offsets.putIfAbsent(source, () => longest[verse] ?? 0);
+    final pos = offset + r.pos;
+    if (pos > (longest[verse] ?? 0)) longest[verse] = pos;
     final strongs = _strongs.allMatches(c[4]).map((m) => m[0]!).join(' ');
     stmt.execute([
-      r.$1,
-      r.$2,
-      r.$3,
-      r.$4,
+      r.book,
+      r.chapter,
+      r.verse,
+      pos,
       c[1].trim(),
       c[2].trim(),
       c[3].trim(),
       strongs,
       c[5].trim(),
     ]);
+    if (r.type != 'L') {
+      kinds.execute([r.book, r.chapter, r.verse, pos, r.type]);
+      typed++;
+    }
     n++;
   }
   db.execute('COMMIT');
   stmt.dispose();
-  stdout.writeln('hebrew words: $n');
+  kinds.dispose();
+  _wordRowsRead += n;
+  stdout.writeln('hebrew words: $n ($typed of them not plain Leningrad text, typed in word_types)');
 }
 
-void _loadGreek(Database db, String text) {
-  final stmt = db.prepare('INSERT OR IGNORE INTO words VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  db.execute('BEGIN');
-  var n = 0;
+/// Greek rows go in under the verse the BSB puts their words in. STEPBible numbers a few dozen
+/// verses two ways (Rom.16.25{14.24}: the doxology some texts put after 14:23); for each such
+/// verse the numbering whose BSB verse shares more Greek words with the rows wins, and a tie keeps
+/// STEPBible's first number. Every choice is printed.
+void _loadGreek(Database db, String text, Map<Ref, List<BsbRow>> tables) {
+  final rows = <({_StepRef r, List<String> c})>[];
   for (final line in text.split('\n')) {
     final c = line.split('\t');
     if (c.length < 5) continue;
     final r = _ref(c[0]);
-    if (r == null) continue;
+    if (r != null) rows.add((r: r, c: c));
+  }
+  // Ref has no equality, so the tables are looked up by a key of book, chapter and verse.
+  final byVerse = {
+    for (final e in tables.entries) '${e.key.book.id}:${e.key.chapter}:${e.key.verseStart}': e.value,
+  };
+  Set<String> bsbCodes(int book, int chapter, int verse) => {
+    for (final row in byVerse['$book:$chapter:$verse'] ?? const <BsbRow>[])
+      if (row.code.isNotEmpty) row.code,
+  };
+  final chosen = <String, (int, int)>{};
+  final wanted = <String, bool>{};
+  final groups = <String, List<({_StepRef r, List<String> c})>>{};
+  for (final row in rows) {
+    if (row.r.other == null) continue;
+    groups.putIfAbsent('${row.r.book}:${row.r.chapter}:${row.r.verse}', () => []).add(row);
+  }
+  for (final e in groups.entries) {
+    final first = e.value.first.r;
+    final other = first.other!;
+    final mine = {
+      for (final row in e.value)
+        for (final m in _strongs.allMatches(row.c[3])) _base(m[0]!),
+    };
+    final here = bsbCodes(first.book, first.chapter, first.verse).intersection(mine).length;
+    final there = bsbCodes(first.book, other.$1, other.$2).intersection(mine).length;
+    final move = there > here;
+    chosen[e.key] = move ? other : (first.chapter, first.verse);
+    wanted[e.key] = move;
+    stdout.writeln(
+      '  greek ${bookById(first.book).name} ${first.chapter}:${first.verse} [${other.$1}:${other.$2}]: '
+      '${move ? 'other' : 'first'} ($here vs $there Greek words shared with the BSB)',
+    );
+  }
+  // A group may only move into a verse nobody else writes to: no rows of its own there, and no
+  // other group staying or arriving there. Phil 1:16 and 1:17 swap, so each is the other's.
+  final ownVerses = {
+    for (final row in rows)
+      if (row.r.other == null) '${row.r.book}:${row.r.chapter}:${row.r.verse}',
+  };
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (final e in groups.entries) {
+      if (wanted[e.key] != true) continue;
+      final first = e.value.first.r;
+      final target = '${first.book}:${chosen[e.key]!.$1}:${chosen[e.key]!.$2}';
+      final clash =
+          ownVerses.contains(target) ||
+          groups.entries.any((o) {
+            if (o.key == e.key) return false;
+            final f = o.value.first.r;
+            final at = chosen[o.key]!;
+            return '${f.book}:${at.$1}:${at.$2}' == target;
+          });
+      if (!clash) continue;
+      chosen[e.key] = (first.chapter, first.verse);
+      wanted[e.key] = false;
+      changed = true;
+      stdout.writeln(
+        '  greek ${bookById(first.book).name} ${first.chapter}:${first.verse} kept: the other verse already has its own words',
+      );
+    }
+  }
+  final stmt = db.prepare('INSERT INTO words VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  db.execute('BEGIN');
+  var n = 0;
+  for (final row in rows) {
+    final r = row.r, c = row.c;
+    var chapter = r.chapter, verse = r.verse;
+    if (r.other != null) (chapter, verse) = chosen['${r.book}:${r.chapter}:${r.verse}']!;
     final paren = c[1].indexOf(' (');
     final original = paren < 0 ? c[1].trim() : c[1].substring(0, paren).trim();
     final translit = paren < 0 ? '' : c[1].substring(paren + 2).replaceAll(')', '').trim();
     final eq = c[3].indexOf('=');
     final strongs = _strongs.allMatches(c[3]).map((m) => m[0]!).join(' ');
     final morph = eq < 0 ? '' : c[3].substring(eq + 1).trim();
-    stmt.execute([r.$1, r.$2, r.$3, r.$4, original, translit, c[2].trim(), strongs, morph]);
+    final gloss = c[2].replaceFirst(_otherNumbering, '').trim();
+    stmt.execute([r.book, chapter, verse, r.pos, original, translit, gloss, strongs, morph]);
     n++;
   }
   db.execute('COMMIT');
   stmt.dispose();
+  _wordRowsRead += n;
   stdout.writeln('greek words: $n');
 }
 
-final _lexRow = RegExp(r'^[HG]\d{4}[a-z]?\t');
+/// STEPBible prefixes the first English word of such a verse with the other numbering: "{14.24} To Him".
+final _otherNumbering = RegExp(r'^[\[\{]\d+\.\d+[\]\}]\s*');
+
+/// The number without its letter suffix, as the BSB tables write it: G1234a is G1234.
+String _base(String code) => code.replaceAll(RegExp(r'[A-Za-z]$'), '');
+
+final _fiveDigits = RegExp(r'^[HG]\d{5}');
+final _lexRow = RegExp(r'^[HG]\d{4,5}[a-z]?\t');
 final _tag = RegExp(r'<[^>]+>');
 final _ws = RegExp(r'\s+');
 
+/// Loads one lexicon file. A five-digit entry is STEPBible's own extension of Strong's; it is kept
+/// only when the text uses its number, so the lexicon holds no entry no verse can open.
 void _loadLexicon(Database db, String text) {
+  final used = {
+    for (final r in db.select('SELECT DISTINCT strongs FROM words'))
+      for (final m in _strongs.allMatches(r['strongs'] as String)) _base(m[0]!),
+  };
   final stmt = db.prepare('INSERT OR IGNORE INTO lexicon VALUES (?, ?, ?, ?, ?, ?, ?)');
   db.execute('BEGIN');
   var n = 0;
@@ -366,6 +517,8 @@ void _loadLexicon(Database db, String text) {
     if (!_lexRow.hasMatch(line)) continue;
     final c = line.split('\t');
     if (c.length < 8) continue;
+    final number = c[0].trim().toUpperCase();
+    if (_fiveDigits.hasMatch(number) && !used.contains(_base(number))) continue;
     var def = c[7].replaceAll(_tag, ' ').replaceAll(_ws, ' ').trim();
     if (def.length > maxDefinitionChars) def = '${def.substring(0, maxDefinitionChars)}...';
     final base = c[0].trim().toUpperCase().replaceAll(RegExp(r'[A-Z]$'), '');
