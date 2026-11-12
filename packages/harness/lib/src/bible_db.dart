@@ -1580,6 +1580,27 @@ class BibleDb {
     }
   }
 
+  /// Every entry STEPBible keeps under a Strong's number, by key: H7307 has G (spirit), H (breath),
+  /// I (side) and more. [lexicon] gives one of them; a number reached without a verse's own
+  /// tag should offer all.
+  List<LexEntry> lexiconEntries(String strongs) {
+    final base = strongs.replaceAll(RegExp(r'[A-Za-z]$'), '');
+    return [
+      for (final r in db.select(
+        'SELECT key, lemma, translit, pos, gloss, definition FROM lexicon WHERE base = ? ORDER BY key',
+        [base],
+      ))
+        LexEntry(
+          r['key'] as String,
+          r['lemma'] as String,
+          r['translit'] as String,
+          r['pos'] as String,
+          r['gloss'] as String,
+          r['definition'] as String,
+        ),
+    ];
+  }
+
   LexEntry? lexicon(String strongs) {
     final base = strongs.replaceAll(RegExp(r'[A-Za-z]$'), '');
     final rows = db.select(

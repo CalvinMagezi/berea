@@ -396,4 +396,41 @@ void main() {
     expect(find.text('Peaceable, upright'), findsOneWidget);
     expect(find.text('2.'), findsOneWidget);
   });
+
+  testWidgets('a number opened alone offers every entry STEPBible keeps under it and shows the first', (
+    tester,
+  ) async {
+    final db = wordBible();
+    for (final l in [
+      ['H7307G', 'H7307', 'רוּחַ', 'ru.ach', 'H:N', 'spirit', 'spirit, wind'],
+      ['H7307H', 'H7307', 'רוּחַ', 'ru.ach', 'H:N', 'spirit: breath', 'breath'],
+    ]) {
+      db.db.execute('INSERT INTO lexicon VALUES (?, ?, ?, ?, ?, ?, ?)', l);
+    }
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(home: WordStudyScreen(db: db, code: 'H7307', onOpen: (_) {})),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('STEPBible lists 2 entries under H7307. The first is shown; choose another to see it:'), findsOneWidget);
+    expect(find.text('H · spirit: breath'), findsOneWidget);
+    await tester.tap(find.text('H · spirit: breath'));
+    await tester.pumpAndSettle();
+    expect(find.text('STEPBible lists 2 entries under H7307. The first is shown; choose another to see it:'), findsOneWidget);
+    expect(find.text('spirit: breath'), findsOneWidget, reason: 'the chosen entry is now the study');
+  });
+
+  testWidgets('a number with one entry offers no choice', (tester) async {
+    final db = wordBible();
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(home: WordStudyScreen(db: db, code: 'G5046', onOpen: (_) {})),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('STEPBible lists'), findsNothing);
+  });
 }
