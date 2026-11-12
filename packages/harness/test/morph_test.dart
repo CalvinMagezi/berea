@@ -11,15 +11,10 @@ void main() {
     expect(verbSense('V-AMM-2S'), 'aorist middle imperative');
   });
 
-  test('Hebrew verbs read as stem and conjugation, also behind prefixes', () {
-    expect(verbSense('HVqp3ms'), 'qal perfect');
-    expect(verbSense('HVhi'), 'hiphil imperfect');
-    expect(verbSense('HVqw3ms'), 'qal wayyiqtol');
-    expect(verbSense('HVqrmsc/Sp1bs'), 'qal active participle');
-    expect(verbSense('Hc/Vqq1cs'), 'qal sequential perfect');
-    expect(verbSense('Hc/Vvw3mp'), 'hishtaphel wayyiqtol');
-    // A stem the table lacks still gives the conjugation.
-    expect(verbSense('HVuc'), 'infinitive construct');
+  test('Hebrew and Aramaic codes are left to the STEPBible table', () {
+    for (final m in ['HVqp3ms', 'HVhi', 'Hc/Vqq1cs', 'AVqp3ms']) {
+      expect(verbSense(m), isNull, reason: m);
+    }
   });
 
   test('non-verbs and garbage give null', () {

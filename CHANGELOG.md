@@ -32,6 +32,13 @@ and your own words, and nothing in it writes text for you.
   senses, which Berea wrote and are gone. A word pressed in the KJV or the WEB no longer opens a
   guessed word: the study opens with the verse's original words and none chosen, because only the
   BSB's tables say which word is behind which English.
+- **Counts name their text, and Hebrew parsing is STEPBible's.** A Greek word's count says it is
+  taken from the Nestlé-Aland 28 text and, where Scrivener's 1894 Textus Receptus differs, gives both;
+  a Hebrew word's says it is STEPBible's Leningrad text. A search row says which text it counts in.
+  Hebrew and Aramaic verbs are described by STEPBible's own table of morphology codes, under a line
+  that names ETCBC as its source; Berea's hand-made stem names, which gave Aramaic verbs Hebrew ones,
+  are gone. A name's entry no longer carries STEPBible's generated summary sentence, and says so.
+  A word kept in a notebook now names the work it comes from.
 - **Word studies name their source.** A Greek definition now says whose it is: Abbott-Smith, as
   corrected by Tyndale House for STEPBible. Entries whose definition is Middle Liddell's (share-alike,
   so not in this download) or has no stated source show the gloss alone and say why: 3,855 of 9,552.

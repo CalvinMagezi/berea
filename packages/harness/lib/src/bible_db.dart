@@ -88,6 +88,9 @@ class LexEntry {
   /// bundled database), OB (Online Bible's abridged Brown-Driver-Briggs), or empty when STEPBible
   /// names none. Empty too for a database built before sources were recorded.
   final String source;
+
+  /// True when STEPBible's generated summary sentence for a name was cut from the definition.
+  final bool nameSummary;
   const LexEntry(
     this.key,
     this.lemma,
@@ -96,6 +99,7 @@ class LexEntry {
     this.gloss,
     this.definition, [
     this.source = '',
+    this.nameSummary = false,
   ]);
 }
 
@@ -121,6 +125,10 @@ enum WordMatchKind {
 }
 
 /// A Hebrew or Greek word a search found, and why. Opens as a word study by its [code].
+const hebrewTextName = "STEPBible's Leningrad text";
+const greekMainTextName = 'the Nestlé-Aland 28 text';
+const greekReceivedTextName = "Scrivener's 1894 Textus Receptus";
+
 class WordMatch {
   final LexEntry entry;
 
@@ -138,6 +146,9 @@ class WordMatch {
   /// Times and verses the word is used in the Bible.
   final int uses;
   final int verses;
+
+  /// The printed text [uses] and [verses] are counted in; null where the database does not say.
+  final String? text;
   const WordMatch({
     required this.entry,
     required this.code,
@@ -146,6 +157,7 @@ class WordMatch {
     required this.glossed,
     required this.uses,
     required this.verses,
+    this.text,
   });
 
   String get language => entry.pos.startsWith('A:') ? 'Aramaic' : languageOf(code);
@@ -1101,19 +1113,17 @@ class BibleDb {
   }
 
   WordMatch _wordMatch(LexEntry entry, String code, WordMatchKind kind, String term, int glossed) {
-    final r = db.select(
-      "SELECT COUNT(*) AS n, COUNT(DISTINCT book || ':' || chapter || ':' || verse) AS v "
-      'FROM word_index WHERE strongs = ?',
-      [code],
-    ).first;
+    final text = mainTextFor(code);
+    final c = _countWhere(code, text == greekMainTextName ? 'AND ${_inEdition('NA28')}' : '');
     return WordMatch(
       entry: entry,
       code: code,
       kind: kind,
       term: term,
       glossed: glossed,
-      uses: r['n'] as int,
-      verses: r['v'] as int,
+      uses: c.uses,
+      verses: c.verses,
+      text: text,
     );
   }
 
@@ -1318,6 +1328,29 @@ class BibleDb {
 
   /// Stores each BSB verse's words aligned to the BSB translation tables (see [alignBsbWords]),
   /// replacing any earlier alignment. Returns the number of verses aligned.
+  late final bool _hasHebrewMorphology = db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'hebrew_morphology'")
+      .isNotEmpty;
+
+  /// STEPBible's label for the verb in a Hebrew or Aramaic word's morphology code, "Hiphil
+  /// (Causative/declarative, Active) Infinitive Absolute", read from its own table. A word's code
+  /// can hold several parts split by a slash (a prefix, the verb, a suffix); the first verb part
+  /// is the one described. Null for a word with no verb and for a code the table does not hold.
+  String? hebrewParsing(String morph) {
+    if (!_hasHebrewMorphology || morph.isEmpty || !(morph.startsWith('H') || morph.startsWith('A'))) {
+      return null;
+    }
+    final language = morph[0];
+    for (final part in morph.split('/')) {
+      final code = RegExp(r'^[HA][A-Z]').hasMatch(part) ? part : '$language$part';
+      if (!code.startsWith('${language}V') && !code.startsWith('HV') && !code.startsWith('AV')) continue;
+      final rows = db.select('SELECT label FROM hebrew_morphology WHERE code = ?', [code]);
+      if (rows.isEmpty) continue;
+      return (rows.first['label'] as String).replaceFirst(RegExp(r'^Verb\s*:\s*'), '');
+    }
+    return null;
+  }
+
   late bool _hasRenderings = db
       .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'bsb_renderings'")
       .isNotEmpty;
@@ -1475,6 +1508,50 @@ class BibleDb {
     "SELECT 1 FROM lexicon WHERE pos LIKE 'N:%' AND gloss = ? COLLATE NOCASE LIMIT 1",
     [word],
   ).isNotEmpty;
+
+  late final bool _hasEditions = db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'word_editions'")
+      .isNotEmpty;
+
+  /// SQL that keeps the word_index rows of a Greek number that stand in the printed text [edition]
+  /// (NA28 or TR); STEPBible lists, for every Greek word, the editions that contain it.
+  String _inEdition(String edition) =>
+      "EXISTS (SELECT 1 FROM word_editions e WHERE e.book = i.book AND e.chapter = i.chapter "
+      "AND e.verse = i.verse AND e.pos = i.pos AND '+' || e.editions || '+' LIKE '%+$edition+%')";
+
+  ({int uses, int verses, int books}) _countWhere(String code, String extra) {
+    final r = db.select(
+      "SELECT COUNT(*) AS n, COUNT(DISTINCT i.book || ':' || i.chapter || ':' || i.verse) AS v, "
+      'COUNT(DISTINCT i.book) AS b FROM word_index i WHERE i.strongs = ? $extra',
+      [strongsBase(code)],
+    ).first;
+    return (uses: r['n'] as int, verses: r['v'] as int, books: r['b'] as int);
+  }
+
+  /// The text a word's counts are taken from: STEPBible's Leningrad text for Hebrew, the
+  /// Nestlé-Aland 28 text for Greek. Null when the database does not record Greek editions.
+  String? mainTextFor(String code) {
+    if (code.startsWith('H')) return hebrewTextName;
+    return _hasEditions ? greekMainTextName : null;
+  }
+
+  /// How often the word is used and in how many verses and books, in each printed text that has
+  /// it, each named. Hebrew has one; Greek has the Nestlé-Aland 28 and Scrivener's 1894 Textus
+  /// Receptus, which differ for some words. Empty for a Greek number in a database without
+  /// editions, which then has only [wordCount].
+  List<({String text, int uses, int verses, int books})> wordCountsByText(String code) {
+    _ensureWordIndex();
+    if (code.startsWith('H')) {
+      final c = _countWhere(code, '');
+      return [(text: hebrewTextName, uses: c.uses, verses: c.verses, books: c.books)];
+    }
+    if (!_hasEditions) return const [];
+    return [
+      for (final (name, edition) in [(greekMainTextName, 'NA28'), (greekReceivedTextName, 'TR')])
+        if (_countWhere(code, 'AND ${_inEdition(edition)}') case final c when c.uses > 0)
+          (text: name, uses: c.uses, verses: c.verses, books: c.books),
+    ];
+  }
 
   /// How often the word with base Strong's number [code] is used, and in how many verses.
   ({int uses, int verses}) wordCount(String code) {
@@ -1660,6 +1737,7 @@ class BibleDb {
       .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'lexicon_source'")
       .isNotEmpty;
   String get _sourceColumn => _hasLexiconSources ? "COALESCE(ls.source, '')" : "''";
+  String get _summaryColumn => _hasLexiconSources ? 'COALESCE(ls.name_summary, 0)' : '0';
   String get _sourceJoin => _hasLexiconSources ? 'LEFT JOIN lexicon_source ls ON ls.key = lexicon.key' : '';
 
   /// Every entry STEPBible keeps under a Strong's number, by key: H7307 has G (spirit), H (breath),
@@ -1669,7 +1747,7 @@ class BibleDb {
     final base = strongs.replaceAll(RegExp(r'[A-Za-z]$'), '');
     return [
       for (final r in db.select(
-        'SELECT lexicon.key AS key, lemma, translit, pos, gloss, definition, $_sourceColumn AS source '
+        'SELECT lexicon.key AS key, lemma, translit, pos, gloss, definition, $_sourceColumn AS source, $_summaryColumn AS name_summary '
         'FROM lexicon $_sourceJoin WHERE base = ? ORDER BY lexicon.key',
         [base],
       ))
@@ -1681,6 +1759,7 @@ class BibleDb {
           r['gloss'] as String,
           r['definition'] as String,
           r['source'] as String,
+          (r['name_summary'] as int) == 1,
         ),
     ];
   }
@@ -1688,7 +1767,7 @@ class BibleDb {
   LexEntry? lexicon(String strongs) {
     final base = strongs.replaceAll(RegExp(r'[A-Za-z]$'), '');
     final rows = db.select(
-      'SELECT lexicon.key AS key, lemma, translit, pos, gloss, definition, $_sourceColumn AS source '
+      'SELECT lexicon.key AS key, lemma, translit, pos, gloss, definition, $_sourceColumn AS source, $_summaryColumn AS name_summary '
       'FROM lexicon $_sourceJoin WHERE lexicon.key = ? OR base = ? '
       'ORDER BY (lexicon.key = ?) DESC, lexicon.key LIMIT 1',
       [strongs, base, strongs],
@@ -1703,6 +1782,7 @@ class BibleDb {
       r['gloss'] as String,
       r['definition'] as String,
       r['source'] as String,
+      (r['name_summary'] as int) == 1,
     );
   }
 

@@ -29,45 +29,12 @@ const _greekMood = {
   'P': 'participle',
 };
 
-const _hebrewStem = {
-  'q': 'qal',
-  'N': 'niphal',
-  'p': 'piel',
-  'P': 'pual',
-  'h': 'hiphil',
-  'H': 'hophal',
-  't': 'hithpael',
-  'o': 'polel',
-  'O': 'polal',
-  'r': 'hithpolel',
-  'Q': 'qal passive',
-  'v': 'hishtaphel',
-};
-
-const _hebrewConjugation = {
-  'p': 'perfect',
-  'q': 'sequential perfect',
-  'i': 'imperfect',
-  'w': 'wayyiqtol',
-  'h': 'cohortative',
-  'j': 'jussive',
-  'v': 'imperative',
-  'r': 'active participle',
-  's': 'passive participle',
-  'a': 'infinitive absolute',
-  'c': 'infinitive construct',
-};
-
 const _greekVerbPrefix = 'V-';
-const _hebrewVerbPrefixes = ['HV', 'AV'];
-const _hebrewPartSeparator = '/';
 const _greekFormLength = 3;
 
-/// A short English tag for a verb's morphology code, or null for anything that is not a verb.
-String? verbSense(String morph) {
-  if (morph.startsWith(_greekVerbPrefix)) return _greekSense(morph);
-  return _hebrewSense(morph);
-}
+/// A short English tag for a Greek verb's morphology code, or null for anything else. Hebrew and
+/// Aramaic codes are read from STEPBible's own table, [BibleDb.hebrewParsing].
+String? verbSense(String morph) => morph.startsWith(_greekVerbPrefix) ? _greekSense(morph) : null;
 
 String? _greekSense(String morph) {
   final form = morph.substring(_greekVerbPrefix.length).split('-').first;
@@ -79,18 +46,4 @@ String? _greekSense(String morph) {
   final mood = _greekMood[letters[2]];
   if (tense == null || voice == null || mood == null) return null;
   return '$tense $voice $mood';
-}
-
-String? _hebrewSense(String morph) {
-  for (final part in morph.split(_hebrewPartSeparator)) {
-    final code = part.startsWith('H') || part.startsWith('A') ? part : 'H$part';
-    final prefix = _hebrewVerbPrefixes.where(code.startsWith);
-    if (prefix.isEmpty || code.length < 4) continue;
-    final conjugation = _hebrewConjugation[code[3]];
-    if (conjugation == null) continue;
-    // An Aramaic or rare stem still gives the reader its conjugation.
-    final stem = _hebrewStem[code[2]];
-    return stem == null ? conjugation : '$stem $conjugation';
-  }
-  return null;
 }

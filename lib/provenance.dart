@@ -40,7 +40,11 @@ String provenanceFor({
   required String title,
   required String text,
 }) {
-  if (kind == 'word' || kind == 'studyword') return provenanceRewrite;
+  // A kept word that names its source holds that source's words as written; one that does not is
+  // an older note, kept in Berea's shortened form.
+  if (kind == 'word' || kind == 'studyword') {
+    return text.contains('\nSource: ') ? provenanceSource : provenanceRewrite;
+  }
   if (looksLikeKeptCommentary(title, text)) return provenanceSource;
   return provenancePerson;
 }

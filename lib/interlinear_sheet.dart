@@ -31,6 +31,11 @@ Future<void> showInterlinear(BuildContext context, AppState s, Ref ref) {
                 ref.book.id < 40 ? 'Hebrew, read right to left' : 'Greek',
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
               ),
+              if (ref.book.id < 40)
+                Text(
+                  'Parsing: ETCBC morphology, through STEPBible (CC BY-NC upstream).',
+                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+                ),
               const SizedBox(height: 12),
               Expanded(
                 child: words.isEmpty
@@ -79,7 +84,7 @@ class _WordCard extends StatelessWidget {
             Text(w.original, style: const TextStyle(fontSize: 22)),
             Text(w.translit, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             Text(w.gloss, style: TextStyle(fontSize: 13, color: scheme.primary)),
-            if (verbSense(w.morph) case final sense?)
+            if ((verbSense(w.morph) ?? s.db.hebrewParsing(w.morph)) case final sense?)
               Text(sense, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
           ],
         ),

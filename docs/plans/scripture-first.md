@@ -680,6 +680,12 @@ every non-empty BSB verse has word rows. Open from this table: the 20 verses lis
 the lookup by bare number, the Greek editions per word, Hebrew and Aramaic morphology, and the
 pins (done in Stage A).
 
+Done 2026-11-12, second slice: the lookup by bare number (the screen lists every entry), the Greek
+editions per word (`word_editions`, 142,095 rows; counts name the Nestlé-Aland 28 text and
+Scrivener's 1894 text), Hebrew and Aramaic morphology from STEPBible's TEHMC (826 codes; the hand
+tables are deleted), the name sentences cut (4,617 entries), and a kept word that names its source.
+Still open: Psalm titles at verse 0, the 20 verses in TECHDEBT, Greek morphology from TEGMC.
+
 Each fix comes with a build gate: rows read equal rows stored plus a named, counted list of
 exclusions; every non-empty BSB verse has word rows; every stored number equals the number in
 its source cell.

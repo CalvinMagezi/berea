@@ -49,6 +49,9 @@ const _stepCommit = '5de0a47f35f0fc13dfe1430d104e5db8a4285f9c';
 const _step = 'https://raw.githubusercontent.com/STEPBible/STEPBible-Data/$_stepCommit';
 const _stepText = '$_step/Translators%20Amalgamated%20OT%2BNT';
 const _stepLex = '$_step/Lexicons';
+const _hebrewMorphFile =
+    'TEHMC%20-%20Translators%20Expansion%20of%20Hebrew%20Morphology%20Codes%20-%20STEPBible.org%20CC%20BY.txt';
+const _hebrewMorphSha256 = 'fe37e62b97e531410159e5f1b1ac8a69db4512c3e8407c03bae38639bd09f97f';
 const _xrefs = 'https://a.openbible.info/data/cross-references.zip';
 const _xrefsSha256 = '19aafdf923275142d0849fb02c7d9965a8d1a9dafc691e9abbe146fa31895c73';
 const _web = 'https://ebible.org/Scriptures/engwebp_usfm.zip';
@@ -128,6 +131,14 @@ Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
   _loadHeadings(db, 'BSB', parseUsfmZipHeadings(bsbUsfm));
   _loadHeadings(db, 'WEB', parseUsfmZipHeadings(web));
 
+  _loadHebrewMorphology(
+    db,
+    await _fetch(
+      '$_step/Morphology%20codes/$_hebrewMorphFile',
+      '$cache/${Uri.decodeComponent(_hebrewMorphFile)}',
+      pin: _hebrewMorphSha256,
+    ),
+  );
   final tablesText = await _fetch(_bsbTables, '$cache/bsb_tables.tsv', pin: _bsbTablesSha256);
   final tables = parseBsbTables(tablesText);
   for (final MapEntry(key: f, value: sha) in stepTextFiles.entries) {
@@ -210,6 +221,7 @@ String _writeMeta(Database db) {
     'bsb_words',
     'headings',
     'bsb_renderings',
+    'word_editions',
   ]) {
     final n = db.select('SELECT COUNT(*) AS n FROM $t').first['n'];
     stdout.writeln('$t: $n rows');
@@ -322,6 +334,29 @@ void _buildDailyVerses(Database db) {
 final _stepRef = RegExp(
   r'^([1-3]?[A-Za-z]{2,3})\.(\d+)\.(\d+)(?:[\[\{](\d+)\.(\d+)[\]\}])?(?:\((\d+\.\d+)\))?#(\d+)(?:=(\S*))?',
 );
+/// STEPBible's own expansion of the Hebrew and Aramaic morphology codes: each record is a code, then
+/// a line with its label in quotes ("Verb : Hiphil (Causative/declarative, Active) Infinitive
+/// Absolute"). Berea's hand-made tables of stems and conjugations gave Aramaic verbs Hebrew stem
+/// names and left some forms undecoded; these labels are STEPBible's, whose headers credit ETCBC.
+void _loadHebrewMorphology(Database db, String text) {
+  db.execute('CREATE TABLE hebrew_morphology(code TEXT PRIMARY KEY, label TEXT) WITHOUT ROWID');
+  final stmt = db.prepare('INSERT OR IGNORE INTO hebrew_morphology VALUES (?, ?)');
+  final lines = text.split('\n');
+  var n = 0;
+  db.execute('BEGIN');
+  for (var i = 0; i + 1 < lines.length; i++) {
+    final head = RegExp(r'^([HA][A-Za-z0-9]+)\t').firstMatch(lines[i]);
+    if (head == null) continue;
+    final label = RegExp(r'^\t"(.+)"\s*$').firstMatch(lines[i + 1].replaceAll('\r', ''));
+    if (label == null) continue;
+    stmt.execute([head[1], label[1]!.trim()]);
+    n++;
+  }
+  db.execute('COMMIT');
+  stmt.dispose();
+  stdout.writeln('hebrew morphology codes: $n');
+}
+
 /// STEPBible's extended Strong's numbers have five digits (G20447); cut to four they name another word.
 final _strongs = RegExp(r'[HG]\d{4,5}(?![0-9])[A-Za-z]?');
 
@@ -470,6 +505,11 @@ void _loadGreek(Database db, String text, Map<Ref, List<BsbRow>> tables) {
       );
     }
   }
+  db.execute(
+    'CREATE TABLE IF NOT EXISTS word_editions(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, '
+    'editions TEXT, PRIMARY KEY(book, chapter, verse, pos)) WITHOUT ROWID',
+  );
+  final editions = db.prepare('INSERT INTO word_editions VALUES (?, ?, ?, ?, ?)');
   final stmt = db.prepare('INSERT INTO words VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
   db.execute('BEGIN');
   var n = 0;
@@ -485,10 +525,12 @@ void _loadGreek(Database db, String text, Map<Ref, List<BsbRow>> tables) {
     final morph = eq < 0 ? '' : c[3].substring(eq + 1).trim();
     final gloss = c[2].replaceFirst(_otherNumbering, '').trim();
     stmt.execute([r.book, chapter, verse, r.pos, original, translit, gloss, strongs, morph]);
+    editions.execute([r.book, chapter, verse, r.pos, c.length > 5 ? c[5].trim() : '']);
     n++;
   }
   db.execute('COMMIT');
   stmt.dispose();
+  editions.dispose();
   _wordRowsRead += n;
   stdout.writeln('greek words: $n');
 }
@@ -501,6 +543,7 @@ String _base(String code) => code.replaceAll(RegExp(r'[A-Za-z]$'), '');
 
 /// The Hebrew entries are Online Bible's abridged Brown-Driver-Briggs, through STEPBible.
 const hebrewSource = 'OB';
+const _nameSummaryMark = '§';
 final _definitionSource = RegExp(r'\((AS|ML)\)\s*$');
 final _fiveDigits = RegExp(r'^[HG]\d{5}');
 final _lexRow = RegExp(r'^[HG]\d{4,5}[a-z]?\t');
@@ -514,11 +557,11 @@ void _loadLexicon(Database db, String text) {
     for (final r in db.select('SELECT DISTINCT strongs FROM words'))
       for (final m in _strongs.allMatches(r['strongs'] as String)) _base(m[0]!),
   };
-  db.execute('CREATE TABLE IF NOT EXISTS lexicon_source(key TEXT PRIMARY KEY, source TEXT)');
+  db.execute('CREATE TABLE IF NOT EXISTS lexicon_source(key TEXT PRIMARY KEY, source TEXT, name_summary INTEGER)');
   final stmt = db.prepare('INSERT OR IGNORE INTO lexicon VALUES (?, ?, ?, ?, ?, ?, ?)');
-  final sources = db.prepare('INSERT OR IGNORE INTO lexicon_source VALUES (?, ?)');
+  final sources = db.prepare('INSERT OR IGNORE INTO lexicon_source VALUES (?, ?, ?)');
   db.execute('BEGIN');
-  var n = 0, withheld = 0;
+  var n = 0, withheld = 0, namesCut = 0;
   for (final line in text.split('\n')) {
     if (!_lexRow.hasMatch(line)) continue;
     final c = line.split('\t');
@@ -542,14 +585,25 @@ void _loadLexicon(Database db, String text) {
         withheld++;
       }
     }
+    // A name's entry ends with a sentence STEPBible generates after a section sign ("§ Ohad =
+    // "united" son of Simeon"); it is cut from the definition and the screen says it is not shown.
+    final summary = def.indexOf(_nameSummaryMark);
+    final nameSummary = summary >= 0;
+    if (nameSummary) {
+      def = def.substring(0, summary).trim();
+      namesCut++;
+    }
     stmt.execute([key, base, c[3].trim(), c[4].trim(), c[5].trim(), c[6].trim(), def]);
-    sources.execute([key, source]);
+    sources.execute([key, source, nameSummary ? 1 : 0]);
     n++;
   }
   db.execute('COMMIT');
   stmt.dispose();
   sources.dispose();
-  stdout.writeln('lexicon entries: $n ($withheld Greek definitions withheld: Middle Liddell or no stated source)');
+  stdout.writeln(
+    'lexicon entries: $n ($withheld Greek definitions withheld: Middle Liddell or no stated source; '
+    '$namesCut name sentences cut)',
+  );
 }
 
 final _xrefRef = RegExp(r'^([1-3]?[A-Za-z]+)\.(\d+)\.(\d+)$');
