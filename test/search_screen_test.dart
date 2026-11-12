@@ -94,8 +94,11 @@ void main() {
   /// in two New Testament verses, qadosh in one Old Testament verse.
   void addHolyWords(AppState state) {
     final raw = state.db.db;
+    // The full database tags thousands of words; the counts asserted here assume only these three.
+    raw.execute('DELETE FROM words');
+    raw.execute('DELETE FROM lexicon');
     void word(int book, int chapter, int verse, String original, String translit, String strongs) =>
-        raw.execute('INSERT INTO words VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)', [
+        raw.execute('INSERT OR IGNORE INTO words VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)', [
           book,
           chapter,
           verse,
@@ -112,7 +115,7 @@ void main() {
       ['G0040G', 'G0040', 'ἅγιος', 'hagios', 'G:A', 'holy', 'set apart for God'],
       ['H6918G', 'H6918', 'קָדוֹשׁ', 'qa.dosh', 'H:A', 'holy', 'sacred, holy'],
     ]) {
-      raw.execute('INSERT INTO lexicon VALUES (?, ?, ?, ?, ?, ?, ?)', l);
+      raw.execute('INSERT OR IGNORE INTO lexicon VALUES (?, ?, ?, ?, ?, ?, ?)', l);
     }
     state.db.buildWordIndex();
   }

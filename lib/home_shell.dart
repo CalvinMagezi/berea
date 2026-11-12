@@ -349,7 +349,13 @@ class _SearchPlace extends StatelessWidget {
           children: [
             SearchPlaceButton(selected: selected, onPressed: onTap),
             ExcludeSemantics(
-              child: Text(_placeLabels[HomeTab.search]!, style: _labelStyle(scheme, selected)),
+              // One line: in the test font "Search" is exactly the slot's width and would otherwise wrap.
+              child: Text(
+                _placeLabels[HomeTab.search]!,
+                maxLines: 1,
+                softWrap: false,
+                style: _labelStyle(scheme, selected),
+              ),
             ),
           ],
         ),
