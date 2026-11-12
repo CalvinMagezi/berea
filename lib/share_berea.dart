@@ -17,6 +17,7 @@ typedef Shareable = ({String label, String path});
 List<Shareable> sharePacks(AppState s) => [
   if (s.db.hasFullLexicon) (label: 'Full Greek lexicon', path: s.lexiconPackPath),
   if (s.db.hasMiddleLiddell) (label: 'Middle Liddell definitions', path: s.middleLiddellPackPath),
+  if (s.db.hasTopics) (label: 'Topics', path: s.topicsPackPath),
   for (final p in s.commentary.installedFiles()) (label: _packTitle(p.$1), path: p.$2),
 ];
 

@@ -11,6 +11,9 @@ const searchCommentaryHint =
     'Matthew Henry, Barnes and others wrote on each passage.';
 const listenCommentaryHint =
     'The deep dive can quote commentators once commentaries are downloaded. They are free.';
+const searchTopicsHint =
+    "Nave's Topical Bible and Torrey's New Topical Textbook list the passages on a subject, "
+    'such as fear or work. They are free, about 4 MB.';
 const lexiconHint =
     'The complete Greek lexicon gives the full entry for every New Testament word. It is free, '
     'about 9 MB.';

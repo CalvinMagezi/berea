@@ -12,4 +12,5 @@ export 'src/ref_parser.dart';
 export 'src/search_text.dart' show phrasePattern, searchIsTooCommon;
 export 'src/sources.dart';
 export 'src/study_packet.dart';
+export 'src/topics.dart';
 export 'src/word_study.dart';
