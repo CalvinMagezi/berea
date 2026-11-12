@@ -180,6 +180,7 @@ class AppState extends ChangeNotifier {
     s._restoreImports();
     s._keepTranslationValid();
     s.db.attachFullLexicon(s.lexiconPackPath);
+    s.db.attachMiddleLiddell(s.middleLiddellPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
     return s;
   }
@@ -650,6 +651,45 @@ class AppState extends ChangeNotifier {
     } finally {
       if (tmp.existsSync()) tmp.deleteSync();
       db.attachFullLexicon(lexiconPackPath);
+      notifyListeners();
+    }
+  }
+
+  /// The optional Middle Liddell definitions, a separate share-alike pack: it is never part of the
+  /// bundled database. A data-only release pinned by tag and checked by hash, like the LSJ pack.
+  static const middleLiddellPackUrl =
+      'https://github.com/CalvinMagezi/berea/releases/download/lexicon-2/lexicon-ml.sqlite';
+  static const middleLiddellPackSha256 = '74b1ac99c0d00c1418d713b5e82e48b9f395f7641d772ad8e57fdfd00f6ef3aa';
+
+  String get middleLiddellPackPath => '${supportDir.path}/lexicon-ml.sqlite';
+
+  /// Downloads the Middle Liddell pack when the user asks, or installs one they picked.
+  Future<void> installMiddleLiddellPack({Uint8List? bytes}) async {
+    if (bytes != null && bytes.length > maxLexiconPackBytes) {
+      throw const ReaderMessage('That file is too large to be a Berea lexicon pack.');
+    }
+    final tmp = File('$middleLiddellPackPath.part');
+    try {
+      if (bytes == null) {
+        await downloadPinned(
+          Uri.parse(middleLiddellPackUrl),
+          tmp,
+          sha256: middleLiddellPackSha256,
+          maxBytes: maxLexiconPackBytes,
+          timeout: lexiconDownloadTimeout,
+        );
+      } else {
+        tmp.writeAsBytesSync(bytes);
+      }
+      final probe = BibleDb(sqlite3.openInMemory());
+      final ok = probe.attachMiddleLiddell(tmp.path);
+      probe.close();
+      if (!ok) throw const ReaderMessage('That file is not a Berea Middle Liddell pack.');
+      db.detachMiddleLiddell();
+      tmp.renameSync(middleLiddellPackPath);
+    } finally {
+      if (tmp.existsSync()) tmp.deleteSync();
+      db.attachMiddleLiddell(middleLiddellPackPath);
       notifyListeners();
     }
   }

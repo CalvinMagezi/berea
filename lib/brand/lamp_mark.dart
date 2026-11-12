@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The Berea mark: a lowercase b whose stem is a lamp, its flame above (Psalm 119:105).
 /// Drawn on a 100 unit square; ink or linen for the b, lamp gold for the flame.

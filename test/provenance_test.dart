@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:berea/provenance.dart';
 import 'package:berea/provenance_line.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_test/flutter_test.dart';

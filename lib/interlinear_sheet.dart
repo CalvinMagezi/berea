@@ -1,5 +1,5 @@
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'app_state.dart';
 import 'theme.dart';
@@ -7,8 +7,15 @@ import 'word_study_screen.dart';
 
 /// The Hebrew or Greek words of one verse with transliteration and gloss. Tap a word for its
 /// lexicon entry and, from there, its full word study. The original-language word order is kept; it is not aligned to the English.
+/// The Psalms' book id, whose titles are verse 0 in the Hebrew text.
+const _psalmsBookId = 19;
+
 Future<void> showInterlinear(BuildContext context, AppState s, Ref ref) {
   final words = s.db.words(ref);
+  // A psalm's title is verse 0 in the Hebrew text and has no verse in English; it shows with verse 1.
+  final title = ref.book.id == _psalmsBookId && ref.verseStart == 1
+      ? s.db.words(Ref(ref.book, ref.chapter, 0, 0))
+      : const <WordTag>[];
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -31,11 +38,12 @@ Future<void> showInterlinear(BuildContext context, AppState s, Ref ref) {
                 ref.book.id < 40 ? 'Hebrew, read right to left' : 'Greek',
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
               ),
-              if (ref.book.id < 40)
-                Text(
-                  'Parsing: ETCBC morphology, through STEPBible (CC BY-NC upstream).',
-                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-                ),
+              Text(
+                ref.book.id < 40
+                    ? 'Parsing: ETCBC morphology, through STEPBible (CC BY-NC upstream).'
+                    : "Parsing: Tyndale House's morphology, published by STEPBible.",
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+              ),
               const SizedBox(height: 12),
               Expanded(
                 child: words.isEmpty
@@ -44,11 +52,25 @@ Future<void> showInterlinear(BuildContext context, AppState s, Ref ref) {
                         style: TextStyle(color: scheme.onSurfaceVariant),
                       )
                     : SingleChildScrollView(
-                        child: Wrap(
-                          textDirection: ref.book.id < 40 ? TextDirection.rtl : TextDirection.ltr,
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [for (final w in words) _WordCard(s: s, w: w, ref: ref)],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (title.isNotEmpty) ...[
+                              Text(
+                                "The psalm's title, in the Hebrew text",
+                                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+                              ),
+                              const SizedBox(height: 6),
+                              _wordWrap(s, title, ref),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Verse 1',
+                                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+                              ),
+                              const SizedBox(height: 6),
+                            ],
+                            _wordWrap(s, words, ref),
+                          ],
                         ),
                       ),
               ),
@@ -59,6 +81,13 @@ Future<void> showInterlinear(BuildContext context, AppState s, Ref ref) {
     },
   );
 }
+
+Widget _wordWrap(AppState s, List<WordTag> words, Ref ref) => Wrap(
+  textDirection: ref.book.id < 40 ? TextDirection.rtl : TextDirection.ltr,
+  spacing: 8,
+  runSpacing: 8,
+  children: [for (final w in words) _WordCard(s: s, w: w, ref: ref)],
+);
 
 class _WordCard extends StatelessWidget {
   final AppState s;
@@ -84,7 +113,7 @@ class _WordCard extends StatelessWidget {
             Text(w.original, style: const TextStyle(fontSize: 22)),
             Text(w.translit, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             Text(w.gloss, style: TextStyle(fontSize: 13, color: scheme.primary)),
-            if ((verbSense(w.morph) ?? s.db.hebrewParsing(w.morph)) case final sense?)
+            if (s.db.verbParsing(w.morph) case final sense?)
               Text(sense, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
           ],
         ),

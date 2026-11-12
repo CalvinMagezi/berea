@@ -2,7 +2,7 @@ import 'package:berea/word_press.dart';
 import 'package:berea/word_study_screen.dart';
 import 'package:berea_harness/berea_harness.dart' show verseWordPattern;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Verses as the reader sets them: a verse number, then the text, with a note mark after some.

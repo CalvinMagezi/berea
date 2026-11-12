@@ -4,7 +4,7 @@ import 'package:berea/app_state.dart';
 import 'package:berea/interlinear_sheet.dart';
 import 'package:berea/theme.dart';
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,5 +55,36 @@ void main() {
     expect(find.text('STEPBible lists it as "judgment"'), findsOneWidget);
     expect(find.text("Scholar's lexicon entry"), findsOneWidget);
     expect(find.textContaining('LXX'), findsNothing, reason: 'the scholar\'s entry starts folded');
+  });
+
+  testWidgets("verse 1 of a psalm also shows the psalm's title, which is verse 0 in the Hebrew", (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    Future<void> open(Ref ref) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: bereaTheme(Brightness.light),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showInterlinear(context, s, ref),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    await open(Ref(bookById(19), 3, 1, 1));
+    expect(find.text("The psalm's title, in the Hebrew text"), findsOneWidget);
+    expect(find.text('Verse 1'), findsOneWidget);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+    await open(Ref(bookById(19), 3, 2, 2));
+    expect(find.text("The psalm's title, in the Hebrew text"), findsNothing);
   });
 }

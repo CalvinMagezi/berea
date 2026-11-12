@@ -106,7 +106,22 @@ class LexEntry {
 class XRef {
   final Ref to;
   final int votes;
-  const XRef(this.to, this.votes);
+
+  /// Where the target range ends when it runs past its first chapter or book (Genesis 11:32 to
+  /// 12:1); [to] then covers only its first verse, so code that reads [to] stays in one chapter.
+  /// Null for a range in one chapter.
+  final ({Book book, int chapter, int verse})? endsIn;
+  const XRef(this.to, this.votes, [this.endsIn]);
+
+  /// "Genesis 11:32-12:1", or "Genesis 11:32" and "John 3:16-18" for a range in one chapter.
+  String get label {
+    final end = endsIn;
+    if (end == null) return to.label;
+    final start = '${to.book.name} ${to.chapter}:${to.verseStart}';
+    return end.book.id == to.book.id
+        ? '$start-${end.chapter}:${end.verse}'
+        : '$start-${end.book.name} ${end.chapter}:${end.verse}';
+  }
 }
 
 /// How a Hebrew or Greek word came to be listed for a search.
@@ -243,7 +258,7 @@ void createBibleSchema(Database db) => db.execute('''
   CREATE TABLE words(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, original TEXT, translit TEXT, gloss TEXT, strongs TEXT, morph TEXT, PRIMARY KEY(book, chapter, verse, pos)) WITHOUT ROWID;
   CREATE TABLE lexicon(key TEXT PRIMARY KEY, base TEXT, lemma TEXT, translit TEXT, pos TEXT, gloss TEXT, definition TEXT);
   CREATE INDEX lexicon_base ON lexicon(base);
-  CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER);
+  CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER, to_book_end INTEGER, to_chapter_end INTEGER);
   CREATE INDEX xrefs_from ON xrefs(from_book, from_chapter, from_verse);
   CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
   CREATE INDEX verses_ref ON verses(translation, book, chapter, verse);
@@ -327,7 +342,14 @@ class BibleDb {
     final unique = <String, VerseRow>{
       for (final r in rows) '${r.book.id}:${r.chapter}:${r.verse}': r,
     };
-    rows = unique.values.toList();
+    // In Bible order, so the translation lands in one ordered run of rows and searches skip the join.
+    rows = unique.values.toList()
+      ..sort((a, b) {
+        final byBook = a.book.id.compareTo(b.book.id);
+        if (byBook != 0) return byBook;
+        final byChapter = a.chapter.compareTo(b.chapter);
+        return byChapter != 0 ? byChapter : a.verse.compareTo(b.verse);
+      });
     final insert = db.prepare(
       'INSERT INTO verses(translation, book, chapter, verse, text) VALUES (?, ?, ?, ?, ?)',
     );
@@ -349,13 +371,19 @@ class BibleDb {
         [code],
       );
       db.execute('COMMIT');
-      return rows.length;
     } catch (_) {
       db.execute('ROLLBACK');
       rethrow;
     } finally {
       insert.dispose();
     }
+    // Only a speed-up: a database without the meta table simply keeps the slower join.
+    try {
+      recordBibleOrder();
+    } on SqliteException {
+      _ranges = null;
+    }
+    return rows.length;
   }
 
   Verse _verse(Row r) => Verse(
@@ -1134,7 +1162,10 @@ class BibleDb {
   /// Row-id ranges of the translations stored in Bible order, one contiguous run each, from the
   /// meta row [recordBibleOrder] writes. For these the index answers in Bible order by itself, with
   /// no join to the verse table, which is thousands of random reads on a phone.
-  late final Map<String, (int, int)> _orderedRanges = () {
+  Map<String, (int, int)>? _ranges;
+  Map<String, (int, int)> get _orderedRanges => _ranges ??= _loadOrderedRanges();
+
+  Map<String, (int, int)> _loadOrderedRanges() {
     try {
       final rows = db.select('SELECT value FROM meta WHERE key = ?', [_orderMetaKey]);
       if (rows.isEmpty) return const <String, (int, int)>{};
@@ -1149,7 +1180,7 @@ class BibleDb {
     } on SqliteException {
       return const <String, (int, int)>{};
     }
-  }();
+  }
 
   /// Notes which translations hold their verses in one run of rows in Bible order. A builder calls
   /// this once the verses are loaded; a translation that fails the check is left out, and its
@@ -1186,6 +1217,7 @@ class BibleDb {
     ];
     db.execute('DELETE FROM meta WHERE key = ?', [_orderMetaKey]);
     db.execute('INSERT INTO meta VALUES (?, ?)', [_orderMetaKey, kept.join(',')]);
+    _ranges = null;
   }
 
   /// Row ids of the verses the index matches, in Bible order. No verse text is read.
@@ -1328,6 +1360,23 @@ class BibleDb {
 
   /// Stores each BSB verse's words aligned to the BSB translation tables (see [alignBsbWords]),
   /// replacing any earlier alignment. Returns the number of verses aligned.
+  late final bool _hasGreekMorphology = db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'greek_morphology'")
+      .isNotEmpty;
+
+  /// STEPBible's label for a verb's morphology code, read from its own tables: "Aorist Active
+  /// Indicative 3rd Singular" for Greek, "Qal (Simple, Active) Perfect ... Third Singular
+  /// Masculine" for Hebrew and Aramaic. Null for a word that is not a verb and for a code the
+  /// tables do not hold.
+  String? verbParsing(String morph) {
+    if (morph.startsWith('V-')) {
+      if (!_hasGreekMorphology) return null;
+      final rows = db.select('SELECT label FROM greek_morphology WHERE code = ?', [morph]);
+      return rows.isEmpty ? null : (rows.first['label'] as String).replaceFirst(RegExp(r'^Verb\s*:?\s*'), '');
+    }
+    return hebrewParsing(morph);
+  }
+
   late final bool _hasHebrewMorphology = db
       .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'hebrew_morphology'")
       .isNotEmpty;
@@ -1564,12 +1613,18 @@ class BibleDb {
     return (uses: r['n'] as int, verses: r['v'] as int);
   }
 
-  /// Uses of [code] per book, in canonical order.
+  /// The word_index rows listed for [code]: every use of a Hebrew word, and for a Greek one the
+  /// uses in the Nestlé-Aland 28 text, the text its headline count is taken from. Scrivener's text
+  /// is counted beside it by [wordCountsByText].
+  String _listed(String code) => code.startsWith('G') && _hasEditions ? 'AND ${_inEdition('NA28')}' : '';
+
+  /// Uses of [code] per book, in canonical order, in the text [mainTextFor] names.
   List<(Book, int)> wordBooks(String code) {
     _ensureWordIndex();
     return [
       for (final r in db.select(
-        'SELECT book, COUNT(*) AS n FROM word_index WHERE strongs = ? GROUP BY book ORDER BY book',
+        'SELECT i.book, COUNT(*) AS n FROM word_index i WHERE i.strongs = ? ${_listed(code)} '
+        'GROUP BY i.book ORDER BY i.book',
         [strongsBase(code)],
       ))
         (bookById(r['book'] as int), r['n'] as int),
@@ -1582,7 +1637,8 @@ class BibleDb {
     final counts = <String, int>{};
     for (final r in db.select(
       'SELECT w.gloss, w.strongs FROM word_index i JOIN words w ON w.book = i.book AND '
-      'w.chapter = i.chapter AND w.verse = i.verse AND w.pos = i.pos WHERE i.strongs = ?',
+      'w.chapter = i.chapter AND w.verse = i.verse AND w.pos = i.pos WHERE i.strongs = ? '
+      '${_listed(code)}',
       [strongsBase(code)],
     )) {
       final g = cleanGloss(r['gloss'] as String, strongs: r['strongs'] as String);
@@ -1604,10 +1660,11 @@ class BibleDb {
     _ensureWordIndex();
     final base = strongsBase(code);
     final rows = db.select(
-      'WITH vs AS (SELECT DISTINCT book, chapter, verse FROM word_index '
-      'WHERE strongs = ? AND (? IS NULL OR book = ?) ORDER BY book, chapter, verse LIMIT ? OFFSET ?) '
+      'WITH vs AS (SELECT DISTINCT i.book, i.chapter, i.verse FROM word_index i '
+      'WHERE i.strongs = ? ${_listed(code)} AND (? IS NULL OR i.book = ?) '
+      'ORDER BY i.book, i.chapter, i.verse LIMIT ? OFFSET ?) '
       'SELECT vs.book, vs.chapter, vs.verse, w.original, w.translit, w.gloss, w.strongs, w.morph, '
-      'w.pos FROM vs JOIN word_index i ON i.strongs = ? AND i.book = vs.book AND '
+      'w.pos FROM vs JOIN word_index i ON i.strongs = ? ${_listed(code)} AND i.book = vs.book AND '
       'i.chapter = vs.chapter AND i.verse = vs.verse JOIN words w ON w.book = i.book AND '
       'w.chapter = i.chapter AND w.verse = i.verse AND w.pos = i.pos '
       'ORDER BY vs.book, vs.chapter, vs.verse, w.pos',
@@ -1733,6 +1790,48 @@ class BibleDb {
     }
   }
 
+  bool _hasMiddleLiddell = false;
+
+  /// True once the optional Middle Liddell pack is attached.
+  bool get hasMiddleLiddell => _hasMiddleLiddell;
+
+  /// Attaches the optional Middle Liddell pack built by `bin/build_lexicon_ml_pack.dart`: the
+  /// share-alike definitions the bundled database leaves out. False when the file is missing or
+  /// not a pack.
+  bool attachMiddleLiddell(String path) {
+    if (_hasMiddleLiddell || !File(path).existsSync()) return _hasMiddleLiddell;
+    try {
+      db.execute('ATTACH DATABASE ? AS ml', [path]);
+      db.select('SELECT key, base, definition FROM ml.lexicon_ml LIMIT 1');
+      _hasMiddleLiddell = true;
+    } on SqliteException {
+      try {
+        db.execute('DETACH DATABASE ml');
+      } on SqliteException {
+        // Never attached; nothing to undo.
+      }
+    }
+    return _hasMiddleLiddell;
+  }
+
+  /// Detaches the pack so its file can be replaced.
+  void detachMiddleLiddell() {
+    if (!_hasMiddleLiddell) return;
+    db.execute('DETACH DATABASE ml');
+    _hasMiddleLiddell = false;
+  }
+
+  /// Middle Liddell's definition of the Greek entry [key], when the pack is attached and has it.
+  String? middleLiddell(String key) {
+    if (!_hasMiddleLiddell) return null;
+    try {
+      final rows = db.select('SELECT definition FROM ml.lexicon_ml WHERE key = ?', [key]);
+      return rows.isEmpty ? null : rows.first['definition'] as String?;
+    } on SqliteException {
+      return null;
+    }
+  }
+
   late final bool _hasLexiconSources = db
       .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'lexicon_source'")
       .isNotEmpty;
@@ -1818,6 +1917,10 @@ class BibleDb {
     ].take(k).toList();
   }
 
+  late final bool _hasXrefEnds = db
+      .select("SELECT 1 FROM pragma_table_info('xrefs') WHERE name = 'to_chapter_end'")
+      .isNotEmpty;
+
   /// The passages [ref] points to, most voted first. With [toNewTestament], only those in the
   /// New Testament (true) or the Old (false).
   List<XRef> xrefs(Ref ref, {int k = 8, bool? toNewTestament}) {
@@ -1828,24 +1931,40 @@ class BibleDb {
       true => 'AND to_book > $otBookCount ',
       false => 'AND to_book <= $otBookCount ',
     };
+    // Older databases have no end columns; their ranges end in the chapter they start in.
+    final ends = _hasXrefEnds
+        ? 'to_book_end, to_chapter_end'
+        : 'to_book AS to_book_end, to_chapter AS to_chapter_end';
     final rows = db.select(
-      'SELECT to_book, to_chapter, to_verse_start, to_verse_end, MAX(votes) AS votes FROM xrefs '
-      'WHERE from_book = ? AND from_chapter = ? AND from_verse BETWEEN ? AND ? $testament'
-      'GROUP BY to_book, to_chapter, to_verse_start, to_verse_end '
+      'SELECT to_book, to_chapter, to_verse_start, to_verse_end, $ends, MAX(votes) AS votes '
+      'FROM xrefs WHERE from_book = ? AND from_chapter = ? AND from_verse BETWEEN ? AND ? $testament'
+      'GROUP BY to_book, to_chapter, to_verse_start, to_verse_end, to_book_end, to_chapter_end '
       'ORDER BY votes DESC, to_book, to_chapter, to_verse_start, to_verse_end LIMIT ?',
       [ref.book.id, ref.chapter, vs, ve, k],
     );
     return [
-      for (final r in rows)
-        XRef(
-          Ref(
-            bookById(r['to_book'] as int),
-            r['to_chapter'] as int,
-            r['to_verse_start'] as int,
-            r['to_verse_end'] as int,
-          ),
-          r['votes'] as int,
-        ),
+      for (final r in rows) _xref(r),
     ];
+  }
+
+  XRef _xref(Row r) {
+    final crosses = r['to_book_end'] != r['to_book'] || r['to_chapter_end'] != r['to_chapter'];
+    final start = r['to_verse_start'] as int;
+    return XRef(
+      Ref(
+        bookById(r['to_book'] as int),
+        r['to_chapter'] as int,
+        start,
+        crosses ? start : r['to_verse_end'] as int,
+      ),
+      r['votes'] as int,
+      crosses
+          ? (
+              book: bookById(r['to_book_end'] as int),
+              chapter: r['to_chapter_end'] as int,
+              verse: r['to_verse_end'] as int,
+            )
+          : null,
+    );
   }
 }

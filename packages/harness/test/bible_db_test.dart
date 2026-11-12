@@ -116,6 +116,8 @@ void main() {
     expect(db.wordCountsByText('H0001').single.text, hebrewTextName);
     expect(db.mainTextFor('G0001'), greekMainTextName);
     expect(db.wordCount('G0001').uses, 3, reason: 'the plain count still has every printed row');
+    expect(db.wordBooks('G0001').map((b) => b.$2), [2], reason: 'the lists use the headline text');
+    expect(db.wordGlosses('G0001').single.$2, 2);
   });
 
   test("Hebrew and Aramaic parsing is STEPBible's own label for the verb part of the code", () {
@@ -132,5 +134,88 @@ void main() {
     expect(db.hebrewParsing('HVzz'), isNull, reason: 'a code the table lacks is not guessed');
     expect(db.hebrewParsing('V-AAI-3S'), isNull);
     expect(BibleDb(sqlite3.openInMemory()).hebrewParsing('HVhaa'), isNull);
+  });
+
+  test('an imported translation is put in Bible order and recorded, so its searches skip the join', () {
+    final raw = sqlite3.openInMemory();
+    createBibleSchema(raw);
+    final db = BibleDb(raw);
+    final john = bookFor('John')!, gen = bookFor('Genesis')!;
+    // Handed over out of order; the rows must still land as one ordered run.
+    db.importRows([
+      (book: john, chapter: 1, verse: 2, text: 'He was with God in the beginning.'),
+      (book: gen, chapter: 1, verse: 1, text: 'In the beginning God created.'),
+      (book: john, chapter: 1, verse: 1, text: 'In the beginning was the Word.'),
+    ], 'MYV');
+    final meta = raw.select("SELECT value FROM meta WHERE key = 'bible_order'").first['value'] as String;
+    expect(meta, matches(RegExp(r'^MYV:\d+-\d+$')));
+    final labels = db.searchVerses('beginning', translation: 'MYV').expand((g) => g.verses).map((v) => v.label);
+    expect(labels.toSet(), {'Genesis 1:1', 'John 1:1', 'John 1:2'});
+    final exact = db.searchVerses('beginning', translation: 'MYV').first.verses.map((v) => v.label).toList();
+    expect(exact, ['Genesis 1:1', 'John 1:1', 'John 1:2'], reason: 'in Bible order');
+    db.importRows([(book: gen, chapter: 1, verse: 1, text: 'Another beginning.')], 'TWO');
+    final both = raw.select("SELECT value FROM meta WHERE key = 'bible_order'").first['value'] as String;
+    expect(both, contains('MYV:'));
+    expect(both, contains('TWO:'), reason: 'a second import is recorded without losing the first');
+  });
+
+  test('a cross reference that runs into the next chapter keeps its end and reads as a range', () {
+    final raw = sqlite3.openInMemory();
+    createBibleSchema(raw);
+    final db = BibleDb(raw);
+    // Genesis 11:31 points to Genesis 11:32-12:1 and to Genesis 12:2-3; 50:26 to Exodus 1:1-2.
+    raw.execute("INSERT INTO xrefs VALUES (1, 11, 31, 1, 11, 32, 1, 9, 1, 12)");
+    raw.execute("INSERT INTO xrefs VALUES (1, 11, 31, 1, 12, 2, 3, 4, 1, 12)");
+    raw.execute("INSERT INTO xrefs VALUES (1, 50, 26, 2, 1, 1, 2, 3, 2, 1)");
+    final across = db.xrefs(RefParser.parse('Genesis 11:31').first);
+    expect(across.map((x) => x.label), ['Genesis 11:32-12:1', 'Genesis 12:2-3']);
+    expect(across.first.to.verseEnd, 32, reason: 'readers of the target stay in one chapter');
+    final book = db.xrefs(RefParser.parse('Genesis 50:26').first).single;
+    expect(book.label, 'Exodus 1:1-2');
+    final old = sqlite3.openInMemory()
+      ..execute('CREATE TABLE xrefs(from_book INTEGER, from_chapter INTEGER, from_verse INTEGER, to_book INTEGER, to_chapter INTEGER, to_verse_start INTEGER, to_verse_end INTEGER, votes INTEGER)')
+      ..execute('INSERT INTO xrefs VALUES (1, 1, 1, 43, 1, 1, 3, 5)');
+    expect(BibleDb(old).xrefs(RefParser.parse('Genesis 1:1').first).single.label, 'John 1:1-3');
+  });
+
+  test("Greek verbs read from STEPBible's table, and a code the table lacks is not guessed", () {
+    final raw = sqlite3.openInMemory()
+      ..execute('CREATE TABLE greek_morphology(code TEXT PRIMARY KEY, label TEXT) WITHOUT ROWID')
+      ..execute("INSERT INTO greek_morphology VALUES ('V-AAI-3S', 'Verb Aorist Active Indicative 3rd Singular')")
+      ..execute("INSERT INTO greek_morphology VALUES ('N-NSM', 'Noun Nominative Singular Masculine')");
+    final db = BibleDb(raw);
+    expect(db.verbParsing('V-AAI-3S'), 'Aorist Active Indicative 3rd Singular');
+    expect(db.verbParsing('N-NSM'), isNull, reason: 'only verbs are described');
+    expect(db.verbParsing('V-ZZZ'), isNull);
+    expect(db.verbParsing(''), isNull);
+    expect(BibleDb(sqlite3.openInMemory()).verbParsing('V-AAI-3S'), isNull);
+  });
+
+  test('the optional Middle Liddell pack attaches apart from the full lexicon and answers by key', () {
+    final dir = Directory.systemTemp.createTempSync('berea_ml');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final pack = '${dir.path}/ml.sqlite';
+    sqlite3.open(pack)
+      ..execute('''
+        CREATE TABLE lexicon_ml(key TEXT PRIMARY KEY, base TEXT, definition TEXT);
+        INSERT INTO lexicon_ml VALUES ('G5104', 'G5104', 'enclit. Particle, serving to express belief');
+        CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
+      ''')
+      ..dispose();
+    final db = BibleDb(sqlite3.openInMemory());
+    expect(db.middleLiddell('G5104'), isNull, reason: 'nothing attached yet');
+    expect(db.attachMiddleLiddell('${dir.path}/missing.sqlite'), isFalse);
+    expect(db.attachMiddleLiddell(pack), isTrue);
+    expect(db.hasMiddleLiddell, isTrue);
+    expect(db.hasFullLexicon, isFalse, reason: 'the two packs are separate files');
+    expect(db.middleLiddell('G5104'), startsWith('enclit.'));
+    expect(db.middleLiddell('G0001'), isNull);
+    db.detachMiddleLiddell();
+    expect(db.hasMiddleLiddell, isFalse);
+    final notAPack = '${dir.path}/other.sqlite';
+    sqlite3.open(notAPack)
+      ..execute('CREATE TABLE x(a)')
+      ..dispose();
+    expect(db.attachMiddleLiddell(notAPack), isFalse);
   });
 }

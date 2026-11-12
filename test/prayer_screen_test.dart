@@ -3,7 +3,7 @@ import 'package:berea/prayer_plan_store.dart';
 import 'package:berea/prayer_store.dart';
 import 'package:berea/setup_screen.dart' show deviceNoun;
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

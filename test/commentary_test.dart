@@ -6,7 +6,7 @@ import 'package:berea/keep_sheet.dart';
 import 'package:berea/notebook_store.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 

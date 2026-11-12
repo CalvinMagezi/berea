@@ -3,7 +3,7 @@ import 'package:berea/prayer_screen.dart';
 import 'package:berea/prayer_store.dart';
 import 'package:berea/prayer_today.dart';
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 

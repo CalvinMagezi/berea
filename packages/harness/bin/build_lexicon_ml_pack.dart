@@ -1,7 +1,7 @@
 // Builds the optional Middle Liddell definitions pack for Greek entries STEPBible cites to it.
 // Middle Liddell comes from the Perseus Digital Library under a share-alike licence, so it is kept
 // in its own file with its credit and licence and never merged into the app's database.
-// It is not bundled and not yet published: the licence version is to be confirmed first.
+// It is not bundled. The app downloads it from a release only when the user asks.
 // Usage: dart run bin/build_lexicon_ml_pack.dart [--out ../../build/lexicon-ml.sqlite]
 import 'dart:io';
 
@@ -47,10 +47,8 @@ Future<void> main(List<String> args) async {
   final meta = {
     'source': 'Middle Liddell (An Intermediate Greek-English Lexicon), Perseus Digital Library, '
         'through the STEPBible Brief lexicon (Tyndale House, Cambridge)',
-    'licence': 'Creative Commons Attribution-ShareAlike (Perseus Digital Library, Tufts '
-        'University). One digitised copy states version 3.0 US with an offer of changes back to '
-        'Perseus; the Perseus lexica repository states 4.0. Confirm the version against the file '
-        'STEPBible took it from before this file is published',
+    'licence': 'Creative Commons Attribution-ShareAlike (Perseus Digital Library, Tufts University; '
+        'version 4.0 as stated by the Perseus lexica repository)',
     'changes': 'Tags removed and text flattened to plain lines by Berea; wording otherwise as '
         'STEPBible prints it',
   };

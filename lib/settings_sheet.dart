@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'app_state.dart';
 import 'backup.dart';
@@ -189,6 +189,22 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     }
   }
 
+  Future<void> _installMiddleLiddell(BuildContext context, {required bool fromFile}) async {
+    Uint8List? bytes;
+    if (fromFile) {
+      final picked = await FilePicker.pickFiles();
+      if (picked.isEmpty) return;
+      bytes = await picked.single.readAsBytes();
+    }
+    try {
+      await widget.state.installMiddleLiddellPack(bytes: bytes);
+      setState(() {});
+      _say('Middle Liddell definitions installed.');
+    } catch (e) {
+      _say(plainFailure(e, 'The Middle Liddell pack could not be installed.'));
+    }
+  }
+
   Future<void> _backup(BuildContext context) async {
     final pass = await _askPassphrase(context, confirm: true);
     if (pass == null || !context.mounted) return;
@@ -345,6 +361,37 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                       icon: const Icon(Icons.upload_file_outlined),
                       label: const Text('From a file'),
                       onPressed: () => _installLexicon(context, fromFile: true),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 16),
+              Text('Middle Liddell definitions', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
+              Text(
+                widget.state.db.hasMiddleLiddell
+                    ? 'Installed. Greek entries whose definition is Middle Liddell\'s show it, with its credit.'
+                    : 'Optional, under 1 MB: the definitions STEPBible takes from Middle Liddell (the '
+                          'Perseus Digital Library, share-alike) for about 2,000 Greek entries. They are '
+                          'kept in their own file and downloaded only if you ask, from the Berea releases '
+                          'on GitHub.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (!widget.state.db.hasMiddleLiddell)
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.download_outlined),
+                      label: const Text('Download'),
+                      onPressed: () => _installMiddleLiddell(context, fromFile: false),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.upload_file_outlined),
+                      label: const Text('From a file'),
+                      onPressed: () => _installMiddleLiddell(context, fromFile: true),
                     ),
                   ],
                 ),
