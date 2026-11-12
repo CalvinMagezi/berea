@@ -73,6 +73,45 @@ Future<void> downloadPinned(
   }
 }
 
+/// Like [downloadPinned] for a file of a known size, but a stopped or broken download keeps its
+/// [part] and the next call continues it with a Range request, so a pack on a poor connection is
+/// not fetched from the start again. A part that does not match the published hash is removed, so
+/// the next try starts fresh; one that does is left for the caller to use and then [discardPart].
+Future<void> downloadPinnedResumable(
+  Uri url,
+  File part, {
+  required String sha256,
+  required int maxBytes,
+  required Duration timeout,
+  ByteProgress? onProgress,
+  Future<void>? stop,
+}) async {
+  try {
+    await _fetchResumable(
+      url,
+      part,
+      maxBytes: maxBytes + modelSizeMargin,
+      timeout: timeout,
+      onProgress: onProgress,
+      stop: stop,
+    );
+    if (part.lengthSync() > maxBytes + modelSizeMargin || !await hashCheck(part, sha256)) {
+      throw const DownloadDamaged('The download does not match the published file.');
+    }
+  } on DownloadDamaged {
+    _discard(part);
+    rethrow;
+  }
+}
+
+/// Whether [bytes] are the file published under [sha256], for a pack that came by hand from a
+/// file and so can be checked with no network.
+Future<bool> bytesMatch(List<int> bytes, String sha256) async =>
+    hexOf((await Sha256().hash(bytes)).bytes) == sha256;
+
+/// Removes [part] and the note of what it was fetched against.
+void discardPart(File part) => _discard(part);
+
 /// Room above a model's published size, so a response a little longer than expected fails on the
 /// hash and not on the cap.
 const modelSizeMargin = 1024 * 1024;

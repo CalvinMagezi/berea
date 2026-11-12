@@ -12,24 +12,31 @@ const commentaryReleaseUrl = 'https://github.com/CalvinMagezi/berea/releases/dow
 
 /// Size and SHA-256 of each published `.gz` file, from build/commentary/manifest.json.
 class PackPin {
+  /// The hash of the published `.gz` file, and of the SQLite file inside it. The second lets a
+  /// pack passed from one phone to another, in either form, be checked with no network.
   final String sha256;
   final int bytes;
-  const PackPin(this.sha256, this.bytes);
+  final String unpackedSha256;
+  const PackPin(this.sha256, this.bytes, this.unpackedSha256);
 
   String get sizeLabel => '${(bytes / bytesPerMb).round()} MB';
 }
 
 const bytesPerMb = 1024 * 1024;
 
+/// Whether an installed pack must match the hash Berea published for it. Tests that install packs
+/// they built themselves turn it off.
+bool verifyCommentaryPacks = true;
+
 const commentaryPins = <String, PackPin>{
-  'core': PackPin('a8013704eedc58e28c7f5305c51752c626855b8fc718a04e4f4b748c2b1eff5c', 19984091),
-  'mhc': PackPin('31189ae6f3f4cfbdbfada315603defcb73c09234e50c6acfb9536cbdca40c3e0', 25536620),
-  'clarke': PackPin('658a0928f5d676b01190a829eed6ee90fd1d4120e0d821924bdf51cbe6660d7e', 15215716),
-  'calvin': PackPin('7590864d8ae89441277d5906372c6c3701354f2967939875642f1888d11ab93d', 26535568),
-  'kd': PackPin('10223ab9ca957d592657a1e9e3040c9ce26b8a2f0d30fb9c61c72e566a91d1b3', 18180887),
-  'barnes': PackPin('2b28dbaae0f0b42fd844507c2887d619bb8db3a06d962b7e015df2cebf60b663', 10200748),
-  'wesley': PackPin('dca59c30ff37ce9b7ae0805e8d1fdbc5cb50531326d9a79fef79e60912fe69ef', 3841717),
-  'tdavid': PackPin('85f3d13bfbdb6cf4cdb169e98610320df65148f83809d06af24759fca2612076', 8826308),
+  'core': PackPin('a8013704eedc58e28c7f5305c51752c626855b8fc718a04e4f4b748c2b1eff5c', 19984091, '08e7a844cfd82b9588a80c4d2eda1da5b4997509af58b9ac242e6711c7613f38'),
+  'mhc': PackPin('31189ae6f3f4cfbdbfada315603defcb73c09234e50c6acfb9536cbdca40c3e0', 25536620, 'a95116e753483e7a77b12481ff7a0dab59abf59adbf1d89b559666bdfb79e2d6'),
+  'clarke': PackPin('658a0928f5d676b01190a829eed6ee90fd1d4120e0d821924bdf51cbe6660d7e', 15215716, '22affb07d89ce5f4968fcd56db3c4fbb27c5929c3c2f010881bd0f1834dbede9'),
+  'calvin': PackPin('7590864d8ae89441277d5906372c6c3701354f2967939875642f1888d11ab93d', 26535568, 'e2a17a1cc3eae507cd06bbb66c804ff927c03d0b64e2403c210604e6595e3998'),
+  'kd': PackPin('10223ab9ca957d592657a1e9e3040c9ce26b8a2f0d30fb9c61c72e566a91d1b3', 18180887, '7e66025ead509c7700063da5147030f3e261b140c2f177be29ff73b7845c3204'),
+  'barnes': PackPin('2b28dbaae0f0b42fd844507c2887d619bb8db3a06d962b7e015df2cebf60b663', 10200748, 'ba7dda31e7212cd294df4903c6199b02fa8a6f25fda1ed8ac3c7bc0c13dc4d1c'),
+  'wesley': PackPin('dca59c30ff37ce9b7ae0805e8d1fdbc5cb50531326d9a79fef79e60912fe69ef', 3841717, '04587a55135d23e5abf0aa3c55b27f342a67eeed14247c8f1b28aeae8b556dfa'),
+  'tdavid': PackPin('85f3d13bfbdb6cf4cdb169e98610320df65148f83809d06af24759fca2612076', 8826308, 'cdd371759b041129c3ac9126f6ee5153f7369553e8ad3b78e3c630374a2631c2'),
 };
 
 /// Unpacked size cap for a pack picked from a file; the largest published pack is under 64 MB.
@@ -84,7 +91,8 @@ class CommentaryShelf {
     onChange();
     var shownStep = 0;
     try {
-      await downloadPinned(
+      // A broken connection leaves the part, and the next try continues it.
+      await downloadPinnedResumable(
         Uri.parse('$commentaryReleaseUrl/${spec.fileName}.gz'),
         gz,
         sha256: pin.sha256,
@@ -100,10 +108,13 @@ class CommentaryShelf {
           onChange();
         },
       );
-      await _install(gz, expectedId: spec.id);
+      try {
+        await _install(gz, expectedId: spec.id);
+      } finally {
+        discardPart(gz);
+      }
     } finally {
       progress.remove(spec.id);
-      if (gz.existsSync()) gz.deleteSync();
       onChange();
     }
   }
@@ -129,6 +140,10 @@ class CommentaryShelf {
         throw const FormatException('That file is not a Berea commentary pack.');
       }
       // The open pack holds its file; let go of it before replacing it.
+      final pin = commentaryPins[spec.id];
+      if (verifyCommentaryPacks && pin != null && !await hashCheck(tmp, pin.unpackedSha256)) {
+        throw const FormatException("That file is not the pack Berea published, so it was not installed.");
+      }
       library.close(spec.id);
       tmp.renameSync(_path(spec));
       return spec;

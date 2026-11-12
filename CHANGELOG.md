@@ -32,6 +32,12 @@ and your own words, and nothing in it writes text for you.
   senses, which Berea wrote and are gone. A word pressed in the KJV or the WEB no longer opens a
   guessed word: the study opens with the verse's original words and none chosen, because only the
   BSB's tables say which word is behind which English.
+- **Share Berea, and feedback.** On Android, Settings can hand the installed app, and any pack you
+  downloaded, to the share sheet as a file, so a friend needs no download. Packs passed by hand are
+  checked against the hash Berea published, in either form. Write feedback shows the whole message,
+  your words and the app version, and offers it to the share sheet; Berea sends nothing itself. A
+  pack download that breaks continues from where it stopped, and the first-run copy of the Bible is
+  written in chunks and checked.
 - **Loose ends closed.** A cross reference whose target runs into the next chapter or book shows
   its whole range ("Genesis 11:32-12:1"). The twenty Greek verses whose words STEPBible numbers
   differently from the BSB now have those words in the right verse. A Greek word's lists name the

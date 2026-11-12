@@ -32,6 +32,23 @@ void main() {
             res.add(body.sublist(0, 8));
             await res.flush();
             await Future<void>.delayed(_timeout);
+          case '/pack':
+            // The first request breaks after 8 bytes; one that asks for a Range gets the rest.
+            final range = req.headers.value('range');
+            res.headers.set('etag', '"v1"');
+            if (range == null) {
+              res.bufferOutput = false;
+              res.contentLength = body.length;
+              res.add(body.sublist(0, 8));
+              await res.flush();
+              await Future<void>.delayed(_timeout);
+            } else {
+              final from = int.parse(RegExp(r'bytes=(\d+)-').firstMatch(range)![1]!);
+              res.statusCode = HttpStatus.partialContent;
+              res.headers.set('content-range', 'bytes $from-${body.length - 1}/${body.length}');
+              res.contentLength = body.length - from;
+              res.add(body.sublist(from));
+            }
           case '/declared-too-big':
             res.contentLength = _maxBytes + 1;
             res.add(List.filled(_maxBytes + 1, 0));
@@ -69,6 +86,47 @@ void main() {
     await fetch('/ok', progress: progress);
     expect(File('${dir.path}/out.part').readAsBytesSync(), body);
     expect(progress.last, 1.0);
+  });
+
+  test('a pack download that breaks keeps its part and the next try fetches only the rest', () async {
+    final part = File('${dir.path}/pack.part');
+    final url = Uri.parse('http://${server.address.host}:${server.port}/pack');
+    final stop = Completer<void>();
+    await expectLater(
+      downloadPinnedResumable(
+        url,
+        part,
+        sha256: pin,
+        maxBytes: _maxBytes,
+        timeout: _timeout,
+        stop: stop.future,
+        onProgress: (received, total) {
+          if (!stop.isCompleted) stop.complete();
+        },
+      ),
+      throwsA(isA<DownloadStopped>()),
+    );
+    expect(part.lengthSync(), 8, reason: 'the bytes that arrived are kept');
+    await downloadPinnedResumable(url, part, sha256: pin, maxBytes: _maxBytes, timeout: _timeout);
+    expect(part.readAsBytesSync(), body);
+    discardPart(part);
+    expect(part.existsSync(), isFalse);
+    expect(File('${part.path}.json').existsSync(), isFalse);
+  });
+
+  test('a pack whose hash is wrong leaves no part behind', () async {
+    final part = File('${dir.path}/bad.part');
+    await expectLater(
+      downloadPinnedResumable(
+        Uri.parse('http://${server.address.host}:${server.port}/ok'),
+        part,
+        sha256: '0' * 64,
+        maxBytes: _maxBytes,
+        timeout: _timeout,
+      ),
+      throwsA(isA<DownloadDamaged>()),
+    );
+    expect(part.existsSync(), isFalse);
   });
 
   test('refuses a file whose hash differs from the pin', () async {
