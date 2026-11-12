@@ -19,7 +19,7 @@ const _swipeDistance = 56.0;
 const _swipeVelocity = 600.0;
 const _swipeReturn = Duration(milliseconds: 180);
 
-enum _More { words, commentary, studyPage, copy, share }
+enum _More { thisVerse, words, commentary, studyPage, copy, share }
 
 /// What a selection of verses can do: Highlight, Note, Pray and More on a phone card; on a
 /// wide screen a toolbar with Words and Commentary out of More. On a phone, swiping the card, or
@@ -35,6 +35,7 @@ class SelectionBar extends StatelessWidget {
   final VoidCallback onPray;
   final VoidCallback onWords;
   final VoidCallback onCommentary;
+  final VoidCallback onThisVerse;
   final VoidCallback onStudyPage;
   final VoidCallback onCopy;
 
@@ -55,6 +56,7 @@ class SelectionBar extends StatelessWidget {
     required this.onPray,
     required this.onWords,
     required this.onCommentary,
+    required this.onThisVerse,
     required this.onStudyPage,
     required this.onCopy,
     required this.onShare,
@@ -157,6 +159,7 @@ class SelectionBar extends StatelessWidget {
     builder: (context) => PopupMenuButton<_More>(
       tooltip: 'More',
       onSelected: (m) => switch (m) {
+        _More.thisVerse => onThisVerse(),
         _More.words => onWords(),
         _More.commentary => onCommentary(),
         _More.studyPage => onStudyPage(),
@@ -164,6 +167,7 @@ class SelectionBar extends StatelessWidget {
         _More.share => onShare(context),
       },
       itemBuilder: (_) => [
+        const PopupMenuItem(value: _More.thisVerse, child: Text('This verse')),
         if (!wide) ...[
           const PopupMenuItem(value: _More.words, child: Text('Words')),
           const PopupMenuItem(value: _More.commentary, child: Text('Commentary')),

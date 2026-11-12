@@ -18,6 +18,7 @@ import 'settings_sheet.dart';
 import 'study_page_screen.dart';
 import 'mark_spans.dart';
 import 'section_notebook.dart';
+import 'this_verse_sheet.dart';
 import 'theme.dart';
 import 'today_card.dart';
 import 'word_press.dart';
@@ -419,6 +420,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   void _words() => _onePassage('Words', () => showInterlinear(context, s, _selection));
   void _commentary() => _onePassage('Commentary', () => showCommentary(context, s, _selection));
+  /// What stands where the translation prints no verse: where its publisher prints it instead.
+  String _emptyVerseLine(int verse) {
+    final note = s.db.emptyVerseNote(book.id, chapter, verse, translation: s.settings.translation);
+    return note == null
+        ? 'This translation prints no text for this verse.'
+        : 'Printed in a footnote at $chapter:${note.host}.';
+  }
+
+  void _thisVerse() => _onePassage(
+    'This verse',
+    () => showThisVerse(context, s, _selection, onOpen: (r) => _go(r.book, r.chapter)),
+  );
 
   /// How far the current sideways drag on the reader has gone, for [selectionSwipe].
   double _dragDx = 0;
@@ -437,6 +450,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     onPray: () => _onePassage('Pray', _pray),
     onWords: _words,
     onCommentary: _commentary,
+    onThisVerse: _thisVerse,
     onStudyPage: () => _onePassage('Study page', _studyPage),
     onCopy: _copy,
     onShare: _share,
@@ -615,6 +629,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                                     fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
+                                                if (v.text.trim().isEmpty)
+                                                  TextSpan(
+                                                    text: _emptyVerseLine(v.verse),
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      fontStyle: FontStyle.italic,
+                                                      color: scheme.onSurfaceVariant,
+                                                    ),
+                                                  )
+                                                else
                                                 ...markedText(
                                                   v.text,
                                                   marks[v.verse]?.spans ?? const [],
