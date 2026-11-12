@@ -26,6 +26,12 @@ and your own words, and nothing in it writes text for you.
   cross references in full (Bible order, with OpenBible.info's votes and who they come from), the
   commentaries, and your notes, with "You wrote a note here" on a cross reference you have written
   on. The sixteen verses the BSB leaves empty say where it prints them instead.
+- **How the BSB translates it.** A word study lists every English phrase the BSB publisher's own
+  tables give for the Hebrew or Greek word, each with how many times the BSB prints it
+  (131 thousand phrase and number pairs). It replaces the plain-words summary and its numbered
+  senses, which Berea wrote and are gone. A word pressed in the KJV or the WEB no longer opens a
+  guessed word: the study opens with the verse's original words and none chosen, because only the
+  BSB's tables say which word is behind which English.
 - **Word studies name their source.** A Greek definition now says whose it is: Abbott-Smith, as
   corrected by Tyndale House for STEPBible. Entries whose definition is Middle Liddell's (share-alike,
   so not in this download) or has no stated source show the gloss alone and say why: 3,855 of 9,552.

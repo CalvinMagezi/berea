@@ -1318,6 +1318,69 @@ class BibleDb {
 
   /// Stores each BSB verse's words aligned to the BSB translation tables (see [alignBsbWords]),
   /// replacing any earlier alignment. Returns the number of verses aligned.
+  late bool _hasRenderings = db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'bsb_renderings'")
+      .isNotEmpty;
+
+  /// Counts every English rendering the BSB tables give each original word: for each Strong's
+  /// number, each English phrase and how many times the BSB prints it for that number. A row the
+  /// BSB leaves untranslated is kept as an empty phrase. Brackets mark words the translators
+  /// supplied and are dropped; phrases are compared in lower case and shown in the casing most
+  /// often printed. Returns how many number and phrase pairs were stored.
+  int importRenderings(Map<Ref, List<BsbRow>> tables) {
+    final counts = <String, Map<String, Map<String, int>>>{};
+    for (final rows in tables.values) {
+      for (final r in rows) {
+        if (r.code.isEmpty) continue;
+        var shown = r.english.replaceAll(RegExp(r'[\[\]{}]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+        // The tables mark an original word whose English stands elsewhere with dots, a dash or vvv.
+        if (RegExp(r'^[.\s-]*$').hasMatch(shown) || shown == 'vvv') shown = '';
+        final byCasing = counts.putIfAbsent(r.code, () => {}).putIfAbsent(shown.toLowerCase(), () => {});
+        byCasing[shown] = (byCasing[shown] ?? 0) + 1;
+      }
+    }
+    db.execute(
+      'DROP TABLE IF EXISTS bsb_renderings; '
+      'CREATE TABLE bsb_renderings(code TEXT, english TEXT, n INTEGER, PRIMARY KEY(code, english)) WITHOUT ROWID;',
+    );
+    final insert = db.prepare('INSERT INTO bsb_renderings VALUES (?, ?, ?)');
+    var stored = 0;
+    db.execute('BEGIN');
+    try {
+      for (final byCode in counts.entries) {
+        for (final phrase in byCode.value.values) {
+          final total = phrase.values.fold<int>(0, (a, b) => a + b);
+          final casing = (phrase.entries.toList()..sort((a, b) => b.value.compareTo(a.value))).first.key;
+          insert.execute([byCode.key, casing, total]);
+          stored++;
+        }
+      }
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    } finally {
+      insert.dispose();
+    }
+    _hasRenderings = true;
+    return stored;
+  }
+
+  /// How the BSB tables render a Strong's number: each English phrase with its count, most
+  /// printed first. The empty phrase is the uses the BSB leaves without an English word of their
+  /// own. Empty for a number the tables do not use, and for a database built without them.
+  List<({String english, int count})> bsbRenderings(String strongs) {
+    if (!_hasRenderings) return const [];
+    final code = strongs.replaceAll(RegExp(r'[A-Za-z]$'), '');
+    return [
+      for (final r in db.select(
+        'SELECT english, n FROM bsb_renderings WHERE code = ? ORDER BY n DESC, english',
+        [code],
+      ))
+        (english: r['english'] as String, count: r['n'] as int),
+    ];
+  }
+
   int importBsbAlignment(Map<Ref, List<BsbRow>> tables) {
     db.execute('''
       DROP TABLE IF EXISTS bsb_words;

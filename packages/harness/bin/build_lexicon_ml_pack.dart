@@ -45,8 +45,10 @@ Future<void> main(List<String> args) async {
   final meta = {
     'source': 'Middle Liddell (An Intermediate Greek-English Lexicon), Perseus Digital Library, '
         'through the STEPBible Brief lexicon (Tyndale House, Cambridge)',
-    'licence': 'Share-alike (Perseus Digital Library); the exact licence and version are to be '
-        'confirmed before this file is published',
+    'licence': 'Creative Commons Attribution-ShareAlike (Perseus Digital Library, Tufts '
+        'University). One digitised copy states version 3.0 US with an offer of changes back to '
+        'Perseus; the Perseus lexica repository states 4.0. Confirm the version against the file '
+        'STEPBible took it from before this file is published',
     'changes': 'Tags removed and text flattened to plain lines by Berea; wording otherwise as '
         'STEPBible prints it',
   };

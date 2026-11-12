@@ -64,4 +64,27 @@ void main() {
       ['a', tricky],
     );
   });
+
+  test('the BSB renderings count each English phrase per Strong number, once per print', () {
+    final db = BibleDb(sqlite3.openInMemory());
+    final john = RefParser.parse('John 1:1').first;
+    final jude = RefParser.parse('Jude 1:1').first;
+    db.importRenderings({
+      john: const [
+        BsbRow('the Spirit', 'H7307'),
+        BsbRow('the spirit', 'H7307'),
+        BsbRow('[a] spirit', 'H7307'),
+        BsbRow('. . .', 'H7307'),
+        BsbRow('', 'H7307'),
+        BsbRow('wind', 'H7307'),
+        BsbRow('with', ''),
+      ],
+      jude: const [BsbRow('wind', 'H7307')],
+    });
+    final r = db.bsbRenderings('H7307');
+    expect(r.map((e) => (e.english, e.count)), [('', 2), ('the Spirit', 2), ('wind', 2), ('a spirit', 1)]);
+    expect(db.bsbRenderings('H7307G'), r, reason: 'an entry letter is not part of the number');
+    expect(db.bsbRenderings('G0001'), isEmpty);
+    expect(BibleDb(sqlite3.openInMemory()).bsbRenderings('H7307'), isEmpty);
+  });
 }

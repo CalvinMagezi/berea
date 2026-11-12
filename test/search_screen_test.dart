@@ -97,6 +97,10 @@ void main() {
     // The full database tags thousands of words; the counts asserted here assume only these three.
     raw.execute('DELETE FROM words');
     raw.execute('DELETE FROM lexicon');
+    // The BSB's renderings of these numbers would push the lines under test off screen.
+    if (raw.select("SELECT 1 FROM sqlite_master WHERE name = 'bsb_renderings'").isNotEmpty) {
+      raw.execute('DELETE FROM bsb_renderings');
+    }
     void word(int book, int chapter, int verse, String original, String translit, String strongs) =>
         raw.execute('INSERT OR IGNORE INTO words VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)', [
           book,
@@ -186,9 +190,14 @@ void main() {
     expect(find.byType(WordStudyScreen), findsOneWidget);
     expect(find.text('Word study'), findsOneWidget);
     expect(find.text('ἅγιος'), findsOneWidget);
-    expect(find.text('What it means'), findsOneWidget);
+    expect(find.text("Scholar's lexicon entry"), findsOneWidget);
     expect(find.textContaining('used 2 times'), findsNothing, reason: 'the study has its own words');
     expect(find.textContaining('You will find it twice in 2 verses'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.textContaining('OTHER WORDS GLOSSED'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.textContaining('OTHER WORDS GLOSSED'), findsOneWidget, reason: 'qadosh is one tap away');
   });
 

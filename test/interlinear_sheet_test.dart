@@ -52,8 +52,7 @@ void main() {
     await tester.tap(word);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    expect(find.text('Means "judgment"'), findsOneWidget);
-    expect(find.textContaining('decision passed on the faults of others'), findsOneWidget);
+    expect(find.text('STEPBible lists it as "judgment"'), findsOneWidget);
     expect(find.text("Scholar's lexicon entry"), findsOneWidget);
     expect(find.textContaining('LXX'), findsNothing, reason: 'the scholar\'s entry starts folded');
   });

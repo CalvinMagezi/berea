@@ -114,14 +114,9 @@ class _WordCard extends StatelessWidget {
                 if (entries.isEmpty) const Text('No lexicon entry.'),
                 for (final e in entries) ...[
                   Text(
-                    e.gloss.isEmpty ? e.lemma : 'Means "${e.gloss}"',
+                    e.gloss.isEmpty ? e.lemma : 'STEPBible lists it as "${e.gloss}"',
                     style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
                   ),
-                  for (final sense in plainSenses(e.definition))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(sense, style: const TextStyle(height: 1.4)),
-                    ),
                   // The lexicons as written stay a tap away for those who read them.
                   ExpansionTile(
                     tilePadding: EdgeInsets.zero,

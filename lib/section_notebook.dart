@@ -57,10 +57,5 @@ Future<void> _addCommentary(AppState s, int id, Ref ref) async {
   }
 }
 
-/// What a kept word says it means: the gloss and its senses in plain words, as the word study
-/// shows them, not the lexicon's abbreviations.
-String _plainMeaning(LexEntry e) {
-  final senses = plainSenses(e.definition);
-  if (senses.isEmpty) return e.gloss;
-  return senses.join('; ');
-}
+/// What STEPBible lists a kept word as: its gloss alone.
+String _plainMeaning(LexEntry e) => e.gloss;

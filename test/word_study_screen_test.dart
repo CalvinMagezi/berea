@@ -80,7 +80,7 @@ BibleDb wordBible() {
   }
   // The BSB translation tables for two verses: every word of Matthew 5:48 has its number; in
   // Job 1:1 "And this" has none.
-  return BibleDb(raw)..importBsbAlignment({
+  final tables = <Ref, List<BsbRow>>{
     RefParser.parse('Matthew 5:48').first: const [
       BsbRow('Be', 'G1510'),
       BsbRow('perfect', 'G5046'),
@@ -106,7 +106,10 @@ BibleDb wordBible() {
       BsbRow('Feed', 'G1006'),
       BsbRow('My lambs', 'G0721'),
     ],
-  });
+  };
+  return BibleDb(raw)
+    ..importBsbAlignment(tables)
+    ..importRenderings(tables);
 }
 
 void main() {
@@ -148,12 +151,13 @@ void main() {
   }
 
   testWidgets('a pressed word opens its original, its use and every verse', (tester) async {
-    await open(tester, 'Matthew 5:48', english: 'perfect');
+    await open(tester, 'Matthew 5:48', english: 'perfect', wordIndex: 1);
     expect(find.text('τέλειος'), findsOneWidget);
     expect(find.text('teleios · Greek · adjective'), findsOneWidget);
-    expect(find.textContaining('Chosen by meaning'), findsOneWidget);
+    expect(find.textContaining('Choose another from'), findsNothing, reason: 'the BSB tables name it');
     expect(find.text('You will find it 3 times in 2 verses across 2 books.'), findsOneWidget);
-    expect(find.text('perfect · 2'), findsOneWidget);
+    // Once among STEPBible's glosses and once among the BSB's own renderings.
+    expect(find.text('perfect · 2'), findsNWidgets(2));
     expect(find.text('mature · 1'), findsOneWidget);
     // Another word glossed "perfect" is offered, with how often.
     await tester.scrollUntilVisible(find.text('τελειόω  teleioō'), 200, scrollable: page);
@@ -192,13 +196,11 @@ void main() {
     expect(find.textContaining('Chosen by meaning'), findsNothing);
   });
 
-  testWidgets('the KJV word behind a different BSB word is found', (tester) async {
+  testWidgets('a word pressed without its place in the BSB is not guessed', (tester) async {
     await open(tester, 'Job 1:1', english: 'perfect');
-    // Found through its lexicon definition, though this verse glosses it "blameless".
-    expect(find.text('tam · Hebrew · adjective'), findsOneWidget);
-    expect(find.text('complete'), findsWidgets);
-    // The form in the verse, without its accent, is the lemma, so no second line repeats it.
-    expect(find.textContaining('In Job 1:1:'), findsNothing);
+    expect(find.text('tam · Hebrew · adjective'), findsNothing);
+    expect(find.textContaining('Only the BSB says which Hebrew word stands behind'), findsOneWidget);
+    expect(find.text('Words in Job 1:1'), findsOneWidget);
   });
 
   testWidgets('a word chosen in the interlinear opens by position', (tester) async {
@@ -288,15 +290,18 @@ void main() {
     // "fearing" is H3373 in the tables; this fixture's Job 1:1 has no STEP word for it.
     await open(tester, 'Job 1:1', english: 'fearing', wordIndex: 7);
     expect(find.text('Hebrew · H3373'), findsOneWidget);
-    expect(find.text('No lexicon entry for H3373.'), findsOneWidget);
     expect(find.textContaining('Chosen by meaning'), findsNothing);
     expect(find.text('Words in Job 1:1'), findsOneWidget);
   });
 
-  testWidgets('other translations keep the guess by meaning', (tester) async {
+  testWidgets('other translations open with the verse\'s words and none chosen', (tester) async {
     await open(tester, 'Job 1:1', english: 'perfect', wordIndex: 7, translation: 'KJV');
-    expect(find.text('tam · Hebrew · adjective'), findsOneWidget);
-    expect(find.textContaining('Chosen by meaning'), findsOneWidget);
+    expect(find.text('tam · Hebrew · adjective'), findsNothing);
+    expect(
+      find.text('Only the BSB says which Hebrew word stands behind each of its words. Choose the word you pressed "perfect" for from Job 1:1:'),
+      findsOneWidget,
+    );
+    expect(find.text('Words in Job 1:1'), findsOneWidget);
   });
 
   testWidgets('Save word keeps the word in a notebook through the Keep sheet', (tester) async {
@@ -375,9 +380,9 @@ void main() {
       ),
     );
     expect(tester.takeException(), isNull);
-    expect(find.text('What it means'), findsOneWidget);
-    expect(find.text('perfect'), findsWidgets);
-    expect(find.text('Having reached its end, mature'), findsOneWidget);
+    expect(find.text('What it means'), findsNothing);
+    expect(find.text('How the BSB translates it'), findsOneWidget);
+    expect(find.text('perfect · 2'), findsOneWidget, reason: 'the tables print "perfect" twice for it');
     expect(find.text('In this verse'), findsOneWidget);
     expect(find.text("Scholar's lexicon entry"), findsOneWidget);
     // Closed: the raw definition is not on screen until the tile is opened.
@@ -391,10 +396,8 @@ void main() {
 
   testWidgets('a definition with several senses lists them in plain words', (tester) async {
     await open(tester, 'Job 1:1', english: 'blameless', wordIndex: 4);
-    expect(find.text('Its senses'), findsOneWidget);
-    expect(find.text('Perfect, complete'), findsOneWidget);
-    expect(find.text('Peaceable, upright'), findsOneWidget);
-    expect(find.text('2.'), findsOneWidget);
+    expect(find.text('Its senses'), findsNothing, reason: 'senses in plain words left the screen');
+    expect(find.text('Perfect, complete'), findsNothing);
   });
 
   testWidgets('a number opened alone offers every entry STEPBible keeps under it and shows the first', (
@@ -419,7 +422,9 @@ void main() {
     await tester.tap(find.text('H · spirit: breath'));
     await tester.pumpAndSettle();
     expect(find.text('STEPBible lists 2 entries under H7307. The first is shown; choose another to see it:'), findsOneWidget);
-    expect(find.text('spirit: breath'), findsOneWidget, reason: 'the chosen entry is now the study');
+    await tester.tap(find.text("Scholar's lexicon entry"));
+    await tester.pumpAndSettle();
+    expect(find.text('STEPBible lists it as: spirit: breath'), findsOneWidget, reason: 'the chosen entry is the study');
   });
 
   testWidgets('a number with one entry offers no choice', (tester) async {
