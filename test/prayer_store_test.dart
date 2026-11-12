@@ -1,4 +1,4 @@
-import 'package:berea/prayer_plan_store.dart';
+import 'package:berea/prayer_plan_tables.dart';
 import 'package:berea/prayer_store.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_test/flutter_test.dart';

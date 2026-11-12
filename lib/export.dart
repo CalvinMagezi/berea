@@ -4,8 +4,6 @@ import 'dart:typed_data';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:file_picker/file_picker.dart';
 
-import 'plans.dart';
-import 'prayer_plan_store.dart';
 import 'prayer_store.dart';
 import 'provenance.dart';
 import 'study_store.dart';
@@ -14,9 +12,8 @@ import 'study_store.dart';
 String allNotesMarkdown(
   StudyStore store,
   BibleDb db,
-  String translation, {
-  PrayerContent? content,
-}) {
+  String translation,
+) {
   final b = StringBuffer('# Berea notes\n\n');
   final notebooks = store.db.select('SELECT id, title FROM notebooks ORDER BY id');
   for (final nb in notebooks) {
@@ -29,14 +26,7 @@ String allNotesMarkdown(
   }
   if (store.db.select('SELECT 1 FROM prayers LIMIT 1').isNotEmpty) {
     // One level down, so Prayer sits beside the notebooks under the document title.
-    final prayers = prayersMarkdown(
-      PrayerStore(store.db),
-      plans: PrayerPlanStore(store.db),
-      planTitles: {
-        for (final p in readingPlans) p.id: p.name,
-        for (final p in content?.plans ?? const <PrayerPlan>[]) p.id: p.title,
-      },
-    );
+    final prayers = prayersMarkdown(PrayerStore(store.db));
     b.write(prayers.replaceAllMapped(RegExp('^#', multiLine: true), (_) => '##'));
   }
   return b.toString();

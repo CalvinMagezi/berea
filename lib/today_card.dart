@@ -4,8 +4,6 @@ import 'package:material_ui/material_ui.dart';
 
 import 'app_state.dart';
 import 'plans.dart';
-import 'prayer_points.dart';
-import 'prayer_words.dart';
 import 'theme.dart';
 import 'today.dart';
 
@@ -178,41 +176,12 @@ class _TodayCardState extends State<TodayCard> {
             ),
             Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
           ],
-          ..._prayerRow(context, scheme),
           _planRow(scheme),
         ],
       ),
     );
   }
 
-  /// A line from the chapters of today's reading, prayed with one tap. Nothing when it has none.
-  List<Widget> _prayerRow(BuildContext context, ColorScheme scheme) {
-    final prayer = state.prayerOfTheDay;
-    if (prayer == null) return const [];
-    final line = prayer.point.text;
-    return [
-      ListTile(
-        contentPadding: const EdgeInsets.only(right: 8),
-        leading: Icon(Icons.volunteer_activism_outlined, color: scheme.primary),
-        title: Text(line),
-        subtitle: Text('${prayer.point.ref} · ${prayer.source}'),
-        trailing: TextButton(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute<void>(
-              builder: (_) => LinesPrayerScreen(
-                env: state.prayerEnv,
-                title: "Today's prayer",
-                points: [prayer.point],
-              ),
-            ),
-          ),
-          child: const Text('Pray'),
-        ),
-      ),
-      Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
-    ];
-  }
 
   Widget _planRow(ColorScheme scheme) {
     final plan = state.activePlan;

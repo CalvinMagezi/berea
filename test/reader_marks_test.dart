@@ -44,7 +44,6 @@ void main() {
     final state = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
-      prayerContent: PrayerContent.empty,
     );
     final ref = Ref(bookFor('Matthew')!, 3, 1);
     text = state.db.passage(ref).single.text;

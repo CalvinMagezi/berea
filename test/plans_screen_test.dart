@@ -5,7 +5,6 @@ import 'package:berea/plans.dart';
 import 'package:berea/plans_screen.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/theme.dart';
-import 'package:berea_harness/berea_harness.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,7 +44,6 @@ void main() {
     return AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
-      prayerContent: PrayerContent.empty,
     );
   }
 

@@ -5,7 +5,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'confirm.dart';
 import 'prayer_store.dart';
-import 'prayer_verse.dart';
+import 'prayer_support.dart';
 import 'setup_screen.dart' show deviceNoun;
 import 'theme.dart';
 
@@ -72,17 +72,14 @@ class VerseChip extends StatelessWidget {
 
 /// The new prayer sheet, or the edit sheet when [editing] is given. [verse] prefills the verse,
 /// for adding a prayer from a selection in the Bible; [title] prefills what is prayed for, as
-/// from a note; [topic] starts the prayer on a From the Word topic. With [content] the sheet
-/// suggests verses to stand on from the prayer's own words. Returns the prayer id when saved.
+/// from a note. Returns the prayer id when saved.
 Future<int?> showPrayerSheet(
   BuildContext context,
   PrayerStore store, {
   Prayer? editing,
   String? verse,
   String? title,
-  String? topic,
   PassageLookup? passage,
-  PrayerContent? content,
 }) => showModalBottomSheet<int>(
   context: context,
   isScrollControlled: true,
@@ -93,9 +90,7 @@ Future<int?> showPrayerSheet(
     editing: editing,
     verse: verse,
     title: title,
-    topic: topic,
     passage: passage,
-    content: content,
   ),
 );
 
@@ -104,17 +99,13 @@ class _PrayerSheet extends StatefulWidget {
   final Prayer? editing;
   final String? verse;
   final String? title;
-  final String? topic;
   final PassageLookup? passage;
-  final PrayerContent? content;
   const _PrayerSheet({
     required this.store,
     this.editing,
     this.verse,
     this.title,
-    this.topic,
     this.passage,
-    this.content,
   });
 
   @override
@@ -126,7 +117,8 @@ class _PrayerSheetState extends State<_PrayerSheet> {
   late final _forWhom = TextEditingController(text: widget.editing?.forWhom);
   late final _note = TextEditingController(text: widget.editing?.note);
   late final _verse = TextEditingController(text: widget.editing?.verse ?? widget.verse);
-  late String? _topicId = widget.editing?.topic ?? widget.topic;
+  /// A prayer saved by an older Berea may carry a topic id; it is kept as it was.
+  late final String? _topicId = widget.editing?.topic;
   String? _error;
 
   @override
@@ -213,52 +205,6 @@ class _PrayerSheetState extends State<_PrayerSheet> {
     );
   }
 
-  /// Verses to stand on, matched on the device from the words of the prayer, and the switch
-  /// that prays the matched topic's points with it. Nothing leaves the device.
-  Widget _suggestions(BuildContext context) {
-    final content = widget.content;
-    final typed = _title.text.trim();
-    if (content == null || content.topics.isEmpty || typed.isEmpty) return const SizedBox.shrink();
-    final suggestion = suggestVerses(content, typed);
-    final topic = content.topic(_topicId) ?? suggestion.topic;
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            topic == null
-                ? 'Verses many people stand on'
-                : 'A verse to stand on \u00B7 from ${topic.title}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              for (final r in suggestion.verses)
-                ChoiceChip(
-                  avatar: const Icon(Icons.menu_book_outlined, size: 16),
-                  label: Text(r.label),
-                  selected: _verse.text.trim() == r.label,
-                  onSelected: (on) => setState(() => _verse.text = on ? r.label : ''),
-                ),
-            ],
-          ),
-          if (topic != null)
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text("Pray the topic's points with it"),
-              subtitle: Text('${topic.points.length} from ${topic.title}, in Pray now'),
-              value: _topicId == topic.id,
-              onChanged: (on) => setState(() => _topicId = on ? topic.id : null),
-            ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -310,7 +256,6 @@ class _PrayerSheetState extends State<_PrayerSheet> {
               ),
             ),
             _versePreview(context),
-            _suggestions(context),
             const SizedBox(height: 12),
             TextField(
               controller: _note,

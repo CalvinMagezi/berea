@@ -1,11 +1,9 @@
 import 'package:berea/prayer_screen.dart';
-import 'package:berea/prayer_plan_store.dart';
+import 'package:berea/prayer_plan_tables.dart';
 import 'package:berea/prayer_store.dart';
-import 'package:berea/setup_screen.dart' show deviceNoun;
 import 'package:berea_harness/berea_harness.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -153,7 +151,6 @@ void main() {
     expect(find.text('PRAYING · 1'), findsOneWidget);
     expect(find.text('Rain for the harvest'), findsOneWidget);
     expect(find.text('Answered · 1'), findsOneWidget);
-    expect(find.text('Pray now · 1 prayer'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Share the list'));
     expect(shared.single, 'Praying for\n- Rain for the harvest (for Uncle Ssali)');
@@ -185,125 +182,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(store.answered(), isEmpty);
     expect(find.text('Safe journey to Gulu'), findsOneWidget);
-  });
-
-  testWidgets('Pray now steps one at a time, verse in full, and Amen records the day', (
-    tester,
-  ) async {
-    phone(tester);
-    final older = store.add(title: 'Mama’s knee operation', forWhom: 'Mama', verse: 'Isaiah 41:10');
-    final newer = store.add(title: 'Wisdom in the new job');
-    store.amen(newer);
-    await tester.pumpWidget(app());
-    await tester.tap(find.text('Pray now · 2 prayers'));
-    await tester.pumpAndSettle();
-
-    // Never prayed comes first.
-    expect(find.text('1 of 2'), findsOneWidget);
-    expect(find.text('Mama’s knee operation'), findsOneWidget);
-    expect(find.text('FOR MAMA'), findsOneWidget);
-    expect(find.text(isaiah4110), findsOneWidget);
-    expect(find.text('Wisdom in the new job'), findsNothing);
-
-    await tester.tap(find.text('Next'));
-    await tester.pumpAndSettle();
-    expect(store.prayer(older)!.daysPrayed, 1);
-    expect(find.text('2 of 2'), findsOneWidget);
-    expect(find.text('Wisdom in the new job'), findsOneWidget);
-
-    await tester.tap(find.text('Skip'));
-    await tester.pumpAndSettle();
-    expect(find.text('You prayed for one request today.'), findsOneWidget);
-    await tester.tap(find.text('Done'));
-    await tester.pumpAndSettle();
-    expect(find.text('PRAYING · 2'), findsOneWidget);
-  });
-
-  testWidgets("the Lord's Prayer goes a line at a time", (tester) async {
-    phone(tester);
-    await tester.pumpWidget(app());
-    await tester.tap(find.text("Pray the Lord's Prayer"));
-    await tester.pumpAndSettle();
-    expect(find.text(lordsPrayerLines.first), findsOneWidget);
-    for (var i = 1; i < lordsPrayerLines.length; i++) {
-      await tester.tap(find.text('Next line'));
-      await tester.pump();
-      expect(find.text(lordsPrayerLines[i]), findsOneWidget);
-    }
-    await tester.tap(find.text('Done'));
-    await tester.pumpAndSettle();
-    expect(find.text('Bring it to God, and remember the answer'), findsOneWidget);
-  });
-
-  testWidgets('a wide window shows Pray now beside the list', (tester) async {
-    tester.view.physicalSize = const Size(1440, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    store.add(title: 'Our cell group on Thursday');
-    final job = store.add(title: 'Job interview');
-    store.markAnswered(job, '');
-    await tester.pumpWidget(app());
-
-    expect(find.text('ANSWERED · 1'), findsOneWidget);
-    expect(find.text('Next'), findsOneWidget);
-    expect(find.text('Our cell group on Thursday'), findsNWidgets(2));
-    expect(find.byType(Switch), findsNothing);
-
-    // Answered opens from the wide list too, with its testimony.
-    await tester.tap(find.text('Job interview'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Share a testimony'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Share'));
-    expect(shared.single, 'Answered prayer: Job interview');
-    expect(origins.single, isNotNull);
-  });
-
-  testWidgets('on a wide window a clicked row opens in the panel and arrow keys move', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1440, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    var clock = DateTime(2026, 10, 2, 9);
-    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema)..execute(prayerPlanSchema), now: () => clock);
-    for (final title in ['First', 'Second', 'Third']) {
-      store.add(title: title);
-      clock = clock.add(const Duration(minutes: 1));
-    }
-    await tester.pumpWidget(app());
-    expect(find.text('1 of 3 · ← → to move'), findsOneWidget);
-
-    // The list shows newest first; clicking Second opens it in its place in the order.
-    await tester.tap(find.text('Second').first);
-    await tester.pumpAndSettle();
-    expect(find.text('2 of 3 · ← → to move'), findsOneWidget);
-    expect(find.text('Second'), findsNWidgets(2));
-    expect(find.text('Edit prayer'), findsNothing);
-
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-    await tester.pump();
-    expect(find.text('3 of 3 · ← → to move'), findsOneWidget);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.pump();
-    expect(find.text('1 of 3 · ← → to move'), findsOneWidget);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.pump();
-    expect(find.text('1 of 3 · ← → to move'), findsOneWidget);
-
-    // Edit is reachable from the panel.
-    await tester.tap(find.text('Edit'));
-    await tester.pumpAndSettle();
-    expect(find.text('Edit prayer'), findsOneWidget);
-    await tester.enterText(
-      find.widgetWithText(TextField, 'What are you praying for?'),
-      'First, now',
-    );
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle();
-    expect(find.text('First, now'), findsNWidgets(2));
-    expect(find.text('1 of 3 · ← → to move'), findsOneWidget);
   });
 
   testWidgets('the sheet asks for verses, not a whole chapter', (tester) async {
@@ -393,76 +271,5 @@ void main() {
     expect(find.textContaining('No longer praying'), findsNothing);
   });
 
-  testWidgets('a fast second tap on Amen does not pray for the next prayer unseen', (tester) async {
-    phone(tester);
-    final first = store.add(title: 'First');
-    final second = store.add(title: 'Second');
-    await tester.pumpWidget(
-      MaterialApp(
-        home: PrayNowScreen(store: store, passage: fakePassage, translation: () => 'BSB'),
-      ),
-    );
-    await tester.tap(find.text('Next'));
-    await tester.pump();
-    await tester.tap(find.text('Next'));
-    await tester.pump();
-    expect(store.prayer(second)!.daysPrayed, 0);
-    expect(find.text('2 of 2'), findsOneWidget);
 
-    // Back to the first and Amen again: still one request.
-    await tester.pump(const Duration(seconds: 1));
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.pump();
-    await tester.tap(find.text('Next'));
-    await tester.pump(const Duration(seconds: 1));
-    await tester.tap(find.text('Skip'));
-    await tester.pump();
-    expect(store.prayer(first)!.daysPrayed, 1);
-    expect(find.text('You prayed for one request today.'), findsOneWidget);
-  });
-
-  testWidgets('skipping every prayer says so', (tester) async {
-    phone(tester);
-    store.add(title: 'Only one');
-    await tester.pumpWidget(
-      MaterialApp(
-        home: PrayNowScreen(store: store, passage: fakePassage, translation: () => 'BSB'),
-      ),
-    );
-    await tester.tap(find.text('Skip'));
-    await tester.pump();
-    expect(find.text('You skipped them all this time. They stay on the list.'), findsOneWidget);
-  });
-
-  testWidgets('the wide list marks the panel prayer and the panel takes new prayers', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1440, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    var clock = DateTime(2026, 10, 2, 9);
-    store = PrayerStore(sqlite3.openInMemory()..execute(prayerSchema)..execute(prayerPlanSchema), now: () => clock);
-    for (final title in ['First', 'Second']) {
-      store.add(title: title);
-      clock = clock.add(const Duration(minutes: 1));
-    }
-    await tester.pumpWidget(app());
-    await tester.pump();
-    expect(find.text('Pray now · 2 prayers'), findsOneWidget);
-    expect(find.textContaining('Prayers stay on this $deviceNoun.'), findsOneWidget);
-    bool selected(String title) =>
-        tester.widget<ListTile>(find.widgetWithText(ListTile, title).first).selected;
-    expect(find.textContaining('ANSWERED'), findsNothing, reason: 'no empty Answered header');
-    expect(selected('First'), isTrue);
-    expect(selected('Second'), isFalse);
-
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-    await tester.pump();
-    await tester.pump();
-    expect(selected('Second'), isTrue);
-
-    store.add(title: 'Third');
-    await tester.pump();
-    expect(find.text('2 of 3 · ← → to move'), findsOneWidget);
-  });
 }
