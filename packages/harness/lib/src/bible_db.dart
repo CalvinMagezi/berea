@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'books.dart';
+import 'bsb_marks.dart';
 import 'importers.dart';
 import 'ref_parser.dart';
 import 'search_text.dart';
@@ -431,6 +432,78 @@ class BibleDb {
       insert.dispose();
       known.dispose();
     }
+  }
+
+  late bool _hasMarks = db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'marks'")
+      .isNotEmpty;
+
+  /// Stores the publisher's marks and footnotes of translation [code], replacing any it had. Only
+  /// verses the two source files agree on are in [result]; the others get no marks at all.
+  void importMarks(MarksResult result, String code) {
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS marks(translation TEXT, book INTEGER, chapter INTEGER, '
+      'verse INTEGER, kind TEXT, start INTEGER, "end" INTEGER)',
+    );
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS footnotes(translation TEXT, book INTEGER, chapter INTEGER, '
+      'verse INTEGER, ord INTEGER, at INTEGER, text TEXT, '
+      'PRIMARY KEY(translation, book, chapter, verse, ord)) WITHOUT ROWID',
+    );
+    final mark = db.prepare('INSERT INTO marks VALUES (?, ?, ?, ?, ?, ?, ?)');
+    final note = db.prepare('INSERT INTO footnotes VALUES (?, ?, ?, ?, ?, ?, ?)');
+    db.execute('BEGIN');
+    try {
+      db.execute('DELETE FROM marks WHERE translation = ?', [code]);
+      db.execute('DELETE FROM footnotes WHERE translation = ?', [code]);
+      for (final v in result.verses) {
+        final r = v.ref;
+        for (final s in v.spans) {
+          mark.execute([code, r.book.id, r.chapter, r.verseStart, s.kind.name, s.start, s.end]);
+        }
+        for (var i = 0; i < v.footnotes.length; i++) {
+          final n = v.footnotes[i];
+          note.execute([code, r.book.id, r.chapter, r.verseStart, i, n.at, n.text]);
+        }
+      }
+      db.execute('CREATE INDEX IF NOT EXISTS marks_verse ON marks(translation, book, chapter, verse)');
+      db.execute('COMMIT');
+      _hasMarks = true;
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    } finally {
+      mark.dispose();
+      note.dispose();
+    }
+  }
+
+  /// The publisher's marks and footnotes for each verse of a chapter that has any, keyed by verse
+  /// number. Empty for a translation or a database without them.
+  Map<int, VerseMarkSet> marksForChapter(int book, int chapter, {String translation = defaultTranslation}) {
+    if (!_hasMarks) return const {};
+    final spans = <int, List<MarkSpan>>{};
+    for (final r in db.select(
+      'SELECT verse, kind, start, "end" FROM marks WHERE translation = ? AND book = ? AND chapter = ? ORDER BY verse, start',
+      [translation, book, chapter],
+    )) {
+      (spans[r['verse'] as int] ??= []).add((
+        kind: MarkKind.values.byName(r['kind'] as String),
+        start: r['start'] as int,
+        end: r['end'] as int,
+      ));
+    }
+    final notes = <int, List<BsbFootnote>>{};
+    for (final r in db.select(
+      'SELECT verse, at, text FROM footnotes WHERE translation = ? AND book = ? AND chapter = ? ORDER BY verse, ord',
+      [translation, book, chapter],
+    )) {
+      (notes[r['verse'] as int] ??= []).add((at: r['at'] as int, text: r['text'] as String));
+    }
+    return {
+      for (final v in {...spans.keys, ...notes.keys})
+        v: VerseMarkSet(spans[v] ?? const [], notes[v] ?? const []),
+    };
   }
 
   bool exists(Ref ref, {String translation = defaultTranslation}) {

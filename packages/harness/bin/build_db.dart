@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:berea_harness/src/bible_db.dart';
 import 'package:berea_harness/src/books.dart';
+import 'package:berea_harness/src/bsb_marks.dart';
 import 'package:berea_harness/src/csv.dart';
 import 'package:berea_harness/src/importers.dart';
 import 'package:berea_harness/src/source_checks.dart';
@@ -24,8 +25,10 @@ const _bsb = 'https://bereanbible.com/bsb.txt';
 const _bsbSha256 = '2ac3af1de52d4e68261cba91d85c320b7eadc6560e830d99e591767b8ff5ca96';
 // The BSB translation tables: each English phrase of the BSB with its Strong's number, in English
 // order. Public domain with the BSB text (bereanbible.com, "Free Downloads"). Bump with the text.
+/// Measured on the pinned files: Exodus 38:28 and Judges 16:14 differ between bsb.txt and the tables.
+const _maxUnreconciledMarks = 2;
 const _bsbTables = 'https://bereanbible.com/bsb_tables.tsv';
-const _bsbTablesSha256 = '09bbee6f9fe4fa22b5df28e8a9ffa99bf9c33435f4eb8c47c2dc221d855d35cb';
+const _bsbTablesSha256 = 'aa2a9a0f004d015738cd1839c7c56c3be2549e0d4f4537090c2017268c223c60';
 // The scrollmapper revision Berea shipped before the official text, kept for the diff report.
 const _oldBsbCommit = 'e1b254cef86d0e65b1a5d1a94b8b112d0f296a2c';
 const _oldBsb =
@@ -52,7 +55,7 @@ const _webSha256 = '674fb7eeffa9d64b90c4565a3678ffed61a1ddba47dff9b6a618528e2aaa
 // The BSB in USFM, public domain like bsb.txt, read only for its section headings and parallel
 // passage lines; the verse text still comes from bsb.txt.
 const _bsbUsfm = 'https://ebible.org/Scriptures/engbsb_usfm.zip';
-const _bsbUsfmSha256 = 'ce8bb27e62ab433e9eae460b65bf10710fabfd74017a9535aa8904343866e257';
+const _bsbUsfmSha256 = '75ca91d5a5c69ca4cbdeabdb03ea1a458db20cf3966abe15d86df086acf7fbc4';
 
 const scrollmapperTranslations = ['KJV'];
 const stepTextFiles = <String, String>{
@@ -140,11 +143,23 @@ Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
   _loadXrefs(db, File('$cache/xrefs/cross_references.txt').readAsStringSync());
   _buildDailyVerses(db);
   final bible = BibleDb(db)..buildWordIndex();
-  final tables = parseBsbTables(
-    await _fetch(_bsbTables, '$cache/bsb_tables.tsv', pin: _bsbTablesSha256),
-  );
+  final tablesText = await _fetch(_bsbTables, '$cache/bsb_tables.tsv', pin: _bsbTablesSha256);
+  final tables = parseBsbTables(tablesText);
   stdout.writeln(
     'BSB words aligned to the translation tables: ${bible.importBsbAlignment(tables)} verses',
+  );
+  final marks = parseBsbMarks(tablesText, bsb);
+  if (marks.unreconciled.length > _maxUnreconciledMarks) {
+    throw StateError(
+      'BSB marks: ${marks.unreconciled.length} verses differ between bsb.txt and the tables '
+      '(${marks.unreconciled.map((r) => r.label).join(', ')}); the pinned files expect at most '
+      '$_maxUnreconciledMarks',
+    );
+  }
+  bible.importMarks(marks, 'BSB');
+  stdout.writeln(
+    'BSB marks: ${marks.verses.length} verses; left out because the files differ: '
+    '${marks.unreconciled.map((r) => r.label).join(', ')}',
   );
 }
 
