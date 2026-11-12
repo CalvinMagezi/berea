@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
+import 'package:berea/commentary_packs.dart';
 import 'package:berea/commentary_sheet.dart';
 import 'package:berea/search_screen.dart';
 import 'package:berea/theme.dart';
@@ -18,6 +19,7 @@ const _afterDelay = Duration(milliseconds: 400);
 const _searchWait = Duration(seconds: 3);
 
 void main() {
+  verifyCommentaryPacks = false;
   if (needsBibleText case final why?) {
     test('these tests open the built Bible', () {}, skip: why);
     return;

@@ -1,12 +1,14 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'app_state.dart';
 import 'backup.dart';
 import 'commentary_settings.dart';
 import 'reminder_settings.dart';
+import 'share_berea.dart';
 
 const minPassphraseLength = 8;
 
@@ -205,6 +207,59 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     }
   }
 
+  /// A dialog where the reader writes to the Berea maker and sees, as they type, the whole message
+  /// that will be offered to the share sheet. Nothing is sent from here.
+  Future<void> _writeFeedback(BuildContext context) async {
+    final version = (await PackageInfo.fromPlatform()).version;
+    if (!context.mounted) return;
+    final words = TextEditingController();
+    final message = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setInner) => AlertDialog(
+          title: const Text('Feedback'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: words,
+                  autofocus: true,
+                  minLines: 3,
+                  maxLines: 8,
+                  decoration: const InputDecoration(labelText: 'What worked, and what did not'),
+                  onChanged: (_) => setInner(() {}),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'This is the whole message. Berea sends nothing itself; you choose where it goes.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SelectableText(feedbackMessage(words.text, version: version)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: words.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.pop(ctx, feedbackMessage(words.text, version: version)),
+              child: const Text('Choose where to send it'),
+            ),
+          ],
+        ),
+      ),
+    );
+    words.dispose();
+    if (message != null) await sendFeedback(message);
+  }
+
   Future<void> _backup(BuildContext context) async {
     final pass = await _askPassphrase(context, confirm: true);
     if (pass == null || !context.mounted) return;
@@ -395,6 +450,53 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                     ),
                   ],
                 ),
+              const Divider(height: 24),
+              Text('Feedback', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
+              Text(
+                'Tell the people who make Berea what worked and what did not. You read the whole '
+                'message before it goes anywhere.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Write feedback'),
+                onPressed: () => _writeFeedback(context),
+              ),
+              if (canShareApp) ...[
+                const Divider(height: 24),
+                Text('Share Berea', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text(
+                  'Pass the installed app, and any pack you downloaded, to a friend as files through '
+                  'the share sheet. They need no download of their own.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.share_outlined),
+                      label: const Text('Share the app'),
+                      onPressed: () async {
+                        if (!await shareApp()) _say('This device would not say where Berea is installed.');
+                      },
+                    ),
+                    for (final pack in sharePacks(widget.state))
+                      TextButton.icon(
+                        icon: const Icon(Icons.share_outlined),
+                        label: Text('Share ${pack.label}'),
+                        onPressed: () => sharePack(pack),
+                      ),
+                  ],
+                ),
+              ],
               const Divider(height: 24),
               CommentarySettings(
                 key: _parts[SettingsPart.commentary],

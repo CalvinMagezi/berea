@@ -38,7 +38,12 @@ String writePack(Directory dir, String id, List<List<Object>> rows) {
 
 void main() {
   late Directory dir;
-  setUp(() => dir = Directory.systemTemp.createTempSync('berea_commentary'));
+  // The packs built here are not the ones Berea published, so their hashes cannot match.
+  setUp(() {
+    verifyCommentaryPacks = false;
+    dir = Directory.systemTemp.createTempSync('berea_commentary');
+  });
+  tearDown(() => verifyCommentaryPacks = true);
   tearDown(() => dir.deleteSync(recursive: true));
 
   // The panel fills the test surface, as it fills the sheet in the app, so its list scrolls
@@ -220,5 +225,15 @@ void main() {
     expect(note.verse!.label, 'John 3:14-18');
     expect(notebooks.notebook(note.notebookId!)!.title, notesOnVersesTitle);
     expect(isKeptWord(note), isFalse);
+  });
+
+  test('a pack that is not the one Berea published is refused when it is checked against the pin', () async {
+    verifyCommentaryPacks = true;
+    final shelf = CommentaryShelf(Directory('${dir.path}/shelf'), () {});
+    final source = writePack(dir, 'wesley', [
+      ['Wesley', 40, 5, 3, 3, 'Happy are the poor in spirit.'],
+    ]);
+    await expectLater(shelf.installFromFile(source), throwsFormatException);
+    expect(shelf.isInstalled('wesley'), isFalse);
   });
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:isolate';
 
 import 'package:berea_harness/berea_harness.dart';
@@ -230,6 +231,8 @@ class AppState extends ChangeNotifier {
   }
 
 
+  static const _firstRunChunk = 1024 * 1024;
+
   /// Copies the bundled database next to the app when the bundled build changes. The build
   /// stamp is a separate tiny asset, so a normal launch never loads the 81 MB database.
   static Future<String> _ensureDb(Directory dir, VoidCallback? onFirstSetup) async {
@@ -242,7 +245,20 @@ class AppState extends ChangeNotifier {
       final data = await rootBundle.load('assets/berea.sqlite');
       final part = File('${file.path}.part');
       try {
-        await part.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+        // In chunks, so a slow phone is not held on one 90 MB write and a full disk stops it early.
+        final out = await part.open(mode: FileMode.write);
+        try {
+          for (var at = 0; at < bytes.length; at += _firstRunChunk) {
+            await out.writeFrom(bytes, at, min(at + _firstRunChunk, bytes.length));
+          }
+          await out.flush();
+        } finally {
+          await out.close();
+        }
+        if (part.lengthSync() != bytes.length) {
+          throw FileSystemException('The copy of the Bible is not the size of the bundled one', part.path);
+        }
         // Renamed only once whole, so a copy cut short never leaves a Bible that opens half-empty.
         await part.rename(file.path);
         await stamp.writeAsString(bundled);
@@ -617,6 +633,8 @@ class AppState extends ChangeNotifier {
   /// what arrives is exactly what was published.
   static const lexiconPackUrl =
       'https://github.com/CalvinMagezi/berea/releases/download/lexicon-1/lexicon-lsj.sqlite';
+  /// Upper bounds for the downloads, a little above the published sizes (9 MB and 0.8 MB).
+  static const lexiconPackBytes = 10 * 1024 * 1024;
   static const lexiconPackSha256 =
       '39da044337aad1bcd2753451365608c10052d31dbfb3f50747b82e55060751a1';
 
@@ -628,14 +646,18 @@ class AppState extends ChangeNotifier {
     if (bytes != null && bytes.length > maxLexiconPackBytes) {
       throw const ReaderMessage('That file is too large to be a Berea lexicon pack.');
     }
+    if (bytes != null && !await bytesMatch(bytes, lexiconPackSha256)) {
+      throw const ReaderMessage('That file is not the lexicon pack Berea published.');
+    }
     final tmp = File('$lexiconPackPath.part');
     try {
       if (bytes == null) {
-        await downloadPinned(
+        // A broken connection leaves the part for the next try to continue.
+        await downloadPinnedResumable(
           Uri.parse(lexiconPackUrl),
           tmp,
           sha256: lexiconPackSha256,
-          maxBytes: maxLexiconPackBytes,
+          maxBytes: lexiconPackBytes,
           timeout: lexiconDownloadTimeout,
         );
       } else {
@@ -648,8 +670,15 @@ class AppState extends ChangeNotifier {
       // The old pack is held open while attached; let go of it before replacing the file.
       db.detachFullLexicon();
       tmp.renameSync(lexiconPackPath);
+      discardPart(tmp);
+    } on ReaderMessage {
+      discardPart(tmp);
+      rethrow;
+    } on FormatException {
+      discardPart(tmp);
+      rethrow;
     } finally {
-      if (tmp.existsSync()) tmp.deleteSync();
+      if (bytes != null && tmp.existsSync()) tmp.deleteSync();
       db.attachFullLexicon(lexiconPackPath);
       notifyListeners();
     }
@@ -659,6 +688,7 @@ class AppState extends ChangeNotifier {
   /// bundled database. A data-only release pinned by tag and checked by hash, like the LSJ pack.
   static const middleLiddellPackUrl =
       'https://github.com/CalvinMagezi/berea/releases/download/lexicon-2/lexicon-ml.sqlite';
+  static const middleLiddellPackBytes = 1024 * 1024;
   static const middleLiddellPackSha256 = '74b1ac99c0d00c1418d713b5e82e48b9f395f7641d772ad8e57fdfd00f6ef3aa';
 
   String get middleLiddellPackPath => '${supportDir.path}/lexicon-ml.sqlite';
@@ -668,14 +698,17 @@ class AppState extends ChangeNotifier {
     if (bytes != null && bytes.length > maxLexiconPackBytes) {
       throw const ReaderMessage('That file is too large to be a Berea lexicon pack.');
     }
+    if (bytes != null && !await bytesMatch(bytes, middleLiddellPackSha256)) {
+      throw const ReaderMessage('That file is not the Middle Liddell pack Berea published.');
+    }
     final tmp = File('$middleLiddellPackPath.part');
     try {
       if (bytes == null) {
-        await downloadPinned(
+        await downloadPinnedResumable(
           Uri.parse(middleLiddellPackUrl),
           tmp,
           sha256: middleLiddellPackSha256,
-          maxBytes: maxLexiconPackBytes,
+          maxBytes: middleLiddellPackBytes,
           timeout: lexiconDownloadTimeout,
         );
       } else {
@@ -687,8 +720,15 @@ class AppState extends ChangeNotifier {
       if (!ok) throw const ReaderMessage('That file is not a Berea Middle Liddell pack.');
       db.detachMiddleLiddell();
       tmp.renameSync(middleLiddellPackPath);
+      discardPart(tmp);
+    } on ReaderMessage {
+      discardPart(tmp);
+      rethrow;
+    } on FormatException {
+      discardPart(tmp);
+      rethrow;
     } finally {
-      if (tmp.existsSync()) tmp.deleteSync();
+      if (bytes != null && tmp.existsSync()) tmp.deleteSync();
       db.attachMiddleLiddell(middleLiddellPackPath);
       notifyListeners();
     }
