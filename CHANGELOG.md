@@ -32,6 +32,12 @@ and your own words, and nothing in it writes text for you.
   senses, which Berea wrote and are gone. A word pressed in the KJV or the WEB no longer opens a
   guessed word: the study opens with the verse's original words and none chosen, because only the
   BSB's tables say which word is behind which English.
+- **Prayer is yours alone.** The prayer points, the 24 topics, the Praise, Confess, Thank, Ask and
+  Others frame, Today's prayer, the prayer plans, the list of ten prayers of the Bible, the suggested
+  verses and the study page's three questions are gone: Berea no longer writes any of the words you
+  pray. The Prayer place keeps your list, the verse you stand on, your answers and sharing; the
+  reader's margin mark shows where one of your prayers stands. Subjects are found in Search, in
+  Nave's and Torrey's lists of passages. Prayers and answers you wrote are kept as they were.
 - **Topics: Nave and Torrey.** Search a subject (forgiveness, fear, work) and a Topics group lists
   Nave's Topical Bible (1903) and Torrey's New Topical Textbook (1897), both public domain, each
   topic a list of passages under its author's own subheadings. Tap a passage to read it; a "See"

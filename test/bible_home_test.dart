@@ -37,7 +37,6 @@ void main() {
     return AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
-      prayerContent: PrayerContent.empty,
     );
   }
 

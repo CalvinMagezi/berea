@@ -61,7 +61,6 @@ void main() {
     final s = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
-      prayerContent: PrayerContent.empty,
     );
     return s;
   }

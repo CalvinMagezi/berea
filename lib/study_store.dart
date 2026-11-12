@@ -8,7 +8,7 @@ import 'provenance.dart';
 
 import 'notebook_store.dart';
 import 'plans.dart';
-import 'prayer_plan_store.dart';
+import 'prayer_plan_tables.dart';
 import 'prayer_store.dart';
 
 /// Everything the user writes: notes, highlights and saved studies. One local SQLite file,

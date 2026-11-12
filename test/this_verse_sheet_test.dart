@@ -33,7 +33,6 @@ void main() {
     final state = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
-      prayerContent: PrayerContent.empty,
     );
     // Matthew 17:20 carries the footnote that prints 17:21, as in the publisher's tables.
     state.db.importMarks(

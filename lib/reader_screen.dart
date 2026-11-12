@@ -7,9 +7,7 @@ import 'commentary_sheet.dart';
 import 'extras_hint.dart';
 import 'interlinear_sheet.dart';
 import 'note_dialog.dart';
-import 'pray_verse_sheet.dart';
 import 'prayer_screen.dart';
-import 'prayer_points.dart';
 import 'prayer_store.dart' show Prayer;
 import 'brand/prayer_icon.dart';
 import 'prayer_sheet.dart' show passageText, shareOrigin, shareText;
@@ -326,21 +324,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return out;
   }
 
-  /// Pray this verse: the points written for the selection, else the verse as it is. Without the
-  /// bundled lines, the plain new prayer sheet.
+  /// Pray this verse: the new prayer sheet, with the verse on it.
   Future<void> _pray() async {
     final ref = _selection;
     setState(_selected.clear);
-    if (s.prayerContent.topics.isEmpty) {
-      await showPrayerSheet(
-        context,
-        s.prayers,
-        verse: ref.label,
-        passage: passageLookupFor(s.db, () => s.settings.translation),
-      );
-      return;
-    }
-    await showPrayVerseSheet(context, s.prayerEnv, ref);
+    await showPrayerSheet(
+      context,
+      s.prayers,
+      verse: ref.label,
+      passage: passageLookupFor(s.db, () => s.settings.translation),
+    );
   }
 
   void _studyPage() {
@@ -486,7 +479,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       for (final n in s.study.notes(book: book, chapter: chapter))
         for (var v = n.ref.verseStart!; v <= n.ref.verseEnd!; v++) v,
     };
-    final wordsFor = s.prayerContent.pointsInChapter(Ref(book, chapter));
     final ownFor = _ownPrayers();
     final headings = s.db.headings(book, chapter, translation: translation);
     final headingsAt = <int, List<Heading>>{};
@@ -672,9 +664,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                         _PrayerMark(
                                           verse: verse,
                                           own: mine,
-                                          hasWords: wordsFor.containsKey(v.verse),
-                                          onTap: () =>
-                                              showPrayVerseSheet(context, s.prayerEnv, verse),
+                                          onTap: () => showPrayerSheet(
+                                            context,
+                                            s.prayers,
+                                            editing: mine.first,
+                                            passage: passageLookupFor(
+                                              s.db,
+                                              () => s.settings.translation,
+                                            ),
+                                          ),
                                         ),
                                         Expanded(
                                           child: Column(
@@ -1102,22 +1100,20 @@ class _ChapterPickerState extends State<_ChapterPicker> {
 class _PrayerMark extends StatelessWidget {
   final Ref verse;
   final List<Prayer> own;
-  final bool hasWords;
   final VoidCallback onTap;
   const _PrayerMark({
     required this.verse,
     required this.own,
-    required this.hasWords,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (own.isEmpty && !hasWords) return const SizedBox(width: _markGutter);
+    if (own.isEmpty) return const SizedBox(width: _markGutter);
     final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
-      label: own.isEmpty ? 'Pray ${verse.label}' : 'Your prayer stands on ${verse.label}. Open it.',
+      label: 'Your prayer stands on ${verse.label}. Open it.',
       onTap: onTap,
       excludeSemantics: true,
       child: InkResponse(
@@ -1129,7 +1125,7 @@ class _PrayerMark extends StatelessWidget {
           child: IconTheme(
             data: IconThemeData(
               size: _markIcon,
-              color: own.isEmpty ? scheme.onSurfaceVariant : scheme.primary,
+              color: scheme.primary,
             ),
             child: const Center(child: PrayerIcon()),
           ),

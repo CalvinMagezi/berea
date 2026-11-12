@@ -6,8 +6,6 @@ export 'src/commentary.dart';
 export 'src/csv.dart';
 export 'src/importers.dart';
 export 'src/notebook_text.dart';
-export 'src/prayer_check.dart';
-export 'src/prayer_content.dart';
 export 'src/ref_parser.dart';
 export 'src/search_text.dart' show phrasePattern, searchIsTooCommon;
 export 'src/sources.dart';

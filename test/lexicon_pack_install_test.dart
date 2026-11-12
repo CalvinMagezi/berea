@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:berea/app_state.dart';
 import 'package:berea/share_berea.dart';
-import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -25,7 +24,6 @@ void main() {
     final s = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
-      prayerContent: PrayerContent.empty,
     );
     final notThePack = Uint8List.fromList(List.filled(64, 7));
     await expectLater(
@@ -45,7 +43,6 @@ void main() {
     final s = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
-      prayerContent: PrayerContent.empty,
     );
     expect(sharePacks(s), isEmpty);
     sqlite3.open(s.middleLiddellPackPath)

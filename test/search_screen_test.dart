@@ -42,7 +42,6 @@ void main() {
     final state = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
-      prayerContent: PrayerContent.empty,
     );
     if (withTopics) {
       sqlite3.open(state.topicsPackPath)

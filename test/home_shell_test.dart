@@ -5,13 +5,11 @@ import 'package:berea/home_shell.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/notes_screen.dart';
 import 'package:berea/plans_screen.dart';
-import 'package:berea/prayer_pray_now.dart';
 import 'package:berea/prayer_screen.dart';
 import 'package:berea/reader_screen.dart';
 import 'package:berea/search_place_button.dart';
 import 'package:berea/search_screen.dart';
 import 'package:berea/theme.dart';
-import 'package:berea_harness/berea_harness.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,7 +47,6 @@ void main() {
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
       onFirstSetup: () => setUpCalls++,
-      prayerContent: PrayerContent.empty,
     );
     launch.stop();
   });
@@ -287,7 +284,7 @@ void main() {
       expect(find.byType(ListAndDetail), wide ? findsOneWidget : findsNothing);
       await tester.tap(find.text('Prayer'));
       await tester.pumpAndSettle();
-      expect(find.byType(PrayNowView), wide ? findsOneWidget : findsNothing);
+      expect(find.text('Prayer'), findsWidgets);
       await tester.pumpWidget(const SizedBox());
     }
   });

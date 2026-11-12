@@ -127,7 +127,7 @@ class _NotesScreenState extends State<NotesScreen> {
             icon: const Icon(Icons.ios_share),
             onPressed: () => saveMarkdown(
               'berea-notes.md',
-              allNotesMarkdown(_s.study, _s.db, _s.settings.translation, content: _s.prayerContent),
+              allNotesMarkdown(_s.study, _s.db, _s.settings.translation),
             ),
           ),
           const SizedBox(width: 8),

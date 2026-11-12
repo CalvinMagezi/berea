@@ -167,8 +167,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           store: s.prayers,
           passage: passageLookupFor(s.db, () => s.settings.translation),
           translation: () => s.settings.translation,
-          content: s.prayerContent,
-          todayPrayer: () => s.prayerOfTheDay,
           refresh: s.dayChanged,
           onSettings: () => showSettingsSheet(context, s),
         ),

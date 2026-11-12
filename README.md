@@ -58,8 +58,8 @@ licence. The packs are optional public domain downloads.
 60. Today's reading, and the first verse of it, sit on the Bible. A plan ticks chapters, not
 days, and never counts a streak.
 
-**Prayer.** A prayer list of your own, and prayer points tied to verses. Each point shows the verse
-whole first, then the line, labelled as written for Berea with a language model.
+**Prayer.** A prayer list of your own: what you are praying for, the verse you stand on, and how each
+prayer was answered. Berea writes no prayers; the words are yours.
 
 **Notes and notebooks.** Notes, study pages and highlights in one searchable place. A notebook
 gathers what you read on one passage or topic: Bible passages, commentary from the installed

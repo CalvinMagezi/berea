@@ -77,9 +77,9 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
               ),
               ProvenanceLine(_provenance),
               const SizedBox(height: 16),
-              _Section('Observation', 'What does the text say?', _observation),
-              _Section('Interpretation', 'What does it mean?', _interpretation),
-              _Section('Application', 'How should I live?', _application),
+              _Section('Observation', _observation),
+              _Section('Interpretation', _interpretation),
+              _Section('Application', _application),
             ],
           ),
         ),
@@ -90,9 +90,8 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
 
 class _Section extends StatelessWidget {
   final String title;
-  final String hint;
   final TextEditingController controller;
-  const _Section(this.title, this.hint, this.controller);
+  const _Section(this.title, this.controller);
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +106,6 @@ class _Section extends StatelessWidget {
             controller: controller,
             minLines: 3,
             maxLines: null,
-            decoration: InputDecoration(hintText: hint),
           ),
         ],
       ),

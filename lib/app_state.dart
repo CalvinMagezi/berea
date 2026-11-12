@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:isolate';
@@ -20,10 +19,8 @@ import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'reminder_platform.dart';
 import 'plans.dart';
-import 'prayer_plan_store.dart';
 import 'prayer_sheet.dart' show passageText;
 import 'prayer_store.dart';
-import 'prayer_today.dart';
 import 'study_store.dart';
 import 'today.dart';
 
@@ -124,14 +121,12 @@ class AppState extends ChangeNotifier {
 
   /// Prayers share study.sqlite, so they are backed up and restored with the notes.
   late final PrayerStore prayers = PrayerStore(study.db);
-  late final PrayerPlanStore prayerPlans = PrayerPlanStore(study.db);
 
   /// Said once after an update that removed the helper or the chat; null otherwise.
   String? upgradeNotice;
 
   /// The prayer lines bundled with the app. Empty when the file cannot be read, so Prayer still
   /// works without them.
-  PrayerContent prayerContent = PrayerContent.empty;
   late final Directory supportDir;
 
   /// Optional public domain commentaries the user has downloaded.
@@ -157,14 +152,12 @@ class AppState extends ChangeNotifier {
     Directory? supportDir,
     SharedPreferences? prefs,
     VoidCallback? onFirstSetup,
-    PrayerContent? prayerContent,
   }) async {
     final s = AppState();
     s.supportDir = supportDir ?? await getApplicationSupportDirectory();
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir, onFirstSetup));
     s.study = openStudy('${s.supportDir.path}/study.sqlite');
-    s.prayerContent = prayerContent ?? await _loadPrayerContent();
     // Tests give their own support folder and never touch the notification plugin.
     if (supportDir == null && LocalNotificationsPlatform.supported) {
       s.reminderPlatform = LocalNotificationsPlatform();
@@ -185,17 +178,6 @@ class AppState extends ChangeNotifier {
     s.db.attachTopics(s.topicsPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
     return s;
-  }
-
-
-  static Future<PrayerContent> _loadPrayerContent() async {
-    try {
-      final json = jsonDecode(await rootBundle.loadString('assets/prayers.json'));
-      return PrayerContent.fromJson((json as Map).cast());
-    } on Object catch (e) {
-      debugPrint('The prayer lines did not load: $e');
-      return PrayerContent.empty;
-    }
   }
 
   /// Opens the notes database. The notes merge first writes a safety copy beside it; if that
@@ -533,17 +515,6 @@ class AppState extends ChangeNotifier {
     return first == null ? null : Ref(first.book, first.chapter, 1, 1);
   }
 
-  /// Today's prayer: a line from the chapters of today's plan.
-  TodayPrayer? get prayerOfTheDay => prayerOn(DateTime.now());
-
-  /// The prayer for [date]: a line from the reading plan's chapters that day; null with no plan.
-  TodayPrayer? prayerOn(DateTime date) {
-    final plan = activePlan;
-    if (plan == null) return null;
-    final day = planDay(plan, on: date);
-    return todaysPrayer(prayerContent, reading: planSchedule(plan)[day - 1], day: day);
-  }
-
   /// The daily notification the reader chose, kept on this device. Off until turned on.
   ReminderSettings get reminder => ReminderSettings(
     on: prefs.getBool('reminderOn') ?? false,
@@ -796,7 +767,6 @@ class AppState extends ChangeNotifier {
     // Restoring an older backup merges its notes into notebooks, which may add one.
     notebooks.refresh();
     prayers.refresh();
-    prayerPlans.refresh();
     dayChanged.value++;
     _keepTranslationValid();
     return skipped;
