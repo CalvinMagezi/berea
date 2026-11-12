@@ -172,7 +172,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Pray John 3:1'), findsOneWidget);
       expect(
-        find.text('No prayer points for this verse. Pray it as it is, or in your own words.'),
+        find.text('No prayer points are written for this verse.'),
         findsOneWidget,
       );
       await tester.tap(find.text('Pray now'));
@@ -239,7 +239,7 @@ void main() {
       expect(find.textContaining('never water'), findsOneWidget);
       expect(state.prayerPlans.run('work-7')!.fasting, isTrue);
 
-      await tester.tap(find.text('Day 1 done'));
+      await tester.tap(find.text('Done · day 1'));
       await tester.pumpAndSettle();
       expect(state.prayerPlans.daysPrayed('work-7'), {1});
       expect(find.text('PRAYER PLAN · DAY 2 OF 2'), findsOneWidget);
@@ -256,7 +256,7 @@ void main() {
       expect(find.textContaining('Day 2 of 2'), findsOneWidget);
       await tester.tap(find.text('Pray'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Day 2 done'));
+      await tester.tap(find.text('Done · day 2'));
       await tester.pumpAndSettle();
       expect(state.prayerPlans.running(), isEmpty);
       expect(find.textContaining('is finished'), findsOneWidget);
