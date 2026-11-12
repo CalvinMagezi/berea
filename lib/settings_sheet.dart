@@ -26,7 +26,7 @@ class SettingsButton extends StatelessWidget {
 }
 
 /// A part of Settings a hint can open straight to.
-enum SettingsPart { commentary, lexicon }
+enum SettingsPart { commentary, lexicon, topics }
 
 /// Opens Settings, scrolled to [show] when given.
 Future<void> showSettingsSheet(BuildContext context, AppState state, {SettingsPart? show}) {
@@ -188,6 +188,22 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       _say('Full lexicon installed.');
     } catch (e) {
       _say(plainFailure(e, 'The lexicon pack could not be installed.'));
+    }
+  }
+
+  Future<void> _installTopics(BuildContext context, {required bool fromFile}) async {
+    Uint8List? bytes;
+    if (fromFile) {
+      final picked = await FilePicker.pickFiles();
+      if (picked.isEmpty) return;
+      bytes = await picked.single.readAsBytes();
+    }
+    try {
+      await widget.state.installTopicsPack(bytes: bytes);
+      setState(() {});
+      _say('Topics installed.');
+    } catch (e) {
+      _say(plainFailure(e, 'The topics pack could not be installed.'));
     }
   }
 
@@ -416,6 +432,40 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                       icon: const Icon(Icons.upload_file_outlined),
                       label: const Text('From a file'),
                       onPressed: () => _installLexicon(context, fromFile: true),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 16),
+              Text(
+                'Topics',
+                key: _parts[SettingsPart.topics],
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                widget.state.db.hasTopics
+                    ? "Installed. Search a subject to find Nave's and Torrey's lists of passages on it."
+                    : "Optional, about 4 MB: Nave's Topical Bible (1903) and Torrey's New Topical "
+                          'Textbook (1897), public domain, as lists of passages on about 6,000 '
+                          'subjects. Downloaded only if you ask, from the Berea releases on GitHub.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (!widget.state.db.hasTopics)
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.download_outlined),
+                      label: const Text('Download'),
+                      onPressed: () => _installTopics(context, fromFile: false),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.upload_file_outlined),
+                      label: const Text('From a file'),
+                      onPressed: () => _installTopics(context, fromFile: true),
                     ),
                   ],
                 ),

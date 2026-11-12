@@ -33,15 +33,27 @@ void main() {
     }
   });
 
-  Future<AppState> open() async {
+  /// A fresh app. The topics pack is attached empty unless [withTopics] is false, so the offer to
+  /// download it does not sit among what the other tests look for.
+  Future<AppState> open({bool withTopics = true}) async {
     final dir = Directory.systemTemp.createTempSync('berea-search');
     dirs.add(dir);
     SharedPreferences.setMockInitialValues({'tipT14Done': true});
-    return AppState.bootstrap(
+    final state = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
       prayerContent: PrayerContent.empty,
     );
+    if (withTopics) {
+      sqlite3.open(state.topicsPackPath)
+        ..execute('CREATE TABLE topics(id INTEGER PRIMARY KEY, work TEXT, name TEXT)')
+        ..execute(
+          'CREATE TABLE topic_lines(topic_id INTEGER, ord INTEGER, label TEXT, refs TEXT, PRIMARY KEY(topic_id, ord))',
+        )
+        ..dispose();
+      state.db.attachTopics(state.topicsPackPath);
+    }
+    return state;
   }
 
   Future<void> search(WidgetTester tester, AppState state, String query) async {
@@ -309,5 +321,42 @@ void main() {
     expect(find.textContaining('Look a word up in the verses'), findsNothing);
     expect(find.textContaining('Word studies ·'), findsNothing, reason: 'G26 is not in the fixture');
     expect(find.text('No verse in the BSB has those words.'), findsOneWidget);
+  });
+
+  testWidgets('a subject finds Nave and Torrey topics, opens one, and a passage opens the reader', (
+    tester,
+  ) async {
+    final state = (await tester.runAsync(() => open(withTopics: false)))!;
+    final pack = '${state.supportDir.path}/t.sqlite';
+    sqlite3.open(pack)
+      ..execute('''
+        CREATE TABLE topics(id INTEGER PRIMARY KEY, work TEXT, name TEXT);
+        CREATE TABLE topic_lines(topic_id INTEGER, ord INTEGER, label TEXT, refs TEXT, PRIMARY KEY(topic_id, ord));
+        INSERT INTO topics VALUES (1, 'Torrey', 'Forgiveness'), (2, 'Nave', 'Pardon');
+        INSERT INTO topic_lines VALUES (1, 0, 'Is promised', '19:86:5:5:86;40:6:14:15:6'), (2, 0, 'See FORGIVENESS', '');
+      ''')
+      ..dispose();
+    state.db.attachTopics(pack);
+    await search(tester, state, 'forgiveness');
+    expect(find.textContaining('Topics · 1'), findsOneWidget);
+    expect(find.text("Torrey's New Topical Textbook (1897) · 1 line with passages"), findsOneWidget);
+    await tester.tap(find.text('Forgiveness'));
+    await tester.pumpAndSettle();
+    expect(find.text('Is promised'), findsOneWidget);
+    expect(find.text('Psalms 86:5'), findsOneWidget);
+    expect(find.text('Matthew 6:14-15'), findsOneWidget);
+    await tester.tap(find.text('Matthew 6:14-15'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('without the topics pack a subject search says where to get it', (tester) async {
+    final state = (await tester.runAsync(() => open(withTopics: false)))!;
+    await search(tester, state, 'forgiveness');
+    await tester.scrollUntilVisible(
+      find.textContaining('Nave\'s Topical Bible and Torrey\'s New Topical Textbook'),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.textContaining('Nave\'s Topical Bible and Torrey\'s New Topical Textbook'), findsOneWidget);
   });
 }

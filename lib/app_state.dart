@@ -182,6 +182,7 @@ class AppState extends ChangeNotifier {
     s._keepTranslationValid();
     s.db.attachFullLexicon(s.lexiconPackPath);
     s.db.attachMiddleLiddell(s.middleLiddellPackPath);
+    s.db.attachTopics(s.topicsPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
     return s;
   }
@@ -628,98 +629,68 @@ class AppState extends ChangeNotifier {
 
   static const maxLexiconPackBytes = 64 * 1024 * 1024;
   static const lexiconDownloadTimeout = Duration(minutes: 5);
+  static const _releases = 'https://github.com/CalvinMagezi/berea/releases/download';
 
   /// The optional full Greek lexicon: a data-only release pinned by tag and checked by hash, so
-  /// what arrives is exactly what was published.
-  static const lexiconPackUrl =
-      'https://github.com/CalvinMagezi/berea/releases/download/lexicon-1/lexicon-lsj.sqlite';
-  /// Upper bounds for the downloads, a little above the published sizes (9 MB and 0.8 MB).
+  /// what arrives is exactly what was published. Upper bounds are a little above published sizes.
+  static const lexiconPackUrl = '$_releases/lexicon-1/lexicon-lsj.sqlite';
   static const lexiconPackBytes = 10 * 1024 * 1024;
-  static const lexiconPackSha256 =
-      '39da044337aad1bcd2753451365608c10052d31dbfb3f50747b82e55060751a1';
-
+  static const lexiconPackSha256 = '39da044337aad1bcd2753451365608c10052d31dbfb3f50747b82e55060751a1';
   String get lexiconPackPath => '${supportDir.path}/lexicon-lsj.sqlite';
 
-  /// Downloads the pack only when the user asks, or installs one they picked from a file.
-  /// The file is checked by attaching it before it replaces anything.
-  Future<void> installLexiconPack({Uint8List? bytes}) async {
-    if (bytes != null && bytes.length > maxLexiconPackBytes) {
-      throw const ReaderMessage('That file is too large to be a Berea lexicon pack.');
-    }
-    if (bytes != null && !await bytesMatch(bytes, lexiconPackSha256)) {
-      throw const ReaderMessage('That file is not the lexicon pack Berea published.');
-    }
-    final tmp = File('$lexiconPackPath.part');
-    try {
-      if (bytes == null) {
-        // A broken connection leaves the part for the next try to continue.
-        await downloadPinnedResumable(
-          Uri.parse(lexiconPackUrl),
-          tmp,
-          sha256: lexiconPackSha256,
-          maxBytes: lexiconPackBytes,
-          timeout: lexiconDownloadTimeout,
-        );
-      } else {
-        tmp.writeAsBytesSync(bytes);
-      }
-      final probe = BibleDb(sqlite3.openInMemory());
-      final ok = probe.attachFullLexicon(tmp.path);
-      probe.close();
-      if (!ok) throw const ReaderMessage('That file is not a Berea lexicon pack.');
-      // The old pack is held open while attached; let go of it before replacing the file.
-      db.detachFullLexicon();
-      tmp.renameSync(lexiconPackPath);
-      discardPart(tmp);
-    } on ReaderMessage {
-      discardPart(tmp);
-      rethrow;
-    } on FormatException {
-      discardPart(tmp);
-      rethrow;
-    } finally {
-      if (bytes != null && tmp.existsSync()) tmp.deleteSync();
-      db.attachFullLexicon(lexiconPackPath);
-      notifyListeners();
-    }
-  }
-
   /// The optional Middle Liddell definitions, a separate share-alike pack: it is never part of the
-  /// bundled database. A data-only release pinned by tag and checked by hash, like the LSJ pack.
-  static const middleLiddellPackUrl =
-      'https://github.com/CalvinMagezi/berea/releases/download/lexicon-2/lexicon-ml.sqlite';
+  /// bundled database.
+  static const middleLiddellPackUrl = '$_releases/lexicon-2/lexicon-ml.sqlite';
   static const middleLiddellPackBytes = 1024 * 1024;
   static const middleLiddellPackSha256 = '74b1ac99c0d00c1418d713b5e82e48b9f395f7641d772ad8e57fdfd00f6ef3aa';
-
   String get middleLiddellPackPath => '${supportDir.path}/lexicon-ml.sqlite';
 
-  /// Downloads the Middle Liddell pack when the user asks, or installs one they picked.
-  Future<void> installMiddleLiddellPack({Uint8List? bytes}) async {
-    if (bytes != null && bytes.length > maxLexiconPackBytes) {
-      throw const ReaderMessage('That file is too large to be a Berea lexicon pack.');
+  /// The optional topics pack: Nave's Topical Bible and Torrey's New Topical Textbook, both public
+  /// domain, as lists of passages.
+  static const topicsPackUrl = '$_releases/topics-1/topics.sqlite';
+  static const topicsPackBytes = 6 * 1024 * 1024;
+  static const topicsPackSha256 = 'a4683ab324bd118215c8aaf4b66dd5c8a8f0c9fb682bc6a97c969f0524f80c58';
+  String get topicsPackPath => '${supportDir.path}/topics.sqlite';
+
+  /// Downloads a pack only when the user asks, or installs one they picked from a file, which must
+  /// be the exact file Berea published. The file is checked by attaching it before it replaces
+  /// anything, and a download that breaks leaves its part for the next try to continue.
+  Future<void> _installPack({
+    required Uint8List? bytes,
+    required String path,
+    required String url,
+    required String sha256,
+    required int maxBytes,
+    required String name,
+    required bool Function(BibleDb db, String path) attach,
+    required void Function() detach,
+  }) async {
+    if (bytes != null && bytes.length > maxBytes) {
+      throw ReaderMessage('That file is too large to be the $name.');
     }
-    if (bytes != null && !await bytesMatch(bytes, middleLiddellPackSha256)) {
-      throw const ReaderMessage('That file is not the Middle Liddell pack Berea published.');
+    if (bytes != null && !await bytesMatch(bytes, sha256)) {
+      throw ReaderMessage('That file is not the $name Berea published.');
     }
-    final tmp = File('$middleLiddellPackPath.part');
+    final tmp = File('$path.part');
     try {
       if (bytes == null) {
         await downloadPinnedResumable(
-          Uri.parse(middleLiddellPackUrl),
+          Uri.parse(url),
           tmp,
-          sha256: middleLiddellPackSha256,
-          maxBytes: middleLiddellPackBytes,
+          sha256: sha256,
+          maxBytes: maxBytes,
           timeout: lexiconDownloadTimeout,
         );
       } else {
         tmp.writeAsBytesSync(bytes);
       }
       final probe = BibleDb(sqlite3.openInMemory());
-      final ok = probe.attachMiddleLiddell(tmp.path);
+      final ok = attach(probe, tmp.path);
       probe.close();
-      if (!ok) throw const ReaderMessage('That file is not a Berea Middle Liddell pack.');
-      db.detachMiddleLiddell();
-      tmp.renameSync(middleLiddellPackPath);
+      if (!ok) throw ReaderMessage('That file is not the $name.');
+      // The old pack is held open while attached; let go of it before replacing the file.
+      detach();
+      File(tmp.path).renameSync(path);
       discardPart(tmp);
     } on ReaderMessage {
       discardPart(tmp);
@@ -729,10 +700,49 @@ class AppState extends ChangeNotifier {
       rethrow;
     } finally {
       if (bytes != null && tmp.existsSync()) tmp.deleteSync();
-      db.attachMiddleLiddell(middleLiddellPackPath);
+      for (final attachAgain in [
+        () => db.attachFullLexicon(lexiconPackPath),
+        () => db.attachMiddleLiddell(middleLiddellPackPath),
+        () => db.attachTopics(topicsPackPath),
+      ]) {
+        attachAgain();
+      }
       notifyListeners();
     }
   }
+
+  Future<void> installLexiconPack({Uint8List? bytes}) => _installPack(
+    bytes: bytes,
+    path: lexiconPackPath,
+    url: lexiconPackUrl,
+    sha256: lexiconPackSha256,
+    maxBytes: lexiconPackBytes,
+    name: 'lexicon pack',
+    attach: (probe, path) => probe.attachFullLexicon(path),
+    detach: db.detachFullLexicon,
+  );
+
+  Future<void> installMiddleLiddellPack({Uint8List? bytes}) => _installPack(
+    bytes: bytes,
+    path: middleLiddellPackPath,
+    url: middleLiddellPackUrl,
+    sha256: middleLiddellPackSha256,
+    maxBytes: middleLiddellPackBytes,
+    name: 'Middle Liddell pack',
+    attach: (probe, path) => probe.attachMiddleLiddell(path),
+    detach: db.detachMiddleLiddell,
+  );
+
+  Future<void> installTopicsPack({Uint8List? bytes}) => _installPack(
+    bytes: bytes,
+    path: topicsPackPath,
+    url: topicsPackUrl,
+    sha256: topicsPackSha256,
+    maxBytes: topicsPackBytes,
+    name: 'topics pack',
+    attach: (probe, path) => probe.attachTopics(path),
+    detach: db.detachTopics,
+  );
 
   /// Imported translations as code to CSV, for backups.
   Map<String, String> get importedTranslations => {

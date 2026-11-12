@@ -32,6 +32,11 @@ and your own words, and nothing in it writes text for you.
   senses, which Berea wrote and are gone. A word pressed in the KJV or the WEB no longer opens a
   guessed word: the study opens with the verse's original words and none chosen, because only the
   BSB's tables say which word is behind which English.
+- **Topics: Nave and Torrey.** Search a subject (forgiveness, fear, work) and a Topics group lists
+  Nave's Topical Bible (1903) and Torrey's New Topical Textbook (1897), both public domain, each
+  topic a list of passages under its author's own subheadings. Tap a passage to read it; a "See"
+  line opens the topic it names. They are an optional download of about 4 MB from Settings, built
+  from the CrossWire modules.
 - **Share Berea, and feedback.** On Android, Settings can hand the installed app, and any pack you
   downloaded, to the share sheet as a file, so a friend needs no download. Packs passed by hand are
   checked against the hash Berea published, in either form. Write feedback shows the whole message,

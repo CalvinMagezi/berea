@@ -9,6 +9,7 @@ import 'importers.dart';
 import 'ref_parser.dart';
 import 'search_text.dart';
 import 'sword.dart';
+import 'topics.dart';
 import 'word_study.dart';
 
 class Verse {
@@ -101,6 +102,15 @@ class LexEntry {
     this.source = '',
     this.nameSummary = false,
   ]);
+}
+
+/// A topic a search found: which work it is in, and how many of its lines have passages.
+class TopicMatch {
+  final int id;
+  final String work;
+  final String name;
+  final int lines;
+  const TopicMatch(this.id, this.work, this.name, this.lines);
 }
 
 class XRef {
@@ -1792,6 +1802,97 @@ class BibleDb {
       return null;
     }
   }
+
+  bool _hasTopics = false;
+
+  /// True once the optional topics pack is attached.
+  bool get hasTopics => _hasTopics;
+
+  /// Attaches the optional topics pack built by `bin/build_topics_pack.dart`: Nave's Topical Bible
+  /// and Torrey's New Topical Textbook as lists of passages. False when the file is missing or
+  /// not a pack.
+  bool attachTopics(String path) {
+    if (_hasTopics || !File(path).existsSync()) return _hasTopics;
+    try {
+      db.execute('ATTACH DATABASE ? AS tp', [path]);
+      db.select('SELECT id, work, name FROM tp.topics LIMIT 1');
+      db.select('SELECT topic_id, ord, label, refs FROM tp.topic_lines LIMIT 1');
+      _hasTopics = true;
+    } on SqliteException {
+      try {
+        db.execute('DETACH DATABASE tp');
+      } on SqliteException {
+        // Never attached; nothing to undo.
+      }
+    }
+    return _hasTopics;
+  }
+
+  /// Detaches the pack so its file can be replaced.
+  void detachTopics() {
+    if (!_hasTopics) return;
+    db.execute('DETACH DATABASE tp');
+    _hasTopics = false;
+  }
+
+  /// Topics whose name has every word of [query] at the start of one of its words, the name
+  /// itself first, then names that begin with the query, then the rest, each by name. Empty
+  /// without the pack.
+  List<TopicMatch> searchTopics(String query, {int limit = 40}) {
+    if (!_hasTopics) return const [];
+    final words = searchTokens(query);
+    if (words.isEmpty) return const [];
+    final like = [for (final _ in words) '(lower(name) LIKE ? OR lower(name) LIKE ?)'].join(' AND ');
+    final args = [for (final w in words) ...['$w%', '% $w%']];
+    final phrase = words.join(' ');
+    try {
+      return [
+        for (final r in db.select(
+          'SELECT t.id, t.work, t.name, (SELECT COUNT(*) FROM tp.topic_lines l WHERE l.topic_id = t.id AND l.refs != \'\') AS n '
+          'FROM tp.topics t WHERE ${like.replaceAll('name', 't.name')} '
+          'ORDER BY (lower(t.name) = ?) DESC, (lower(t.name) LIKE ?) DESC, t.name, t.work LIMIT ?',
+          [...args, phrase, '$phrase%', limit],
+        ))
+          TopicMatch(r['id'] as int, r['work'] as String, r['name'] as String, r['n'] as int),
+      ];
+    } on SqliteException {
+      return const [];
+    }
+  }
+
+  /// The topic named [name] in each work that has it, for a "See NAME" line.
+  List<TopicMatch> topicsNamed(String name) {
+    if (!_hasTopics) return const [];
+    try {
+      return [
+        for (final r in db.select(
+          'SELECT t.id, t.work, t.name, (SELECT COUNT(*) FROM tp.topic_lines l WHERE l.topic_id = t.id AND l.refs != \'\') AS n '
+          'FROM tp.topics t WHERE lower(t.name) = ? ORDER BY t.work',
+          [name.trim().toLowerCase()],
+        ))
+          TopicMatch(r['id'] as int, r['work'] as String, r['name'] as String, r['n'] as int),
+      ];
+    } on SqliteException {
+      return const [];
+    }
+  }
+
+  /// The lines of topic [id], in the order the author wrote them.
+  List<TopicLine> topicLines(int id) {
+    if (!_hasTopics) return const [];
+    return [
+      for (final r in db.select(
+        'SELECT label, refs FROM tp.topic_lines WHERE topic_id = ? ORDER BY ord',
+        [id],
+      ))
+        TopicLine(r['label'] as String, decodeTopicRefs(r['refs'] as String)),
+    ];
+  }
+
+  /// The author, work and year a topic's [work] ("Nave" or "Torrey") is credited to.
+  static String topicWorkName(String work) => work == 'Nave'
+      ? "Nave's Topical Bible (1903)"
+      : "Torrey's New Topical Textbook (1897)";
 
   bool _hasMiddleLiddell = false;
 

@@ -8,6 +8,7 @@ import 'commentary_sheet.dart';
 import 'extras_hint.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
+import 'topic_screen.dart';
 import 'word_study_screen.dart';
 
 const searchResultLimit = 100;
@@ -18,6 +19,7 @@ const _searchDelay = Duration(milliseconds: 300);
 /// Word studies and commentary comments listed under "All" before "Show all"; the rest of each
 /// kind is one tap away on its own chip.
 const _wordsPreview = 5;
+const _topicsPreview = 4;
 const _commentsPreviewPerWork = 1;
 const _commentsPerWork = 5;
 
@@ -27,7 +29,7 @@ const _commentsPerWork = 5;
 const _deepFirstWords = 2;
 
 /// The kinds of result Search lists, and the chip that shows only one of them.
-enum _Kind { all, verses, words, commentary }
+enum _Kind { all, verses, words, topics, commentary }
 
 /// Search: one box for verses, the Hebrew and Greek words behind a word, and what the installed
 /// commentaries say. A reference in the query jumps straight to it.
@@ -48,6 +50,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Spelling? _spelling;
   var _words = const <WordMatch>[];
   var _commentary = CommentarySearch.empty;
+var _topics = const <TopicMatch>[];
   final _field = TextEditingController();
   final _focus = FocusNode();
   var _kind = _Kind.all;
@@ -102,6 +105,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _spelling = null;
     _words = const [];
     _commentary = CommentarySearch.empty;
+    _topics = const [];
     _kind = _Kind.all;
   }
 
@@ -116,7 +120,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final s = widget.state;
     setState(() {
       _clearResults();
-      _waiting.addAll([_Kind.verses, _Kind.words, _Kind.commentary]);
+      _waiting.addAll([_Kind.verses, _Kind.words, _Kind.topics, _Kind.commentary]);
     });
     await Future.wait([
       _answer(
@@ -138,6 +142,12 @@ class _SearchScreenState extends State<SearchScreen> {
         _Kind.words,
         () => s.searchWords(query, limit: _wordsListed),
         (found) => _words = found,
+      ),
+      _answer(
+        request,
+        _Kind.topics,
+        () async => s.db.searchTopics(query, limit: _topicsListed),
+        (found) => _topics = found,
       ),
       _answer(
         request,
@@ -207,6 +217,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _Kind.all => 0,
     _Kind.verses => _groups.fold(0, (n, g) => n + g.total),
     _Kind.words => _words.length,
+    _Kind.topics => _topics.length,
     _Kind.commentary => _commentary.total,
   };
 
@@ -291,7 +302,8 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Widget> _sections(BuildContext context, String translation, bool hasRefs) {
     final scheme = Theme.of(context).colorScheme;
     if (_query.isEmpty) return [_Examples(onTry: _try)];
-    final nothing = _groups.isEmpty && _words.isEmpty && _commentary.hits.isEmpty;
+    final nothing =
+        _groups.isEmpty && _words.isEmpty && _topics.isEmpty && _commentary.hits.isEmpty;
     if (_searched && !_verseSearchFailed && nothing && _spelling == null && !hasRefs) {
       return [
         Padding(
@@ -307,15 +319,18 @@ class _SearchScreenState extends State<SearchScreen> {
     }
     final verses = _verseSection(context, translation);
     final words = _wordSection(context);
+    final topics = _topicSection(context);
+    final topicsOffer = _topics.isEmpty ? topics : const <Widget>[];
     final comments = _commentarySection(context);
     return switch (_kind) {
       _Kind.verses => verses,
       _Kind.words => words,
+      _Kind.topics => topics,
       _Kind.commentary => comments,
       _Kind.all =>
         _deepFirst
-            ? [...words, ...comments, ...verses]
-            : [...verses, ...words, ...comments],
+            ? [...words, ...topics, ...comments, ...verses]
+            : [...verses, ...words, ...(_topics.isEmpty ? const [] : topics), ...comments, ...topicsOffer],
     };
   }
 
@@ -378,6 +393,45 @@ class _SearchScreenState extends State<SearchScreen> {
           'Show all ${_words.length} word studies',
           () => setState(() => _kind = _Kind.words),
         ),
+    ];
+  }
+
+  List<Widget> _topicSection(BuildContext context) {
+    final s = widget.state;
+    final scheme = Theme.of(context).colorScheme;
+    if (_topics.isEmpty) {
+      final asked = _kind == _Kind.topics || (_kind == _Kind.all && _deepFirst);
+      return s.db.hasTopics || !asked || !_searched
+          ? const []
+          : [
+              const _Header('Topics'),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ExtrasHint(state: s, part: SettingsPart.topics, text: searchTopicsHint),
+              ),
+            ];
+    }
+    final preview = _kind == _Kind.all;
+    final shown = preview ? _topics.take(_topicsPreview).toList() : _topics;
+    return [
+      _Header('Topics · ${_topics.length}${_topics.length >= _topicsListed ? '+' : ''}'),
+      for (final t in shown)
+        ListTile(
+          title: Text(t.name),
+          subtitle: Text(
+            '${BibleDb.topicWorkName(t.work)} · ${_plural(t.lines, 'line')} with passages',
+            style: TextStyle(color: scheme.onSurfaceVariant),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            _release();
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => TopicScreen(state: s, topic: t)),
+            );
+          },
+        ),
+      if (preview && _topics.length > shown.length)
+        _ShowAll('Show all ${_topics.length} topics', () => setState(() => _kind = _Kind.topics)),
     ];
   }
 
@@ -447,6 +501,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
 /// The search lists at most this many words, so a full list is shown with a plus.
 const _wordsListed = 40;
+const _topicsListed = 40;
 
 /// 3335 as "3,335", so a long count reads at a glance.
 String _n(int n) => n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+$)'), (_) => ',');
@@ -561,6 +616,7 @@ class _KindChips extends StatelessWidget {
     _Kind.all => 'All',
     _Kind.verses => 'Verses',
     _Kind.words => 'Word studies',
+    _Kind.topics => 'Topics',
     _Kind.commentary => 'Commentary',
   };
 
