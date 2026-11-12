@@ -139,6 +139,9 @@ class WordMatch {
 }
 
 /// A heading printed before [verse]; see [HeadingRow] for the kinds.
+/// How many verses before an empty one the publisher's footnote that prints it may sit.
+const _emptyVerseReach = 3;
+
 class Heading {
   final int verse;
   final String kind;
@@ -476,6 +479,52 @@ class BibleDb {
       mark.dispose();
       note.dispose();
     }
+  }
+
+  /// The footnotes the publisher prints on one verse, in the order of their words.
+  List<BsbFootnote> footnotes(int book, int chapter, int verse, {String translation = defaultTranslation}) {
+    if (!_hasMarks) return const [];
+    return [
+      for (final r in db.select(
+        'SELECT at, text FROM footnotes WHERE translation = ? AND book = ? AND chapter = ? AND verse = ? ORDER BY ord',
+        [translation, book, chapter, verse],
+      ))
+        (at: r['at'] as int, text: r['text'] as String),
+    ];
+  }
+
+  /// For a verse the translation leaves empty (the BSB leaves sixteen), the footnote on a verse
+  /// just before it that prints the verse, and which verse that is. Null for a verse with text,
+  /// and for an empty verse no footnote names.
+  ({int host, String text})? emptyVerseNote(
+    int book,
+    int chapter,
+    int verse, {
+    String translation = defaultTranslation,
+  }) {
+    if (!_hasMarks) return null;
+    final own = db.select(
+      'SELECT text FROM verses WHERE translation = ? AND book = ? AND chapter = ? AND verse = ?',
+      [translation, book, chapter, verse],
+    );
+    if (own.isEmpty || (own.first['text'] as String).trim().isNotEmpty) return null;
+    for (var host = verse - 1; host >= verse - _emptyVerseReach && host > 0; host--) {
+      for (final n in footnotes(book, chapter, host, translation: translation)) {
+        if (RegExp('(?<!\\d)$verse(?!\\d)').hasMatch(n.text)) return (host: host, text: n.text);
+      }
+    }
+    return null;
+  }
+
+  /// The passages the publisher prints under the heading that covers [verse], as the heading
+  /// gives them ("Genesis 22:1–10; Romans 5:6–11"); empty when that heading has none. A later
+  /// heading without any ends the earlier one's reach.
+  String parallelPassages(Book book, int chapter, int verse, {String translation = defaultTranslation}) {
+    Heading? covering;
+    for (final h in headings(book, chapter, translation: translation)) {
+      if (h.verse <= verse) covering = h;
+    }
+    return covering?.refs ?? '';
   }
 
   /// The publisher's marks and footnotes for each verse of a chapter that has any, keyed by verse

@@ -145,4 +145,45 @@ void main() {
   test('a database built before marks existed answers with none', () {
     expect(BibleDb(sqlite3.openInMemory()).marksForChapter(40, 3), isEmpty);
   });
+
+  test(
+    'an empty verse finds the footnote that prints it, and a verse with text does not',
+    () {
+      final raw = sqlite3.openInMemory()
+        ..execute(
+          'CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, chapter INTEGER, verse INTEGER, text TEXT)',
+        );
+      for (final v in [(20, 'He said to them'), (21, ''), (22, 'When they')]) {
+        raw.execute(
+          "INSERT INTO verses(translation, book, chapter, verse, text) VALUES ('BSB', 40, 17, ?, ?)",
+          [v.$1, v.$2],
+        );
+      }
+      final db = BibleDb(raw);
+      final tsv = [
+        _header,
+        _row(
+          1,
+          'He said to them',
+          id: 'Matthew 17:20',
+          note: 'BYZ and TR include 21But this kind does not come out',
+        ),
+        _row(2, 'When they', id: 'Matthew 17:22'),
+      ].join('\n');
+      final bookM = bookFor('Matthew')!;
+      db.importMarks(
+        parseBsbMarks(tsv, [
+          (book: bookM, chapter: 17, verse: 20, text: 'He said to them'),
+          (book: bookM, chapter: 17, verse: 22, text: 'When they'),
+        ]),
+        'BSB',
+      );
+      final note = db.emptyVerseNote(40, 17, 21)!;
+      expect(note.host, 20);
+      expect(note.text, startsWith('BYZ and TR include 21'));
+      expect(db.emptyVerseNote(40, 17, 20), isNull);
+      expect(db.emptyVerseNote(40, 17, 22), isNull);
+      expect(db.footnotes(40, 17, 20), hasLength(1));
+    },
+  );
 }
