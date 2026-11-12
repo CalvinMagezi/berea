@@ -200,7 +200,7 @@ class _PrayerPlanScreenState extends State<PrayerPlanScreen> {
             OutlinedButton.icon(
               onPressed: done.contains(number) ? null : () => _amen(number),
               icon: const Icon(Icons.check),
-              label: Text(done.contains(number) ? 'Day $number done' : 'Day $number done'),
+              label: Text(done.contains(number) ? 'Day $number done' : 'Done · day $number'),
             ),
           ],
         ),

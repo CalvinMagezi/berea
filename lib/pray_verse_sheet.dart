@@ -85,7 +85,7 @@ class _PrayVerseSheet extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(_sheetPadding, 2, _sheetPadding, 8),
             child: Text(
               points.isEmpty
-                  ? 'No prayer points for this verse. Pray it as it is, or in your own words.'
+                  ? 'No prayer points are written for this verse.'
                   : '${points.length == 1 ? 'One prayer point' : '${points.length} prayer points'} '
                         'from the Word, written for Berea',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),

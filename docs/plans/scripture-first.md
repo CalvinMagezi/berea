@@ -1030,6 +1030,9 @@ offered. Book names in the reference parser; search on the text.
 
 - E1 (3 to 4 weeks): section 10 phase 1, with the sources table and the line "You wrote a note
   here".
+  Decision 11 part 2 (Calvin, 2026-11-12): red letters and supplied-word marks are built here, on by
+  default with a legend, in the same re-pin of the BSB publisher's source that brings the footnotes,
+  because the database build strips them today (`importers.dart:57,61`).
 - E2 (6 to 8 weeks): section 9 phases 1 and 2, with plain senses leaving in the same merge that
   adds "How the BSB translates it"; the generated name sentences dropped; the kept-word line.
 
