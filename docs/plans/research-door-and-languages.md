@@ -58,3 +58,32 @@ text; whether Biblica's trademark condition allows an in-app title.
 Entukuvu", "Swahili: Toleo Wazi Neno") as soon as a reader who uses them can be asked whether the
 modern wording is what their church reads. Release L starts with downloading the two USFM sets,
 counting books and verses, and testing the importer.
+
+## Measured 2026-11-12: Luganda and Swahili against the BSB's verse numbering
+
+`packages/harness/bin/language_check.dart` reads a USFM zip with Berea's own importer and compares
+its chapter and verse numbers to the BSB's 31,102 verses. Run on the ebible.org files:
+
+| | Luganda (Bayibuli Entukuvu) | Swahili (Toleo Wazi Neno) |
+|---|---|---|
+| Verses read | 31,104 | 31,103 |
+| Books | 66 of 66 | 66 of 66 |
+| Empty verses | 0 | 0 |
+| BSB verse numbers with no text | 0 | 0 |
+| Verse numbers the BSB lacks | 2 (Revelation 12:18, 3 John 1:15) | 1 (3 John 1:15) |
+
+Both are complete Bibles and carry text for the sixteen verses the BSB leaves empty. The three extra
+numbers are versification differences (Revelation 12:18 is 13:1 in some numberings; 3 John 1:15 is
+1:14 in others), so a reference from one Bible reaches the same place in the other for all but those.
+
+Imported into a copy of the built database: 31,104 and 31,103 rows in about 0.3 s each; a search for
+Katonda finds 5,094 verses, okwagala 301, Mungu 8,827, upendo 258, each in 2 to 28 ms. The search
+index stems with an English stemmer, which treats other languages' words as it finds them and
+matches them to themselves, but may join unrelated words that share an English-looking stem.
+
+**Not working yet, by design:** Berea's reference parser does not know the book names. "Yokaana
+3:16" and "Mwanzo 1:1" parse to nothing. The USFM headers carry each book's name (`\h Yokaana`,
+`\toc2 3 Yokaana`, `\toc3 3Yk`), so the importer can read them and register them as aliases for any
+imported translation; that is the next step if a reader wants these languages, and it is small. The
+interface stays English; see the answer in the conversation of 2026-11-12 on what translating it
+would take.

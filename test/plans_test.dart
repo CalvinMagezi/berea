@@ -18,6 +18,21 @@ void main() {
     expect(planById('bible-year')!.schedule().expand((d) => d).length, 1189);
   });
 
+  test('the two psalm plans read all 150 psalms whole, five a day or one a day', () {
+    final month = planById('psalms-30')!.schedule();
+    expect(month.every((d) => d.length == 5), isTrue);
+    expect(month.first.map((r) => r.chapter), [1, 2, 3, 4, 5]);
+    expect(month.last.map((r) => r.chapter), [146, 147, 148, 149, 150]);
+    final each = planById('psalms-150')!.schedule();
+    expect(each.every((d) => d.length == 1), isTrue);
+    expect(each[118].single.chapter, 119, reason: 'Psalm 119 is its own day, never cut');
+    for (final plan in [month, each]) {
+      final chapters = plan.expand((d) => d).toList();
+      expect(chapters.map((r) => r.chapter), List.generate(150, (i) => i + 1));
+      expect(chapters.every((r) => r.book.name == 'Psalms'), isTrue);
+    }
+  });
+
   test('the fixed chapter counts match every translation of the bundled Bible', skip: needsBibleText, () {
     final db = BibleDb.open(bibleDbFile().absolute.path);
     for (final t in db.translations()) {

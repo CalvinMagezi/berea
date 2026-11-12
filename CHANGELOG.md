@@ -32,6 +32,8 @@ and your own words, and nothing in it writes text for you.
   senses, which Berea wrote and are gone. A word pressed in the KJV or the WEB no longer opens a
   guessed word: the study opens with the verse's original words and none chosen, because only the
   BSB's tables say which word is behind which English.
+- **The Psalms as a plan.** Two new reading plans over all 150 psalms, each psalm whole: The Psalms
+  in 30 days (five a day) and A psalm a day. Psalm 119 is never cut.
 - **Prayer is yours alone.** The prayer points, the 24 topics, the Praise, Confess, Thank, Ask and
   Others frame, Today's prayer, the prayer plans, the list of ten prayers of the Bible, the suggested
   verses and the study page's three questions are gone: Berea no longer writes any of the words you

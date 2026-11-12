@@ -72,6 +72,20 @@ final readingPlans = <ReadingPlan>[
     60,
     [bookFor('Psalms')!, bookFor('Proverbs')!],
   ),
+  ReadingPlan(
+    'psalms-30',
+    'The Psalms in 30 days',
+    'All 150 psalms, whole, five a day.',
+    30,
+    [bookFor('Psalms')!],
+  ),
+  ReadingPlan(
+    'psalms-150',
+    'A psalm a day',
+    'All 150 psalms, whole, one a day.',
+    150,
+    [bookFor('Psalms')!],
+  ),
 ];
 
 ReadingPlan? planById(String? id) => readingPlans.where((p) => p.id == id).firstOrNull;
