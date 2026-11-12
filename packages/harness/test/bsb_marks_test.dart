@@ -119,6 +119,29 @@ void main() {
     ], reason: 'a re-import replaces what was there');
   });
 
+  test('the poetry paragraph classes that end in red are red too', () {
+    final poetry = [
+      _header,
+      _row(
+        1,
+        'Blessed are the poor',
+        id: 'Matthew 3:1',
+        par: '<p class=|indent1stlinered|>',
+        beg: '“',
+      ),
+      _row(2, 'for theirs', id: 'Matthew 3:2', par: '<p class=|indent2|>'),
+    ].join('\n');
+    final r = parseBsbMarks(poetry, [
+      _verse(40, 3, 1, '“Blessed are the poor'),
+      _verse(40, 3, 2, 'for theirs'),
+    ]);
+    expect(
+      r.verses.first.spans.where((s) => s.kind == MarkKind.red),
+      hasLength(1),
+    );
+    expect(r.verses.last.spans, isEmpty, reason: 'indent2 is not a red class');
+  });
+
   test('a database built before marks existed answers with none', () {
     expect(BibleDb(sqlite3.openInMemory()).marksForChapter(40, 3), isEmpty);
   });

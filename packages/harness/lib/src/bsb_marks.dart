@@ -45,8 +45,9 @@ final _tag = RegExp('<[^>]*>');
 const _absentMarker = 'vvv';
 
 const _redOpen = '<span class=|red|>';
-const _redParagraph = '<p class=|red|>';
-const _paragraphOpen = '<p class=|';
+/// Paragraph classes whose text is red: red, indentred1, indentred2, tab1stlinered and so on.
+final _paragraphClass = RegExp(r'<p class=\|([a-z0-9]+)\|>');
+final _redClass = RegExp(r'red\d*$');
 const _spanClose = '</span>';
 
 List<String> _words(String s) => [
@@ -114,7 +115,8 @@ MarksResult parseBsbMarks(String tsv, List<VerseRow> bsb) {
     }
     if (current == null) continue;
     final before = '${c[hdgCol]}${c[crossCol]}${c[parCol]}${c[spaceCol]}';
-    if (before.contains(_paragraphOpen)) redParagraph = before.contains(_redParagraph);
+    final paragraph = _paragraphClass.allMatches(before).lastOrNull;
+    if (paragraph != null) redParagraph = _redClass.hasMatch(paragraph[1]!);
     if ('$before${c[begCol]}'.contains(_redOpen)) red = true;
 
     final note = c[noteCol].replaceAll(_tag, '').trim();
