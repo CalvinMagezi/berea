@@ -118,4 +118,18 @@ void main() {
       expect(opened, isNotNull);
     },
   );
+
+  testWidgets(
+    'a cross reference to a passage the reader has a note on says so, with the date',
+    (tester) async {
+      final state = (await tester.runAsync(open))!;
+      final john = Ref(bookFor('John')!, 3, 16, 16);
+      final target = state.db.xrefs(john, k: 1).single.to;
+      state.study.addNote(target, 'mine');
+      await pump(tester, state, john, (_) {});
+      await tester.tap(find.textContaining('Cross references · '));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('You wrote a note here on '), findsOneWidget);
+    },
+  );
 }
