@@ -397,7 +397,7 @@ void main() {
     expect(find.text('2.'), findsOneWidget);
   });
 
-  testWidgets('a number opened alone offers every entry STEPBible keeps under it and chooses none', (
+  testWidgets('a number opened alone offers every entry STEPBible keeps under it and shows the first', (
     tester,
   ) async {
     final db = wordBible();
@@ -414,11 +414,11 @@ void main() {
       MaterialApp(home: WordStudyScreen(db: db, code: 'H7307', onOpen: (_) {})),
     );
     await tester.pumpAndSettle();
-    expect(find.text('STEPBible lists 2 entries under H7307. Choose one:'), findsOneWidget);
+    expect(find.text('STEPBible lists 2 entries under H7307. The first is shown; choose another to see it:'), findsOneWidget);
     expect(find.text('H · spirit: breath'), findsOneWidget);
     await tester.tap(find.text('H · spirit: breath'));
     await tester.pumpAndSettle();
-    expect(find.text('STEPBible lists 2 entries under H7307. Choose one:'), findsOneWidget);
+    expect(find.text('STEPBible lists 2 entries under H7307. The first is shown; choose another to see it:'), findsOneWidget);
     expect(find.text('spirit: breath'), findsOneWidget, reason: 'the chosen entry is now the study');
   });
 

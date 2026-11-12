@@ -419,7 +419,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
       if (_entries.length > 1) ...[
         const SizedBox(height: 12),
         Text(
-          "STEPBible lists ${_entries.length} entries under $_code. Choose one:",
+          "STEPBible lists ${_entries.length} entries under $_code. The first is shown; choose another to see it:",
           style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
         ),
         const SizedBox(height: 6),
