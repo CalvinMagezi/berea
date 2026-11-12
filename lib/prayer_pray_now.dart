@@ -301,7 +301,7 @@ class _PrayNowViewState extends State<PrayNowView> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Amen', style: Theme.of(context).textTheme.headlineSmall),
+          Text('Finished', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 8),
           Text(switch (_prayed.length) {
             0 when _ids.isNotEmpty => 'You skipped them all this time. They stay on the list.',
@@ -418,7 +418,7 @@ class _PrayNowViewState extends State<PrayNowView> {
           ),
         ),
         const SizedBox(height: 24),
-        FilledButton(onPressed: _amenFrame, child: const Text('Amen, next')),
+        FilledButton(onPressed: _amenFrame, child: const Text('Next')),
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -478,7 +478,7 @@ class _PrayNowViewState extends State<PrayNowView> {
                 onPressed: () => _amen(p),
                 icon: const Icon(Icons.chevron_right),
                 iconAlignment: IconAlignment.end,
-                label: const Text('Amen, next'),
+                label: const Text('Next'),
               ),
             ),
           ],
@@ -586,7 +586,7 @@ class _LordsPrayerScreenState extends State<LordsPrayerScreen> {
                 const SizedBox(height: 24),
                 FilledButton(
                   onPressed: last ? () => Navigator.pop(context) : () => setState(() => _index++),
-                  child: Text(last ? 'Amen' : 'Next line'),
+                  child: Text(last ? 'Done' : 'Next line'),
                 ),
               ],
             ),

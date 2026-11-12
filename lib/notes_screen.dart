@@ -114,8 +114,8 @@ class _NotesScreenState extends State<NotesScreen> {
               ),
         actions: [
           IconButton(
-            tooltip: _searching ? 'Stop searching' : 'Search',
-            icon: Icon(_searching ? Icons.close : Icons.search),
+            tooltip: _searching ? 'Stop searching' : 'Search notes',
+            icon: Icon(_searching ? Icons.close : Icons.find_in_page_outlined),
             onPressed: () => setState(() {
               _searching = !_searching;
               _filter = '';

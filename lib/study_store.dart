@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'provenance.dart';
+
 import 'notebook_store.dart';
 import 'plans.dart';
 import 'prayer_plan_store.dart';
@@ -23,6 +25,9 @@ class Note {
 
   /// [plainNoteKind] for what the reader wrote, [keptWordKind] for a word kept from a word study.
   final String kind;
+
+  /// Who wrote the text; see provenance.dart.
+  final String provenance;
   const Note(
     this.id,
     this.verse,
@@ -31,6 +36,7 @@ class Note {
     this.notebookId,
     this.title = '',
     this.kind = plainNoteKind,
+    this.provenance = provenancePerson,
   });
 
   bool get isKeptWord => kind == keptWordKind || kind == studyWordKind;
@@ -47,6 +53,7 @@ class StudyPageRecord {
   final String application;
   final DateTime updated;
   final int? notebookId;
+  final String provenance;
   const StudyPageRecord(
     this.id,
     this.ref,
@@ -55,6 +62,7 @@ class StudyPageRecord {
     this.application,
     this.updated, {
     this.notebookId,
+    this.provenance = provenancePerson,
   });
 }
 
@@ -132,11 +140,23 @@ const planChaptersSchema = '''
     done_at INTEGER, PRIMARY KEY(plan_id, book, chapter)) WITHOUT ROWID;
 ''';
 
+/// Study store migration 8: the text of a note, a study page and a note source says who wrote it.
+/// [StudyStore.labelExistingText] then labels what exists and [StudyStore.deleteChatTranscripts]
+/// removes the chat, whose answers the labelling reads first.
+const provenanceSchema = '''
+  ALTER TABLE notes ADD COLUMN provenance TEXT NOT NULL DEFAULT 'person';
+  ALTER TABLE study_pages ADD COLUMN provenance TEXT NOT NULL DEFAULT 'person';
+  ALTER TABLE notebook_sources ADD COLUMN provenance TEXT NOT NULL DEFAULT 'person';
+''';
+
 /// The copy of study.sqlite written before the notes merge, beside the database.
 const preNotesMergeSuffix = '.pre-notes-merge';
 
 class StudyStore {
   final Database db;
+
+  /// How many saved conversations this open deleted, so the reader can be told once.
+  int chatsDeleted = 0;
   StudyStore(this.db) {
     db.execute('''
       PRAGMA journal_mode = WAL;
@@ -171,6 +191,7 @@ class StudyStore {
     planChaptersSchema,
     notebookKeySchema,
     prayerPlanSchema,
+    provenanceSchema,
   ];
 
   static int get schemaVersion => migrations.length;
@@ -180,11 +201,13 @@ class StudyStore {
     _notesMergeIndex: (s) => s.mergeNotes(),
     _planChaptersIndex: (s) => s.carryPlanDays(),
     _notebookKeyIndex: (s) => s.keyNotebooksAndWords(),
+    _provenanceIndex: (s) => s.labelAndDropChat(),
   };
 
   static const _notesMergeIndex = 2;
   static const _planChaptersIndex = 4;
   static const _notebookKeyIndex = 5;
+  static const _provenanceIndex = 7;
 
   /// A file from a newer Berea (a downgrade) is opened as it is: later migrations only add
   /// tables, and columns with defaults. Not across the notes merge: 0.6.0 cannot read a note
@@ -428,6 +451,7 @@ class StudyStore {
     notebookId: r['notebook_id'] as int?,
     title: r['title'] as String,
     kind: r['kind'] as String? ?? plainNoteKind,
+    provenance: r['provenance'] as String? ?? provenancePerson,
   );
 
   static Ref _pageRef(Row r) => Ref(
@@ -474,8 +498,20 @@ class StudyStore {
     final (book, chapter, vs, ve) = _verseColumns(verse);
     db.execute(
       'INSERT INTO notes(book, chapter, verse_start, verse_end, text, title, notebook_id, kind, '
-      'created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [book, chapter, vs, ve, text, title, notebookId, kind, _now(), _now()],
+      'provenance, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        book,
+        chapter,
+        vs,
+        ve,
+        text,
+        title,
+        notebookId,
+        kind,
+        provenanceFor(kind: kind, title: title, text: text),
+        _now(),
+        _now(),
+      ],
     );
     return db.lastInsertRowId;
   }
@@ -718,6 +754,7 @@ class StudyStore {
     r['application'] as String,
     DateTime.fromMillisecondsSinceEpoch(r['updated'] as int),
     notebookId: r['notebook_id'] as int?,
+    provenance: r['provenance'] as String? ?? provenancePerson,
   );
 
   /// Every study page, or those in [notebookId].
@@ -857,6 +894,7 @@ class StudyStore {
   /// present they hold this type, or null where [_nullable] allows it.
   static const _optionalTypes = <String, Map<String, Type>>{
     'notes': {
+      'provenance': String,
       'book': int,
       'chapter': int,
       'verse_start': int,
@@ -866,10 +904,10 @@ class StudyStore {
       'kind': String,
     },
     'notebooks': {'system_key': String},
-    'study_pages': {'notebook_id': int},
+    'study_pages': {'notebook_id': int, 'provenance': String},
     'conversations': {'notebook_id': int},
     'messages': {'sources': String, 'notebook_message_id': int},
-    'notebook_sources': {'note_id': int},
+    'notebook_sources': {'note_id': int, 'provenance': String},
     'prayers': {'topic': String},
     'prayer_plan_runs': {'prayer_id': int, 'finished': int},
   };
@@ -921,6 +959,10 @@ class StudyStore {
           final v = row[e.key];
           if (v == null && (!row.containsKey(e.key) || _nullable.contains(e.key))) continue;
           _checkType(t, e.key, e.value, v);
+        }
+        final provenance = row['provenance'];
+        if (provenance != null && !provenanceValues.contains(provenance)) {
+          throw FormatException('bad provenance $provenance in $t');
         }
         final book = row['book'];
         if (book is int && (book < 1 || book > books.length)) {
@@ -1066,7 +1108,55 @@ class StudyStore {
       mergeNotes();
       // A backup from before chapter ticks brings day ticks; they come back as chapters.
       carryPlanDays();
+      // A backup from before provenance labels none of its text; label it, and drop the chat it
+      // brings back.
+      if (!(tables['notes'] ?? const []).any((r) => r.containsKey('provenance'))) labelAndDropChat();
+      deleteChatTranscripts();
     });
+  }
+
+  /// Labels the text that exists, then deletes the chat transcripts. A note whose text equals an
+  /// assistant answer is the model's, whatever it is titled; a kept word is Berea's shortened
+  /// form; a kept commentary is a named source's; a study page from before this version may hold a
+  /// draft the person edited, so it is unknown; everything else is the person's. A note source
+  /// copied from a note takes that note's label. Safe to run again, as after restoring an older
+  /// backup.
+  void labelAndDropChat() {
+    labelExistingText();
+    deleteChatTranscripts();
+  }
+
+  void labelExistingText() {
+    db.execute("UPDATE notes SET provenance = 'person'");
+    db.execute(
+      "UPDATE notes SET provenance = 'machine' WHERE trim(text) != '' AND ("
+      "text IN (SELECT text FROM messages WHERE role = 'assistant') "
+      "OR text IN (SELECT text FROM notebook_messages WHERE role = 'assistant'))",
+    );
+    for (final r in db.select("SELECT id, kind, title, text FROM notes WHERE provenance = 'person'")) {
+      final label = provenanceFor(
+        kind: r['kind'] as String? ?? plainNoteKind,
+        title: r['title'] as String? ?? '',
+        text: r['text'] as String? ?? '',
+      );
+      if (label != provenancePerson) {
+        db.execute('UPDATE notes SET provenance = ? WHERE id = ?', [label, r['id']]);
+      }
+    }
+    db.execute("UPDATE study_pages SET provenance = 'unknown'");
+    db.execute(
+      "UPDATE notebook_sources SET provenance = COALESCE("
+      "(SELECT n.provenance FROM notes n WHERE n.id = notebook_sources.note_id), 'person')",
+    );
+  }
+
+  /// The chat is gone from the app; its saved conversations are deleted. Notes the reader kept
+  /// from an answer stay, labelled by [labelExistingText].
+  void deleteChatTranscripts() {
+    chatsDeleted += db.select('SELECT COUNT(*) AS n FROM conversations').first['n'] as int;
+    db.execute('DELETE FROM notebook_messages');
+    db.execute('DELETE FROM messages');
+    db.execute('DELETE FROM conversations');
   }
 
   /// Also deletes the notebook messages it was copied from, so no later copy brings it back.

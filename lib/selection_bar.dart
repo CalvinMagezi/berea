@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'brand/lamp_mark.dart';
 import 'brand/prayer_icon.dart';
 
 /// Space between the phone card and the five-place bar, so the raised Study button never covers
@@ -22,7 +21,7 @@ const _swipeReturn = Duration(milliseconds: 180);
 
 enum _More { words, commentary, studyPage, copy, share }
 
-/// What a selection of verses can do: Highlight, Note, Pray, Ask and More on a phone card; on a
+/// What a selection of verses can do: Highlight, Note, Pray and More on a phone card; on a
 /// wide screen a toolbar with Words and Commentary out of More. On a phone, swiping the card, or
 /// anywhere on the reader while verses are selected, right opens Commentary and left opens Words.
 class SelectionBar extends StatelessWidget {
@@ -34,7 +33,6 @@ class SelectionBar extends StatelessWidget {
   final VoidCallback onHighlight;
   final VoidCallback onNote;
   final VoidCallback onPray;
-  final VoidCallback onAsk;
   final VoidCallback onWords;
   final VoidCallback onCommentary;
   final VoidCallback onStudyPage;
@@ -55,7 +53,6 @@ class SelectionBar extends StatelessWidget {
     required this.onHighlight,
     required this.onNote,
     required this.onPray,
-    required this.onAsk,
     required this.onWords,
     required this.onCommentary,
     required this.onStudyPage,
@@ -84,11 +81,6 @@ class SelectionBar extends StatelessWidget {
       ),
       _Action(label: 'Note', icon: const Icon(Icons.edit_outlined), onTap: onNote),
       _Action(label: 'Pray', icon: const PrayerIcon(), onTap: onPray),
-      _Action(
-        label: 'Ask',
-        icon: LampMark(size: _iconSize, ink: scheme.onSurface, flame: scheme.primary),
-        onTap: onAsk,
-      ),
       if (wide) ...[
         _Action(label: 'Words', icon: const Icon(Icons.translate), onTap: onWords),
         _Action(

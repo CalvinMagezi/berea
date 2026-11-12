@@ -2,10 +2,12 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'provenance.dart';
+import 'provenance_line.dart';
 import 'theme.dart';
 
-/// Observation, interpretation and application for one passage. Berea drafts it from the
-/// retrieved context; the user edits and saves it locally.
+/// Observation, interpretation and application for one passage. The user writes it and
+/// saves it locally.
 class StudyPageScreen extends StatefulWidget {
   final AppState state;
   final Ref ref;
@@ -20,18 +22,14 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
   final _interpretation = TextEditingController();
   final _application = TextEditingController();
 
-  /// The draft as it streams, on its own so a token redraws one line, not the page.
-  final _draft = ValueNotifier('');
-  var _generating = false;
-  String? _error;
-  String? _nearMissNote;
-
   AppState get s => widget.state;
+  var _provenance = provenancePerson;
 
   @override
   void initState() {
     super.initState();
     final saved = s.study.studyPageFor(widget.ref);
+    _provenance = saved?.provenance ?? provenancePerson;
     if (saved != null) {
       _observation.text = saved.observation;
       _interpretation.text = saved.interpretation;
@@ -44,43 +42,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
     _observation.dispose();
     _interpretation.dispose();
     _application.dispose();
-    _draft.dispose();
     super.dispose();
-  }
-
-  Future<void> _generate() async {
-    if (s.harness == null || !s.ready) return;
-    setState(() {
-      _generating = true;
-      _draft.value = '';
-      _error = null;
-      _nearMissNote = null;
-    });
-    try {
-      // The engine writes one answer at a time, shared with the Study and notebook chats.
-      final page = await s.runExclusive(
-        (h) => h.studyPage(
-          widget.ref,
-          onToken: (t) {
-            if (mounted) _draft.value += t;
-          },
-        ),
-      );
-      // Closed while drafting: its text fields are gone, and nothing was saved.
-      if (!mounted) return;
-      if (page == null) {
-        _error = 'Berea is answering another question. Try again when it has finished.';
-        return;
-      }
-      _observation.text = page.observation;
-      _interpretation.text = page.interpretation;
-      _application.text = page.application;
-      _nearMissNote = nearMissNotice(page.guard.nearMisses);
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      if (mounted) setState(() => _generating = false);
-    }
   }
 
   void _save() {
@@ -91,10 +53,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final verses = s.db.verses(widget.ref, translation: s.settings.translation);
-    final empty =
-        _observation.text.isEmpty && _interpretation.text.isEmpty && _application.text.isEmpty;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -102,7 +61,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
           style: TextStyle(fontFamilyFallback: scriptureFontFallback),
         ),
         actions: [
-          TextButton(onPressed: _generating ? null : _save, child: const Text('Save')),
+          TextButton(onPressed: _save, child: const Text('Save')),
           const SizedBox(width: 8),
         ],
       ),
@@ -116,39 +75,7 @@ class _StudyPageScreenState extends State<StudyPageScreen> {
                 verses.map((v) => '${v.verse} ${v.text}').join(' '),
                 style: scriptureStyle(context).copyWith(fontSize: 17),
               ),
-              const SizedBox(height: 16),
-              if (s.harness == null)
-                Text(
-                  'Load a model in settings to draft this page, or write it yourself.',
-                  style: TextStyle(color: scheme.onSurfaceVariant),
-                )
-              else
-                OutlinedButton.icon(
-                  onPressed: _generating ? null : _generate,
-                  icon: const Icon(Icons.auto_stories_outlined),
-                  label: Text(empty ? 'Draft with Berea' : 'Redraft with Berea'),
-                ),
-              if (_generating)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: ValueListenableBuilder(
-                    valueListenable: _draft,
-                    builder: (context, draft, _) => Text(
-                      draft.isEmpty ? 'Examining the Scriptures…' : draft,
-                      style: TextStyle(color: scheme.onSurfaceVariant),
-                    ),
-                  ),
-                ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(_error!, style: TextStyle(color: scheme.error)),
-                ),
-              if (_nearMissNote != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(_nearMissNote!, style: TextStyle(color: scheme.error, fontSize: 13)),
-                ),
+              ProvenanceLine(_provenance),
               const SizedBox(height: 16),
               _Section('Observation', 'What does the text say?', _observation),
               _Section('Interpretation', 'What does it mean?', _interpretation),

@@ -1,7 +1,7 @@
 {
   "name": "Berea",
   "short_name": "Berea",
-  "description": "A free, open-source study Bible that runs on your own phone and checks every answer against the Bible text.",
+  "description": "A free, open-source study Bible that works offline on your own phone.",
   "start_url": "./",
   "display": "browser",
   "theme_color": "#161310",

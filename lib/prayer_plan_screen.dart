@@ -41,7 +41,7 @@ class _PrayerPlanScreenState extends State<PrayerPlanScreen> {
   void _amen(int day) {
     _plans.pray(plan.id, day, plan.days.length);
     final finished = _plans.run(plan.id)?.finished != null;
-    sayPrayer(context, finished ? 'Amen. ${plan.title} is finished.' : 'Amen. Day $day done.');
+    sayPrayer(context, finished ? '${plan.title} is finished.' : 'Day $day done.');
     setState(() => _picked = null);
     if (finished) Navigator.pop(context);
   }
@@ -200,7 +200,7 @@ class _PrayerPlanScreenState extends State<PrayerPlanScreen> {
             OutlinedButton.icon(
               onPressed: done.contains(number) ? null : () => _amen(number),
               icon: const Icon(Icons.check),
-              label: Text(done.contains(number) ? 'Day $number done' : 'Amen · day $number done'),
+              label: Text(done.contains(number) ? 'Day $number done' : 'Day $number done'),
             ),
           ],
         ),

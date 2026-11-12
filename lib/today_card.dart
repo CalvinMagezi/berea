@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
@@ -74,7 +73,7 @@ class _TodayCardState extends State<TodayCard> {
   }
 
   Widget _folded(BuildContext context, ColorScheme scheme) {
-    final daily = verseOfTheDay(state.db, DateTime.now());
+    final daily = state.readingVerse(DateTime.now());
     final reading = state.todaysReading;
     return InkWell(
       onTap: () => onFull(true),
@@ -96,7 +95,11 @@ class _TodayCardState extends State<TodayCard> {
                           text: 'Today',
                           style: TextStyle(fontWeight: FontWeight.w600, color: scheme.primary),
                         ),
-                        TextSpan(text: ' · ${short ? shortLabel(daily) : daily.label}'),
+                        TextSpan(
+                          text: daily == null
+                              ? ' · ${shortDate(DateTime.now())}'
+                              : ' · ${short ? shortLabel(daily) : daily.label}',
+                        ),
                       ],
                     ),
                     maxLines: 1,
@@ -124,9 +127,11 @@ class _TodayCardState extends State<TodayCard> {
 
   Widget _full(BuildContext context, ColorScheme scheme) {
     final now = DateTime.now();
-    final daily = verseOfTheDay(state.db, now);
+    final daily = state.readingVerse(now);
     final translation = state.settings.translation;
-    final text = state.db.passage(daily, translation: translation).map((v) => v.text).join(' ');
+    final text = daily == null
+        ? ''
+        : state.db.passage(daily, translation: translation).map((v) => v.text).join(' ');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 4),
       child: Column(
@@ -136,7 +141,7 @@ class _TodayCardState extends State<TodayCard> {
             children: [
               Expanded(
                 child: Text(
-                  'VERSE OF THE DAY · ${shortDate(now).toUpperCase()}',
+                  "TODAY'S READING · ${shortDate(now).toUpperCase()}",
                   style: TextStyle(
                     fontSize: 11,
                     letterSpacing: _labelSpacing,
@@ -152,42 +157,45 @@ class _TodayCardState extends State<TodayCard> {
               ),
             ],
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Text(
-              text,
-              style: scriptureStyle(context).copyWith(fontSize: 18, fontStyle: FontStyle.italic),
+          if (daily != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                text,
+                style: scriptureStyle(context).copyWith(fontSize: 18, fontStyle: FontStyle.italic),
+              ),
             ),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: Text(daily.label, style: TextStyle(color: scheme.primary)),
-              ),
-              TextButton(
-                onPressed: () => state.openInReader(daily),
-                child: const Text('Read in context'),
-              ),
-            ],
-          ),
-          Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
-          ..._prayerRow(context, scheme, daily),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(daily.label, style: TextStyle(color: scheme.primary)),
+                ),
+                TextButton(
+                  onPressed: () => state.openInReader(daily),
+                  child: const Text('Read in context'),
+                ),
+              ],
+            ),
+            Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
+          ],
+          ..._prayerRow(context, scheme),
           _planRow(scheme),
         ],
       ),
     );
   }
 
-  /// The verse of the day's own prayer line, prayed with one tap. Nothing when it has no line.
-  List<Widget> _prayerRow(BuildContext context, ColorScheme scheme, Ref daily) {
-    final line = state.prayerContent.dailyLine(daily);
-    if (line == null) return const [];
+  /// A line from the chapters of today's reading, prayed with one tap. Nothing when it has none.
+  List<Widget> _prayerRow(BuildContext context, ColorScheme scheme) {
+    final prayer = state.prayerOfTheDay;
+    if (prayer == null) return const [];
+    final line = prayer.point.text;
     return [
       ListTile(
         contentPadding: const EdgeInsets.only(right: 8),
         leading: Icon(Icons.volunteer_activism_outlined, color: scheme.primary),
         title: Text(line),
-        subtitle: const Text("A prayer from today's verse"),
+        subtitle: Text('${prayer.point.ref} · ${prayer.source}'),
         trailing: TextButton(
           onPressed: () => Navigator.push(
             context,
@@ -195,7 +203,7 @@ class _TodayCardState extends State<TodayCard> {
               builder: (_) => LinesPrayerScreen(
                 env: state.prayerEnv,
                 title: "Today's prayer",
-                points: [PrayerPoint(line, Ref(daily.book, daily.chapter, daily.verseStart).label)],
+                points: [prayer.point],
               ),
             ),
           ),

@@ -4,7 +4,6 @@ import 'books.dart';
 import 'commentary.dart';
 import 'notebook_text.dart';
 import 'ref_parser.dart';
-import 'tier.dart';
 
 /// Where a notebook source came from. Stored by name, so names never change.
 enum SourceKind {
@@ -183,7 +182,7 @@ const _fnvPrime = 0x01000193;
 const _mask32 = 0xffffffff;
 
 /// A stable tag for pack commentary [c] from its place (FNV-1a of [SourceChunk.key]), moved on
-/// past any tag already in [used] so two passages in one prompt never share one.
+/// past any tag already in [used] so two passages in one answer never share one.
 String packTag(SourceChunk c, Set<String> used) {
   var h = _fnvOffset;
   for (final u in c.key.codeUnits) {
@@ -362,23 +361,6 @@ class NotebookIndex {
   ];
 }
 
-/// Passages of the installed commentaries on [refs], cut to notebook chunk size so one long
-/// comment cannot fill the prompt, best match for [question] first. At most [limit].
-List<SourceChunk> commentaryChunks(
-  CommentaryLibrary library,
-  String question,
-  List<Ref> refs,
-  int limit,
-) {
-  if (limit <= 0 || library.isEmpty || refs.isEmpty) return const [];
-  final words = _queryWords(question);
-  final scored = [
-    for (final ref in refs.take(_maxCommentaryRefs))
-      for (final chunk in commentaryPieces(library, ref)) (_overlap(words, chunk.text), chunk),
-  ];
-  return _bestFirst(scored, limit);
-}
-
 /// Every comment of the installed commentaries on [ref], in catalog then verse order, cut to
 /// notebook chunk size. Each piece is titled with its work and the verses it comments on.
 List<SourceChunk> commentaryPieces(CommentaryLibrary library, Ref ref) {
@@ -428,68 +410,8 @@ List<SourceChunk> commentaryIntroductions(CommentaryLibrary library, Ref ref) {
   ];
 }
 
-/// The chunks of [scored] by score, best first, at most [limit]. Stable: equal scores keep
-/// the order given.
-List<SourceChunk> _bestFirst(List<(int, SourceChunk)> scored, int limit) {
-  final ranked = [for (var i = 0; i < scored.length; i++) (i, scored[i])]
-    ..sort((a, b) {
-      final byScore = b.$2.$1.compareTo(a.$2.$1);
-      return byScore != 0 ? byScore : a.$1.compareTo(b.$1);
-    });
-  return [for (final r in ranked.take(limit)) r.$2.$2];
-}
-
-/// A note written in a notebook, as an answer reads it.
-typedef NoteText = ({int id, String title, String text});
-
-List<SourceChunk> _noteChunks(NoteText n) => [
-  for (final piece in _pieces(n.text))
-    SourceChunk(
-      noteId: n.id,
-      title: n.title,
-      kind: SourceKind.note,
-      ordinal: piece.ordinal,
-      text: piece.text,
-    ),
-];
-
-/// Sections of [notes] that share a word with [question], best first, at most [limit]. Notes
-/// have no search index, so they are ranked here as commentary is.
-List<SourceChunk> noteMatches(Iterable<NoteText> notes, String question, int limit) {
-  if (limit <= 0) return const [];
-  final words = _queryWords(question);
-  final scored = [
-    for (final n in notes)
-      for (final c in _noteChunks(n)) (_overlap(words, c.text), c),
-  ].where((s) => s.$1 > 0).toList();
-  return _bestFirst(scored, limit);
-}
-
-/// The first section of each of [notes], in the order given, at most [limit].
-List<SourceChunk> noteOpenings(Iterable<NoteText> notes, int limit) => [
-  for (final n in notes.take(limit)) ..._noteChunks(n).take(1),
-];
-
-/// Questions rarely name more passages than this; each costs a query per pack.
-const _maxCommentaryRefs = 3;
-
 /// Larger than any chapter, so a chapter reference takes every verse comment.
 const _wholeChapter = 999;
-
-/// Words shorter than this ("the", "and", "was") say nothing about which piece fits.
-const _minMatchWordChars = 4;
-
-final _word = RegExp(r'[\p{L}\p{N}]+', unicode: true);
-
-Set<String> _queryWords(String s) => {
-  for (final m in _word.allMatches(s.toLowerCase()))
-    if (m[0]!.length >= _minMatchWordChars) m[0]!,
-};
-
-int _overlap(Set<String> words, String text) {
-  final have = _queryWords(text);
-  return words.where(have.contains).length;
-}
 
 List<TextChunk> _pieces(String text) {
   try {
@@ -497,67 +419,4 @@ List<TextChunk> _pieces(String text) {
   } on FormatException {
     return const [];
   }
-}
-
-/// The verses commentary is retrieved for: those the question names, else the notebook's own
-/// Bible passages, so commentary arrives only where it bears on what is being studied.
-List<Ref> commentaryAnchors(String question, List<Ref> notebookPassages) {
-  final asked = RefParser.parse(question);
-  return asked.isNotEmpty ? asked : notebookPassages;
-}
-
-/// What a notebook answer may draw on, best first and each chunk once: sections of pinned
-/// sources that match, then their starts (half the candidates at most), search hits across the
-/// notebook and its [notes], commentary on the passages in view, then the start of every source
-/// and note. The prompt builder keeps as many as the tier's source budget allows.
-List<SourceChunk> notebookSources({
-  required NotebookIndex index,
-  required String question,
-  required Tier tier,
-  Iterable<int> pinned = const [],
-  CommentaryLibrary? commentary,
-  Iterable<NoteText> notes = const [],
-}) {
-  final pins = pinned.toList();
-  // Pins take at most half the candidates, so matches elsewhere in the notebook still arrive.
-  final pinnedShare = (tier.sourceK + 1) ~/ 2;
-  final pinnedChunks = pins.isEmpty
-      ? const <SourceChunk>[]
-      : _unique([
-          ...index.search(question, limit: pinnedShare, within: pins),
-          ...index.openings(limit: pinnedShare, within: pins),
-        ]).take(pinnedShare);
-  final candidates = [
-    ...pinnedChunks,
-    // Search ranks and note ranks do not compare, so the two take turns.
-    ..._alternate(
-      index.search(question, limit: tier.sourceK),
-      noteMatches(notes, question, tier.sourceK),
-    ),
-    if (commentary != null)
-      ...commentaryChunks(
-        commentary,
-        question,
-        commentaryAnchors(question, index.passages()),
-        tier.commentaryK,
-      ),
-    ...index.openings(limit: tier.sourceK),
-    ...noteOpenings(notes, tier.sourceK),
-  ];
-  return _unique(candidates);
-}
-
-List<SourceChunk> _alternate(List<SourceChunk> a, List<SourceChunk> b) => [
-  for (var i = 0; i < a.length || i < b.length; i++) ...[
-    if (i < a.length) a[i],
-    if (i < b.length) b[i],
-  ],
-];
-
-List<SourceChunk> _unique(Iterable<SourceChunk> chunks) {
-  final seen = <String>{};
-  return [
-    for (final c in chunks)
-      if (seen.add(c.key)) c,
-  ];
 }

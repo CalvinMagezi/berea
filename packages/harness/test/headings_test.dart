@@ -98,7 +98,7 @@ void main() {
     expect(sectionSpan(hs, hs[4], 20), (start: 9, end: 20));
   });
 
-  test('a chapter is read whole, past the prompt cap of passage', () {
+  test('a chapter is read whole, past the cap of passage', () {
     final db = BibleDb(sqlite3.openInMemory())
       ..db.execute(
         'CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, '

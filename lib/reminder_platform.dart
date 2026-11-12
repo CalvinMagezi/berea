@@ -9,7 +9,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'daily_reminder.dart';
 
 const _channelId = 'daily_prayer';
-const _channelName = 'Verse of the day and prayer';
+const _channelName = "Today's reading";
 const _channelDescription = 'One notification a day at the time you choose.';
 const _androidIcon = 'ic_stat_berea';
 

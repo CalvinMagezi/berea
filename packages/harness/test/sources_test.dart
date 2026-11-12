@@ -89,154 +89,16 @@ void main() {
     _chunk(7, 0, 'The first part ends with grace and'),
     _chunk(7, 1, 'truth for all who listen closely to the word.'),
   ];
-  final shown = PromptBuilder('SYS')
-      .build(
-        _ctx(db, 'John 3:16', sources: [guide, note, commentary, friend, ...split]),
-        const [],
-        'Q',
-        Tier.mid,
-        notebook: true,
-      )
-      .shown;
+  final shown = _ctx(db, 'John 3:16', sources: [guide, note, commentary, friend, ...split]);
   final guard = CitationGuard(db);
 
   GuardResult check(String output) => guard.apply(output, shown, checkSources: true);
-
-  group('budget', () {
-    test('only verses that fit the prompt count as shown', () {
-      final big = _db(extra: 200);
-      final ctx = _ctx(big, 'John 4');
-      final built = PromptBuilder('SYS').build(ctx, const [], 'Q', Tier.low);
-      expect(built.shown.passages.length, lessThan(ctx.passages.length));
-      final cut = ctx.passages.last;
-      final kept = built.shown.passages.last;
-      final words = cut.text.split(' ').take(12).join(' ');
-      // A quote of a verse the budget cut is no longer accepted; one that was shown still is.
-      final cutResult = CitationGuard(big).apply('It says "$words".', built.shown);
-      expect(cutResult.unverifiedQuotes, hasLength(1));
-      final keptWords = kept.text.split(' ').take(12).join(' ');
-      expect(
-        CitationGuard(big).apply('It says "$keptWords".', built.shown).unverifiedQuotes,
-        isEmpty,
-      );
-      expect(built.messages.last.content, isNot(contains(cut.text)));
-    });
-
-    test('the Study prompt has no SOURCES and keeps its system prompt', () {
-      final built = PromptBuilder(
-        'SYS',
-      ).build(_ctx(db, 'John 3:16', sources: [guide]), const [], 'Q', Tier.mid);
-      expect(built.messages.first.content, 'SYS');
-      expect(built.messages.last.content, isNot(contains('SOURCES')));
-      expect(built.shown.sources, isEmpty);
-    });
-
-    test('SOURCES follows PASSAGES, keeps to its share, and skips a chunk too long to fit', () {
-      final english = List.filled(25, 'Grace teaches us to say no to ungodliness.').join(' ');
-      final greek = List.filled(120, 'ἀγάπη').join(' ');
-      final chunks = [
-        _chunk(1, 0, english),
-        _chunk(2, 0, greek),
-        for (var i = 1; i < 12; i++) _chunk(1, i, english),
-      ];
-      final built = PromptBuilder(
-        'SYS',
-      ).build(_ctx(db, 'John 3:16', sources: chunks), const [], 'Q', Tier.low, notebook: true);
-      final user = built.messages.last.content;
-      expect(built.messages.first.content, contains(notebookRules));
-      expect(user.indexOf('PASSAGES'), lessThan(user.indexOf('SOURCES')));
-      final shownChunks = built.shown.sources;
-      expect(shownChunks, isNotEmpty);
-      expect(shownChunks.length, lessThan(chunks.length));
-      expect(shownChunks.any((c) => c.sourceId == 2), isFalse);
-      expect(shownChunks.map((c) => c.ordinal), [0, 1]);
-      final cost = shownChunks
-          .map((c) => estimateTokens('[${notebookTag(c)}] (${c.title}, ${c.kind.label}) ${c.text}'))
-          .reduce((a, b) => a + b);
-      expect(cost, lessThanOrEqualTo(Tier.low.sourceTokens));
-      expect(user, contains('[S1 §1] (Guide, Pasted text) Grace teaches'));
-    });
-
-    test('a long passage cannot take the share reserved for sources', () {
-      final big = _db(extra: 200);
-      final built = PromptBuilder(
-        'SYS',
-      ).build(_ctx(big, 'John 4', sources: [guide]), const [], 'Q', Tier.mid, notebook: true);
-      expect(built.shown.sources.single.text, _guidePage2);
-      expect(built.shown.passages, isNotEmpty);
-    });
-
-    test('an empty notebook still gets a SOURCES block that says so', () {
-      final built = PromptBuilder(
-        'SYS',
-      ).build(_ctx(db, 'John 3:16'), const [], 'Q', Tier.mid, notebook: true);
-      expect(built.messages.last.content, contains('SOURCES\n$noSourcesShown'));
-    });
-
-    test('a source too long for a small tier is cut to fit rather than reported missing', () {
-      final greek = List.filled(400, 'ἀγάπη').join(' ');
-      final built = PromptBuilder('SYS').build(
-        _ctx(db, 'John 3:16', sources: [_chunk(2, 0, greek)]),
-        const [],
-        'Q',
-        Tier.low,
-        notebook: true,
-      );
-      final user = built.messages.last.content;
-      expect(user, isNot(contains(noSourcesShown)));
-      expect(user, contains('[S2 §1] (Guide, Pasted text) ἀγάπη'));
-      expect(built.shown.sources.single.text.length, lessThan(greek.length));
-      expect(greek, startsWith(built.shown.sources.single.text));
-    });
-
-    test('with no verse shown the note against quoting from memory stays beside SOURCES', () {
-      final built = PromptBuilder('SYS').build(
-        _ctx(db, 'no reference here', sources: [guide]),
-        const [],
-        'Q',
-        Tier.mid,
-        notebook: true,
-      );
-      final user = built.messages.last.content;
-      expect(user, contains(noPassagesLoaded));
-      expect(user, contains('SOURCES\n[S3 p.2]'));
-    });
-
-    test('the whole prompt stays within the budget, however long the question', () {
-      final big = _db(extra: 200);
-      final longQuestion = List.filled(4000, 'why').join(' ');
-      final history = [
-        for (var i = 0; i < 4; i++) ChatMessage.user(List.filled(300, 'grace').join(' ')),
-      ];
-      for (final tier in Tier.values) {
-        for (final notebook in [false, true]) {
-          final built = PromptBuilder('SYS').build(
-            _ctx(big, 'John 4', sources: [guide, note, commentary]),
-            history,
-            longQuestion,
-            tier,
-            notebook: notebook,
-          );
-          final total = built.messages.fold(0, (sum, m) => sum + estimateTokens(m.content));
-          expect(total, lessThanOrEqualTo(tier.promptTokens), reason: '${tier.name} $notebook');
-          expect(built.messages.last.content, contains('[question shortened]'));
-        }
-      }
-    });
-
-    test('estimates are high for digits, punctuation, Greek and Hebrew', () {
-      expect(estimateTokens('grace and peace'), 4);
-      expect(estimateTokens('3:16'), 4);
-      expect(estimateTokens('ἀγάπη'), 5);
-      expect(estimateTokens('בְּרֵאשִׁית'), 'בְּרֵאשִׁית'.length);
-    });
-  });
 
   group('tags', () {
     test('a page for a PDF, a section otherwise, and a stable number for commentary', () {
       expect(tagSources(shown.sources).map((s) => s.tag).take(3), ['S3 p.2', 'S5 §1', cTag]);
       expect(cTag, matches(RegExp(r'^C\d{4}$')));
-      // The same passage keeps its tag in another answer, wherever it falls in the prompt.
+      // The same passage keeps its tag in another answer, wherever it falls.
       final other = commentary.withText('x');
       final again = SourceChunk(
         title: 'Another commentary on John 3:16',
@@ -315,17 +177,10 @@ void main() {
         ordinal: 0,
         text: 'Open with Acts 17:11 and the Bereans who searched daily.',
       );
-      final built = PromptBuilder('SYS').build(
-        _ctx(db, 'John 3:16', sources: [guide, outline]),
-        const [],
-        'Q',
-        Tier.mid,
-        notebook: true,
-      );
-      expect(built.messages.last.content, contains('[N5 §1] (Outline for Thursday, Your note)'));
+      final built = _ctx(db, 'John 3:16', sources: [guide, outline]);
       final r = guard.apply(
         'Start with the Bereans [N5 §1], not the guide [S5 §1].',
-        built.shown,
+        built,
         checkSources: true,
       );
       expect(r.sources.map((s) => s.tag), ['N5 §1']);
@@ -417,24 +272,6 @@ void main() {
       expect(across.unverifiedQuotes, hasLength(1));
     });
 
-    test('a quote of a chunk the budget cut is not supported', () {
-      final cut = PromptBuilder('SYS').build(
-        _ctx(db, 'John 3:16', sources: [_chunk(9, 0, List.filled(400, 'filler').join(' ')), guide]),
-        const [],
-        'Q',
-        Tier.low,
-        notebook: true,
-      );
-      expect(cut.shown.sources.map((c) => c.sourceId), [3]);
-      final r = guard.apply(
-        'It says "filler filler filler filler filler filler" [S9 §1].',
-        cut.shown,
-        checkSources: true,
-      );
-      expect(r.unverifiedSources, ['S9 §1']);
-      expect(r.unverifiedQuotes, hasLength(1));
-    });
-
     test('without source checks a source quote is held to the verses, as before', () {
       final r = guard.apply('The guide says "they examined the Scriptures every day".', shown);
       expect(r.unverifiedQuotes, hasLength(1));
@@ -468,47 +305,14 @@ void main() {
     });
     tearDown(() => raw.dispose());
 
-    test('pinned matches, pinned openings, hits, then openings, each once', () {
-      final book = addSource('text', 'Book', ['Chapter one on prayer.', 'Chapter two on fasting.']);
-      final pinned = addSource('note', 'Pinned', ['Abide in me.', 'Prayer without ceasing.']);
+    test('a notebook lists the passages pinned in it, and no more', () {
+      addSource('text', 'Book', ['Chapter one on prayer.']);
       addSource('passage', 'John 3:16 (BSB)', ['16 For God so loved'], origin: 'John 3:16|BSB');
-      final got = notebookSources(
-        index: index,
-        question: 'What about prayer?',
-        tier: Tier.mid,
-        pinned: [pinned],
-      );
-      expect(got.map((c) => (c.sourceId, c.ordinal)).toList(), [
-        (pinned, 1),
-        (pinned, 0),
-        (book, 0),
-        (book + 2, 0),
-        (book, 1),
-      ]);
       expect(index.passages().single.label, 'John 3:16');
       expect(index.search('prayer', limit: 5, within: const []), isEmpty);
     });
 
-    test('notes in the notebook are searched beside its sources and open it when broad', () {
-      final book = addSource('text', 'Book', ['Chapter one on prayer.']);
-      const notes = [
-        (id: 9, title: 'Outline for Thursday', text: 'Thursday: prayer and the Bereans.'),
-        (id: 4, title: 'Shopping', text: 'Bread and milk.'),
-      ];
-      final hits = notebookSources(
-        index: index,
-        question: 'What is the outline for Thursday?',
-        tier: Tier.mid,
-        notes: notes,
-      );
-      expect(hits.first.noteId, 9);
-      expect(hits.where((c) => c.noteId == 4).single.ordinal, 0);
-      final broad = notebookSources(index: index, question: 'Sum up', tier: Tier.mid, notes: notes);
-      expect(broad.map((c) => c.sourceId ?? -c.noteId!).toList(), [book, -9, -4]);
-      expect(noteMatches(notes, 'unrelated words', 5), isEmpty);
-    });
-
-    test('commentary on the passages in view is cut to chunk size, best match first', () {
+    test('commentary on a passage is cut to chunk size', () {
       final dir = Directory.systemTemp.createTempSync('berea_sources');
       addTearDown(() => dir.deleteSync(recursive: true));
       final path = '${dir.path}/pack.sqlite';
@@ -526,28 +330,12 @@ void main() {
       pack.dispose();
       final lib = CommentaryLibrary()..open('core', path);
       addTearDown(lib.closeAll);
-      addSource('passage', 'John 3:16 (BSB)', ['16 For God so loved'], origin: 'John 3:16|BSB');
-      final got = notebookSources(
-        index: index,
-        question: 'How does faith receive eternal life?',
-        tier: Tier.mid,
-        commentary: lib,
-      );
-      final c = got.where((c) => c.fromPack).single;
+      final got = commentaryPieces(lib, RefParser.parse('John 3:16').first);
+      final c = got.first;
+      expect(got.every((p) => p.text.length <= notebookChunkChars), isTrue);
+      expect(got.map((p) => p.text).join(' '), contains('eternal life as a gift'));
       expect(c.title, 'Concise on John 3:16-17');
-      expect(c.text, contains('eternal life as a gift'));
-      expect(c.text.length, lessThanOrEqualTo(notebookChunkChars));
       expect(c.ref!.label, 'John 3:16-17');
-      expect(commentaryChunks(lib, 'faith', const [], Tier.mid.commentaryK), isEmpty);
-      expect(
-        notebookSources(
-          index: index,
-          question: 'faith',
-          tier: Tier.low,
-          commentary: lib,
-        ).where((c) => c.fromPack),
-        isEmpty,
-      );
     });
   });
 }

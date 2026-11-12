@@ -1,15 +1,12 @@
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
-import 'package:berea/brand/lamp_mark.dart';
 import 'package:berea/keep_sheet.dart';
 import 'package:berea/note_dialog.dart';
 import 'package:berea/notebook_store.dart';
-import 'package:berea/notebook_ask_panel.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/study_packet_screen.dart';
 import 'package:berea/notes_screen.dart';
-import 'package:berea/voice_composer.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea/theme.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -35,7 +32,7 @@ void main() {
 
   setUpAll(() async {
     dir = Directory.systemTemp.createTempSync('berea-notes-test');
-    SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name});
+    SharedPreferences.setMockInitialValues({});
     s = await AppState.bootstrap(supportDir: dir, prefs: await SharedPreferences.getInstance());
   });
   tearDownAll(() => dir.deleteSync(recursive: true));
@@ -102,7 +99,7 @@ void main() {
     expect(find.byType(NotebookScreen), findsOneWidget);
   });
 
-  testWidgets('a notebook shows Everything, Notes and Readings, with Add and Ask', (
+  testWidgets('a notebook shows Everything, Notes and Readings, with Add and Search', (
     tester,
   ) async {
     final nb = s.notebooks.createNotebook('Romans with the youth');
@@ -150,11 +147,15 @@ void main() {
     await tester.tapAt(Offset.zero);
     await tester.pumpAndSettle();
 
-    final asked = s.openStudyRequest.value;
-    await tester.tap(find.text('Ask about this notebook'));
-    expect(s.studyScope.value, nb);
-    expect(s.openStudyRequest.value, asked + 1);
-    s.studyScope.value = null;
+    await tester.tap(find.text('Search this notebook'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'chapter');
+    await tester.pumpAndSettle();
+    expect(find.text('Romans study notes'), findsOneWidget);
+    expect(find.textContaining('Notes on chapter 8.'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'zebra');
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing in this notebook matches.'), findsOneWidget);
   });
 
   testWidgets('a source being read shows progress until it is saved', (tester) async {
@@ -400,26 +401,6 @@ void main() {
     expect(find.widgetWithText(TextField, 'For those who suffer this week.'), findsNWidgets(2));
   });
 
-  testWidgets('the editor microphone shows only when the device model can hear', (tester) async {
-    await openEditor(tester);
-    expect(canDictate(s), isFalse, reason: 'tests run on Ollama, which cannot transcribe');
-    expect(find.byType(VoiceMicButton), findsNothing);
-
-    await tester.pumpWidget(const SizedBox());
-    await pump(tester, NoteEditor(state: s, dictates: (_) => true));
-    expect(find.byType(VoiceMicButton), findsOneWidget);
-  });
-
-  test('dictation goes in at the cursor, or at the end', () {
-    const typed = TextEditingValue(
-      text: 'Read again.',
-      selection: TextSelection.collapsed(offset: 4),
-    );
-    expect(withDictation(typed, 'Romans 8').text, 'Read Romans 8 again.');
-    expect(withDictation(const TextEditingValue(text: 'Read'), 'it').text, 'Read it');
-    expect(withDictation(TextEditingValue.empty, 'Hope').text, 'Hope');
-  });
-
   testWidgets('wide Notes shows the chosen entry beside the list', (tester) async {
     final sermons = s.notebooks.createNotebook('Sunday sermons');
     s.study.addNotebookNote(
@@ -478,7 +459,7 @@ void main() {
     await pump(tester, NotebookScreen(state: s, notebookId: nb), size: _mac);
     expect(find.byType(ListAndDetail), findsOneWidget);
     expect(find.text('Everything'), findsOneWidget);
-    expect(find.byType(NotebookAskPanel), findsOneWidget);
+    expect(find.byType(StudyPacketScreen), findsOneWidget);
 
     await tester.tap(find.text('Outline for Thursday'));
     await tester.pumpAndSettle();
@@ -491,7 +472,7 @@ void main() {
 
     await tester.tap(find.text('Readings 0'));
     await tester.pumpAndSettle();
-    expect(find.byType(NotebookAskPanel), findsOneWidget);
+    expect(find.byType(StudyPacketScreen), findsOneWidget);
     await tester.tap(find.text('Everything'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(SelectableText, 'What we suffer.'), findsOneWidget);
@@ -500,36 +481,7 @@ void main() {
     s.study.deleteNote(s.study.notebookNotes(nb).single.id);
     s.notebooks.renameNotebook(nb, 'Romans 8');
     await tester.pumpAndSettle();
-    expect(find.byType(NotebookAskPanel), findsOneWidget);
-  });
-
-  testWidgets('on a wide screen Ask about this notebook brings its conversation back beside it', (
-    tester,
-  ) async {
-    final nb = s.notebooks.createNotebook('Romans with the youth');
-    s.study.addNotebookNote(nb, 'What we suffer.', title: 'Outline for Thursday');
-    await pump(tester, NotebookScreen(state: s, notebookId: nb), size: _mac);
-    await tester.tap(find.text('Outline for Thursday'));
-    await tester.pumpAndSettle();
-    expect(find.byType(NotebookAskPanel), findsNothing);
-    await tester.tap(find.widgetWithText(FilledButton, 'Ask about this notebook'));
-    await tester.pumpAndSettle();
-    expect(find.byType(NotebookAskPanel), findsOneWidget);
-    final box = find.descendant(
-      of: find.byType(NotebookAskPanel),
-      matching: find.byType(TextField),
-    );
-    expect(tester.widget<TextField>(box).focusNode!.hasFocus, isTrue);
-    expect(s.studyScope.value, isNot(nb), reason: 'Study is scoped only once a question is asked');
-  });
-
-  testWidgets('on a phone Ask about this notebook scopes Study to it', (tester) async {
-    final nb = s.notebooks.createNotebook('Romans with the youth');
-    await pump(tester, NotebookScreen(state: s, notebookId: nb));
-    await tester.tap(find.widgetWithText(FilledButton, 'Ask about this notebook'));
-    await tester.pump();
-    expect(s.studyScope.value, nb);
-    s.setStudyScope(null);
+    expect(find.byType(StudyPacketScreen), findsOneWidget);
   });
 
   testWidgets('the phone layout keeps opening entries on their own', (tester) async {
@@ -542,7 +494,7 @@ void main() {
     expect(find.byType(NoteEditor), findsOneWidget);
   });
 
-  testWidgets('a passage reading shows its translation and verses, and Ask shows the mark', (
+  testWidgets('a passage reading shows its translation and verses', (
     tester,
   ) async {
     final nb = s.notebooks.createNotebook('Romans with the youth');
@@ -552,8 +504,6 @@ void main() {
     await pump(tester, NotebookScreen(state: s, notebookId: nb));
     expect(find.text('Romans 8:18-20'), findsOneWidget);
     expect(find.text('$translation · 3 verses'), findsOneWidget);
-    final ask = find.widgetWithText(FilledButton, 'Ask about this notebook');
-    expect(find.descendant(of: ask, matching: find.byType(LampMark)), findsOneWidget);
   });
 
   testWidgets('the Keep sheet counts only what a notebook holds', (tester) async {
@@ -598,7 +548,7 @@ void main() {
     expect(find.text('Download in Settings'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Key words'), 200);
     expect(find.textContaining('"to beget"'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Witnesses from the other testament'), 200);
+    await tester.scrollUntilVisible(find.text('Cross references into the other testament'), 200);
   });
 
   testWidgets('Synthesize on a notebook with no passages says what to add', (tester) async {
@@ -633,7 +583,5 @@ void main() {
     await tester.tap(find.text(work));
     await tester.pumpAndSettle();
     expect(find.textContaining('born from above'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Listen'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Ask about this notebook'), findsOneWidget);
   });
 }

@@ -15,7 +15,7 @@ void main() {
 
   setUp(() {
     dir = Directory.systemTemp.createTempSync('berea-startup-test');
-    SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name});
+    SharedPreferences.setMockInitialValues({});
   });
   tearDown(() => dir.deleteSync(recursive: true));
 

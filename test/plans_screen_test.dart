@@ -38,7 +38,6 @@ void main() {
     final dir = Directory.systemTemp.createTempSync('berea-plans');
     dirs.add(dir);
     SharedPreferences.setMockInitialValues({
-      'engine': EngineKind.ollama.name,
       'readerBook': 43,
       'tipT14Done': true,
       ...prefs,

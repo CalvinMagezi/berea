@@ -2,92 +2,46 @@
 
 ## Unreleased
 
-- With a verse selected, swipe the verse itself (not only the card below it) right for
-  Commentary or left for Words.
-- A brief answer to a question that names two or more passages is told to cite each one, so
-  "Explain Luke 15:11-32 in light of Luke 15:1-2" cites both far more often.
-- The site's reference check marks a Strong's number that does not exist ("G9999 is not a
-  Strong's number"), from a 106 KB list of the lexicon's codes. Browsers too old for the check
-  skip it and still check references and quotes.
-- On the mid and high tiers, a question about a passage also gets related verses from what it
-  asks beside the reference ("the parable of the rich fool"), with the reference and book names
-  left out of the search. The low tier, whose prompt the passage already fills, is unchanged.
-- Search finds the other English form of a word when the Bible's original-language glosses tie
-  them together: "angry" also finds "anger" and "hungry" finds "hunger". "Is it wrong to be
-  angry?" now finds Ephesians 4:26, and the Bible search box gains the same reach.
-- A full study of a verse or two now reads the verses around it in the same BSB section, so
-  Philippians 4:13 is read with "I have learned to be content" and Matthew 18:20 with the steps
-  before it. Brief answers stay as they were, to keep the phone's first words as quick.
-- A question that names where to look ("the letter to the Romans", "the gospel of John")
-  searches that book without searching for "letter" or "gospel" as well.
-- The site's reference check notes an answer that calls an Old Testament word Greek or a New
-  Testament word Hebrew, as Study does.
-- Answers now cite each verse they explain or paraphrase, not only the ones they quote. A word
-  study on Philippians 4:7 sometimes explained the verse without naming it.
-- On a phone, swipe the selected verse's card right for Commentary or left for Words, the
-  Hebrew or Greek of the verse word by word. Each verb in Words shows its parsing from the
-  tagged text ("imperfect active indicative"). Today's card in full no longer pushes the chapter
-  off a short screen; it scrolls instead.
-- Study answers draw on better context. A question about a passage no longer pulls in verses that
-  only share a book's name (asking about Luke 12 used to bring Colossians 4:14, "Luke the beloved
-  physician"), the word list skips "the", "and" and "for" so the lexicon holds the passage's real
-  words, and a book named without a chapter ("What does Romans teach about grace?") searches that
-  book first. Verbs in the word list carry their tense in plain words ("aorist active
-  indicative") instead of codes.
-- The citation check now marks a Strong's number the answer gives that Berea never showed the
-  model. When an answer speaks of Greek for an Old Testament passage, or of Hebrew for a New
-  Testament one, a quiet line under it says which language the passage was written in and points
-  to Words. A verse that names the language itself (John 19:13, "in Hebrew Gabbatha") or an
-  answer about the Septuagint does not raise it.
-- The Berean Standard Bible now shows its section headings, with the parallel passages under them
-  and the five books of Psalms and the acrostic letters of Psalm 119 marked. Tap a heading to
-  select its whole section, ready to highlight, ask about or add to a notebook; tap it again to
-  clear. The headings are public domain with the BSB text.
-- Chapters longer than 40 verses (Psalm 119, Genesis 24, John 6 and many more) are read to their
-  end; the reader used to stop at verse 40.
-- A jump to a verse (the resume point, a search result) now reaches it in chapters whose verses
-  are of very different heights.
-- Synthesize, in a notebook, gathers what the Bible and your installed commentaries say about the
-  notebook's passages, without the helper: each BSB section with its parallels and cross
-  references, the key Hebrew and Greek words of the reading with other places they are used,
-  the commentary on each section, and verses from the other testament that the passage points
-  to. It reads the notebook's Bible passages and the verses its notes and study pages are on. It
-  is the groundwork for listening to a notebook as a spoken deep dive.
-- Passages longer than 40 verses are kept whole in a notebook, a study page, a note's verse
-  preview and an export; they used to stop at verse 40.
-- Tap a section heading in the reader, then Study notebook: the section becomes a notebook named
-  for it, with the passage, what each installed commentary says on it, and its key Hebrew or Greek
-  words kept as word studies, ready to Synthesize or Listen. Tapping it again for the same section
-  opens that notebook instead of making a copy.
-- Listen, in a notebook, makes a spoken deep dive of about ten minutes, read by one narrator.
-  The helper writes it part by part from what Synthesize gathers: an opening, a walk through the
-  verses with their Hebrew or Greek words and commentators, the hardest question the passage
-  raises, witnesses from the other testament, and a recap with a question to take away. Every
-  verse it quotes is checked against the Bible, and a sentence that fails the check is not read.
-  Supertonic 3, a voice that runs on the device (a 145 MB download, once), then reads it aloud.
-  It is made in the background: Study keeps answering between parts, the helper rests while the
-  voice reads, and on Android a notification shows how far along it is and says when it is
-  ready. Stop keeps what was made, and Continue picks up from there. The recording stays on the
-  device and out of backups, and it says that it is machine generated.
-- Study notebook marks the word studies it adds as its own: deleting the notebook removes them
-  with it, while notes you wrote, and word studies you have edited, still move to Notes on
-  verses. Tapping Study notebook again adds the commentaries installed since.
-- Where an optional download would add something, Berea says so quietly with a way to it: no
-  commentaries yet in Synthesize, Listen and Study notebook, and the complete Greek lexicon in a
-  word study. Settings opens at the right place.
-- Settings is in the Mac sidebar (Cmd comma) and on Plans, Prayer and Notes, not only Study.
-- Deleting Notes on verses deletes the notes and study pages in it, after saying so; it used to
-  move them into a new Notes on verses, so the delete seemed to do nothing.
-- On a wide screen the conversation about a notebook sits beside its list, and Ask about this
-  notebook brings it back; on a phone it opens Study scoped to the notebook. A notebook made
-  from a section now opens in Notes, so the places stay in reach; Ask used to seem to do nothing
-  there.
-- Synthesize groups commentary by work, folded, with each comment a tap away, instead of one line
-  per verse. References are buttons that open the passage, key words say what they mean, and
-  Listen and Ask sit at the bottom.
-- Word study leads with plain words: what the word means and its senses, without lexicon
-  abbreviations or reference lists. The scholar's lexicon entry, and the full LSJ entry, are one
-  tap away. The Words sheet and the word studies Study notebook keeps read the same way.
+Berea no longer has a chat or a language model. It shows Scripture, counted facts, named sources
+and your own words, and nothing in it writes text for you.
+
+- **Removed:** Study (the chat), Ask, Go deeper, drafting a study page, Listen, voice questions and
+  dictation, the helper download and its settings, and Gemma and Ollama support. The Android APK is
+  58 MB where 0.8.0 was 102 MB. Updating deletes the downloaded model and voice files, which can free
+  several GB, and the saved questions and answers. Notes you kept from an answer stay, and say so.
+- **The Bible comes first, and Search is the middle button.** The phone bar is Bible, Plans, Search,
+  Prayer, Notes, with Search raised. Search is a place of its own: it keeps your query while you read
+  a verse it found, and on a computer Cmd or Ctrl F opens it from anywhere. There is no Practice
+  place.
+- **Search that finds.** "Jesus" finds Jesus. Results come in groups, each in Bible order, each
+  saying how its verses were found: exact words, other forms, all your words, some of them, one
+  group for each Hebrew or Greek word STEPBible's tagging glosses with your word, and the headings
+  the BSB's publisher printed. A phrase the open translation lacks is searched in the other
+  translations. A word no verse has comes back with the words one letter away. On a Galaxy A32 a
+  search takes under a quarter of a second; the first version took 7 to 15 seconds.
+- **Search goes past the verses.** A word or short phrase also lists the Hebrew and Greek words
+  behind it, most used first, each saying why it is listed: "holy" finds qodesh, hagios and qadosh,
+  and "STEPBible glosses it 'holy' 168 times". It also searches the commentaries you have
+  downloaded and shows the best comments of each work with the words in bold, how many comments
+  each work has, and the passage each is on. Choose Verses, Word studies or Commentary with the
+  chips, or tap a word to open its study with no verse to start from. A Strong's number ("G26") or a
+  Hebrew or Greek word spelled in English letters ("hagios", "qadosh") finds the word itself. A
+  short query lists word studies and commentary first; a longer one, most likely a verse being
+  recalled, lists the verses first.
+- **Who wrote it.** Notes, study pages and notebook sources record who wrote them. Text a person did
+  not write says so where it is shown and in Markdown exports. Backups are version 4; older backups
+  still restore, labelled.
+- **The day's verse is the first verse of today's plan reading,** and nothing without a plan. The
+  daily notification shows that verse and nothing else.
+- **Prayer points** show the verse whole first, in Scripture type, then the point, labelled as
+  written for Berea with a language model.
+- On a phone, swipe the selected verse's card right for Commentary or left for Words.
+- The synthesis page of a notebook names where its lists come from; a notebook can be searched from
+  its own screen.
+- For builders: every build input is pinned to a commit and a SHA-256; CI builds a BSB-only database
+  so the search, reference and reader tests run there; two guards fail the build if a model package,
+  the microphone permission or a runtime name returns, or if an interface string gains a word such as
+  "means" or "should".
 
 ## 0.8.0
 

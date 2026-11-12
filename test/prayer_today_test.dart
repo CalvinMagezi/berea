@@ -15,31 +15,17 @@ void main() {
     },
     daily: {'Isaiah 41:10': 'Hold me up.'},
   );
-  final verseOfDay = Ref(bookById(23), 41, 10);
-
   test('a running plan offers a line from its chapters, a different one each day', () {
-    final first = todaysPrayer(content, verseOfDay: verseOfDay, reading: [matthew7, matthew8]);
-    final second = todaysPrayer(
-      content,
-      verseOfDay: verseOfDay,
-      reading: [matthew7, matthew8],
-      day: 1,
-    );
+    final first = todaysPrayer(content, reading: [matthew7, matthew8]);
+    final second = todaysPrayer(content, reading: [matthew7, matthew8], day: 1);
     expect(first!.point.text, 'Seven a.');
     expect(first.source, "in today's plan");
     expect(second!.point.text, 'Seven b.');
   });
 
-  test('with no plan, or chapters with no lines, it is the verse of the day line', () {
-    final noPlan = todaysPrayer(content, verseOfDay: verseOfDay);
-    expect(noPlan!.point.text, 'Hold me up.');
-    expect(noPlan.point.ref, 'Isaiah 41:10');
-    final unwritten = todaysPrayer(content, verseOfDay: verseOfDay, reading: [Ref(bookById(1), 1)]);
-    expect(unwritten!.point.text, 'Hold me up.');
-  });
-
-  test('no line for the verse of the day means no prayer card', () {
-    expect(todaysPrayer(content, verseOfDay: Ref(bookById(1), 1, 1)), isNull);
+  test('with no plan, or chapters with no lines, there is no prayer card', () {
+    expect(todaysPrayer(content), isNull);
+    expect(todaysPrayer(content, reading: [Ref(bookById(1), 1)]), isNull);
   });
 
   test('Pray what you read takes a line from each chapter before a second from any', () {

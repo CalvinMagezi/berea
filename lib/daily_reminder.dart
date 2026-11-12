@@ -1,6 +1,5 @@
 import 'package:berea_harness/berea_harness.dart';
 
-import 'prayer_today.dart';
 
 /// Notifications are scheduled this many days ahead, each with its own day's verse and prayer,
 /// and scheduled again whenever Berea opens. Far below the 64 iOS keeps and the 500 Samsung allows.
@@ -58,14 +57,14 @@ abstract class ReminderPlatform {
   Future<void> replaceAll(List<ReminderMessage> messages);
 }
 
-/// The notifications for the next [days] days from [now]. Each shows that day's verse and
-/// today's prayer, never the reader's own prayers. A time already past today starts tomorrow.
+/// The notifications for the next [days] days from [now]. Each shows the first verse of that day's
+/// reading, nothing else: no prayer, and none of the reader's own. A day with no reading gets no
+/// notification. A time already past today starts tomorrow.
 List<ReminderMessage> buildReminders({
   required DateTime now,
   required ReminderSettings settings,
-  required Ref Function(DateTime day) verseOn,
+  required Ref? Function(DateTime day) verseOn,
   required String Function(Ref verse) textOf,
-  required TodayPrayer? Function(DateTime day) prayerOn,
   int days = reminderDaysAhead,
   DateTime Function(int year, int month, int day, int hour, int minute) clockTime = _local,
 }) {
@@ -83,19 +82,15 @@ List<ReminderMessage> buildReminders({
     );
     if (!at.isAfter(now)) continue;
     final verse = verseOn(day);
-    final prayer = prayerOn(day);
+    // No plan means no reading on any later day either.
+    if (verse == null) break;
     final words = textOf(verse);
     out.add(
       ReminderMessage(
         reminderId(day),
         at,
-        settings.referenceOnly ? 'Verse of the day' : verse.label,
-        settings.referenceOnly
-            ? verse.label
-            : [
-                if (words.isNotEmpty) words,
-                if (prayer != null) 'Pray: ${prayer.point.text}',
-              ].join('\n'),
+        settings.referenceOnly ? "Today's reading" : verse.label,
+        settings.referenceOnly ? verse.label : words,
       ),
     );
   }

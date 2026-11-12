@@ -3,10 +3,32 @@ import 'dart:math';
 import 'bible_db.dart';
 import 'books.dart';
 import 'ref_parser.dart';
-import 'retriever.dart';
 import 'sources.dart';
 import 'sword.dart' show otBookCount;
 import 'word_study.dart' show strongsBase;
+
+class StudyContext {
+  final List<Ref> refs;
+  final List<Verse> passages;
+  final List<WordTag> words;
+  final Map<String, LexEntry> lexicon;
+  final List<Verse> xrefVerses;
+  final List<Verse> searchHits;
+  final List<Verse> surrounding;
+  final List<SourceChunk> sources;
+  const StudyContext({
+    required this.refs,
+    required this.passages,
+    required this.words,
+    required this.lexicon,
+    required this.xrefVerses,
+    required this.searchHits,
+    this.surrounding = const [],
+    this.sources = const [],
+  });
+
+  Iterable<Verse> get allVerses => [...passages, ...surrounding, ...xrefVerses, ...searchHits];
+}
 
 class GuardResult {
   final String text;
@@ -446,7 +468,7 @@ class CitationGuard {
       .replaceAll(_spaces, ' ')
       .trim();
 
-  /// Checks [output] against [shown], the context PromptBuilder says the model was shown. With
+  /// Checks [output] against [shown], the context the answer was written from. With
   /// [checkSources] (notebook answers), source tags are checked too, and a quote may come from a
   /// shown source chunk: from the cited source when it names one, never when it names a verse.
   /// [knownWords] are base Strong's codes trusted besides the shown ones; the site passes every

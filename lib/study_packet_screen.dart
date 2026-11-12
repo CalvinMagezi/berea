@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'extras_hint.dart';
-import 'listen_screen.dart';
 import 'notebooks_screen.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
@@ -29,12 +28,8 @@ class _StudyPacketScreenState extends State<StudyPacketScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.state.notebooks.notebook(widget.notebookId)?.title ?? 'Synthesize';
     return Scaffold(
       appBar: AppBar(title: const Text('Synthesize')),
-      bottomNavigationBar: packet.isEmpty
-          ? null
-          : _Actions(state: widget.state, id: widget.notebookId, title: title),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: contentMaxWidth),
@@ -99,20 +94,20 @@ class _PacketList extends StatelessWidget {
           '${plural(p.sections.length, 'section', 'sections')} · '
           '${plural(verses, 'verse', 'verses')}, from the Berean Standard Bible'
           '${works == 0 ? '' : ' and ${plural(works, 'commentary', 'commentaries')}'}. '
-          'Nothing here is written by the helper. Tap a reference to read it.',
+          'Tap a reference to read it.',
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         if (p.inputs.packs.isEmpty)
           ExtrasHint(state: state, part: SettingsPart.commentary, text: commentaryHint),
         for (final s in p.sections) _SectionCard(state: state, section: s),
         if (p.keyWords.isNotEmpty) ...[
-          const _Heading('Key words', 'Hebrew and Greek words worth knowing in this passage.'),
+          const _Heading('Key words', 'Hebrew and Greek words in these verses, from the BSB translation tables.'),
           for (final k in p.keyWords) _KeyWordTile(state: state, word: k),
         ],
         if (p.witnesses.isNotEmpty) ...[
           const _Heading(
-            'Witnesses from the other testament',
-            'Verses across the Bible that the passage points to.',
+            'Cross references into the other testament',
+            'OpenBible.info · most votes first · the votes are that site\'s visitors\'.',
           ),
           for (final w in p.witnesses) _WitnessTile(state: state, witness: w),
         ],
@@ -295,54 +290,4 @@ class _Heading extends StatelessWidget {
       ],
     ),
   );
-}
-
-/// What to do with what was gathered: hear it as a deep dive, or ask about it.
-class _Actions extends StatelessWidget {
-  final AppState state;
-  final int id;
-  final String title;
-  const _Actions({required this.state, required this.id, required this.title});
-
-  @override
-  Widget build(BuildContext context) => SafeArea(
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Center(
-        heightFactor: 1,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-          child: Row(
-            children: [
-              OutlinedButton.icon(
-                icon: const Icon(Icons.headphones_outlined),
-                label: const Text('Listen'),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => ListenScreen(state: state, notebookId: id, title: title),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () => _ask(context),
-                  child: const Text('Ask about this notebook'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-
-  /// Back to the notebook, whose conversation sits beside it on a wide screen; on a phone,
-  /// Study opens scoped to it.
-  void _ask(BuildContext context) {
-    final wide = MediaQuery.sizeOf(context).width >= notesWideBreakpoint;
-    Navigator.pop(context);
-    if (!wide) state.askAboutNotebook(id);
-  }
 }

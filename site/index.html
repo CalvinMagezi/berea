@@ -3,18 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Berea: a study Bible that shows its work</title>
-<meta name="description" content="A free, open-source study Bible and assistant that runs on your own phone. Every answer is checked against the Bible text before you see it. Try to fool the check yourself.">
+<title>A study Bible that shows Scripture first</title>
+<meta name="description" content="A free, open-source study Bible that works offline on your own phone. The Bible, the Hebrew and Greek behind it, and your notes stay on the device.">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#161310">
-<meta property="og:title" content="Berea: a study Bible that shows its work">
-<meta property="og:description" content="Free and open source. Runs on your own phone, offline. Every answer is checked against the Bible text before you see it. Try to fool the check yourself.">
+<meta property="og:title" content="A study Bible that shows Scripture first">
+<meta property="og:description" content="A free, open-source study Bible that works offline on your own phone. The Bible, the Hebrew and Greek behind it, and your notes stay on the device.">
 <meta property="og:image" content="https://calvinmagezi.github.io/berea/images/share.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://calvinmagezi.github.io/berea/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="A study Bible that shows Scripture first">
+<meta name="twitter:description" content="A free, open-source study Bible that works offline on your own phone. The Bible, the Hebrew and Greek behind it, and your notes stay on the device.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="site.webmanifest">
@@ -24,8 +26,7 @@
 <link rel="stylesheet" href="page.css">
 <noscript><style>
   /* Without the engine nothing animates, so every staged element is simply shown. */
-  [data-sc-cue], [data-sc-in], [data-sc-stagger] > *, .verse, .chips li, .result { opacity: 1 !important; transform: none !important; }
-  .scene { display: none; } .scene[data-scene="5"] { display: block; opacity: 1; visibility: visible; }
+  [data-sc-cue], [data-sc-in], [data-sc-stagger] > *, .result { opacity: 1 !important; transform: none !important; }
   .intertitle, .checker-input, .motes, .film, .sc-scrim { display: none; }
   .hero [data-sc-stage] { position: relative; min-height: 100svh; }
   .range-stage { overflow-x: auto; }
@@ -65,25 +66,14 @@
       <canvas class="motes" data-motes aria-hidden="true"></canvas>
       <div class="sc-scrim sc-scrim--lead" aria-hidden="true"></div>
       <div class="sc-copy sc-copy--lead hero-copy" data-sc-cue="0 0.5 0 0.06">
-        <h1 class="sc-display hero-title" data-sc-kinetic="lines">A study Bible that shows its work.</h1>
-        <p class="hero-sub">Free, offline and private. Every answer is checked against the Bible text before you see it.</p>
+        <h1 class="sc-display hero-title" data-sc-kinetic="lines">A study Bible that shows Scripture first.</h1>
+        <p class="hero-sub">Free, offline and private. Nothing in the app writes text for you.</p>
       </div>
       <figure class="sc-copy sc-copy--trail word" data-sc-cue="0.52 0.97 0.06 0.08">
         <span class="word-greek" lang="grc">ἀνακρίνοντες</span>
         <span class="word-gloss">examining</span>
         <figcaption>They “examined the Scriptures every day to see if these teachings were true.” <cite>Acts 17:11, BSB</cite></figcaption>
       </figure>
-    </div>
-  </section>
-
-  <!-- 2 Unease: the problem, line by line, in ordinary flow. -->
-  <section class="tension sc-section" data-sc-act="flow" data-sc-drift="#110f0c">
-    <div class="sc-wrap argument" data-sc-in data-sc-stagger="90">
-      <p class="arg arg--q">Ask a small language model to quote the Bible from memory.</p>
-      <p class="arg">Sometimes it invents a verse.</p>
-      <p class="arg">Sometimes it merges two into one.</p>
-      <p class="arg">Sometimes it cites <span class="fake">2 Hezekiah 4:1</span>, a book that is not in the Bible.</p>
-      <p class="arg arg--turn">Berea is built so that none of this depends on the model getting it right.</p>
     </div>
   </section>
 
@@ -96,7 +86,7 @@
           Every Hebrew and Greek word behind them, <b class="num" data-sc-count="0 447,319">447,319</b> in all,
           with <b class="num" data-sc-count="0 21,232">21,232</b> dictionary entries and
           <b class="num" data-sc-count="0 344,799">344,799</b> cross references ranked by how often readers follow them.</p>
-        <p class="body">The Bible opens first, with nothing to download; the first run needs about 85 MB of free space. The language model for Study is optional and comes down once, on Wi-Fi unless you allow mobile data, and carries on where it stopped if the connection drops: Gemma 4 E2B (2.6 GB) on most phones, E4B (3.7 GB) on devices with 10 GB of memory or more, and the 0.6 GB Gemma 3 1B on phones under 5 GB. After that, flight mode is fine.</p>
+        <p class="body">The Bible opens first, with nothing to download; the first run needs about 85 MB of free space.</p>
         <dl class="ledger">
           <div><dt>Berean Standard Bible, King James Version</dt><dd>Public domain</dd></div>
           <div><dt>World English Bible</dt><dd>Public domain, eBible.org</dd></div>
@@ -111,50 +101,16 @@
     </div>
   </section>
 
-  <!-- 4 Clarity: one real question walks through the five steps as the reader scrolls. -->
-  <section class="method" data-sc-act="pin" data-sc-span="2.4" data-sc-drift="#13110e" data-method>
-    <div data-sc-stage class="method-stage">
-      <div class="method-head">
-        <h2 class="sc-display sc-display--md">How an answer is made</h2>
-        <p class="body">One real question, as Berea handled it.</p>
+  <!-- 4 Clarity: search that finds. -->
+  <section id="search" class="words sc-section" data-sc-act="flow" data-sc-drift="#13110e">
+    <div class="sc-wrap words-grid">
+      <div class="sc-stack" data-sc-in data-sc-stagger="60">
+        <h2 class="sc-display sc-display--md">Search that finds</h2>
+        <p class="lead">Results come in groups, each in Bible order. Each group says how its verses were found: the exact words, other forms of the word, all your words, some of them, the Hebrew or Greek words behind your word, and the headings the BSB's publisher printed. A word also lists the Hebrew and Greek words behind it, and what the commentaries you have added say about it.</p>
       </div>
-      <ol class="steps" role="list">
-        <li data-step="1"><span class="n" aria-hidden="true">1</span><span><b>Find</b> the passages you named.</span></li>
-        <li data-step="2"><span class="n" aria-hidden="true">2</span><span><b>Gather</b> what a careful reader would open.</span></li>
-        <li data-step="3"><span class="n" aria-hidden="true">3</span><span><b>Hand</b> the model only that material.</span></li>
-        <li data-step="4"><span class="n" aria-hidden="true">4</span><span><b>Let</b> the model write.</span></li>
-        <li data-step="5"><span class="n" aria-hidden="true">5</span><span><b>Check</b> every reference and quotation.</span></li>
-      </ol>
-      <div class="screen glass" data-screen>
-        <div class="scene" data-scene="1">
-          <p class="ask"><span data-typed>What does <mark class="hit">Philippians 4:6-7</mark> teach about anxiety?</span></p>
-          <p class="verse"><b>Philippians 4:6</b> Be anxious for nothing, but in everything, by prayer and petition, with thanksgiving, present your requests to God.</p>
-          <p class="verse"><b>Philippians 4:7</b> And the peace of God, which surpasses all understanding, will guard your hearts and your minds in Christ Jesus.</p>
-        </div>
-        <div class="scene" data-scene="2">
-          <p class="label">Greek words <b>39</b>, dictionary entries <b>12</b></p>
-          <ul class="chips" role="list"><li><span lang="grc">μεριμνᾶτε</span> do worry about</li><li><span lang="grc">προσευχῇ</span> by prayer</li><li><span lang="grc">εὐχαριστίας</span> thanksgiving</li></ul>
-          <p class="label">Passages readers link to it <b>8</b></p>
-          <ul class="chips" role="list"><li>Proverbs 3:5</li><li>1 Peter 5:7</li><li>Matthew 6:25</li><li>Psalm 55:22</li><li class="more">and 4 more</li></ul>
-          <p class="label">Search of the whole Bible <b>5</b></p>
-          <ul class="chips" role="list"><li>Psalm 94:19</li><li>Proverbs 12:25</li><li class="more">and 3 more</li></ul>
-        </div>
-        <div class="scene" data-scene="3">
-          <p class="rule"><b>Rule 1</b> Quote Scripture only from the PASSAGES block below. Never quote from memory.</p>
-          <p class="rule"><b>Rule 7</b> If asked where the Bible says something it does not say, state plainly that it is not in the Bible.</p>
-          <div class="meter" role="img" aria-label="The prompt used about 2,400 of the 4,000 tokens allowed"><span data-meter></span></div>
-          <p class="label">About 2,400 of 4,000 tokens: 8 rules, 2 passages, 12 dictionary entries, 13 linked or found verses.</p>
-        </div>
-        <div class="scene" data-scene="4">
-          <p class="answer"><span data-streamed>The text states, “Be anxious for nothing” (Philippians 4:6, BSB). Believers must present their requests to God through prayer and petition, accompanied by thanksgiving (Philippians 4:6, BSB). The peace of God is described as surpassing all understanding (Philippians 4:7, BSB).</span></p>
-          <p class="label">Gemma 4 E2B through Ollama on a laptop, 10 seconds. Abridged.</p>
-        </div>
-        <div class="scene" data-scene="5">
-          <p class="answer checked">The text states, <span class="q">“Be anxious for nothing”</span> (<span class="ref">Philippians 4:6</span>, BSB). Believers must present their requests to God through prayer and petition, accompanied by thanksgiving (<span class="ref">Philippians 4:6</span>, BSB). The peace of God is described as surpassing all understanding (<span class="ref">Philippians 4:7</span>, BSB).</p>
-          <p class="tally"><b>3</b> references verified. <b>0</b> invented. <b>1</b> quotation, word for word.</p>
-        </div>
-      </div>
-      <p class="method-source">The code for each step is public: <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/retriever.dart">retriever.dart</a>, <a href="https://github.com/CalvinMagezi/berea/blob/main/prompts/system.md">system.md</a>, <a href="https://github.com/CalvinMagezi/berea/blob/main/packages/harness/lib/src/citation_guard.dart">citation_guard.dart</a>.</p>
+      <figure class="words-card glass" data-sc-in data-sc-stagger="70">
+        <img src="screenshots/app-search.png" alt="Searching holy: the Hebrew and Greek words behind it, with how often each is used, above the verses and commentary, with a count on each tab" width="540" height="1200" loading="lazy">
+      </figure>
     </div>
   </section>
 
@@ -164,7 +120,7 @@
       <div class="sc-stack" data-sc-in data-sc-stagger="60">
         <h2 class="sc-display sc-display--md">Press a word. See the word under it.</h2>
         <p class="lead">Long-press <q>perfect</q> in Matthew 5:48 and Berea opens <span class="orig" lang="grc">τέλειος</span>, teleios: what it means, all <b class="num">19</b> of its uses across <b class="num">9</b> books, how each is translated, and every verse.</p>
-        <p class="body">One English word can stand for several. The King James Version&rsquo;s <q>perfect</q> in Job&nbsp;1:1 is <span class="orig" lang="he">תָּם</span>, tam, which the Berean Standard Bible translates <q>blameless</q>. In the Berean Standard Bible each word is matched exactly, from its translators&rsquo; own tables; in other translations Berea matches by meaning and says so. Ask Berea about the word and the answer is built from its other uses, then checked like any other.</p>
+        <p class="body">One English word can stand for several. The King James Version&rsquo;s <q>perfect</q> in Job&nbsp;1:1 is <span class="orig" lang="he">תָּם</span>, tam, which the Berean Standard Bible translates <q>blameless</q>. In the Berean Standard Bible each word is matched exactly, from its translators&rsquo; own tables; in other translations Berea matches by meaning and says so.</p>
       </div>
       <figure class="words-card glass" data-sc-in data-sc-stagger="70">
         <p class="words-verse">Be <mark>perfect</mark>, therefore, as your heavenly Father is perfect. <b>Matthew 5:48</b></p>
@@ -190,15 +146,11 @@
       <div class="rail" data-sc-pan="0.06">
         <div class="rail-lead">
           <h2 class="sc-display sc-display--md">The app</h2>
-          <p class="body">It opens on the Bible. Plans for reading, Study for questions, Prayer for what you are asking God, Notes for everything you keep. The same five places on the Mac.</p>
+          <p class="body">It opens on the Bible. Plans for reading, Search in the middle, Prayer for what you are asking God, Notes for everything you keep.</p>
         </div>
-        <figure class="phone"><img src="screenshots/bible-first-shell-bible.png" alt="1 Corinthians 13 in the Bible, with the five places along the bottom and Study raised in the middle" width="540" height="1200" decoding="async"><figcaption>It opens on the Bible</figcaption></figure>
-        <figure class="phone"><img src="screenshots/bible-first-shell-plans.png" alt="Plans, with four reading plans to choose from" width="540" height="1200" decoding="async"><figcaption>Plans: choose one, then tick chapters</figcaption></figure>
-        <figure class="phone"><img src="screenshots/bible-first-shell-study.png" alt="Study, asking about the Bible, with a suggested question from where you stopped" width="540" height="1200" decoding="async"><figcaption>Study: ask the Bible, or one notebook</figcaption></figure>
-        <figure class="phone"><img src="screenshots/bible-first-shell-prayer.png" alt="Prayer, with 1 Thessalonians 5:16-18, Add a prayer and Pray the Lord's Prayer" width="540" height="1200" decoding="async"><figcaption>Prayer: stays on the phone</figcaption></figure>
-        <figure class="phone"><img src="screenshots/bible-first-shell-notes.png" alt="Notes, with a New notebook card and a Write button" width="540" height="1200" decoding="async"><figcaption>Notes: notebooks, notes and readings</figcaption></figure>
-        <figure class="phone"><img src="screenshots/bible-first-shell-selection.png" alt="1 Corinthians 13:2 selected, with Highlight, Note, Pray, Ask and More above the bar" width="540" height="1200" decoding="async"><figcaption>Select verses to mark, note, pray or ask</figcaption></figure>
-        <figure class="mac"><img src="screenshots/mac-bible.png" alt="Berea on a Mac: the Bible on the right and a sidebar with Bible, Plans, Study, Prayer and Notes on the left" width="801" height="633" decoding="async"><figcaption>Also on Mac, with a sidebar</figcaption></figure>
+        <figure class="phone"><img src="screenshots/app-bible.png" alt="The Bible, five places along the bottom with Search raised in the middle" width="540" height="1200" decoding="async"><figcaption>It opens on the Bible</figcaption></figure>
+        <figure class="phone"><img src="screenshots/app-plans.png" alt="Plans: reading plans and prayer plans to choose from" width="540" height="1200" decoding="async"><figcaption>Plans: reading plans and prayer plans to choose from</figcaption></figure>
+        <figure class="phone"><img src="screenshots/app-search.png" alt="Searching holy: word studies first, then verses and commentary" width="540" height="1200" decoding="async"><figcaption>Search finds words, verses and commentary</figcaption></figure>
         <p class="rail-end">All of it on the device, none of it on a server.</p>
       </div>
     </div>
@@ -207,11 +159,11 @@
   <!-- 6 Delight, the peak: the page tests itself, then hands over the box. -->
   <section id="try" class="peak" data-sc-act="pin" data-sc-span="2.8" data-sc-drift="#0e0c0a" data-peak>
     <div data-sc-stage class="peak-stage">
-      <p class="intertitle" data-sc-cue="0 0.17 0 0.06">Now try to fool it.</p>
+      <p class="intertitle" data-sc-cue="0 0.17 0 0.06">Now try it.</p>
       <div class="checker glass" data-sc-cue="0.15 1 0.06 0.03" data-checker>
         <div class="checker-head">
-          <h2 class="checker-title">Try to fool the check</h2>
-          <p class="checker-note">This box runs a copy of Berea's reference check in your browser, against the Berean Standard Bible loaded from this site. For the verses you cite, it gives the same verdict as the app's own check on every test case.</p>
+          <h2 class="checker-title">Check a reference</h2>
+          <p class="checker-note">This box runs the project's reference check in your browser, against the Berean Standard Bible loaded from this site. It says whether a reference exists and whether a quotation is word for word in the verse.</p>
         </div>
         <div class="checker-input">
           <label class="sr" for="cite">A reference, with or without a quotation</label>
@@ -237,11 +189,11 @@
       <div class="panels" data-sc-in data-sc-stagger="80">
         <div class="panel glass">
           <h3>Stored on your phone</h3>
-          <p>The Bible library above. One file for what you write: notes and the notebooks they sit in, the readings you add to a notebook, highlights, saved studies, reading plans and prayers. Translations you import, and your settings.</p>
+          <p>The Bible library above. One file for what you write: notes and the notebooks they sit in, the readings you add to a notebook, highlights, reading plans and prayers. Translations you import, and your settings.</p>
         </div>
         <div class="panel glass">
           <h3>Sent over the internet</h3>
-          <p>The model, once, from Hugging Face (or from GitHub for the smallest model), when you tap Download. The optional Greek lexicon from GitHub, checked against its fingerprint. On a Mac with Ollama, your questions go to the Ollama address you set. A prayer or a note leaves only if you share it, through your phone's own share sheet. Nothing else: no analytics, no crash reports, no account, no sync.</p>
+          <p>Nothing, unless you tap Download: the optional Greek lexicon and the commentary packs come from GitHub, each checked against its fingerprint before it is kept.</p>
         </div>
         <div class="panel glass">
           <h3>Backups</h3>
@@ -260,7 +212,7 @@
           <a class="cta" href="https://github.com/CalvinMagezi/berea/releases/latest/download/berea-android-arm64.apk" data-sc-magnet="0.26" data-sc-cue="0 1 0 0" data-sc-rise="0">Get it for Android</a>
           <a class="cta" href="https://github.com/CalvinMagezi/berea/releases/latest/download/berea-macos.zip" data-sc-magnet="0.26" data-sc-cue="0 1 0 0" data-sc-rise="0">Get it for Mac</a>
         </div>
-        <p class="small" data-sc-cue="0 1 0 0">The latest release. Android: 64-bit, Android 11 or later, signed by the project. Mac: macOS 12 or later, answering with <a href="https://ollama.com">Ollama</a> or a model on the Mac. The Mac app is not notarized yet, so the first time, open it from System Settings, Privacy &amp; Security, Open Anyway. iPhone, Windows and Linux build from <a href="https://github.com/CalvinMagezi/berea">the source</a>.</p>
+        <p class="small" data-sc-cue="0 1 0 0">The latest release. Android: 64-bit, Android 11 or later, signed by the project. Mac: macOS 12 or later. The Mac app is not notarized yet, so the first time, open it from System Settings, Privacy &amp; Security, Open Anyway. iPhone, Windows and Linux build from <a href="https://github.com/CalvinMagezi/berea">the source</a>.</p>
       </div>
       <footer class="foot">
         <p>Free software under the MIT licence. Bible text and study data from STEPBible, OpenBible.info and eBible.org. Photographs and the opening film were generated with Google Gemini for this page. Scroll engine from <a href="https://github.com/nateherkai/scroll-craft">scroll-craft</a> (MIT). No analytics, cookies or third-party requests.</p>

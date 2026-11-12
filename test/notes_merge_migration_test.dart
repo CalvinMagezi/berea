@@ -89,6 +89,8 @@ String _makeFixture(Directory dir) {
   return path;
 }
 
+const _chatTables = ['conversations', 'messages', 'notebook_messages'];
+
 typedef _Tables = Map<String, List<Map<String, Object?>>>;
 
 /// Tables a later migration adds are left out of a snapshot taken before it ran.
@@ -103,7 +105,8 @@ _Tables _snapshot(Database db) => {
 /// Every row of [before] is in [after] with the same values, matched on its key columns.
 /// Day ticks are kept as chapter ticks by migration 4; tests check those through the store.
 void _expectKept(_Tables before, _Tables after) {
-  for (final t in before.keys.where((t) => t != 'plan_progress')) {
+  // The chat transcripts are deleted by migration 8 and by restoring an older backup.
+  for (final t in before.keys.where((t) => !_chatTables.contains(t) && t != 'plan_progress')) {
     expect(after[t]!.length, greaterThanOrEqualTo(before[t]!.length), reason: t);
     for (final row in before[t]!) {
       final match = after[t]!.where((r) => row.keys.every((c) => r[c] == row[c]));
@@ -141,7 +144,7 @@ void main() {
     final after = _snapshot(db);
     _expectKept(before, after);
     for (final t in before.keys) {
-      if (const ['notebooks', 'conversations', 'messages', 'plan_progress'].contains(t)) continue;
+      if (const ['notebooks', 'plan_progress', ..._chatTables].contains(t)) continue;
       expect(after[t]!.length, before[t]!.length, reason: t);
     }
 
@@ -160,16 +163,12 @@ void main() {
     final books = NotebookStore(db);
     expect({for (final s in books.sources(1)) s.id: s.noteId}, {1: null, 2: 1, 3: null, 4: null});
     expect(books.search(1, 'shepherds').map((c) => c.title), contains('Pasted'));
-    expect(books.messages(1), hasLength(2));
+    // The chat is deleted by migration 8; the notes and sources it was about stay.
+    expect(books.messages(1), isEmpty);
+    expect(after['conversations'], isEmpty);
 
-    expect(store.conversations().single.title, 'What is grace?');
-    final scoped = store.conversations(notebookId: 1).single;
-    expect(scoped.title, 'Who is the shepherd?');
-    final copied = store.messages(scoped.id);
-    expect(copied.map((m) => m.text), ['Who is the shepherd?', 'The LORD [1].']);
-    expect(copied.last.refs.single.label, 'Psalms 23:1');
-    expect(copied.last.sources.single.chunk.sourceId, 2);
-    expect(store.conversations(notebookId: 2), isEmpty);
+    expect(store.conversations(), isEmpty);
+    expect(store.conversations(notebookId: 1), isEmpty);
     store.close();
 
     // Opening again migrates nothing twice and changes nothing.
@@ -178,15 +177,14 @@ void main() {
     again.close();
   });
 
-  test('a deleted copied conversation stays deleted after a copy and a restore', () async {
+  test('the chat transcripts are gone after the migration and stay gone after a restore', () async {
     final store = StudyStore.open(_makeFixture(dir));
-    store.deleteConversation(store.conversations(notebookId: 1).single.id);
-    store.copyNotebookChats();
+    expect(store.conversations(), isEmpty);
     expect(store.conversations(notebookId: 1), isEmpty);
     final bytes = await createBackup(store, const {}, 'correct horse');
     store.importTables((await readBackup(bytes, 'correct horse')).tables);
+    expect(store.conversations(), isEmpty);
     expect(store.conversations(notebookId: 1), isEmpty);
-    expect(store.conversations().single.title, 'What is grace?');
     store.close();
   });
 
@@ -274,10 +272,8 @@ void main() {
     final note = books.sources(psalm).singleWhere((s) => s.kind == SourceKind.note);
     expect(store.note(note.noteId!)!.text, 'Loved first.');
     expect(books.sources(psalm), hasLength(3));
-    expect(store.conversations().single.title, 'What is grace?');
-    final scoped = store.conversations(notebookId: psalm).single;
-    expect(store.messages(scoped.id).last.sources.single.chunk.sourceId, note.id);
-    expect(books.messages(psalm), hasLength(2));
+    expect(store.conversations(), isEmpty);
+    expect(books.messages(psalm), isEmpty);
     expect(store.highlights(bookById(43), 3), {16});
     expect(store.planDaysDone('nt-90'), {1});
 
@@ -306,7 +302,7 @@ void main() {
   });
 
   test(
-    'a version 1 backup restores under kept notebooks and their conversations come back',
+    'a version 1 backup restores under kept notebooks and its conversations are dropped',
     () async {
       final path = _makeFixture(dir);
       final store = StudyStore.open(path);
@@ -321,7 +317,7 @@ void main() {
       // The restored note has the copy's verse and text, so the copy links to it again.
       expect(books.source(2)!.noteId, store.notes().single.id);
       expect(books.source(3)!.noteId, isNull);
-      expect(store.messages(store.conversations(notebookId: 1).single.id), hasLength(2));
+      expect(store.conversations(notebookId: 1), isEmpty);
       store.close();
     },
   );
@@ -421,8 +417,6 @@ void main() {
     final store = StudyStore(sqlite3.openInMemory());
     final nb = NotebookStore(store.db).createNotebook('Sermons');
     store.addNotebookNote(nb, 'Grace upon grace.', title: 'Sunday');
-    final c = store.createConversation('Grace?', notebookId: nb);
-    store.addMessage(c, 'user', 'Grace?', const []);
     final bible = BibleDb(
       sqlite3.openInMemory()..execute(
         'CREATE TABLE verses(id INTEGER PRIMARY KEY, translation TEXT, book INTEGER, '
@@ -432,7 +426,6 @@ void main() {
     final md = allNotesMarkdown(store, bible, 'BSB');
     expect(md, contains('## Sermons'));
     expect(md, contains('### Sunday\n\nGrace upon grace.'));
-    expect(md, contains('## Grace?'));
     expect(jsonEncode(md), isNot(contains('null')));
   });
 }

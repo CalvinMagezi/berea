@@ -13,9 +13,10 @@ import 'study_store.dart';
 const backupMagic = 'BEREA-BACKUP-2';
 
 /// Version 2 adds notebooks; version 3 puts notes and study pages in notebooks and scopes
-/// conversations. Versions 1 (0.3.0 and earlier) and 2 still restore, and come back merged.
-const backupVersion = 3;
-const _readableVersions = {1, 2, 3};
+/// conversations; version 4 labels who wrote each note and page. Versions 1
+/// to 3 still restore: they come back merged and labelled, and their chat is not kept.
+const backupVersion = 4;
+const _readableVersions = {1, 2, 3, 4};
 
 /// OWASP's 2023 guidance for PBKDF2-HMAC-SHA256. Stored in the file so it can rise later.
 const pbkdf2Iterations = 600000;

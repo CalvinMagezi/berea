@@ -327,13 +327,4 @@ Future<bool> _hashMatches(File file, String sha256) => Isolate.run(() async {
   return hexOf((await hash.hash()).bytes) == sha256;
 });
 
-/// Puts [notice] in a NOTICE file beside the models, as the Gemma terms ask of every copy.
-void writeModelNotice(Directory dir, String notice) {
-  dir.createSync(recursive: true);
-  final file = File('${dir.path}/NOTICE');
-  if (!file.existsSync() || file.readAsStringSync().trim() != notice) {
-    file.writeAsStringSync('$notice\n');
-  }
-}
-
 String hexOf(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();

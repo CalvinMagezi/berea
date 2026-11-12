@@ -191,16 +191,6 @@ void main() {
       expect(again.readAsBytesSync(), body);
     });
 
-    test('the notice is written beside the models, and only once', () {
-      final models = Directory('${dir.path}/models');
-      writeModelNotice(models, 'Gemma is provided under terms.');
-      final file = File('${models.path}/NOTICE');
-      expect(file.readAsStringSync(), 'Gemma is provided under terms.\n');
-      final stamp = file.lastModifiedSync();
-      writeModelNotice(models, 'Gemma is provided under terms.');
-      expect(file.lastModifiedSync(), stamp);
-    });
-
     test('a file with no stamp is not trusted, whatever its size', () async {
       final file = File('${dir.path}/models/m.litertlm')
         ..createSync(recursive: true)

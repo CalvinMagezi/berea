@@ -3,10 +3,9 @@ import 'dart:io';
 
 import 'package:berea/app_state.dart';
 import 'package:berea/daily_reminder.dart';
-import 'package:berea/prayer_today.dart';
+import 'package:berea/plans.dart';
 import 'package:berea/reminder_settings.dart';
 import 'package:berea/theme.dart';
-import 'package:berea/today.dart';
 import 'package:berea_harness/berea_harness.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,18 +47,21 @@ Ref _verse(DateTime day) => Ref(bookById(23), 41, 1 + day.day % 10);
 // A name no verse of the day contains; 'Sam' is inside 'Samuel'.
 const _readerName = 'Wanjiru';
 
+/// A reading plan started today: a notification needs a reading to show.
+Map<String, Object> _running() => {
+  'activePlan': 'nt-90',
+  'activePlanStart': DateTime.now().toIso8601String(),
+};
+
 void main() {
   final verseText = {for (var v = 1; v <= 10; v++) 'Isaiah 41:$v': 'Verse text $v.'};
 
-  List<ReminderMessage> build(DateTime now, ReminderSettings s, {bool prayer = true}) =>
+  List<ReminderMessage> build(DateTime now, ReminderSettings s, {bool plan = true}) =>
       buildReminders(
         now: now,
         settings: s,
-        verseOn: _verse,
+        verseOn: (d) => plan ? _verse(d) : null,
         textOf: (v) => verseText[v.label] ?? '',
-        prayerOn: (d) => prayer
-            ? TodayPrayer(PrayerPoint('Prayer for day ${d.day}.', _verse(d).label), 'x')
-            : null,
       );
 
   group('building the notifications', () {
@@ -69,14 +71,14 @@ void main() {
       expect(build(morning, const ReminderSettings()), isEmpty);
     });
 
-    test('fourteen days from today at the chosen time, each with its own verse and prayer', () {
+    test('fourteen days from today at the chosen time, each with its own verse', () {
       final out = build(morning, const ReminderSettings(on: true));
       expect(out.length, reminderDaysAhead);
       expect(out.first.when, DateTime(2026, 10, 29, 6, 30));
       expect(out[1].when, DateTime(2026, 10, 30, 6, 30));
       expect(out.first.title, 'Isaiah 41:10');
-      expect(out.first.body, 'Verse text 10.\nPray: Prayer for day 29.');
-      expect(out[1].body, contains('Prayer for day 30.'));
+      expect(out.first.body, 'Verse text 10.');
+      expect(out[1].body, 'Verse text 1.');
       expect({for (final m in out) m.id}.length, reminderDaysAhead);
     });
 
@@ -87,7 +89,6 @@ void main() {
         settings: const ReminderSettings(on: true),
         verseOn: _verse,
         textOf: (v) => '',
-        prayerOn: (d) => null,
         clockTime: (y, m, d, h, min) {
           asked.add((y, m, d, h, min));
           return DateTime(y, m, d, h, min);
@@ -112,14 +113,12 @@ void main() {
 
     test('reference only keeps the words off the lock screen', () {
       final out = build(morning, const ReminderSettings(on: true, referenceOnly: true));
-      expect(out.first.title, 'Verse of the day');
+      expect(out.first.title, "Today's reading");
       expect(out.first.body, 'Isaiah 41:10');
-      expect(out.every((m) => !m.body.contains('Pray')), isTrue);
     });
 
-    test('a day with no prayer line still shows the verse', () {
-      final out = build(morning, const ReminderSettings(on: true), prayer: false);
-      expect(out.first.body, 'Verse text 10.');
+    test('with no plan there is no reading, so nothing is scheduled', () {
+      expect(build(morning, const ReminderSettings(on: true), plan: false), isEmpty);
     });
 
     test('times read as a clock does', () {
@@ -146,7 +145,7 @@ void main() {
   Future<AppState> open({Map<String, Object> prefs = const {}, FakePlatform? platform}) async {
     final dir = Directory.systemTemp.createTempSync('berea-reminder');
     dirs.add(dir);
-    SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name, ...prefs});
+    SharedPreferences.setMockInitialValues({...prefs});
     final s = await AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
@@ -167,7 +166,7 @@ void main() {
 
     test('allowed: it is saved and the next days are scheduled', () async {
       final p = FakePlatform();
-      final s = await open(platform: p);
+      final s = await open(platform: p, prefs: _running());
       expect(await s.turnOnReminder(420, referenceOnly: true), isTrue);
       expect(s.reminder.on, isTrue);
       expect(s.reminder.minutes, 420);
@@ -187,7 +186,10 @@ void main() {
 
     test('opening Berea again keeps the schedule going', () async {
       final p = FakePlatform();
-      final s = await open(prefs: {'reminderOn': true, 'reminderMinutes': 390}, platform: p);
+      final s = await open(
+        prefs: {'reminderOn': true, 'reminderMinutes': 390, ..._running()},
+        platform: p,
+      );
       await s.syncReminder();
       expect(p.scheduled.length, reminderDaysAhead);
     });
@@ -250,42 +252,31 @@ void main() {
       expect(p.scheduled, isEmpty);
     });
 
-    test(
-      'the prayer in a notification is the day\'s line, never one of the reader\'s own',
-      () async {
-        final p = FakePlatform();
-        final s = await open(platform: p);
-        final now = DateTime.now();
-        s.prayerContent = PrayerContent(
-          topics: [
-            const PrayerTopic(
-              'healing',
-              'Home and health',
-              'Sickness and healing',
-              ['sick', 'surgery'],
-              [PrayerPoint('Heal the sick.', 'Psalms 23:1')],
-            ),
-          ],
-          daily: {
-            for (var i = 0; i < 16; i++)
-              verseOfTheDay(s.db, DateTime(now.year, now.month, now.day + i)).label:
-                  'Line for the day.',
-          },
-        );
-        s.prayers.add(
-          title: "$_readerName's surgery on Friday",
-          forWhom: _readerName,
-          note: 'sick and afraid',
-        );
-        await s.turnOnReminder(390, referenceOnly: false);
-        expect(p.scheduled.length, reminderDaysAhead);
-        for (final m in p.scheduled) {
-          expect(m.body, contains('Pray: Line for the day.'));
-          expect(m.title + m.body, isNot(contains(_readerName)));
-          expect(m.body, isNot(contains('surgery')));
-        }
-      },
-    );
+    test('a notification is the first verse of today\'s reading, never a prayer', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p);
+      s.startPlan(planById('nt-90')!);
+      s.prayers.add(
+        title: "$_readerName's surgery on Friday",
+        forWhom: _readerName,
+        note: 'sick and afraid',
+      );
+      await s.turnOnReminder(390, referenceOnly: false);
+      expect(p.scheduled.length, reminderDaysAhead);
+      expect(p.scheduled.first.title, matches(RegExp(r'^Matthew \d+:1$')));
+      for (final m in p.scheduled) {
+        expect(m.body, isNot(contains('Pray')));
+        expect(m.title + m.body, isNot(contains(_readerName)));
+        expect(m.body, isNot(contains('surgery')));
+      }
+    });
+
+    test('with no plan running, turning the reminder on schedules nothing', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p);
+      await s.turnOnReminder(390, referenceOnly: false);
+      expect(p.scheduled, isEmpty);
+    });
   });
 
   group('the settings section', () {
@@ -348,7 +339,7 @@ void main() {
     testWidgets('Change moves the time', (tester) async {
       final p = FakePlatform();
       final s = (await tester.runAsync(
-        () => open(prefs: {'reminderOn': true, 'reminderMinutes': 390}, platform: p),
+        () => open(prefs: {'reminderOn': true, 'reminderMinutes': 390, ..._running()}, platform: p),
       ))!;
       await pump(tester, s, []);
       await tester.tap(find.text('Change'));

@@ -33,7 +33,7 @@ void main() {
   Future<AppState> open(Map<String, Object> prefs) async {
     final dir = Directory.systemTemp.createTempSync('berea-bible-home');
     dirs.add(dir);
-    SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name, ...prefs});
+    SharedPreferences.setMockInitialValues({...prefs});
     return AppState.bootstrap(
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
@@ -86,7 +86,7 @@ void main() {
     expect(bar.contains(number.topLeft) && bar.contains(number.bottomRight), isTrue);
     expect(tester.getRect(name).height, number.height, reason: 'the name stays on one line');
     expect(tester.getRect(name).right, lessThanOrEqualTo(number.left));
-    final search = tester.getRect(find.byTooltip('Search'));
+    final search = tester.getRect(find.byTooltip('Parallel translation'));
     expect(number.right, lessThanOrEqualTo(search.left), reason: 'clear of the actions');
     expect(number.height, greaterThan(0));
 
@@ -118,7 +118,7 @@ void main() {
     final state = await tester.runAsync(() => open({}));
     await pumpReader(tester, state!);
     expectTitle('John', 1);
-    expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
+    expect(find.textContaining('TODAY\'S READING'), findsOneWidget);
     expect(find.text('Start a reading plan'), findsOneWidget);
     expect(find.text('Four to choose from, 30 to 365 days'), findsOneWidget);
     expect(find.textContaining('Where you stopped'), findsNothing);
@@ -133,7 +133,7 @@ void main() {
 
     await tester.drag(find.byType(ListView), const Offset(0, -300));
     await tester.pumpAndSettle();
-    expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'reading folds it');
+    expect(find.textContaining('TODAY\'S READING'), findsNothing, reason: 'reading folds it');
     expect(find.byTooltip('Show today'), findsOneWidget);
   });
 
@@ -155,16 +155,16 @@ void main() {
     expectTitle('John', 3);
     expect(find.text('Where you stopped yesterday').hitTestable(), findsOneWidget);
     expect(find.text(tipT14), findsNothing);
-    expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'seen today already');
+    expect(find.textContaining('TODAY\'S READING'), findsNothing, reason: 'seen today already');
 
     await tester.tap(find.byTooltip('Show today'));
     await tester.pump();
-    expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
+    expect(find.textContaining('TODAY\'S READING'), findsOneWidget);
 
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Where you stopped'), findsNothing);
-    expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'folds after a look');
+    expect(find.textContaining('TODAY\'S READING'), findsNothing, reason: 'folds after a look');
   });
 
   testWidgets('left open past midnight, the folded card opens on the new day', (tester) async {
@@ -178,12 +178,12 @@ void main() {
       }),
     );
     await pumpReader(tester, state!);
-    expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'seen today already');
+    expect(find.textContaining('TODAY\'S READING'), findsNothing, reason: 'seen today already');
 
     // The clock in a test does not move, so the remembered day stands in for yesterday's.
     await state.prefs.setString('todayCardFullOn', 'yesterday');
     await tester.pump(const Duration(hours: 24, seconds: 2));
-    expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
+    expect(find.textContaining('TODAY\'S READING'), findsOneWidget);
   });
 
   testWidgets('a jump from elsewhere starts the chapter at the top and moves the resume point', (
@@ -244,7 +244,7 @@ void main() {
         'activePlanStart': now.toIso8601String(),
       }),
     );
-    final daily = verseOfTheDay(state!.db, now);
+    final daily = state!.readingVerse(now)!;
     String line() => tester
         .widgetList<RichText>(find.byType(RichText))
         .map((t) => t.text.toPlainText())

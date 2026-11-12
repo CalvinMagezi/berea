@@ -17,8 +17,7 @@ const glossedWordsShown = 6;
 
 /// Opens a word study on [ref] for the [english] word the reader pressed (its [occurrence] in the
 /// verse by stem and its [wordIndex] among the verse's words, from 0), or on the original word at
-/// [pos]. Asking about the word sends the question to
-/// the Study tab; tapping a verse opens it in the reader.
+/// [pos]. Tapping a verse opens it in the reader.
 Future<void> showWordStudy(
   BuildContext context,
   AppState s,
@@ -31,33 +30,60 @@ Future<void> showWordStudy(
   return Navigator.push(
     context,
     MaterialPageRoute<void>(
-      builder: (ctx) => WordStudyScreen(
-        db: s.db,
+      builder: (ctx) => _screen(
+        ctx,
+        s,
         ref: ref,
         english: english,
         occurrence: occurrence,
         wordIndex: wordIndex,
         pos: pos,
-        translation: s.settings.translation,
-        onGetLexicon: () => showSettingsSheet(ctx, s, show: SettingsPart.lexicon),
-        onAsk: (question) {
-          Navigator.of(ctx).popUntil((r) => r.isFirst);
-          s.askAboutWord(question);
-        },
-        onOpen: (verse) {
-          Navigator.of(ctx).popUntil((r) => r.isFirst);
-          s.openInReader(verse);
-        },
-        onKeep: ({required title, required body, required subtitle, verse}) => showKeepSheet(
-          ctx,
-          s,
-          title: title,
-          body: body,
-          subtitle: subtitle,
-          verse: verse,
-          kind: keptWordKind,
-        ),
       ),
+    ),
+  );
+}
+
+/// Opens the study of the word with base Strong's number [code], as Search finds it, with no
+/// verse to start from. With [english], the study also lists the other words glossed with it.
+Future<void> showWordStudyOf(BuildContext context, AppState s, String code, {String? english}) {
+  return Navigator.push(
+    context,
+    MaterialPageRoute<void>(builder: (ctx) => _screen(ctx, s, code: code, english: english)),
+  );
+}
+
+WordStudyScreen _screen(
+  BuildContext ctx,
+  AppState s, {
+  Ref? ref,
+  String? code,
+  String? english,
+  int occurrence = 0,
+  int? wordIndex,
+  int? pos,
+}) {
+  return WordStudyScreen(
+    db: s.db,
+    ref: ref,
+    code: code,
+    english: english,
+    occurrence: occurrence,
+    wordIndex: wordIndex,
+    pos: pos,
+    translation: s.settings.translation,
+    onGetLexicon: () => showSettingsSheet(ctx, s, show: SettingsPart.lexicon),
+    onOpen: (verse) {
+      Navigator.of(ctx).popUntil((r) => r.isFirst);
+      s.openInReader(verse);
+    },
+    onKeep: ({required title, required body, required subtitle, verse}) => showKeepSheet(
+      ctx,
+      s,
+      title: title,
+      body: body,
+      subtitle: subtitle,
+      verse: verse,
+      kind: keptWordKind,
     ),
   );
 }
@@ -118,8 +144,11 @@ RenderParagraph? _paragraphIn(RenderObject? o) {
 class WordStudyScreen extends StatefulWidget {
   final BibleDb db;
 
-  /// The verse the study started from.
-  final Ref ref;
+  /// The verse the study started from; null for a study opened from a Strong's number.
+  final Ref? ref;
+
+  /// The base Strong's number to study, for a study that starts from the word itself.
+  final String? code;
   final String? english;
   final int occurrence;
 
@@ -128,7 +157,6 @@ class WordStudyScreen extends StatefulWidget {
   final int? wordIndex;
   final int? pos;
   final String translation;
-  final void Function(String question) onAsk;
   final void Function(Ref verse) onOpen;
 
   /// Opens Settings at the full Greek lexicon; null where Settings cannot be reached.
@@ -140,9 +168,9 @@ class WordStudyScreen extends StatefulWidget {
   const WordStudyScreen({
     super.key,
     required this.db,
-    required this.ref,
-    required this.onAsk,
     required this.onOpen,
+    this.ref,
+    this.code,
     this.onGetLexicon,
     this.english,
     this.occurrence = 0,
@@ -150,14 +178,19 @@ class WordStudyScreen extends StatefulWidget {
     this.pos,
     this.translation = defaultTranslation,
     this.onKeep,
-  });
+  }) : assert(ref != null || code != null, 'a study starts from a verse or from a word');
 
   @override
   State<WordStudyScreen> createState() => _WordStudyScreenState();
 }
 
 class _WordStudyScreenState extends State<WordStudyScreen> {
-  late final List<WordTag> _verseWords = widget.db.words(widget.ref);
+  /// The verse the study started from. Only the paths that begin at a verse read it.
+  Ref get _ref => widget.ref!;
+
+  late final List<WordTag> _verseWords = widget.ref == null
+      ? const []
+      : widget.db.words(widget.ref!);
   late final List<GlossedWord> _glossed = widget.english == null
       ? const []
       : widget.db.wordsGlossed(widget.english!, k: glossedWordsShown + 1);
@@ -192,12 +225,16 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     super.initState();
     WordTag? start;
     final english = widget.english;
+    if (widget.code != null) {
+      _study(widget.code!);
+      return;
+    }
     if (widget.pos != null) {
       start = _verseWords.where((w) => w.pos == widget.pos).firstOrNull;
     } else if (english != null) {
       final press = _press = pressedStudy(
         widget.db,
-        widget.ref,
+        _ref,
         english: english,
         translation: widget.translation,
         tags: _verseWords,
@@ -266,7 +303,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     _loadUses();
   });
 
-  String get _verseLanguage => widget.ref.book.id < 40 ? 'Hebrew' : 'Greek';
+  String get _verseLanguage => _ref.book.id < 40 ? 'Hebrew' : 'Greek';
 
   String get _language => languageOf(_code ?? '', morph: _tag?.morph ?? '');
 
@@ -282,27 +319,29 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
             children: [
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: [?english, widget.ref.label].join(', '),
-                      style: TextStyle(
-                        color: scheme.onSurface,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
+              if (widget.ref case final ref?) ...[
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: [?english, ref.label].join(', '),
+                        style: TextStyle(
+                          color: scheme.onSurface,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    TextSpan(text: ' · ${widget.translation}'),
-                  ],
+                      TextSpan(text: ' · ${widget.translation}'),
+                    ],
+                  ),
+                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
                 ),
-                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
-              ),
-              const SizedBox(height: 12),
+                const SizedBox(height: 12),
+              ],
               if (_code == null) ...[
                 Text(
                   english == null
-                      ? 'Choose a word from ${widget.ref.label}.'
+                      ? 'Choose a word from ${_ref.label}.'
                       : _supplied
                       ? 'The translators supplied "$english" here so the English reads well; no '
                             '$_verseLanguage word stands behind it. Choose a word from the verse:'
@@ -349,7 +388,6 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
 
   List<Widget> _header(ColorScheme scheme) {
     final e = _entry;
-    final tag = _tag;
     final lemma = e?.lemma ?? _hereForm;
     final pos = e == null ? '' : partOfSpeech(e.pos);
     return [
@@ -373,18 +411,6 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            FilledButton.icon(
-              icon: const Icon(Icons.auto_stories_outlined),
-              label: Text('Ask Berea about $lemma'),
-              onPressed: () => widget.onAsk(
-                wordStudyQuestion(
-                  entry: e,
-                  language: _language,
-                  english: tag == null ? null : widget.english,
-                  ref: tag == null ? null : widget.ref,
-                ),
-              ),
-            ),
             if (widget.onKeep != null)
               OutlinedButton.icon(
                 icon: const Icon(Icons.bookmark_add_outlined),
@@ -439,7 +465,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
         Padding(
           padding: const EdgeInsets.only(top: 6),
           child: Text(
-            'In ${widget.ref.label}: $here (${tag.translit}), '
+            'In ${_ref.label}: $here (${tag.translit}), '
             '"${cleanGloss(tag.gloss, strongs: tag.strongs)}"',
             style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
           ),
@@ -481,7 +507,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
 
   /// Files the word as a note titled with the word and its gloss; see [keptWordBody].
   void _keep(LexEntry e, String lemma) {
-    final from = _tag == null ? null : widget.ref;
+    final from = _tag == null ? null : _ref;
     widget.onKeep!(
       title: e.gloss.isEmpty ? lemma : '$lemma, ${e.gloss}',
       body: keptWordBody(
@@ -506,16 +532,16 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     const SizedBox(height: 16),
     Text(
       _guessed
-          ? 'Chosen by meaning. Not the word you meant? Choose another from ${widget.ref.label}:'
-          : 'Words in ${widget.ref.label}',
+          ? 'Chosen by meaning. Not the word you meant? Choose another from ${_ref.label}:'
+          : 'Words in ${_ref.label}',
       style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
     ),
     const SizedBox(height: 6),
     SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      reverse: widget.ref.book.id < 40,
+      reverse: _ref.book.id < 40,
       child: Row(
-        textDirection: widget.ref.book.id < 40 ? TextDirection.rtl : TextDirection.ltr,
+        textDirection: _ref.book.id < 40 ? TextDirection.rtl : TextDirection.ltr,
         children: [
           for (final w in _verseWords)
             if (studyCode(w) != null)

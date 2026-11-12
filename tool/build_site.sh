@@ -9,9 +9,8 @@ rm -rf "$out"
 mkdir -p "$out/screenshots"
 cp -R "$root"/site/. "$out/"
 rm -f "$out/check/selftest.mjs" "$out/data/fixture.json"
-shots="$root/docs/screenshots/bible-first-shell"
-for shot in 1-bible 2-plans 3-study 4-prayer 5-notes 6-selection; do
-  cp "$shots/a32-$shot.png" "$out/screenshots/bible-first-shell-${shot#*-}.png"
+shots="$root/docs/screenshots/release-c"
+for name in bible plans search; do
+  cp "$shots/$name.png" "$out/screenshots/app-$name.png"
 done
-cp "$shots/mac-1-bible-dark.png" "$out/screenshots/mac-bible.png"
 echo "site built at $out"

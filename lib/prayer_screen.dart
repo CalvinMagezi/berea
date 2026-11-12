@@ -72,6 +72,8 @@ class PrayerScreen extends StatefulWidget {
 
   /// Opens Settings from the app bar; null hides the button.
   final VoidCallback? onSettings;
+
+  /// Opens the Bible search, so it is one tap from here.
   const PrayerScreen({
     super.key,
     required this.store,

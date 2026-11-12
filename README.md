@@ -1,8 +1,8 @@
 # Berea
 
-A zero-data, fully offline, fully private study Bible and assistant. The language model runs on
-your phone or laptop, the Bible lives in a local database, and every answer is checked against it
-before you see it. Nothing is sent anywhere.
+A study Bible that works offline and shows Scripture first. The Bible, the Hebrew and Greek words
+behind it, the commentaries you choose to add, and everything you write live in local databases on
+your phone or computer. Nothing is sent anywhere, and nothing in the app writes text for you.
 
 Named for Acts 17:11: the Bereans "received the message with great eagerness and examined the
 Scriptures every day to see if these teachings were true."
@@ -10,212 +10,85 @@ Scriptures every day to see if these teachings were true."
 Try it: [Android APK](https://github.com/CalvinMagezi/berea/releases/latest/download/berea-android-arm64.apk)
 or [Mac app](https://github.com/CalvinMagezi/berea/releases/latest/download/berea-macos.zip)
 (not notarized yet: the first time, open it from System Settings, Privacy & Security, Open Anyway).
-On a Mac, Berea answers with [Ollama](https://ollama.com) (`ollama pull gemma4:e2b`) or a model it downloads.
 How it works, in plain language: [calvinmagezi.github.io/berea](https://calvinmagezi.github.io/berea/).
-
-<p align="center">
-  <img src="docs/screenshots/home-android.png" width="180" alt="Study tab with the verse of the day and today's reading">
-  <img src="docs/screenshots/study-android.png" width="180" alt="A grounded answer about John 3:16">
-  <img src="docs/screenshots/parallel-android.png" width="180" alt="Reader with a parallel translation">
-  <img src="docs/screenshots/interlinear-android.png" width="180" alt="Greek words of John 3:18 with glosses">
-</p>
-<p align="center">
-  <img src="docs/screenshots/study-page-android.png" width="180" alt="A study page drafted on device">
-  <img src="docs/screenshots/plan-android.png" width="180" alt="New Testament in 90 days reading plan">
-  <img src="docs/screenshots/notes-android.png" width="180" alt="Notes tab with saved studies and a note">
-  <img src="docs/screenshots/study-ios.png" width="180" alt="Study tab on iOS">
-</p>
 
 ## Principles
 
-- **Zero data.** No account, no analytics, no crash reporting, no sync. The only network calls
-  are the one-time model download you start yourself and, on a Mac, your own Ollama server.
+- **Zero data.** No account, no analytics, no crash reporting, no sync. The only network calls are
+  downloads you start yourself: the optional lexicon pack and the commentary packs.
 - **Fully offline.** Scripture, lexicon, cross references and your notes are on the device.
-- **Scripture first.** The model never quotes from memory. The harness retrieves verbatim text,
-  the model reasons over it, and a validator flags anything the model invented. Grounding
-  strength does not depend on model strength, so a 2 GB phone model stays honest.
-- **Open.** MIT licensed app; public domain and CC BY data; models from the LiteRT community.
+- **Scripture first.** Berea shows only Scripture, a counted fact, a named source, your own words,
+  or interface wording that never says what a verse means. A selection says who made it and by
+  what rule. Text a person did not write is labelled.
+- **Open.** MIT licensed app; public domain and CC BY data.
 
 ## What it does
 
-**Study.** Ask about a passage, a word, or a question of life. Answers come with the Hebrew or
-Greek behind the English, cross references, a contrast with worldly thinking and reflection
-questions, in the voice of the "Bible Study Guide" prompt in `prompts/system.md`. Every cited
-reference is verified against the local Bible and shown as a chip that opens the passage.
-Unverified references or quotes are called out in red. Every study is saved and can be reopened.
-With Gemma 4 on the device you can also ask by voice: hold the microphone (or tap to start and
-stop) and speak for up to 30 seconds. Gemma 4 hears it directly, with no separate speech model,
-and types the question into the box for you to check before it is sent.
+**Bible.** An offline reader with the Berean Standard Bible, the King James Version and the World
+English Bible built in. Show a second translation beside or below the text. The BSB shows its
+section headings with their parallel passages. Select verses to read their Hebrew or Greek words,
+commentary or a study page, to write a note, or to highlight them. Import a translation you own
+(CSV, USFM, OSIS, Zefania or a zip); it stays on your device.
+
+**Search.** Type words or a reference. Results come in labelled groups, each in Bible order: the
+exact words (confirmed against the verse text), the other forms of the word, verses with all your
+words, verses with some of them, one group for every Hebrew or Greek word STEPBible's tagging
+glosses with your word, and the headings the BSB's publisher printed. A word no verse has comes
+back with the words one letter away. Each group says how its verses were found.
+
+Search also looks past the verses. A word or short phrase lists the Hebrew and Greek words behind
+it (found through STEPBible's glosses and the lexicon, most used first, each saying why it is
+listed) and, from the commentary packs you have installed, the best comments of each work with the
+words marked. A Strong's number (G26) or a spelling in English letters (hagios) finds the word
+itself.
+
+**Word study.** Long-press a word in the reader for the Hebrew or Greek word behind it (τέλειος,
+teleios, G5046): its lexicon entry, how often it is used and in which books, how STEPBible glosses
+it, and every verse that uses it, with the English words that render it marked. In the BSB the
+word is exact: the BSB's own translation tables map each English word to its Hebrew or Greek. In
+other translations Berea picks the word by its gloss and labels it a guess. Keep a word in a
+notebook.
 
 **Commentary.** Select verses and tap Commentary for what Matthew Henry, Jamieson, Fausset and
 Brown, the Treasury of Scripture Knowledge, Aquinas's Catena Aurea and, if you add them, Calvin,
 Clarke, Keil and Delitzsch, Barnes, Wesley and Spurgeon say on them, each with its author and
 licence. The packs are optional public domain downloads.
 
-**Bible.** An offline reader with the Berean Standard Bible, the King James Version and the World
-English Bible built in. Search the whole Bible or type a reference to jump to it. Show a second
-translation beside or below the text. The BSB shows its section headings with their parallel
-passages; tap a heading to select the whole section. Select verses to ask Berea about them, write a
-note, make a study page or highlight them. Long-press the verse number for its Hebrew or Greek words with
-transliteration, gloss and lexicon entry. Import a translation you own (CSV, USFM, OSIS, Zefania
-or a zip); it stays on your device.
-
-**Word study.** Long-press a word in the reader, such as "perfect" in Matthew 5:48, for the Hebrew
-or Greek word behind it (τέλειος, teleios, G5046): its lexicon entry, how often it is used and in
-which books, how STEP glosses it, and every verse that uses it, with the English words that render
-it marked. One English word often stands for several originals, so the study also lists the other
-words glossed the same way: the KJV's "perfect" in Job 1:1 is תָּם (tam), which the BSB calls
-"blameless". In the BSB the word is exact: the BSB's own translation tables map each English word
-to its Hebrew or Greek, and a word the translators supplied says so. In other translations Berea
-picks the word by meaning (its gloss, then its lexicon gloss and definition) and labels it a
-guess; the verse's other words are a tap away when it picks wrong or finds none. Ask Berea about the word sends a question naming its Strong's number,
-and the answer is grounded in the lexicon entry and a spread of the word's other uses. The words
-in the interlinear open the same study.
-
 **Plans.** Bible in a year, New Testament in 90 days, the Gospels in 30, Psalms and Proverbs in
-60. Today's reading and a verse of the day sit on the Study tab.
+60. Today's reading, and the first verse of it, sit on the Bible. A plan ticks chapters, not
+days, and never counts a streak.
 
-**Study pages.** Observation, interpretation and application for a passage, drafted by Berea from
-the retrieved Scripture, lexicon and cross references, then edited and kept by you.
+**Prayer.** A prayer list of your own, and prayer points tied to verses. Each point shows the verse
+whole first, then the line, labelled as written for Berea with a language model.
 
-**Notes.** Saved studies, study pages, notes and highlights in one searchable place. Export a study
-or everything to Markdown.
-
-**Notebooks.** Gather what you read on one passage or topic: Bible passages, commentary from the
-installed packs, your notes, pasted text, PDFs and EPUB books. Berea reads each source on the
-device, splits it into sections that remember where they came from (and the PDF page), and
-indexes them for search. A source is a copy taken when you add it, so editing a note later does
-not change the notebook.
-
-**Notebook chat.** Ask inside a notebook and the answer draws on its sources as well as
-Scripture. Each source is cited by a tag: `[S3 p.14]` for page 14 of a PDF, `[S3 §2]` for the
-second section of anything else, `[C4821]` for commentary from an installed pack (a number fixed
-by the passage, so it means the same in every answer). Tap the chip under
-the answer to open the source at that section. Pin a source to offer it to every answer. Each
-notebook keeps one conversation, saved with it and included in backups.
+**Notes and notebooks.** Notes, study pages and highlights in one searchable place. A notebook
+gathers what you read on one passage or topic: Bible passages, commentary from the installed
+packs, your notes, pasted text, PDFs and EPUB books. Berea reads each source on the device, splits
+it into sections that remember where they came from (and the PDF page), and indexes them for
+search. Search a notebook from its own screen. Export your notes to Markdown.
 
 **Backup.** One encrypted file (AES-256-GCM, key from your passphrase) that you keep wherever you
-like. Restore checks the file before it replaces anything.
-
-**Quick chat.** A chat button on every tab opens the same study.
+like. Restore checks the file before it replaces anything. Backups from earlier versions still
+restore: their notes come back labelled, and the chat they hold is not kept.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  UI[Flutter app<br/>Study · Bible · Notes] --> H[Harness<br/>pure Dart]
+  UI[Flutter app<br/>Bible · Plans · Search · Prayer · Notes] --> H[Harness<br/>pure Dart]
   H --> RP[RefParser]
-  H --> R[Retriever]
-  H --> PB[PromptBuilder]
-  H --> G[CitationGuard]
-  R --> DB[(berea.sqlite<br/>BSB · KJV · STEPBible words and lexicon · cross references · FTS5)]
-  G --> DB
-  PB --> E{LlmEngine}
-  E --> L[LiteRT-LM on device<br/>Gemma 4 E2B / E4B · Gemma 3 1B]
-  E --> O[Ollama on a Mac<br/>gemma4:e2b]
-  UI --> S[(study.sqlite<br/>notes · highlights · saved studies)]
+  H --> CG[CitationGuard]
+  H --> DB[(berea.sqlite<br/>BSB · KJV · WEB · STEPBible words and lexicon · cross references · FTS5)]
+  UI --> S[(study.sqlite<br/>notes · highlights · notebooks · prayers)]
 ```
 
-Each turn runs a fixed pipeline, not a free agent loop:
+The harness is a plain Dart package: the reference parser, the Bible database and its search, word
+study, commentary, notebook text handling and the citation check. The app is Flutter. The Bible
+database is built, not committed; `study.sqlite` holds everything you write.
 
-1. **RefParser** finds references in the question ("John 3:16", "Jn 3.16-18", "1 Cor 13",
-   "II Timothy 3:16") and fetches those passages verbatim.
-2. **Retriever** adds the tagged Hebrew or Greek words of the primary passage, the lexicon entries
-   for their Strong's numbers, the top cross references by vote, and a stemmed FTS5 search over
-   the whole Bible for the question's terms. A topical question with no reference follows the
-   cross-reference graph from its search hits to the passages most of them point to.
-3. **PromptBuilder** assembles a static system prompt (so the on-device prefix cache hits) and
-   PASSAGES, LEXICON, WORDS, CROSS REFERENCES and RELATED VERSES blocks trimmed to the model tier's
-   token budget, then the last two turns and the question. It returns what it actually kept, and
-   only that counts as shown in step 5. In a notebook, notebook rules join the system prompt and a
-   SOURCES block follows PASSAGES with its own share of the budget: sections of pinned sources,
-   search hits across the notebook, commentary from installed packs on the passages in view, then
-   the start of every source.
-4. **LlmEngine** streams the answer from LiteRT-LM or Ollama.
-5. **CitationGuard** re-parses every reference in the answer and looks it up. Unknown chapters and
-   verses, and citations of books that do not exist, become `[unverified: ...]`. A quoted phrase
-   of 30+ characters that is not verbatim in any passage the model was shown is replaced with the
-   exact words when one shown verse is clearly its source (`[quote corrected]`), and otherwise
-   marked `[unverified quote]`. Quotes in any script are compared, not only English. In a
-   notebook it also checks every source tag in brackets or parentheses: a source, page or
-   section that was not shown, or anything in square brackets that means a source but is not a
-   tag (`[Source 9]`, `[S3 and S9]`), becomes `unverified source: ...`. A quote followed by a source tag must be
-   in that source's shown text; a quote attributed to a verse must be in the verses. A quote a
-   source supports but that reads as a shown verse reworded is marked
-   `[differs from Scripture]`, so a source that misquotes Scripture can never vouch for the
-   misquote.
-
-### Model tiers
-
-| Tier | Model | Prompt budget | Retrieval |
-|------|-------|---------------|-----------|
-| low | Gemma 3 1B | 2k tokens | 3 search hits, 4 cross refs, 6 lexicon entries |
-| mid | Gemma 4 E2B (2.6 GB, default) | 4k | 6, 8, 12 |
-| high | Gemma 4 E4B (4.3 GB), Ollama gemma4:e2b | 8k | 10, 12, 24 |
-
-Notebook answers give SOURCES up to 700, 1,400 or 3,000 of those tokens. The engine opens with
-the prompt budget plus the answer plus 512 tokens of padding: windows of 3,112, 5,412 and 9,912
-tokens. Budgets use a deliberately high estimate (four letters to a token, but one token for
-every digit, punctuation mark and Hebrew or Greek character), because Gemma's tokenizer splits
-those finely: the old characters / 4 estimate let real mid and high prompts reach 5,343 and 14,417
-tokens, past their windows. `dart run bin/prompt_size.dart` measures real prompts with Ollama;
-the worst Study or notebook prompt plus the full answer now comes to 2,441, 4,531 and 8,530
-tokens, inside each window.
-
-The tier follows the chosen model, except that a first run on a phone under 7 GB starts Gemma 4
-E2B at the low tier. Models download on first use; the catalog is in `lib/models.dart`. Gemma 4 E2B and E4B come
-from the Hugging Face `litert-community` organisation and are not gated. Gemma 3 1B is gated
-there, so Berea hosts the unmodified file on its own GitHub release (`model-gemma3-1b-1`), checks
-it against a pinned SHA-256 and needs no account or token. It stays under the Gemma Terms of Use
-and Prohibited Use Policy, shown before the download and under Licences and sources.
-
-### Eval
-
-```bash
-cd packages/harness && dart run bin/eval.dart --tier mid --model gemma4:e2b
-```
-
-Runs 40 golden questions through the harness against Ollama, 8 of them adversarial (a chapter or
-book that does not exist, Psalm 151, popular sayings that are not in the Bible), and reports
-invented references, expected reference coverage, unverified quotes and misattributed sayings. A
-release needs zero invented references and zero misattributions. Last run on gemma4:e2b, against
-the official BSB text: 0 invented, 28 of 28 expected references, 0 misattributed, 8 of 8
-adversarial.
-
-`--brief` runs the same questions with the brief answer rule that Study uses at the low tier. On
-gemma4:e2b through Ollama at that tier, two full runs and one brief run (0.3 temperature, so each
-varies a little): full answers averaged 253 words in 119 to 147 s, with 2 unverified quotes and 1
-misattributed saying both times; brief answers averaged 45 words in 51 s, with 0 invented, 28 of
-28 expected references, 0 unverified quotes, 0 misattributed and 8 of 8 adversarial.
-
-`dart run bin/eval.dart --tier mid --notebook` runs 10 questions against a notebook built in code
-(pasted sermon notes, Acts 17:10-12, a three-page guide and a friend's note that misquotes John
-3:16), 4 of them adversarial: a topic the sources do not cover, the misquote, and a page and a
-section that do not exist. It reports invented references, invented source citations, expected
-verse and source citations, unverified quotes and misattributions; zero invented source
-citations is a release gate alongside zero invented references. `--commentary <pack>` adds an
-installed commentary pack and `--show` prints each answer. Last run on gemma4:e2b: 0 invented
-references, 0 invented source citations, 3 of 3 verses and 5 of 5 sources cited, 0
-misattributed, 4 of 4 adversarial.
-
-`dart run bin/eval.dart --tier mid --words` runs 9 word study questions (`eval/word_study.json`),
-built the way the app builds them: four on a word in a verse (τέλειος in Matthew 5:48, the KJV's
-"perfect" in Job 1:1, ἀγαπάω in John 3:16, חֶסֶד in Psalm 136:1), two on a word alone (χάρις,
-שָׁלוֹם), and three adversarial: a Strong's number that does not exist, Matthew 5:49 (the chapter
-has 48 verses), and a saying attributed to a word's use. Zero invented references and zero
-misattributions are a release gate, as for the golden questions. Not yet run: the session that
-added it could not run Ollama.
-
-`dart run bin/retrieval_check.dart` checks topical retrieval without a model: 7 of 8 topical
-questions put a well-known passage on the topic in front of the model.
-
-`dart run bin/word_match_check.dart --translation BSB` measures how often a word pressed in the
-reader finds its Hebrew or Greek word, over 2,000 random verses and leaving out small words such as
-"the" and "his", and prints a sample to check by eye. Last run, by meaning: BSB 76.6%, KJV 78.4%,
-WEB 83.6%. Most misses are words with no single word behind them ("replied", "Israelites", a
-"Jesus" the Greek says as "he"), where the reader chooses from the verse instead. In the BSB the
-translation tables give the word for 99.8% of those study words, and serve as an answer key for
-the guess: where the guess picks a word, it is the tables' word 91.5% of the time.
+Search reads the index's row ids instead of joining every hit back to the verse table: on a Galaxy
+A32 that took queries from seconds to under a quarter of a second. The database records which
+translations are stored in Bible order (`meta.bible_order`), and only those take the fast path.
 
 ## Data
 
@@ -260,10 +133,10 @@ Commentaries, Licences and sources.
 
 `packages/harness/bin/build_db.dart` downloads these and writes `assets/berea.sqlite` (about 81 MB,
 29 MB compressed: 93k verses in three translations, 447k tagged words, 21k lexicon entries, 345k
-cross references, 366 daily verses, and the word study concordance: `word_index` holds every use
+cross references, and the word study concordance: `word_index` holds every use
 of each base Strong's number and `gloss_index` the words STEP glosses with each English stem; `bsb_words` holds, for each BSB verse,
 the Strong's number behind each of its words, aligned from the translation tables; `headings` holds
-3,124 BSB section headings, each anchored to the verse it introduces, and the build fails if one
+3,129 BSB section headings, each anchored to the verse it introduces, and the build fails if one
 anchors to a verse the BSB does not have) and a
 small `berea.sqlite.version` stamp. `bin/build_lexicon_pack.dart` builds
 the optional lexicon pack, which is published with each release. None of these are committed.
@@ -292,8 +165,8 @@ first verse heading become introductions instead of verse comments. Spurgeon's T
 David, which holds a whole psalm at its first verse, is split at its "Verse N" paragraphs. After a build, publish the `.gz` files
 to the `commentary-1` release and copy the pins from `manifest.json` into `lib/commentary_packs.dart`.
 
-Copyrighted translations such as the NIV and NLT are not bundled. Import one you own through the
-engine settings from CSV (`Book,Chapter,Verse,Text`), USFM, OSIS, Zefania XML or a zip of those.
+Copyrighted translations such as the NIV and NLT are not bundled. Import one you own through
+Settings from CSV (`Book,Chapter,Verse,Text`), USFM, OSIS, Zefania XML or a zip of those.
 A normalised copy is kept under the app's support folder, re-imported after a database rebuild,
 and never leaves the device.
 
@@ -329,24 +202,23 @@ tool/pin_pdfium.sh mac-arm64   # SHA-256 checked PDFium for this Mac (see Data)
 flutter run -d macos      # or -d <android device> / -d <ios simulator>
 ```
 
-On a Mac the default engine is [Ollama](https://ollama.com) with `gemma4:e2b`
-(`ollama pull gemma4:e2b`). On phones the default is on-device; open the engine settings and
-download a model. Both can be switched in settings on any platform.
+CI builds a Bible database with only the BSB text from the committed `site/data/bible` files
+(`dart run bin/build_bsb_only_db.dart`), so the tests that need verse text run there. Tests that
+need the words, lexicon or cross references skip unless `assets/berea.sqlite` is the full build.
+`BEREA_DB` points the tests at another database file.
 
-Command line harness without the app:
-
-```bash
-cd packages/harness && dart run bin/berea.dart --tier mid
-```
-
-Tests:
+Tests and checks:
 
 ```bash
-cd packages/harness && dart test && cd ../.. && flutter test
+cd packages/harness && dart test && dart run bin/search_check.dart && cd ../.. && flutter test
+bash tool/guard_no_model.sh && python3 tool/guard_strings.py
 flutter test integration_test -d macos   # notebooks smoke test, real app, throwaway data folder
 ```
 
-Release (builds the data, runs every check and the eval, builds Android and macOS, tags):
+`bin/search_check.dart` cuts four words from a sample of BSB verses and checks the verse is found,
+checks that 500 sampled words each return a result, and times the searches.
+
+Release (builds the data, runs every check, builds Android and macOS, tags):
 
 ```bash
 tool/release.sh 0.3.0
@@ -355,133 +227,77 @@ tool/release.sh 0.3.0
 Android release signing reads `android/key.properties`; see `android/key.properties.example`.
 Each app release also carries the APK as `berea-android-arm64.apk` and the Mac app as
 `berea-macos.zip`, which links through `releases/latest/download/` always find, so publish app
-releases with `--latest` and data releases (such as
-`lexicon-1` and `commentary-1`) with `--latest=false`.
+releases with `--latest` and data releases (such as `lexicon-1` and `commentary-1`) with
+`--latest=false`.
 
 ## Project layout
 
 ```
 lib/
   main.dart            boots the app
-  home_shell.dart      Study, Bible, Notes and Notebooks tabs, quick chat sheet
-  chat_screen.dart     streamed answers, citation chips, verse of the day, today's reading
-  voice.dart, voice_composer.dart  hold-to-talk recording, Gemma 4 transcription, mic button
+  home_shell.dart      the five places, the phone bar with the raised Search button, the sidebar
+  search_place_button.dart  the Berea mark in a Night circle
   reader_screen.dart   offline reader, parallel text, selection bar, chapter picker
-  search_screen.dart   full-text Bible search
+  search_screen.dart   the Search place: verses, the words behind a word, and commentary, each on
+                       its own isolate
   interlinear_sheet.dart  Hebrew and Greek words with lexicon entries
-  word_study_screen.dart  a word's meaning, use, renderings and every verse; the pressed-word lookup
-  commentary_sheet.dart   commentary on the selected verses, with attribution
-  commentary_packs.dart   optional commentary packs: pins, download, install, delete
-  commentary_settings.dart, attributions_screen.dart  pack settings, licences and sources
-  pinned_download.dart    streamed download checked against a published SHA-256
-  study_page_screen.dart  observation, interpretation, application
+  word_study_screen.dart  a word's use, renderings and every verse
+  commentary_sheet.dart, commentary_packs.dart  commentary, and the optional packs
   plans.dart, plans_screen.dart  reading plans
-  notes_screen.dart    saved studies, study pages and notes
-  notebooks_screen.dart  notebooks, their sources, pins, add-source flows and the source reader
-  notebook_store.dart  notebook tables, background ingestion, search, pins and conversations
-  notebook_chat.dart, notebook_chat_screen.dart  a notebook's conversation and its screen
-  pdf_text.dart        PDF page text through PDFium
-  export.dart          Markdown export
+  prayer_*.dart        prayer list, points, plans
+  notes_screen.dart, note_dialog.dart  notes
+  notebooks_screen.dart, notebook_store.dart  notebooks, their sources, search and the source reader
+  study_store.dart     local SQLite for everything the user writes, with its migrations
+  provenance.dart      who wrote a note, a page or a source, and the label shown for it
   backup.dart          encrypted backup and restore
-  device.dart          device memory for the model recommendation
-  app_state.dart       settings, engines, persistence, reader position
-  edge_engine.dart     LiteRT-LM engine via flutter_edge_ai
-  models.dart          on-device model catalog and recommendation
-  study_store.dart     local SQLite for everything the user writes
-  theme.dart           colour tokens, parchment and ink with a lamp-gold accent
+  pinned_download.dart streamed download checked against a published SHA-256
 packages/harness/
-  lib/src/             RefParser, BibleDb, Retriever, PromptBuilder, CitationGuard, importers, engines,
-                       notebook chunking, EPUB and HTML text, notebook retrieval and source tags,
-                       word study matching
+  lib/src/             RefParser, BibleDb, search, CitationGuard, importers, word study,
+                       commentary, notebook chunking, EPUB and HTML text
   bin/build_db.dart    builds assets/berea.sqlite from the datasets above
-  bin/build_lexicon_pack.dart  builds the optional LSJ pack
-  bin/build_commentary.dart  builds the optional commentary packs from SWORD modules
-  bin/berea.dart       CLI chat against Ollama
-  bin/eval.dart        golden eval; --notebook runs the notebook cases on bin/notebook_fixture.dart
-  bin/retrieval_check.dart  topical retrieval check, no model needed
-  bin/word_match_check.dart  how often a pressed word finds its original, no model needed
-  bin/prompt_size.dart real prompt sizes per tier, measured by Ollama against each window
+  bin/build_bsb_only_db.dart  builds the BSB-only database CI uses
+  bin/search_check.dart  the search gate
+  bin/build_lexicon_pack.dart, bin/build_commentary.dart  the optional packs
   bin/export_site.dart  writes the Bible data and parity fixture for the site's live check
-  eval/golden.json     questions with expected references and adversarial bait
-  eval/notebook.json   notebook questions with expected verses and sources
 tool/release.sh        local release
+tool/guard_no_model.sh, tool/guard_strings.py  CI guards
 tool/build_site.sh     builds the public site from site/ into build/site
-tool/audio/            build-time word timings and audio packs for the CC0 narration (Python)
 site/                  the public page, deployed to GitHub Pages
-  check/               a JavaScript copy of the reference check; selftest.mjs proves it matches
-  vendor/scrollcraft/  scroll engine from nateherkai/scroll-craft (MIT)
-prompts/system.md      the system prompt (grounding rules first, then the study guide)
-prompts/gem-original.md the Gemini gem this started from
-docs/screenshots/
+docs/plans/            the plan this release follows, and its handover
 ```
 
 ## Platform notes
 
-- **Android**: `minSdk 30`, arm64 only (LiteRT-LM). Answers run on the CPU on every platform:
-  GPU decode corrupts digits on some phones (LiteRT-LM #2202), and verse numbers are digits.
-- **iOS**: deployment target 15.0, CocoaPods only, extended-virtual-addressing and
-  increased-memory-limit entitlements so a 2.6 GB model fits on a real iPhone. Swift Package
-  Manager is turned off in `pubspec.yaml`: SPM debug builds embed an absolute host rpath, and when
-  the checkout lives in a privacy-protected folder such as `~/Documents` the simulator's dyld hangs
-  on it before `main` runs.
-- **macOS**: the Podfile `post_install` stages the LiteRT-LM companion dylibs into the app so the
-  on-device engine can load; Ollama is the default engine.
-- **Windows and Linux**: built in CI. LiteRT-LM bundles its native libraries at build time. Answers
-  run on the CPU here too, so no GPU driver is needed.
-- **Voice**: the `record` package (BSD-3-Clause) records 16 kHz mono 16-bit WAV, the format
-  Gemma 4 reads through flutter_edge_ai's audio input (`supportAudio` on the model and the chat).
-  Gemma 4 models load with the audio encoder, which also runs on the CPU; if it fails to load,
-  the model loads text only and voice is turned off. Android declares
-  `RECORD_AUDIO`; iOS and macOS carry `NSMicrophoneUsageDescription`, and both macOS entitlement
-  files carry `com.apple.security.device.audio-input`. On Linux, voice needs `parecord`
-  (PulseAudio or PipeWire) and `ffmpeg` installed. Recordings go in a private folder in the app's
-  cache and are deleted as soon as they are read.
-- **Listen**: deep dives are spoken by Supertonic 3 (int8, BigScience Open RAIL-M) through
-  `sherpa_onnx` in its own isolate, downloaded once per file from the `voice-supertonic3-1` data
-  release, and played with `audioplayers`. Android keeps a render going in the background with a
-  `dataSync` foreground service. Building for Linux needs `libgstreamer1.0-dev` and
-  `libgstreamer-plugins-base1.0-dev`, which `audioplayers` plays through.
-- A small method channel reports device memory so the settings can recommend a model.
-- Debug builds read `BEREA_AUTORUN` or `autorun.txt` in the app's documents folder and run that
-  question on launch, so a headless simulator or emulator can exercise the on-device path.
+- **Android**: `minSdk 30`, arm64 only. The release APK is about 58 MB.
+- **iOS**: deployment target 15.0, CocoaPods only. Swift Package Manager is turned off in
+  `pubspec.yaml`: SPM debug builds embed an absolute host rpath, and when the checkout lives in a
+  privacy-protected folder such as `~/Documents` the simulator's dyld hangs on it before `main`
+  runs.
+- **Windows and Linux**: built in CI.
+- A small method channel keeps the data folder out of iCloud backups on iOS.
 
 ## Privacy
 
-Berea makes no network request on its own. The Gemma 4 model download goes to huggingface.co, and the
-Gemma 3 1B model, the optional lexicon and the commentary packs to github.com, only when you tap Download. The Ollama engine talks to the URL
-you configure, `localhost` by default; a notebook question sends that server the sections of your
-sources the answer draws on, so point it only at a machine you trust. A voice question is recorded
-to a temporary file on the device, read into memory and deleted before Gemma 4 transcribes it; it
-is never stored or sent. There is no telemetry, no account, and no cloud copy of
-anything you write. Backups are files you choose where to keep. Deleting the app deletes the
-data.
+Berea makes no network request on its own. The optional lexicon and the commentary packs come from
+github.com, only when you tap Download. There is no telemetry, no account, and no cloud copy of
+anything you write. Backups are files you choose where to keep. Deleting the app deletes the data.
 
-Android cloud backup and device transfer are turned off, and the iOS data folder is excluded
-from iCloud backup. That is deliberate, and it has a cost: a lost or reset phone loses your
-notes unless you made a Berea backup file. Make one now and then (Engine settings, Back up) and
-keep it somewhere you trust.
+Android cloud backup and device transfer are turned off, and the iOS data folder is excluded from
+iCloud backup. That is deliberate, and it has a cost: a lost or reset phone loses your notes unless
+you made a Berea backup file. Make one now and then (Settings, Back up) and keep it somewhere you
+trust.
 
-## Roadmap
-
-Everything below keeps the core: zero data, fully offline, fully private.
-
-- GPU answers again once a real Mali phone shows LiteRT-LM #2202 fixed (see `TECHDEBT.md`), with
-  real-device performance numbers for Android and iPhone.
-- Keep one on-device conversation open across turns, if a real GPU phone shows a net win (the
-  emulator did not; see `TECHDEBT.md`).
-- On-device embeddings for semantic search, if the retrieval check falls short.
-- Hebrew lexicon depth comparable to the optional Greek LSJ pack, when an openly licensed source
-  exists.
-- Store releases (TestFlight, Play) once signing keys are in place.
+An earlier version ran a language model on the device. It was removed: updating deletes the model
+and voice files and the saved questions and answers, and keeps your notes.
 
 Open items with reasons are tracked in `TECHDEBT.md`. Changes are in `CHANGELOG.md`.
 
 ## Contributing
 
-Issues and pull requests are welcome. Keep the principles: no network calls beyond the model
-download and the user's own Ollama, no accounts, no analytics. Run the tests and, for anything that
-touches the harness, the eval. Translations must be public domain or openly licensed to be bundled;
-anything else stays an import.
+Issues and pull requests are welcome. Keep the principles: no network calls beyond the optional
+downloads, no accounts, no analytics, nothing in the app that writes text. Run the tests and the two
+guards. Translations must be public domain or openly licensed to be bundled; anything else stays an
+import.
 
 ## Licence
 

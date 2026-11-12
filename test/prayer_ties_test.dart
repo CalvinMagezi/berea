@@ -66,7 +66,6 @@ void main() {
     final dir = Directory.systemTemp.createTempSync('berea-ties');
     dirs.add(dir);
     SharedPreferences.setMockInitialValues({
-      'engine': EngineKind.ollama.name,
       'tipT14Done': true,
       // Folded, as on any look after the first of the day.
       'todayCardFullOn': dayKey(DateTime.now()),
@@ -208,11 +207,11 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('PRAY WHAT YOU READ'), findsOneWidget);
         expect(find.text('Line for the first chapter.'), findsOneWidget);
-        expect(find.text('Amen ticks day 1'), findsOneWidget);
+        expect(find.text('Done ticks day 1'), findsOneWidget);
 
         await tester.tap(find.text('Pray these'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Amen'));
+        await tester.tap(find.text('Done'));
         await tester.pumpAndSettle();
         expect(state.prayerPlans.readingPrayed(_nt.id), {1});
         expect(find.text('Day 1 prayed'), findsOneWidget);
@@ -240,7 +239,7 @@ void main() {
       expect(find.textContaining('never water'), findsOneWidget);
       expect(state.prayerPlans.run('work-7')!.fasting, isTrue);
 
-      await tester.tap(find.text('Amen · day 1 done'));
+      await tester.tap(find.text('Day 1 done'));
       await tester.pumpAndSettle();
       expect(state.prayerPlans.daysPrayed('work-7'), {1});
       expect(find.text('PRAYER PLAN · DAY 2 OF 2'), findsOneWidget);
@@ -257,7 +256,7 @@ void main() {
       expect(find.textContaining('Day 2 of 2'), findsOneWidget);
       await tester.tap(find.text('Pray'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Amen · day 2 done'));
+      await tester.tap(find.text('Day 2 done'));
       await tester.pumpAndSettle();
       expect(state.prayerPlans.running(), isEmpty);
       expect(find.textContaining('is finished'), findsOneWidget);

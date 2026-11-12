@@ -16,7 +16,6 @@ import 'prayer_sheet.dart' show passageText, shareOrigin, shareText;
 import 'selection_bar.dart';
 import 'settings_sheet.dart';
 import 'study_page_screen.dart';
-import 'search_screen.dart';
 import 'section_notebook.dart';
 import 'theme.dart';
 import 'today_card.dart';
@@ -36,7 +35,7 @@ const parallelSideBySideWidth = 560.0;
 /// Tip T14, shown once on the first chapter until it is dismissed.
 const _tipKey = 'tipT14Done';
 const tipsOffKey = 'tipsOff';
-const tipT14 = 'Tap a verse to highlight it, write a note, pray it or ask about it.';
+const tipT14 = 'Tap a verse to highlight it, write a note or pray it.';
 
 /// Where the tip sits above the chapter bar, with no selection card under it.
 const _tipGap = 16.0;
@@ -435,10 +434,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     },
     onNote: () => _onePassage('Note', _note),
     onPray: () => _onePassage('Pray', _pray),
-    onAsk: () => _onePassage('Ask', () {
-      s.askAbout(_selection);
-      setState(_selected.clear);
-    }),
     onWords: _words,
     onCommentary: _commentary,
     onStudyPage: () => _onePassage('Study page', _studyPage),
@@ -490,14 +485,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
           child: _ReaderTitle(name: book.name, chapter: chapter),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Search',
-            icon: const Icon(Icons.search),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(builder: (_) => SearchScreen(state: s)),
-            ),
-          ),
           PopupMenuButton<String?>(
             tooltip: 'Parallel translation',
             icon: Icon(parallel == null ? Icons.view_agenda_outlined : Icons.view_agenda),

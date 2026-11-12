@@ -30,6 +30,10 @@ void main() {
       ..execute('DROP INDEX notebooks_system_key')
       ..execute('ALTER TABLE notebooks DROP COLUMN system_key')
       ..execute('ALTER TABLE notes DROP COLUMN kind')
+      // Migration 8 (provenance) came later still.
+      ..execute('ALTER TABLE notes DROP COLUMN provenance')
+      ..execute('ALTER TABLE study_pages DROP COLUMN provenance')
+      ..execute('ALTER TABLE notebook_sources DROP COLUMN provenance')
       // Migration 7 (prayer plans) came later still.
       ..execute('DROP TABLE prayer_plan_runs')
       ..execute('DROP TABLE prayer_plan_days')
@@ -119,7 +123,7 @@ void main() {
 
     setUp(() async {
       dir = Directory.systemTemp.createTempSync('berea-plan-restore');
-      SharedPreferences.setMockInitialValues({'engine': EngineKind.ollama.name});
+      SharedPreferences.setMockInitialValues({});
       ensureBereaDbAssets();
       s = await AppState.bootstrap(supportDir: dir, prefs: await SharedPreferences.getInstance());
       s.startPlan(plan);
