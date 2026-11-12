@@ -32,6 +32,13 @@ and your own words, and nothing in it writes text for you.
   senses, which Berea wrote and are gone. A word pressed in the KJV or the WEB no longer opens a
   guessed word: the study opens with the verse's original words and none chosen, because only the
   BSB's tables say which word is behind which English.
+- **Loose ends closed.** A cross reference whose target runs into the next chapter or book shows
+  its whole range ("Genesis 11:32-12:1"). The twenty Greek verses whose words STEPBible numbers
+  differently from the BSB now have those words in the right verse. A Greek word's lists name the
+  text they use. A psalm's title shows with its first verse in the Words sheet. Greek verbs are
+  described by STEPBible's own morphology table too. A translation you import is searched as fast
+  as the built ones. Middle Liddell's definitions can be installed from Settings as a separate
+  download, and a Hebrew meanings fallback exists as a build setting.
 - **Counts name their text, and Hebrew parsing is STEPBible's.** A Greek word's count says it is
   taken from the Nestlé-Aland 28 text and, where Scrivener's 1894 Textus Receptus differs, gives both;
   a Hebrew word's says it is STEPBible's Leningrad text. A search row says which text it counts in.

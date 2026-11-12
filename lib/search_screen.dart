@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'app_state.dart';
 import 'commentary_sheet.dart';
@@ -627,8 +627,9 @@ class _WordTile extends StatelessWidget {
         children: [
           if (e.gloss.isNotEmpty) Text(e.gloss, style: TextStyle(color: scheme.onSurface)),
           Text(
-            '${match.language} · ${match.code} · used ${_plural(match.uses, 'time')} in '
-            '${_plural(match.verses, 'verse')}${match.text == null ? '' : ' of ${match.text}'} · $_why',
+            '${match.language} · ${match.code} · '
+            '${match.uses == 0 && match.text != null ? 'not in ${match.text}' : 'used ${_plural(match.uses, 'time')} in ${_plural(match.verses, 'verse')}${match.text == null ? '' : ' of ${match.text}'}'}'
+            ' · $_why',
             style: muted,
           ),
         ],

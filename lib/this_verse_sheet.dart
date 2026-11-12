@@ -1,5 +1,5 @@
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'app_state.dart';
 import 'commentary_sheet.dart';
@@ -146,7 +146,7 @@ class ThisVerse extends StatelessWidget {
           children: [
             for (final x in crossRefs)
               _Line(
-                text: x.to.label,
+                text: x.label,
                 trailing:
                     '${x.votes} ${x.votes == 1 ? 'vote' : 'votes'} by site visitors'
                     '${_noteLine(x.to)}',

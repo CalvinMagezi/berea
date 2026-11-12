@@ -1,5 +1,5 @@
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 
 import 'app_state.dart';
@@ -213,6 +213,9 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   List<({String english, int count})> _renderings = const [];
   ({int uses, int verses}) _count = (uses: 0, verses: 0);
   List<(Book, int)> _books = const [];
+
+  /// The text a Greek word's lists are taken from; null for Hebrew, whose lists use every row.
+  String? get _listedText => _code != null && _code!.startsWith('G') ? widget.db.mainTextFor(_code!) : null;
 
   /// The counts in each printed text that has the word; empty when the database names none.
   List<({String text, int uses, int verses, int books})> _texts = const [];
@@ -521,11 +524,21 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
 
   /// The lexicon's own entry as the scholars wrote it, one tap away and closed to begin with.
   List<Widget> _scholarEntry(ColorScheme scheme) {
-    final definition = _entry?.definition ?? '';
     final greek = _code!.startsWith('G');
+    // A Middle Liddell entry's definition lives in its own optional pack; with the pack it shows.
+    final fromPack = _entry?.source == 'ML' && greek ? widget.db.middleLiddell(_entry!.key) : null;
+    final definition = fromPack ?? _entry?.definition ?? '';
+    final packed = fromPack != null;
     final full = greek ? widget.db.fullLexicon(_entry?.key ?? _code!) : null;
     final get = full == null && greek && !widget.db.hasFullLexicon ? widget.onGetLexicon : null;
-    final named = greek && _entry != null ? definitionSourceLine(_entry!.source, definition.isNotEmpty) : '';
+    final getMiddleLiddell = _entry?.source == 'ML' && greek && !widget.db.hasMiddleLiddell
+        ? widget.onGetLexicon
+        : null;
+    final named = _entry == null
+        ? ''
+        : greek
+        ? definitionSourceLine(_entry!.source, definition.isNotEmpty, packInstalled: packed)
+        : hebrewSourceLine(_entry!.source);
     final nameCut = _entry?.nameSummary ?? false;
     final gloss = _entry?.gloss ?? '';
     if (definition.isEmpty && full == null && get == null && named.isEmpty && gloss.isEmpty && !nameCut) {
@@ -564,6 +577,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, height: 1.4),
               ),
             ),
+          if (getMiddleLiddell != null) _MiddleLiddellHint(onGet: getMiddleLiddell),
           if (get != null) _LexiconHint(onGet: get),
           if (full != null)
             ExpansionTile(
@@ -687,7 +701,9 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
       if (_books.length > 1) ...[
         const SizedBox(height: 10),
         Text(
-          'By book (tap to show only that book)',
+          _listedText == null
+              ? 'By book (tap to show only that book)'
+              : 'By book in $_listedText (tap to show only that book)',
           style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
         ),
         const SizedBox(height: 4),
@@ -708,7 +724,12 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
       if (english != null && others.isNotEmpty)
         ..._otherWords(scheme, heading, english, others, 'OTHER WORDS GLOSSED'),
       const SizedBox(height: 24),
-      Text(_book == null ? 'EVERY VERSE' : 'IN ${_book!.name.toUpperCase()}', style: heading),
+      Text(
+        _book == null
+            ? (_listedText == null ? 'EVERY VERSE' : 'EVERY VERSE IN ${_listedText!.toUpperCase()}')
+            : 'IN ${_book!.name.toUpperCase()}',
+        style: heading,
+      ),
       for (final u in _uses) _UseTile(use: u, onTap: () => widget.onOpen(u.ref)),
       if (_more)
         Align(
@@ -821,6 +842,22 @@ class _UseTile extends StatelessWidget {
   }
 }
 
+/// Says that this entry's definition is an optional download of its own, with a way to it.
+class _MiddleLiddellHint extends StatelessWidget {
+  final VoidCallback onGet;
+  const _MiddleLiddellHint({required this.onGet});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 4),
+    child: TextButton(
+      style: TextButton.styleFrom(padding: EdgeInsets.zero),
+      onPressed: onGet,
+      child: const Text("Download Middle Liddell's definitions in Settings"),
+    ),
+  );
+}
+
 /// Says what the complete Greek lexicon would add here, with a way to it.
 class _LexiconHint extends StatelessWidget {
   final VoidCallback onGet;
@@ -845,15 +882,29 @@ class _LexiconHint extends StatelessWidget {
 
 /// Whose words a Greek entry's definition is, or why there is none: the lexicon says so under the
 /// definition, and for an entry without one in its place.
-String definitionSourceLine(String source, bool hasDefinition) => switch (source) {
+String definitionSourceLine(String source, bool hasDefinition, {bool packInstalled = false}) =>
+    switch (source) {
   'AS' => 'Abbott-Smith (1922), corrected and adapted by Tyndale House scholars (STEPBible).',
+  'ML' when packInstalled =>
+    'Middle Liddell (An Intermediate Greek-English Lexicon), Perseus Digital Library, through the '
+        'STEPBible lexicon, under the Creative Commons Attribution-ShareAlike licence. Berea '
+        'removed the markup.',
   'ML' =>
     "This entry's definition is Middle Liddell's, from Perseus, under a share-alike licence, and "
         'is not in this download; only its gloss is shown.',
   _ => hasDefinition ? '' : "STEPBible gives no source for this entry's definition; only its gloss is shown.",
 };
 
+/// Whose words a Hebrew entry's definition is, when the database says: the Strong's Hebrew
+/// Dictionary the OpenScriptures project digitised. Nothing for the default Brown-Driver-Briggs
+/// abridgement, whose source line waits on decision 9.
+String hebrewSourceLine(String source) => source == 'OS'
+    ? "Strong's Hebrew Dictionary (1890), as digitised by the OpenScriptures project (CC BY 4.0)."
+    : '';
+
 /// The work a definition is from, for a kept word's source line.
-String definitionSourceName(String source) => source == 'AS'
-    ? 'Abbott-Smith (1922), corrected and adapted by Tyndale House scholars (STEPBible).'
-    : 'The STEPBible lexicon.';
+String definitionSourceName(String source) => switch (source) {
+  'AS' => 'Abbott-Smith (1922), corrected and adapted by Tyndale House scholars (STEPBible).',
+  'OS' => hebrewSourceLine(source),
+  _ => 'The STEPBible lexicon.',
+};

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Renders the small markdown subset the system prompt allows: headings, bullets, numbered
 /// lists, bold and italic. Everything else is a paragraph.

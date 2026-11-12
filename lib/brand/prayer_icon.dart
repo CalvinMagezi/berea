@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Folded hands for the Prayer place. The bundled Material icons have no praying hands, so it
 /// is drawn on the 24 unit icon grid and takes its colour and size from the icon theme.

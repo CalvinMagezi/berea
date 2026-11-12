@@ -1,6 +1,6 @@
 import 'package:berea/search_place_button.dart';
 import 'package:berea/theme.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> _pump(WidgetTester tester, {bool selected = false, VoidCallback? onPressed}) =>

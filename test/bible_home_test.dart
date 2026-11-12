@@ -6,7 +6,7 @@ import 'package:berea/theme.dart';
 import 'package:berea/today.dart';
 import 'package:berea/today_card.dart';
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

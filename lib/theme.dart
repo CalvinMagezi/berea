@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Design tokens. Light mode is parchment and ink with a lamp-gold accent (Psalm 119:105);
 /// dark mode is a lamp-lit study. Hex values live only in this file.

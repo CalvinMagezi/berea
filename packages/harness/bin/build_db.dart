@@ -52,6 +52,9 @@ const _stepLex = '$_step/Lexicons';
 const _hebrewMorphFile =
     'TEHMC%20-%20Translators%20Expansion%20of%20Hebrew%20Morphology%20Codes%20-%20STEPBible.org%20CC%20BY.txt';
 const _hebrewMorphSha256 = 'fe37e62b97e531410159e5f1b1ac8a69db4512c3e8407c03bae38639bd09f97f';
+const _greekMorphFile =
+    'TEGMC%20-%20Translators%20Expansion%20of%20Greek%20Morphhology%20Codes%20-%20STEPBible.org%20CC%20BY.txt';
+const _greekMorphSha256 = '9e8443fd4759f112253d7a1858c0687a8cf833f4d537e8fda97bfff74ea4c168';
 const _xrefs = 'https://a.openbible.info/data/cross-references.zip';
 const _xrefsSha256 = '19aafdf923275142d0849fb02c7d9965a8d1a9dafc691e9abbe146fa31895c73';
 const _web = 'https://ebible.org/Scriptures/engwebp_usfm.zip';
@@ -89,6 +92,10 @@ Future<void> main(List<String> args) async {
   for (var i = 0; i < args.length - 1; i++) {
     if (args[i] == '--out') out = args[i + 1];
     if (args[i] == '--cache') cache = args[i + 1];
+    if (args[i] == '--hebrew-lexicon') _hebrewLexiconChoice = args[i + 1];
+  }
+  if (!{'stepbible', 'openscriptures'}.contains(_hebrewLexiconChoice)) {
+    throw ArgumentError('--hebrew-lexicon is stepbible or openscriptures, not "$_hebrewLexiconChoice"');
   }
   Directory(cache).createSync(recursive: true);
   final bsb = parseBsbText(await _fetch(_bsb, '$cache/bsb.txt', pin: _bsbSha256));
@@ -139,6 +146,20 @@ Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
       pin: _hebrewMorphSha256,
     ),
   );
+  _loadGreekMorphology(
+    db,
+    await _fetch(
+      '$_step/Morphology%20codes/$_greekMorphFile',
+      '$cache/${Uri.decodeComponent(_greekMorphFile)}',
+      pin: _greekMorphSha256,
+    ),
+  );
+  if (_hebrewLexiconChoice == 'openscriptures') {
+    _hebrewDefinitions = _parseHebrewStrong(
+      await _fetch(_osHebrewStrong, '$cache/HebrewStrong.xml', pin: _osHebrewStrongSha256),
+    );
+    stdout.writeln('Hebrew meanings from the OpenScriptures lexicon: ${_hebrewDefinitions!.length} numbers');
+  }
   final tablesText = await _fetch(_bsbTables, '$cache/bsb_tables.tsv', pin: _bsbTablesSha256);
   final tables = parseBsbTables(tablesText);
   for (final MapEntry(key: f, value: sha) in stepTextFiles.entries) {
@@ -357,6 +378,64 @@ void _loadHebrewMorphology(Database db, String text) {
   stdout.writeln('hebrew morphology codes: $n');
 }
 
+/// Decision 9's fallback for the Hebrew meanings: Strong's Hebrew Dictionary as the OpenScriptures
+/// project digitised it (public domain text, file CC BY 4.0). Chosen with `--hebrew-lexicon
+/// openscriptures`; the default keeps the Online Bible's abridged Brown-Driver-Briggs from STEPBible.
+const _osCommit = '21c9add13bc727d3a951361778e97e3ff7afd1ce';
+const _osHebrewStrong =
+    'https://raw.githubusercontent.com/openscriptures/HebrewLexicon/$_osCommit/HebrewStrong.xml';
+const _osHebrewStrongSha256 = 'a628f4f89f8bdaf2483fd3faf1abc8653cc6717758dfc9f24beb7571d9bdd0c4';
+const hebrewSourceOpenScriptures = 'OS';
+Map<String, String>? _hebrewDefinitions;
+var _hebrewLexiconChoice = 'stepbible';
+
+final _xmlTag = RegExp(r'<[^>]+>');
+
+/// Each Strong's Hebrew number's meaning and the KJV renderings, as one plain definition.
+Map<String, String> _parseHebrewStrong(String xml) {
+  String plain(String s) => s
+      .replaceAll(_xmlTag, '')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll(_ws, ' ')
+      .trim();
+  final out = <String, String>{};
+  for (final m in RegExp(r'<entry id="H(\d+)">(.*?)</entry>', dotAll: true).allMatches(xml)) {
+    final body = m[2]!;
+    final meaning = RegExp(r'<meaning[^>]*>(.*?)</meaning>', dotAll: true).firstMatch(body)?[1];
+    final usage = RegExp(r'<usage[^>]*>(.*?)</usage>', dotAll: true).firstMatch(body)?[1];
+    final parts = [
+      if (meaning != null && plain(meaning).isNotEmpty) plain(meaning),
+      if (usage != null && plain(usage).isNotEmpty) 'Rendered in the KJV as: ${plain(usage)}',
+    ];
+    if (parts.isNotEmpty) out['H${m[1]!.padLeft(4, '0')}'] = parts.join('. ');
+  }
+  return out;
+}
+
+/// STEPBible's expansion of the Greek morphology codes: a code, then a line with its label
+/// ("Verb Aorist Active Indicative 3rd Singular"). Berea's hand tables of tense, voice and mood
+/// this replaces decoded fewer forms and carried no author.
+void _loadGreekMorphology(Database db, String text) {
+  db.execute('CREATE TABLE greek_morphology(code TEXT PRIMARY KEY, label TEXT) WITHOUT ROWID');
+  final stmt = db.prepare('INSERT OR IGNORE INTO greek_morphology VALUES (?, ?)');
+  final lines = text.split('\n');
+  var n = 0;
+  db.execute('BEGIN');
+  for (var i = 0; i + 1 < lines.length; i++) {
+    final head = RegExp(r'^([A-Z][A-Za-z0-9-]*)\t').firstMatch(lines[i]);
+    if (head == null) continue;
+    final label = RegExp(r'^\t([^\t]+?)\s*$').firstMatch(lines[i + 1].replaceAll('\r', ''));
+    if (label == null) continue;
+    stmt.execute([head[1], label[1]!.trim()]);
+    n++;
+  }
+  db.execute('COMMIT');
+  stmt.dispose();
+  stdout.writeln('greek morphology codes: $n');
+}
+
 /// STEPBible's extended Strong's numbers have five digits (G20447); cut to four they name another word.
 final _strongs = RegExp(r'[HG]\d{4,5}(?![0-9])[A-Za-z]?');
 
@@ -452,7 +531,6 @@ void _loadGreek(Database db, String text, Map<Ref, List<BsbRow>> tables) {
       if (row.code.isNotEmpty) row.code,
   };
   final chosen = <String, (int, int)>{};
-  final wanted = <String, bool>{};
   final groups = <String, List<({_StepRef r, List<String> c})>>{};
   for (final row in rows) {
     if (row.r.other == null) continue;
@@ -469,41 +547,10 @@ void _loadGreek(Database db, String text, Map<Ref, List<BsbRow>> tables) {
     final there = bsbCodes(first.book, other.$1, other.$2).intersection(mine).length;
     final move = there > here;
     chosen[e.key] = move ? other : (first.chapter, first.verse);
-    wanted[e.key] = move;
     stdout.writeln(
       '  greek ${bookById(first.book).name} ${first.chapter}:${first.verse} [${other.$1}:${other.$2}]: '
       '${move ? 'other' : 'first'} ($here vs $there Greek words shared with the BSB)',
     );
-  }
-  // A group may only move into a verse nobody else writes to: no rows of its own there, and no
-  // other group staying or arriving there. Phil 1:16 and 1:17 swap, so each is the other's.
-  final ownVerses = {
-    for (final row in rows)
-      if (row.r.other == null) '${row.r.book}:${row.r.chapter}:${row.r.verse}',
-  };
-  var changed = true;
-  while (changed) {
-    changed = false;
-    for (final e in groups.entries) {
-      if (wanted[e.key] != true) continue;
-      final first = e.value.first.r;
-      final target = '${first.book}:${chosen[e.key]!.$1}:${chosen[e.key]!.$2}';
-      final clash =
-          ownVerses.contains(target) ||
-          groups.entries.any((o) {
-            if (o.key == e.key) return false;
-            final f = o.value.first.r;
-            final at = chosen[o.key]!;
-            return '${f.book}:${at.$1}:${at.$2}' == target;
-          });
-      if (!clash) continue;
-      chosen[e.key] = (first.chapter, first.verse);
-      wanted[e.key] = false;
-      changed = true;
-      stdout.writeln(
-        '  greek ${bookById(first.book).name} ${first.chapter}:${first.verse} kept: the other verse already has its own words',
-      );
-    }
   }
   db.execute(
     'CREATE TABLE IF NOT EXISTS word_editions(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, '
@@ -513,20 +560,47 @@ void _loadGreek(Database db, String text, Map<Ref, List<BsbRow>> tables) {
   final stmt = db.prepare('INSERT INTO words VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
   db.execute('BEGIN');
   var n = 0;
+  // Each row goes to the verse chosen for it. Rows moved into a verse that has words of its own
+  // join them: words that move to a later verse are that verse's first words, words that move to
+  // an earlier one are its last, and the verse's positions are renumbered from 1 in that order.
+  final target = <({_StepRef r, List<String> c}), (int, int)>{};
+  final placed = <String, List<({_StepRef r, List<String> c})>>{};
+  final leading = <String, List<({_StepRef r, List<String> c})>>{};
+  final trailing = <String, List<({_StepRef r, List<String> c})>>{};
   for (final row in rows) {
-    final r = row.r, c = row.c;
-    var chapter = r.chapter, verse = r.verse;
-    if (r.other != null) (chapter, verse) = chosen['${r.book}:${r.chapter}:${r.verse}']!;
-    final paren = c[1].indexOf(' (');
-    final original = paren < 0 ? c[1].trim() : c[1].substring(0, paren).trim();
-    final translit = paren < 0 ? '' : c[1].substring(paren + 2).replaceAll(')', '').trim();
-    final eq = c[3].indexOf('=');
-    final strongs = _strongs.allMatches(c[3]).map((m) => m[0]!).join(' ');
-    final morph = eq < 0 ? '' : c[3].substring(eq + 1).trim();
-    final gloss = c[2].replaceFirst(_otherNumbering, '').trim();
-    stmt.execute([r.book, chapter, verse, r.pos, original, translit, gloss, strongs, morph]);
-    editions.execute([r.book, chapter, verse, r.pos, c.length > 5 ? c[5].trim() : '']);
-    n++;
+    final r = row.r;
+    final at = r.other == null ? (r.chapter, r.verse) : chosen['${r.book}:${r.chapter}:${r.verse}']!;
+    target[row] = at;
+    final key = '${r.book}:${at.$1}:${at.$2}';
+    final moved = at.$1 != r.chapter || at.$2 != r.verse;
+    if (!moved) {
+      placed.putIfAbsent(key, () => []).add(row);
+    } else if (at.$1 > r.chapter || (at.$1 == r.chapter && at.$2 > r.verse)) {
+      leading.putIfAbsent(key, () => []).add(row);
+    } else {
+      trailing.putIfAbsent(key, () => []).add(row);
+    }
+  }
+  final merged = {...leading.keys, ...trailing.keys};
+  for (final key in {...placed.keys, ...leading.keys, ...trailing.keys}) {
+    final own = placed[key] ?? [];
+    final ordered = [...?leading[key], ...own, ...?trailing[key]];
+    final renumber = merged.contains(key);
+    for (var i = 0; i < ordered.length; i++) {
+      final row = ordered[i];
+      final r = row.r, c = row.c, at = target[row]!;
+      final paren = c[1].indexOf(' (');
+      final original = paren < 0 ? c[1].trim() : c[1].substring(0, paren).trim();
+      final translit = paren < 0 ? '' : c[1].substring(paren + 2).replaceAll(')', '').trim();
+      final eq = c[3].indexOf('=');
+      final strongs = _strongs.allMatches(c[3]).map((m) => m[0]!).join(' ');
+      final morph = eq < 0 ? '' : c[3].substring(eq + 1).trim();
+      final gloss = c[2].replaceFirst(_otherNumbering, '').trim();
+      final pos = renumber ? i + 1 : r.pos;
+      stmt.execute([r.book, at.$1, at.$2, pos, original, translit, gloss, strongs, morph]);
+      editions.execute([r.book, at.$1, at.$2, pos, c.length > 5 ? c[5].trim() : '']);
+      n++;
+    }
   }
   db.execute('COMMIT');
   stmt.dispose();
@@ -536,7 +610,7 @@ void _loadGreek(Database db, String text, Map<Ref, List<BsbRow>> tables) {
 }
 
 /// STEPBible prefixes the first English word of such a verse with the other numbering: "{14.24} To Him".
-final _otherNumbering = RegExp(r'^[\[\{]\d+\.\d+[\]\}]\s*');
+final _otherNumbering = RegExp(r'^[\[\{]\d+(?:\.\d+)?[\]\}]\s*');
 
 /// The number without its letter suffix, as the BSB tables write it: G1234a is G1234.
 String _base(String code) => code.replaceAll(RegExp(r'[A-Za-z]$'), '');
@@ -576,6 +650,10 @@ void _loadLexicon(Database db, String text) {
     // Middle Liddell is share-alike and has its own file, and an entry with no stated source
     // keeps its gloss alone.
     var source = number.startsWith('H') ? hebrewSource : '';
+    if (number.startsWith('H') && _hebrewDefinitions != null) {
+      def = _hebrewDefinitions![base] ?? '';
+      source = hebrewSourceOpenScriptures;
+    }
     if (number.startsWith('G')) {
       final tag = _definitionSource.firstMatch(def);
       source = tag?[1] ?? '';
@@ -617,7 +695,7 @@ final _xrefRef = RegExp(r'^([1-3]?[A-Za-z]+)\.(\d+)\.(\d+)$');
 }
 
 void _loadXrefs(Database db, String text) {
-  final stmt = db.prepare('INSERT INTO xrefs VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  final stmt = db.prepare('INSERT INTO xrefs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   db.execute('BEGIN');
   var n = 0, skipped = 0;
   for (final line in text.split('\n').skip(1)) {
@@ -630,10 +708,11 @@ void _loadXrefs(Database db, String text) {
       skipped++;
       continue;
     }
-    var end = to.$3;
+    // A range may end in another chapter or book (Gen.11.32-Gen.12.1); its end is kept whole.
+    var end = to.$3, endBook = to.$1, endChapter = to.$2;
     if (range.length > 1) {
       final e = _xref(range[1]);
-      if (e != null && e.$1 == to.$1 && e.$2 == to.$2) end = e.$3;
+      if (e != null) (endBook, endChapter, end) = e;
     }
     stmt.execute([
       from.$1,
@@ -644,6 +723,8 @@ void _loadXrefs(Database db, String text) {
       to.$3,
       end,
       int.tryParse(c[2].trim()) ?? 0,
+      endBook,
+      endChapter,
     ]);
     n++;
   }

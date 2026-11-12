@@ -9,7 +9,7 @@ import 'package:berea/selection_bar.dart';
 import 'package:berea/theme.dart';
 import 'package:berea/today.dart';
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -206,7 +206,7 @@ void main() {
     await tester.drag(find.byType(SelectionBar), const Offset(-120, 0));
     await tester.pumpAndSettle();
     expect(find.text('Greek'), findsOneWidget, reason: 'the Words sheet for John 3:1');
-    expect(find.text('imperfect active indicative'), findsOneWidget, reason: 'Ēn, "was", parsed');
+    expect(find.text('Imperfect Active Indicative 3rd Singular'), findsOneWidget, reason: 'Ēn, "was", parsed');
     Navigator.of(tester.element(find.text('Greek'))).pop();
     await tester.pumpAndSettle();
 

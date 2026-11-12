@@ -1,9 +1,11 @@
+import 'dart:io';
+
 import 'package:berea/keep_sheet.dart';
 import 'package:berea/notebook_store.dart';
 import 'package:berea/study_store.dart';
 import 'package:berea/word_study_screen.dart';
 import 'package:berea_harness/berea_harness.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -468,5 +470,52 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(line), findsOneWidget, reason: code);
     }
+  });
+
+  test('a Hebrew entry from the OpenScriptures lexicon names it; the default names none', () {
+    expect(
+      hebrewSourceLine('OS'),
+      "Strong's Hebrew Dictionary (1890), as digitised by the OpenScriptures project (CC BY 4.0).",
+    );
+    expect(hebrewSourceLine('OB'), isEmpty);
+    expect(hebrewSourceLine(''), isEmpty);
+  });
+
+  testWidgets('a Middle Liddell entry shows its definition and credit once the pack is attached', (
+    tester,
+  ) async {
+    final db = wordBible();
+    db.db.execute('CREATE TABLE lexicon_source(key TEXT PRIMARY KEY, source TEXT, name_summary INTEGER)');
+    db.db.execute("INSERT INTO lexicon_source VALUES ('G5048', 'ML', 0)");
+    db.db.execute("UPDATE lexicon SET definition = '' WHERE key = 'G5048'");
+    final dir = Directory.systemTemp.createTempSync('berea-ml');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final pack = '${dir.path}/ml.sqlite';
+    sqlite3.open(pack)
+      ..execute('CREATE TABLE lexicon_ml(key TEXT PRIMARY KEY, base TEXT, definition TEXT)')
+      ..execute("INSERT INTO lexicon_ml VALUES ('G5048', 'G5048', 'to bring to an end, complete')")
+      ..dispose();
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+    Future<void> show() async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WordStudyScreen(key: UniqueKey(), db: db, code: 'G5048', onOpen: (_) {}, onGetLexicon: () {}),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text("Scholar's lexicon entry"));
+      await tester.pumpAndSettle();
+    }
+
+    await show();
+    expect(find.text("Download Middle Liddell's definitions in Settings"), findsOneWidget);
+    expect(find.text('to bring to an end, complete'), findsNothing);
+    db.attachMiddleLiddell(pack);
+    await show();
+    expect(find.text('to bring to an end, complete'), findsOneWidget);
+    expect(find.textContaining('Middle Liddell (An Intermediate Greek-English Lexicon)'), findsOneWidget);
+    expect(find.textContaining('Download Middle Liddell'), findsNothing);
   });
 }

@@ -6,7 +6,7 @@ import 'package:berea/home_shell.dart';
 import 'package:berea/licences.dart';
 import 'package:berea/notebook_store.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

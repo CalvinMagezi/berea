@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Asks before an action that cannot be taken back; true when the person confirms.
 Future<bool> confirmAction(BuildContext context, String title, String body, String action) async =>
