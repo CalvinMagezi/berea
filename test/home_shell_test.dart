@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
-import 'package:berea/bible_button.dart';
 import 'package:berea/home_shell.dart';
 import 'package:berea/notebooks_screen.dart';
 import 'package:berea/notes_screen.dart';
@@ -9,7 +8,7 @@ import 'package:berea/plans_screen.dart';
 import 'package:berea/prayer_pray_now.dart';
 import 'package:berea/prayer_screen.dart';
 import 'package:berea/reader_screen.dart';
-import 'package:berea/practice_screen.dart';
+import 'package:berea/search_place_button.dart';
 import 'package:berea/search_screen.dart';
 import 'package:berea/theme.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -28,8 +27,7 @@ const _shortPhoneHeight = 560.0;
 /// Over the shell's breakpoint, so the sidebar shows, but leaves the places too little room for
 /// two panes.
 const _narrowMac = Size(900, 800);
-const _places = ['Bible', 'Plans', 'Practice', 'Prayer', 'Notes'];
-const _barPlaces = ['Plans', 'Practice', 'Bible', 'Prayer', 'Notes'];
+const _places = ['Bible', 'Plans', 'Search', 'Prayer', 'Notes'];
 
 void main() {
   if (needsBibleText case final why?) {
@@ -79,35 +77,68 @@ void main() {
   testWidgets('the Bible is on screen in the first frame', (tester) async {
     await pumpShell(tester, _phone);
     expect(find.byType(ReaderScreen), findsOneWidget);
-    expect(find.byType(PracticeScreen), findsNothing, reason: 'Practice waits offstage');
+    expect(find.byType(SearchScreen), findsNothing, reason: 'Search waits offstage');
   });
 
-  testWidgets('the phone bar has five places in order, the Bible raised in the middle', (
+  testWidgets('the phone bar has five places, Bible first and Search raised in the middle', (
     tester,
   ) async {
     await pumpShell(tester, _phone);
-    final xs = [for (final p in _barPlaces) tester.getCenter(find.text(p).last).dx];
+    final xs = [for (final p in _places) tester.getCenter(find.text(p).last).dx];
     expect(xs, [...xs]..sort());
-    final bibleButton = tester.getRect(find.byType(BibleButton));
+    expect(xs.first, lessThan(_phone.width / 5), reason: 'Bible is the first place');
+    final search = tester.getRect(find.byType(SearchPlaceButton));
     final plans = tester.getRect(find.text('Plans').last);
-    expect(bibleButton.top, lessThan(plans.top - bibleButtonSize / 2), reason: 'the Bible is raised');
-    expect((bibleButton.center.dx - _phone.width / 2).abs(), lessThan(1));
+    expect(search.top, lessThan(plans.top - searchButtonSize / 2), reason: 'Search is raised');
+    expect((search.center.dx - _phone.width / 2).abs(), lessThan(1));
+    expect(find.text('Practice'), findsNothing, reason: 'there is no Practice place');
 
-    await tester.tap(find.text('Practice').last);
+    await tester.tap(find.byType(SearchPlaceButton));
     await tester.pump();
-    expect(find.byType(PracticeScreen), findsOneWidget);
+    expect(find.byType(SearchScreen), findsOneWidget);
     expect(find.byType(ReaderScreen), findsNothing);
 
-    await tester.tap(find.byType(BibleButton));
+    await tester.tap(find.text('Bible').last);
     await tester.pump();
     expect(find.byType(ReaderScreen), findsOneWidget);
+    expect(find.byType(SearchScreen), findsNothing);
+  });
+
+  testWidgets('the reader\'s search icon opens Search with the keyboard up', (tester) async {
+    await pumpShell(tester, _phone);
+    await tester.tap(find.byTooltip('Search'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SearchScreen), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus, isTrue);
+  });
+
+  testWidgets('a verse chosen in Search opens in the Bible, and Search keeps the query', (
+    tester,
+  ) async {
+    await pumpShell(tester, _phone);
+    await tester.tap(find.byType(SearchPlaceButton));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Romans 8');
+    await tester.pump(const Duration(milliseconds: 400));
+    // The search is still running behind the tap; its progress bar never settles.
+    await tester.tap(find.text('Go to Romans 8'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(ReaderScreen), findsOneWidget);
+    expect(state.readerBook, 45, reason: 'Romans');
+    expect(state.readerChapter, 8);
+
+    await tester.tap(find.byType(SearchPlaceButton));
+    await tester.pump();
+    await tester.pump();
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'Romans 8');
   });
 
   testWidgets('the bar hides under the keyboard', (tester) async {
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetViewInsets);
     await pumpShell(tester, _phone);
-    expect(find.byType(BibleButton), findsNothing);
+    expect(find.byType(SearchPlaceButton), findsNothing);
   });
 
   testWidgets('the Mac sidebar keeps the order, takes Cmd 1 to 5 and Cmd F', (
@@ -120,23 +151,24 @@ void main() {
     expect(tester.getSize(find.text('NOTEBOOKS')).width, greaterThan(0));
 
     final modifier = Platform.isMacOS ? LogicalKeyboardKey.meta : LogicalKeyboardKey.control;
-    await tester.sendKeyDownEvent(modifier);
-    await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
-    await tester.sendKeyUpEvent(modifier);
-    await tester.pump();
-    expect(find.byType(PracticeScreen), findsOneWidget);
+    Future<void> chord(LogicalKeyboardKey key) async {
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(key);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pump();
+    }
 
-    await tester.sendKeyDownEvent(modifier);
-    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
-    await tester.sendKeyUpEvent(modifier);
-    await tester.pump();
+    await chord(LogicalKeyboardKey.digit3);
+    expect(find.byType(SearchScreen), findsOneWidget, reason: 'Search is the third place');
+    // Leaving Search must leave the shortcuts working: focus goes back to the shell, not the route.
+    await chord(LogicalKeyboardKey.digit2);
+    expect(find.byType(PlansScreen), findsOneWidget);
+    await chord(LogicalKeyboardKey.digit1);
     expect(find.byType(ReaderScreen), findsOneWidget);
-
-    await tester.sendKeyDownEvent(modifier);
-    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
-    await tester.sendKeyUpEvent(modifier);
-    await tester.pumpAndSettle();
-    expect(find.byType(SearchScreen), findsOneWidget);
+    await chord(LogicalKeyboardKey.keyF);
+    expect(find.byType(SearchScreen), findsOneWidget, reason: 'F opens Search from anywhere');
+    await chord(LogicalKeyboardKey.digit1);
+    expect(find.byType(ReaderScreen), findsOneWidget);
   });
 
   testWidgets('Settings opens from the sidebar, from Cmd comma, and from each place', (
@@ -270,7 +302,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(NotebookScreen), findsOneWidget);
     // The bar stays under a notebook.
-    expect(find.byType(BibleButton), findsOneWidget);
+    expect(find.byType(SearchPlaceButton), findsOneWidget);
     state.notebooks.deleteNotebook(id);
   });
 

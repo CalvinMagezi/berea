@@ -386,6 +386,7 @@ void main() {
           r,
         );
       }
+      db.execute("INSERT INTO entries_fts(entries_fts) VALUES('rebuild')");
       db.dispose();
       return path;
     }
@@ -443,6 +444,98 @@ void main() {
       db.dispose();
       expect(CommentaryLibrary.packIdOf(path), 'wesley');
     });
+    group('search', () {
+      late CommentaryLibrary lib;
+      tearDown(() => lib.closeAll());
+
+      CommentaryLibrary opened(Map<String, List<List<Object>>> packs) {
+        final l = CommentaryLibrary();
+        for (final e in packs.entries) {
+          expect(l.open(e.key, pack(e.key, e.value)), isTrue);
+        }
+        return l;
+      }
+
+      test("lists each work's best comments in catalog order, and counts all of them", () {
+        lib = opened({
+          'core': [
+            ['JFB', 3, 1, 1, 1, 'The holy God made apart a people.'],
+            ['MHCC', 3, 11, 44, 45, 'Be ye holy; for I am holy. Holiness is the rule.'],
+            ['MHCC', 3, 19, 2, 2, 'Holy, because the LORD is holy.'],
+            ['MHCC', 40, 1, 18, 18, 'Nothing about this one.'],
+            ['TSK', 3, 20, 7, 7, 'sanctify'],
+          ],
+          'wesley': [
+            ['Wesley', 62, 1, 15, 16, 'As he which hath called you is holy, be ye holy.'],
+          ],
+        });
+        final found = lib.search('Holy');
+        expect(found.totals, {'JFB': 1, 'MHCC': 2, 'Wesley': 1});
+        expect(found.total, 4);
+        expect([for (final h in found.hits) h.module], ['MHCC', 'MHCC', 'JFB', 'Wesley']);
+        final wesley = found.hits.last;
+        expect((wesley.book, wesley.chapter, wesley.verseStart, wesley.verseEnd), (62, 1, 15, 16));
+      });
+
+      test('keeps only perModule comments from a work, and still counts the rest', () {
+        lib = opened({
+          'core': [
+            for (var v = 1; v <= 9; v++) ['MHCC', 1, 1, v, v, 'Verse $v is about light.'],
+          ],
+        });
+        final found = lib.search('light', perModule: 3);
+        expect(found.hits, hasLength(3));
+        expect(found.totals, {'MHCC': 9});
+      });
+
+      test('a form of the word matches and is marked, and the snippet is cut at word edges', () {
+        final filler = List.filled(60, 'plain words fill the space').join(' ');
+        lib = opened({
+          'core': [
+            ['MHCC', 3, 19, 2, 2, '$filler Holiness is the rule of the house. $filler'],
+          ],
+        });
+        final hit = lib.search('holy').hits.single;
+        expect(hit.snippet, startsWith('…'));
+        expect(hit.snippet, endsWith('…'));
+        expect(hit.snippet.length, lessThan(300));
+        expect([for (final (a, b) in hit.marks) hit.snippet.substring(a, b)], ['Holiness']);
+        expect(hit.snippet, isNot(contains('  ')));
+      });
+
+      test('a comment needs every word, and the exact phrase comes before the rest', () {
+        lib = opened({
+          'core': [
+            // Scores higher on its own (short, and the words repeat) but never says the phrase.
+            ['MHCC', 43, 14, 26, 26, 'Spirit. Holy, holy, holy.'],
+            ['MHCC', 44, 2, 4, 4, 'They were all filled with the Holy Spirit and spoke as given.'],
+            ['MHCC', 43, 1, 33, 33, 'Only the holy one is named here.'],
+          ],
+        });
+        final found = lib.search('holy spirit');
+        expect(found.totals, {'MHCC': 2}, reason: 'both words are needed');
+        expect(found.hits.first.book, 44, reason: 'the exact phrase comes first');
+      });
+
+      test('only function words run as a phrase, and one function word runs nothing', () {
+        lib = opened({
+          'core': [
+            ['MHCC', 1, 1, 1, 1, 'In the beginning of all things.'],
+            ['MHCC', 1, 1, 2, 2, 'The beginning was in a good way.'],
+          ],
+        });
+        expect(lib.search('in the').hits, hasLength(1));
+        expect(lib.search('the'), same(CommentarySearch.empty));
+        expect(lib.search('   ').hits, isEmpty);
+        expect(lib.search('zzzqqq').totals, isEmpty);
+      });
+
+      test('with no pack installed there is nothing to find', () {
+        lib = CommentaryLibrary();
+        expect(lib.search('holy').hits, isEmpty);
+      });
+    });
+
     test('refuses a pack whose tables are views, and skips rows with missing values', () {
       final viewPath = pack('view', const []);
       final v = sqlite3.open(viewPath)

@@ -2,6 +2,13 @@
 
 A plan, written 2026-11-10. Nothing in it is built.
 
+> **Update, 2026-11-11: Practice is dropped.** Release C1 removed the chat as planned, then put a
+> Practice place on the bar. That place is gone again: no Practice place, no Step through, sets or
+> recall ladder (section 7, the Practice items of sections 5, 11 and 12, Release C2, and decisions
+> 2 and 3 as they concern it). The bar is Bible first, then Plans, **Search raised in the middle**,
+> Prayer and Notes, in the sidebar too, and Cmd or Ctrl F opens Search. That replaces "the centre
+> button opens the Bible" and the bar order in section 5. The rest of the plan is as written.
+
 It answers one request: remove the chat, put the Bible in the centre, add a place called
 Practice built solely from Scripture, shrink the AI to something that never writes, and make word
 study, commentary per verse and study depth more exact, with no personal opinions or ideas

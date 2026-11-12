@@ -10,7 +10,7 @@ mkdir -p "$out/screenshots"
 cp -R "$root"/site/. "$out/"
 rm -f "$out/check/selftest.mjs" "$out/data/fixture.json"
 shots="$root/docs/screenshots/release-c"
-for name in bible plans search practice stepthrough; do
+for name in bible plans search; do
   cp "$shots/$name.png" "$out/screenshots/app-$name.png"
 done
 echo "site built at $out"

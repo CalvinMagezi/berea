@@ -30,13 +30,10 @@ void main() {
       ..execute('DROP INDEX notebooks_system_key')
       ..execute('ALTER TABLE notebooks DROP COLUMN system_key')
       ..execute('ALTER TABLE notes DROP COLUMN kind')
-      // Migrations 8 (provenance) and 9 (practice) came later still.
+      // Migration 8 (provenance) came later still.
       ..execute('ALTER TABLE notes DROP COLUMN provenance')
       ..execute('ALTER TABLE study_pages DROP COLUMN provenance')
       ..execute('ALTER TABLE notebook_sources DROP COLUMN provenance')
-      ..execute('DROP TABLE practice_sets')
-      ..execute('DROP TABLE practice_set_refs')
-      ..execute('DROP TABLE practice_items')
       // Migration 7 (prayer plans) came later still.
       ..execute('DROP TABLE prayer_plan_runs')
       ..execute('DROP TABLE prayer_plan_days')

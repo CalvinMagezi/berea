@@ -11,8 +11,14 @@ const commentaryPreviewChars = 1200;
 const _sheetHeight = 0.85;
 
 /// What the installed public domain commentaries say on [ref], each under its title, author
-/// and licence. Book and chapter introductions are folded away at the end.
-Future<void> showCommentary(BuildContext context, AppState s, Ref ref) {
+/// and licence. Book and chapter introductions are folded away at the end, open when
+/// [openIntroductions] says the reader came for one.
+Future<void> showCommentary(
+  BuildContext context,
+  AppState s,
+  Ref ref, {
+  bool openIntroductions = false,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -23,6 +29,7 @@ Future<void> showCommentary(BuildContext context, AppState s, Ref ref) {
       child: CommentaryPanel(
         library: s.commentary.library,
         passage: ref,
+        openIntroductions: openIntroductions,
         onKeep: (title, body, verse) =>
             showKeepSheet(ctx, s, title: title, body: body, verse: verse),
       ),
@@ -39,7 +46,16 @@ class CommentaryPanel extends StatelessWidget {
 
   /// Null hides Keep on each comment.
   final KeepComment? onKeep;
-  const CommentaryPanel({super.key, required this.library, required this.passage, this.onKeep});
+
+  /// Shows the introductions open, for a reader who came to one.
+  final bool openIntroductions;
+  const CommentaryPanel({
+    super.key,
+    required this.library,
+    required this.passage,
+    this.onKeep,
+    this.openIntroductions = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -91,6 +107,7 @@ class CommentaryPanel extends StatelessWidget {
                 if (intros.isNotEmpty)
                   ExpansionTile(
                     tilePadding: EdgeInsets.zero,
+                    initiallyExpanded: openIntroductions,
                     title: const Text('Introductions'),
                     children: [
                       for (final e in intros) ...[

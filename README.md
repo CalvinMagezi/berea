@@ -36,6 +36,12 @@ words, verses with some of them, one group for every Hebrew or Greek word STEPBi
 glosses with your word, and the headings the BSB's publisher printed. A word no verse has comes
 back with the words one letter away. Each group says how its verses were found.
 
+Search also looks past the verses. A word or short phrase lists the Hebrew and Greek words behind
+it (found through STEPBible's glosses and the lexicon, most used first, each saying why it is
+listed) and, from the commentary packs you have installed, the best comments of each work with the
+words marked. A Strong's number (G26) or a spelling in English letters (hagios) finds the word
+itself.
+
 **Word study.** Long-press a word in the reader for the Hebrew or Greek word behind it (τέλειος,
 teleios, G5046): its lexicon entry, how often it is used and in which books, how STEPBible glosses
 it, and every verse that uses it, with the English words that render it marked. In the BSB the
@@ -51,9 +57,6 @@ licence. The packs are optional public domain downloads.
 **Plans.** Bible in a year, New Testament in 90 days, the Gospels in 30, Psalms and Proverbs in
 60. Today's reading, and the first verse of it, sit on the Bible. A plan ticks chapters, not
 days, and never counts a streak.
-
-**Practice.** Things Berea can do with a passage you choose: step through it a verse at a time,
-and keep sets of passages. Berea chose these mechanics; it is not a list of what Scripture asks.
 
 **Prayer.** A prayer list of your own, and prayer points tied to verses. Each point shows the verse
 whole first, then the line, labelled as written for Berea with a language model.
@@ -72,11 +75,11 @@ restore: their notes come back labelled, and the chat they hold is not kept.
 
 ```mermaid
 flowchart LR
-  UI[Flutter app<br/>Bible · Plans · Practice · Prayer · Notes] --> H[Harness<br/>pure Dart]
+  UI[Flutter app<br/>Bible · Plans · Search · Prayer · Notes] --> H[Harness<br/>pure Dart]
   H --> RP[RefParser]
   H --> CG[CitationGuard]
   H --> DB[(berea.sqlite<br/>BSB · KJV · WEB · STEPBible words and lexicon · cross references · FTS5)]
-  UI --> S[(study.sqlite<br/>notes · highlights · practice sets · notebooks · prayers)]
+  UI --> S[(study.sqlite<br/>notes · highlights · notebooks · prayers)]
 ```
 
 The harness is a plain Dart package: the reference parser, the Bible database and its search, word
@@ -232,11 +235,11 @@ releases with `--latest` and data releases (such as `lexicon-1` and `commentary-
 ```
 lib/
   main.dart            boots the app
-  home_shell.dart      the five places, the phone bar with the raised Bible button, the sidebar
-  bible_button.dart    the Berea mark in a Night circle
+  home_shell.dart      the five places, the phone bar with the raised Search button, the sidebar
+  search_place_button.dart  the Berea mark in a Night circle
   reader_screen.dart   offline reader, parallel text, selection bar, chapter picker
-  search_screen.dart   grouped Bible search on its own isolate
-  practice_screen.dart, practice_store.dart  the Practice place and its sets
+  search_screen.dart   the Search place: verses, the words behind a word, and commentary, each on
+                       its own isolate
   interlinear_sheet.dart  Hebrew and Greek words with lexicon entries
   word_study_screen.dart  a word's use, renderings and every verse
   commentary_sheet.dart, commentary_packs.dart  commentary, and the optional packs
