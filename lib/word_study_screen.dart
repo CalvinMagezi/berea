@@ -202,6 +202,10 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   String? _code;
   LexEntry? _entry;
 
+  /// Every entry under the number, when the study was opened by the number alone and STEPBible
+  /// keeps more than one; no entry is the study's own until the reader picks one.
+  List<LexEntry> _entries = const [];
+
   /// The entry's definition in plain words, without the gloss itself; see [plainSenses].
   List<String> _senses = const [];
   ({int uses, int verses}) _count = (uses: 0, verses: 0);
@@ -259,8 +263,12 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   }
 
   /// Loads everything about [code] once, so building the screen reads no SQL.
-  void _study(String code, [LexEntry? entry]) {
+  void _study(String code, [LexEntry? entry, bool keepEntries = false]) {
     _code = code;
+    if (!keepEntries) {
+      final all = entry == null ? widget.db.lexiconEntries(code) : const <LexEntry>[];
+      _entries = all.length > 1 ? all : const [];
+    }
     _entry = entry ?? widget.db.lexicon(code);
     _senses = [
       for (final sense in plainSenses(_entry?.definition ?? ''))
@@ -386,6 +394,9 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   /// The form of the word as this verse prints it, without accents; empty from another word's study.
   String get _hereForm => _tag == null ? '' : cleanOriginal(_tag!.original);
 
+  /// The letter STEPBible adds to a number to tell its entries apart (G, H, I), or a dash for none.
+  static String _entryLetter(String key) => RegExp(r'[A-Za-z]$').hasMatch(key) ? key.substring(key.length - 1) : '-';
+
   List<Widget> _header(ColorScheme scheme) {
     final e = _entry;
     final lemma = e?.lemma ?? _hereForm;
@@ -405,6 +416,26 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
         ].join(' · '),
         style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
       ),
+      if (_entries.length > 1) ...[
+        const SizedBox(height: 12),
+        Text(
+          "STEPBible lists ${_entries.length} entries under $_code. Choose one:",
+          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final o in _entries)
+              ChoiceChip(
+                label: Text([_entryLetter(o.key), o.gloss].join(' · ')),
+                selected: o.key == e?.key,
+                onSelected: (_) => setState(() => _study(_code!, o, true)),
+              ),
+          ],
+        ),
+      ],
       const SizedBox(height: 16),
       if (e != null)
         Wrap(
