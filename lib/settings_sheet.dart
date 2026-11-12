@@ -285,6 +285,20 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 items: [for (final t in translations) DropdownMenuItem(value: t, child: Text(t))],
                 onChanged: (t) => setState(() => draft = draft.copyWith(translation: t)),
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Red letters'),
+                subtitle: const Text('The BSB publisher marks the words of Jesus.'),
+                value: draft.redLetters,
+                onChanged: (on) => setState(() => draft = draft.copyWith(redLetters: on)),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Supplied words in italics'),
+                subtitle: const Text('Words the BSB translators added so the English reads well.'),
+                value: draft.suppliedWords,
+                onChanged: (on) => setState(() => draft = draft.copyWith(suppliedWords: on)),
+              ),
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
