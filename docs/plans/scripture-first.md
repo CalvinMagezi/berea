@@ -1035,7 +1035,7 @@ offered. Book names in the reference parser; search on the text.
   because the database build strips them today (`importers.dart:57,61`).
   Measured 2026-11-12 on the publisher's `bsb_tables.tsv` (not the USFM, which has no words-of-Jesus
   or supplied-word markers): 31,100 of 31,102 verses carry the same words as `bsb.txt`; Exodus 38:28
-  and Judges 16:14 differ and get no marks. 2,094 red runs in 1,969 verses, 18,485 supplied runs (a
+  and Judges 16:14 differ and get no marks. 2,172 red runs in 2,047 verses, 18,485 supplied runs (a
   run is words in a row; the 2,302 and 19,771 above counted differently), 4,852 footnotes in 4,312
   verses (4,854 and 4,314 including the two verses left out).
 - E2 (6 to 8 weeks): section 9 phases 1 and 2, with plain senses leaving in the same merge that
