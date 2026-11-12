@@ -410,7 +410,7 @@ class TodayPrayerCard extends StatelessWidget {
         children: [
           PrayerLabel("Today's prayer · ${prayer.source}"),
           const SizedBox(height: 8),
-          Text(prayer.point.text, style: scriptureStyle(context).copyWith(fontSize: 18)),
+          Text(prayer.point.text, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Row(
             children: [

@@ -106,18 +106,20 @@ void main() {
     word(1, 'G0001', 'NA28+NA27+TR+Byz');
     word(2, 'G0001', 'TR+Byz');
     word(3, 'G0001', 'NA28+Tyn');
+    // A word in every printed text has no row at all.
+    raw.execute("INSERT INTO words VALUES (43, 1, 4, 1, 'x', 'x', 'g', 'G0001', 'm')");
     raw.execute("INSERT INTO words VALUES (1, 1, 1, 1, 'y', 'y', 'g', 'H0001', 'm')");
     final db = BibleDb(raw)..buildWordIndex();
     final greek = db.wordCountsByText('G0001');
     expect(greek.map((t) => (t.text, t.uses, t.verses)), [
-      (greekMainTextName, 2, 2),
-      (greekReceivedTextName, 2, 2),
+      (greekMainTextName, 3, 3),
+      (greekReceivedTextName, 3, 3),
     ]);
     expect(db.wordCountsByText('H0001').single.text, hebrewTextName);
     expect(db.mainTextFor('G0001'), greekMainTextName);
-    expect(db.wordCount('G0001').uses, 3, reason: 'the plain count still has every printed row');
-    expect(db.wordBooks('G0001').map((b) => b.$2), [2], reason: 'the lists use the headline text');
-    expect(db.wordGlosses('G0001').single.$2, 2);
+    expect(db.wordCount('G0001').uses, 4, reason: 'the plain count still has every printed row');
+    expect(db.wordBooks('G0001').map((b) => b.$2), [3], reason: 'the lists use the headline text');
+    expect(db.wordGlosses('G0001').single.$2, 3);
   });
 
   test("Hebrew and Aramaic parsing is STEPBible's own label for the verb part of the code", () {
@@ -217,5 +219,23 @@ void main() {
       ..execute('CREATE TABLE x(a)')
       ..dispose();
     expect(db.attachMiddleLiddell(notAPack), isFalse);
+  });
+
+  test('each verse the BSB leaves empty resolves to the footnote that prints it, in the built Bible', () {
+    final file = File('../../assets/berea.sqlite');
+    if (!file.existsSync()) return;
+    final db = BibleDb(sqlite3.open(file.path, mode: OpenMode.readOnly));
+    final empty = db.db.select(
+      "SELECT book, chapter, verse FROM verses WHERE translation = 'BSB' AND trim(text) = ''",
+    );
+    // Sixteen on 2026-11-12 (Matthew 17:21 and Acts 8:37 among them); a BSB-only CI database may
+    // hold fewer rows, so the count is checked only against a database that has the footnotes.
+    final withNotes = db.db.select("SELECT 1 FROM sqlite_master WHERE name = 'footnotes'").isNotEmpty;
+    if (!withNotes) return;
+    expect(empty, hasLength(16));
+    for (final r in empty) {
+      final note = db.emptyVerseNote(r['book'] as int, r['chapter'] as int, r['verse'] as int);
+      expect(note, isNotNull, reason: '${bookById(r['book'] as int).name} ${r['chapter']}:${r['verse']}');
+    }
   });
 }

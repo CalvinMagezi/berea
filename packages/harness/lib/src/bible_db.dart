@@ -1565,8 +1565,11 @@ class BibleDb {
   /// SQL that keeps the word_index rows of a Greek number that stand in the printed text [edition]
   /// (NA28 or TR); STEPBible lists, for every Greek word, the editions that contain it.
   String _inEdition(String edition) =>
-      "EXISTS (SELECT 1 FROM word_editions e WHERE e.book = i.book AND e.chapter = i.chapter "
-      "AND e.verse = i.verse AND e.pos = i.pos AND '+' || e.editions || '+' LIKE '%+$edition+%')";
+      // A word with no row is in every printed text (the build stores only the words that differ).
+      "(NOT EXISTS (SELECT 1 FROM word_editions e WHERE e.book = i.book AND e.chapter = i.chapter "
+      "AND e.verse = i.verse AND e.pos = i.pos) OR EXISTS (SELECT 1 FROM word_editions e "
+      "WHERE e.book = i.book AND e.chapter = i.chapter AND e.verse = i.verse AND e.pos = i.pos "
+      "AND '+' || e.editions || '+' LIKE '%+$edition+%'))";
 
   ({int uses, int verses, int books}) _countWhere(String code, String extra) {
     final r = db.select(

@@ -401,7 +401,7 @@ class _PrayNowViewState extends State<PrayNowView> {
             children: [
               PrayerLabel(step.label),
               const SizedBox(height: 6),
-              Text(step.point.text, style: scriptureStyle(context).copyWith(fontSize: 22)),
+              Text(step.point.text, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
               PrayerLabel('${step.point.ref} · ${widget.translation()}'),
               if (verse.isNotEmpty) ...[
