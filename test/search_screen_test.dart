@@ -97,6 +97,10 @@ void main() {
     // The full database tags thousands of words; the counts asserted here assume only these three.
     raw.execute('DELETE FROM words');
     raw.execute('DELETE FROM lexicon');
+    // The BSB's renderings of these numbers would push the lines under test off screen.
+    if (raw.select("SELECT 1 FROM sqlite_master WHERE name = 'bsb_renderings'").isNotEmpty) {
+      raw.execute('DELETE FROM bsb_renderings');
+    }
     void word(int book, int chapter, int verse, String original, String translit, String strongs) =>
         raw.execute('INSERT OR IGNORE INTO words VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)', [
           book,
