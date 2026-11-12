@@ -133,4 +133,15 @@ void main() {
     final result = db.searchResult('xqzv jeus');
     expect(result.spelling?.word, 'jeus');
   });
+
+  test('a phrase found inside a verse lists the whole verse, never the phrase alone (Psalm 14:1, 53:1)', () {
+    final exact = group(db.searchVerses('There is no God'), 'Exact words');
+    for (final label in ['Psalms 14:1', 'Psalms 53:1']) {
+      final hit = exact.verses.firstWhere((v) => v.label == label, orElse: () => throw 'no $label');
+      final whole = db.passage(RefParser.parse(label).first).single.text;
+      expect(hit.text, whole, reason: '$label is listed with all its words');
+      expect(hit.text.length, greaterThan('There is no God.'.length));
+      expect(hit.text, contains('The fool says in his heart'));
+    }
+  });
 }

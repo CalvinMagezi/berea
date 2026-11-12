@@ -598,7 +598,9 @@ void _loadGreek(Database db, String text, Map<Ref, List<BsbRow>> tables) {
       final gloss = c[2].replaceFirst(_otherNumbering, '').trim();
       final pos = renumber ? i + 1 : r.pos;
       stmt.execute([r.book, at.$1, at.$2, pos, original, translit, gloss, strongs, morph]);
-      editions.execute([r.book, at.$1, at.$2, pos, c.length > 5 ? c[5].trim() : '']);
+      // Only a word that is missing from some printed text gets a row; the rest are in all of them.
+      final printed = c.length > 5 ? c[5].trim() : '';
+      if (printed != _allEditions) editions.execute([r.book, at.$1, at.$2, pos, printed]);
       n++;
     }
   }
@@ -619,6 +621,8 @@ String _base(String code) => code.replaceAll(RegExp(r'[A-Za-z]$'), '');
 const hebrewSource = 'OB';
 const _nameSummaryMark = '§';
 final _definitionSource = RegExp(r'\((AS|ML)\)\s*$');
+/// The editions STEPBible lists for a word found in every one of them.
+const _allEditions = 'NA28+NA27+Tyn+SBL+WH+Treg+TR+Byz';
 final _fiveDigits = RegExp(r'^[HG]\d{5}');
 final _lexRow = RegExp(r'^[HG]\d{4,5}[a-z]?\t');
 final _tag = RegExp(r'<[^>]+>');

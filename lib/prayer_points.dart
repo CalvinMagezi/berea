@@ -4,7 +4,6 @@ import 'package:material_ui/material_ui.dart';
 import 'app_state.dart';
 import 'prayer_sheet.dart';
 import 'prayer_store.dart';
-import 'theme.dart';
 
 const _pagePadding = 16.0;
 const _numberSize = 28.0;
@@ -58,7 +57,7 @@ class PointTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(point.text, style: scriptureStyle(context).copyWith(fontSize: 17)),
+                Text(point.text, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
                 VerseChip(point.ref),
               ],

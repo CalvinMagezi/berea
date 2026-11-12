@@ -19,6 +19,7 @@ jobs:
       # Berea writes nothing and runs no model; see tool/guard_no_model.sh.
       - run: bash tool/guard_no_model.sh
       - run: python3 tool/guard_strings.py
+      - run: python3 tool/guard_scripture_type.py
       - run: dart analyze --fatal-infos
         working-directory: packages/harness
       - run: dart run bin/build_bsb_only_db.dart --out ../../assets/berea.sqlite

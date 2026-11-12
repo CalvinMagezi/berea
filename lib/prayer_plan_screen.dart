@@ -153,8 +153,10 @@ class _PrayerPlanScreenState extends State<PrayerPlanScreen> {
                   const SizedBox(height: 6),
                   Text(
                     day.title,
-                    style: scriptureStyle(context)
-                        .copyWith(fontSize: 26, fontWeight: FontWeight.w700),
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   if (verse.isNotEmpty) ...[
                     const SizedBox(height: 8),
