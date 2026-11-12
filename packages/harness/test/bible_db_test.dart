@@ -87,4 +87,50 @@ void main() {
     expect(db.bsbRenderings('G0001'), isEmpty);
     expect(BibleDb(sqlite3.openInMemory()).bsbRenderings('H7307'), isEmpty);
   });
+
+  test('word counts name the printed text, and Greek gives the Nestlé-Aland and the Received Text', () {
+    final raw = sqlite3.openInMemory()
+      ..execute('''
+        CREATE TABLE words(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER, original TEXT,
+          translit TEXT, gloss TEXT, strongs TEXT, morph TEXT, PRIMARY KEY(book, chapter, verse, pos));
+        CREATE TABLE word_editions(book INTEGER, chapter INTEGER, verse INTEGER, pos INTEGER,
+          editions TEXT, PRIMARY KEY(book, chapter, verse, pos));
+        CREATE TABLE lexicon(key TEXT, base TEXT, lemma TEXT, translit TEXT, pos TEXT, gloss TEXT,
+          definition TEXT);
+      ''');
+    void word(int verse, String strongs, String editions) {
+      raw.execute("INSERT INTO words VALUES (43, 1, ?, 1, 'x', 'x', 'g', ?, 'm')", [verse, strongs]);
+      raw.execute('INSERT INTO word_editions VALUES (43, 1, ?, 1, ?)', [verse, editions]);
+    }
+
+    word(1, 'G0001', 'NA28+NA27+TR+Byz');
+    word(2, 'G0001', 'TR+Byz');
+    word(3, 'G0001', 'NA28+Tyn');
+    raw.execute("INSERT INTO words VALUES (1, 1, 1, 1, 'y', 'y', 'g', 'H0001', 'm')");
+    final db = BibleDb(raw)..buildWordIndex();
+    final greek = db.wordCountsByText('G0001');
+    expect(greek.map((t) => (t.text, t.uses, t.verses)), [
+      (greekMainTextName, 2, 2),
+      (greekReceivedTextName, 2, 2),
+    ]);
+    expect(db.wordCountsByText('H0001').single.text, hebrewTextName);
+    expect(db.mainTextFor('G0001'), greekMainTextName);
+    expect(db.wordCount('G0001').uses, 3, reason: 'the plain count still has every printed row');
+  });
+
+  test("Hebrew and Aramaic parsing is STEPBible's own label for the verb part of the code", () {
+    final raw = sqlite3.openInMemory()
+      ..execute('CREATE TABLE hebrew_morphology(code TEXT PRIMARY KEY, label TEXT) WITHOUT ROWID')
+      ..execute("INSERT INTO hebrew_morphology VALUES ('HVhaa', 'Verb : Hiphil (Causative/declarative, Active) Infinitive Absolute')")
+      ..execute("INSERT INTO hebrew_morphology VALUES ('AVqp3ms', 'Verb : Peal (Simple, Active) Perfect (Past/present Indicative) Third Singular Masculine')")
+      ..execute("INSERT INTO hebrew_morphology VALUES ('HVqrmsc', 'Verb : Qal (Simple, Active) Participle Active Masculine Singular Construct')");
+    final db = BibleDb(raw);
+    expect(db.hebrewParsing('HVhaa'), 'Hiphil (Causative/declarative, Active) Infinitive Absolute');
+    expect(db.hebrewParsing('AC/Vqp3ms'), startsWith('Peal'), reason: 'Aramaic keeps its own stem names');
+    expect(db.hebrewParsing('HVqrmsc/Sp1bs'), startsWith('Qal'));
+    expect(db.hebrewParsing('HNcmsa'), isNull);
+    expect(db.hebrewParsing('HVzz'), isNull, reason: 'a code the table lacks is not guessed');
+    expect(db.hebrewParsing('V-AAI-3S'), isNull);
+    expect(BibleDb(sqlite3.openInMemory()).hebrewParsing('HVhaa'), isNull);
+  });
 }

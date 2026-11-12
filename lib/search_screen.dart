@@ -628,7 +628,7 @@ class _WordTile extends StatelessWidget {
           if (e.gloss.isNotEmpty) Text(e.gloss, style: TextStyle(color: scheme.onSurface)),
           Text(
             '${match.language} · ${match.code} · used ${_plural(match.uses, 'time')} in '
-            '${_plural(match.verses, 'verse')} · $_why',
+            '${_plural(match.verses, 'verse')}${match.text == null ? '' : ' of ${match.text}'} · $_why',
             style: muted,
           ),
         ],

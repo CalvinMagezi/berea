@@ -441,13 +441,14 @@ void main() {
 
   testWidgets('a Greek entry says whose definition it shows, or why it shows none', (tester) async {
     final db = wordBible();
-    db.db.execute('CREATE TABLE lexicon_source(key TEXT PRIMARY KEY, source TEXT)');
+    db.db.execute('CREATE TABLE lexicon_source(key TEXT PRIMARY KEY, source TEXT, name_summary INTEGER)');
     for (final (key, source, definition) in [
       ('G5046', 'AS', 'having reached its end, mature'),
       ('G5048', 'ML', ''),
       ('G3962', '', ''),
+      ('G1006', '', ''),
     ]) {
-      db.db.execute('INSERT INTO lexicon_source VALUES (?, ?)', [key, source]);
+      db.db.execute('INSERT INTO lexicon_source VALUES (?, ?, ?)', [key, source, key == 'G3962' ? 1 : 0]);
       db.db.execute('UPDATE lexicon SET definition = ? WHERE key = ?', [definition, key]);
     }
     expect(db.lexicon('G5046')!.source, 'AS');
@@ -458,7 +459,8 @@ void main() {
     for (final (code, line) in [
       ('G5046', 'Abbott-Smith (1922), corrected and adapted by Tyndale House scholars (STEPBible).'),
       ('G5048', "This entry's definition is Middle Liddell's, from Perseus, under a share-alike licence, and is not in this download; only its gloss is shown."),
-      ('G3962', "STEPBible gives no source for this entry's definition; only its gloss is shown."),
+      ('G3962', "STEPBible's summary sentence for this name is not shown."),
+      ('G1006', "STEPBible gives no source for this entry's definition; only its gloss is shown."),
     ]) {
       await tester.pumpWidget(MaterialApp(home: WordStudyScreen(key: ValueKey(code), db: db, code: code, onOpen: (_) {})));
       await tester.pumpAndSettle();

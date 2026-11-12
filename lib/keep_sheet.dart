@@ -10,6 +10,9 @@ import 'theme.dart';
 /// A kept word's body names its Strong's number on a line of its own, for the reader.
 const keptWordMarker = "Strong's";
 
+/// Starts the line of a kept word that says whose words it holds.
+const keptSourceMarker = 'Source:';
+
 bool isKeptWord(Note n) => n.isKeptWord;
 
 /// The notebook something was last kept in, offered first the next time.
@@ -23,8 +26,10 @@ String keptWordBody({
   String language = '',
   Ref? from,
   String translation = '',
+  String source = '',
 }) => [
   if (meaning.isNotEmpty) meaning,
+  if (source.isNotEmpty) '$keptSourceMarker $source',
   [
     '$keptWordMarker $code',
     if (translit.isNotEmpty) translit,

@@ -32,6 +32,7 @@ Future<int> makeSectionNotebook(AppState s, Ref ref, String heading) async {
       keptWordBody(
         code: code,
         meaning: _plainMeaning(e),
+        source: "STEPBible's gloss.",
         translit: e.translit,
         language: languageOf(code),
         from: k.firstUse,

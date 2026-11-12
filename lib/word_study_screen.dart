@@ -213,6 +213,9 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   List<({String english, int count})> _renderings = const [];
   ({int uses, int verses}) _count = (uses: 0, verses: 0);
   List<(Book, int)> _books = const [];
+
+  /// The counts in each printed text that has the word; empty when the database names none.
+  List<({String text, int uses, int verses, int books})> _texts = const [];
   List<(String, int)> _glosses = const [];
   Book? _book;
   final _uses = <WordUse>[];
@@ -274,6 +277,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     _renderings = widget.db.bsbRenderings(code);
     _count = widget.db.wordCount(code);
     _books = widget.db.wordBooks(code);
+    _texts = widget.db.wordCountsByText(code);
     _glosses = widget.db.wordGlosses(code);
     _book = null;
     _uses.clear();
@@ -522,8 +526,9 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     final full = greek ? widget.db.fullLexicon(_entry?.key ?? _code!) : null;
     final get = full == null && greek && !widget.db.hasFullLexicon ? widget.onGetLexicon : null;
     final named = greek && _entry != null ? definitionSourceLine(_entry!.source, definition.isNotEmpty) : '';
+    final nameCut = _entry?.nameSummary ?? false;
     final gloss = _entry?.gloss ?? '';
-    if (definition.isEmpty && full == null && get == null && named.isEmpty && gloss.isEmpty) {
+    if (definition.isEmpty && full == null && get == null && named.isEmpty && gloss.isEmpty && !nameCut) {
       return const [];
     }
     return [
@@ -543,6 +548,14 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
             ),
           if (definition.isNotEmpty)
             SelectableText(definition, style: const TextStyle(height: 1.5)),
+          if (nameCut)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                "STEPBible's summary sentence for this name is not shown.",
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, height: 1.4),
+              ),
+            ),
           if (named.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -571,6 +584,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
       body: keptWordBody(
         code: _code!,
         meaning: e.definition.isEmpty ? e.gloss : e.definition,
+        source: e.definition.isEmpty ? "STEPBible's gloss." : definitionSourceName(e.source),
         translit: e.translit,
         language: _language,
         from: from,
@@ -583,6 +597,23 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
       ].join(' · '),
       verse: from,
     );
+  }
+
+  /// How often the word is used, each count naming the printed text it is taken from. Greek in
+  /// two texts that agree says so once; texts that differ each get a line.
+  List<String> get _usageLines {
+    if (_count.uses == 0) return const ['Not found anywhere else in the tagged text.'];
+    String count(({String text, int uses, int verses, int books}) t) =>
+        '${_times(t.uses)} in ${_plural(t.verses, 'verse')} across ${_plural(t.books, 'book')}';
+    if (_texts.isEmpty) {
+      return ['You will find it ${count((text: '', uses: _count.uses, verses: _count.verses, books: _books.length))}.'];
+    }
+    if (_texts.length == 1) return ['You will find it ${count(_texts.single)} in ${_texts.single.text}.'];
+    final a = _texts.first, b = _texts.last;
+    if (a.uses == b.uses && a.verses == b.verses && a.books == b.books) {
+      return ['You will find it ${count(a)}, the same in ${a.text} and in ${b.text}.'];
+    }
+    return [for (final t in _texts) 'In ${t.text}: ${count(t)}.'];
   }
 
   /// The original words of the verse, so a wrong guess is one tap from the right word.
@@ -639,12 +670,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
       const SizedBox(height: 24),
       Text('How it is used', style: _sectionTitle(scheme)),
       const SizedBox(height: 6),
-      Text(
-        _count.uses == 0
-            ? 'Not found anywhere else in the tagged text.'
-            : 'You will find it ${_times(_count.uses)} in ${_plural(_count.verses, 'verse')} '
-                  'across ${_plural(_books.length, 'book')}.',
-      ),
+      for (final line in _usageLines) Text(line),
       if (_glosses.isNotEmpty) ...[
         const SizedBox(height: 10),
         Text("STEPBible's glosses", style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
@@ -826,3 +852,8 @@ String definitionSourceLine(String source, bool hasDefinition) => switch (source
         'is not in this download; only its gloss is shown.',
   _ => hasDefinition ? '' : "STEPBible gives no source for this entry's definition; only its gloss is shown.",
 };
+
+/// The work a definition is from, for a kept word's source line.
+String definitionSourceName(String source) => source == 'AS'
+    ? 'Abbott-Smith (1922), corrected and adapted by Tyndale House scholars (STEPBible).'
+    : 'The STEPBible lexicon.';

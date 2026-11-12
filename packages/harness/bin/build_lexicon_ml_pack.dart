@@ -36,6 +36,8 @@ Future<void> main(List<String> args) async {
     var def = c[7].replaceAll(_tag, ' ').replaceAll(_ws, ' ').trim();
     if (!_source.hasMatch(def)) continue;
     def = def.replaceFirst(_source, '').replaceAll(RegExp(r'†\s*$'), '').trim();
+    final summary = def.indexOf('§');
+    if (summary >= 0) def = def.substring(0, summary).trim();
     final number = c[0].trim().toUpperCase();
     stmt.execute([c[1].trim().split(' ').first, number.replaceAll(RegExp(r'[A-Z]$'), ''), def]);
     n++;
