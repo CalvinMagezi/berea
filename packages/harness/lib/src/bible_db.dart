@@ -83,7 +83,20 @@ class LexEntry {
   final String pos;
   final String gloss;
   final String definition;
-  const LexEntry(this.key, this.lemma, this.translit, this.pos, this.gloss, this.definition);
+
+  /// The work the definition comes from: AS (Abbott-Smith), ML (Middle Liddell, kept out of the
+  /// bundled database), OB (Online Bible's abridged Brown-Driver-Briggs), or empty when STEPBible
+  /// names none. Empty too for a database built before sources were recorded.
+  final String source;
+  const LexEntry(
+    this.key,
+    this.lemma,
+    this.translit,
+    this.pos,
+    this.gloss,
+    this.definition, [
+    this.source = '',
+  ]);
 }
 
 class XRef {
@@ -1580,6 +1593,12 @@ class BibleDb {
     }
   }
 
+  late final bool _hasLexiconSources = db
+      .select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'lexicon_source'")
+      .isNotEmpty;
+  String get _sourceColumn => _hasLexiconSources ? "COALESCE(ls.source, '')" : "''";
+  String get _sourceJoin => _hasLexiconSources ? 'LEFT JOIN lexicon_source ls ON ls.key = lexicon.key' : '';
+
   /// Every entry STEPBible keeps under a Strong's number, by key: H7307 has G (spirit), H (breath),
   /// I (side) and more. [lexicon] gives one of them; a number reached without a verse's own
   /// tag should offer all.
@@ -1587,7 +1606,8 @@ class BibleDb {
     final base = strongs.replaceAll(RegExp(r'[A-Za-z]$'), '');
     return [
       for (final r in db.select(
-        'SELECT key, lemma, translit, pos, gloss, definition FROM lexicon WHERE base = ? ORDER BY key',
+        'SELECT lexicon.key AS key, lemma, translit, pos, gloss, definition, $_sourceColumn AS source '
+        'FROM lexicon $_sourceJoin WHERE base = ? ORDER BY lexicon.key',
         [base],
       ))
         LexEntry(
@@ -1597,6 +1617,7 @@ class BibleDb {
           r['pos'] as String,
           r['gloss'] as String,
           r['definition'] as String,
+          r['source'] as String,
         ),
     ];
   }
@@ -1604,8 +1625,9 @@ class BibleDb {
   LexEntry? lexicon(String strongs) {
     final base = strongs.replaceAll(RegExp(r'[A-Za-z]$'), '');
     final rows = db.select(
-      'SELECT key, lemma, translit, pos, gloss, definition FROM lexicon '
-      'WHERE key = ? OR base = ? ORDER BY (key = ?) DESC, key LIMIT 1',
+      'SELECT lexicon.key AS key, lemma, translit, pos, gloss, definition, $_sourceColumn AS source '
+      'FROM lexicon $_sourceJoin WHERE lexicon.key = ? OR base = ? '
+      'ORDER BY (lexicon.key = ?) DESC, lexicon.key LIMIT 1',
       [strongs, base, strongs],
     );
     if (rows.isEmpty) return null;
@@ -1617,6 +1639,7 @@ class BibleDb {
       r['pos'] as String,
       r['gloss'] as String,
       r['definition'] as String,
+      r['source'] as String,
     );
   }
 

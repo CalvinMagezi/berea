@@ -79,7 +79,6 @@ const stepLexFiles = <String, String>{
   'TBESG%20-%20Translators%20Brief%20lexicon%20of%20Extended%20Strongs%20for%20Greek%20-%20STEPBible.org%20CC%20BY.txt':
       '734a5b64a1152f67604bf09d32f15c0ba537151961752fcf168087b41b4d93ea',
 };
-const maxDefinitionChars = 600;
 
 Future<void> main(List<String> args) async {
   var out = '../../assets/berea.sqlite';
@@ -498,6 +497,9 @@ final _otherNumbering = RegExp(r'^[\[\{]\d+\.\d+[\]\}]\s*');
 /// The number without its letter suffix, as the BSB tables write it: G1234a is G1234.
 String _base(String code) => code.replaceAll(RegExp(r'[A-Za-z]$'), '');
 
+/// The Hebrew entries are Online Bible's abridged Brown-Driver-Briggs, through STEPBible.
+const hebrewSource = 'OB';
+final _definitionSource = RegExp(r'\((AS|ML)\)\s*$');
 final _fiveDigits = RegExp(r'^[HG]\d{5}');
 final _lexRow = RegExp(r'^[HG]\d{4,5}[a-z]?\t');
 final _tag = RegExp(r'<[^>]+>');
@@ -510,9 +512,11 @@ void _loadLexicon(Database db, String text) {
     for (final r in db.select('SELECT DISTINCT strongs FROM words'))
       for (final m in _strongs.allMatches(r['strongs'] as String)) _base(m[0]!),
   };
+  db.execute('CREATE TABLE IF NOT EXISTS lexicon_source(key TEXT PRIMARY KEY, source TEXT)');
   final stmt = db.prepare('INSERT OR IGNORE INTO lexicon VALUES (?, ?, ?, ?, ?, ?, ?)');
+  final sources = db.prepare('INSERT OR IGNORE INTO lexicon_source VALUES (?, ?)');
   db.execute('BEGIN');
-  var n = 0;
+  var n = 0, withheld = 0;
   for (final line in text.split('\n')) {
     if (!_lexRow.hasMatch(line)) continue;
     final c = line.split('\t');
@@ -520,15 +524,30 @@ void _loadLexicon(Database db, String text) {
     final number = c[0].trim().toUpperCase();
     if (_fiveDigits.hasMatch(number) && !used.contains(_base(number))) continue;
     var def = c[7].replaceAll(_tag, ' ').replaceAll(_ws, ' ').trim();
-    if (def.length > maxDefinitionChars) def = '${def.substring(0, maxDefinitionChars)}...';
-    final base = c[0].trim().toUpperCase().replaceAll(RegExp(r'[A-Z]$'), '');
+    final base = number.replaceAll(RegExp(r'[A-Z]$'), '');
     final key = c[1].trim().split(' ').first;
+    // A Greek entry ends with the work its definition comes from: (AS) Abbott-Smith, (ML) Middle
+    // Liddell from Perseus, or nothing. Only Abbott-Smith's definitions ship in this database;
+    // Middle Liddell is share-alike and has its own file, and an entry with no stated source
+    // keeps its gloss alone.
+    var source = number.startsWith('H') ? hebrewSource : '';
+    if (number.startsWith('G')) {
+      final tag = _definitionSource.firstMatch(def);
+      source = tag?[1] ?? '';
+      if (tag != null) def = def.substring(0, tag.start).replaceAll(RegExp(r'†\s*$'), '').trim();
+      if (source != 'AS') {
+        def = '';
+        withheld++;
+      }
+    }
     stmt.execute([key, base, c[3].trim(), c[4].trim(), c[5].trim(), c[6].trim(), def]);
+    sources.execute([key, source]);
     n++;
   }
   db.execute('COMMIT');
   stmt.dispose();
-  stdout.writeln('lexicon entries: $n');
+  sources.dispose();
+  stdout.writeln('lexicon entries: $n ($withheld Greek definitions withheld: Middle Liddell or no stated source)');
 }
 
 final _xrefRef = RegExp(r'^([1-3]?[A-Za-z]+)\.(\d+)\.(\d+)$');

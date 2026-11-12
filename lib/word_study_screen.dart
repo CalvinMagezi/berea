@@ -511,7 +511,8 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     final greek = _code!.startsWith('G');
     final full = greek ? widget.db.fullLexicon(_entry?.key ?? _code!) : null;
     final get = full == null && greek && !widget.db.hasFullLexicon ? widget.onGetLexicon : null;
-    if (definition.isEmpty && full == null && get == null) return const [];
+    final named = greek && _entry != null ? definitionSourceLine(_entry!.source, definition.isNotEmpty) : '';
+    if (definition.isEmpty && full == null && get == null && named.isEmpty) return const [];
     return [
       const SizedBox(height: 8),
       ExpansionTile(
@@ -524,6 +525,14 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
         children: [
           if (definition.isNotEmpty)
             SelectableText(definition, style: const TextStyle(height: 1.5)),
+          if (named.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                named,
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, height: 1.4),
+              ),
+            ),
           if (get != null) _LexiconHint(onGet: get),
           if (full != null)
             ExpansionTile(
@@ -815,3 +824,13 @@ class _LexiconHint extends StatelessWidget {
     ),
   );
 }
+
+/// Whose words a Greek entry's definition is, or why there is none: the lexicon says so under the
+/// definition, and for an entry without one in its place.
+String definitionSourceLine(String source, bool hasDefinition) => switch (source) {
+  'AS' => 'Abbott-Smith (1922), corrected and adapted by Tyndale House scholars (STEPBible).',
+  'ML' =>
+    "This entry's definition is Middle Liddell's, from Perseus, under a share-alike licence, and "
+        'is not in this download; only its gloss is shown.',
+  _ => hasDefinition ? '' : "STEPBible gives no source for this entry's definition; only its gloss is shown.",
+};
