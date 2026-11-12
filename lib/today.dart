@@ -24,6 +24,8 @@ String shortDate(DateTime d) => '${_weekdays[d.weekday - 1]} ${d.day} ${_months[
 
 String weekdayName(DateTime d) => _weekdays[d.weekday - 1];
 
+String monthName(DateTime d) => _months[d.month - 1];
+
 /// Whole days from [from] to [to], by the calendar rather than by hours.
 int daysBetween(DateTime from, DateTime to) => DateTime.utc(
   to.year,

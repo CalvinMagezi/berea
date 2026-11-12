@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'commentary_sheet.dart';
+import 'study_store.dart';
+import 'today.dart';
 import 'theme.dart';
 
 const _sheetHeight = 0.85;
@@ -146,7 +148,8 @@ class ThisVerse extends StatelessWidget {
               _Line(
                 text: x.to.label,
                 trailing:
-                    '${x.votes} ${x.votes == 1 ? 'vote' : 'votes'} by site visitors',
+                    '${x.votes} ${x.votes == 1 ? 'vote' : 'votes'} by site visitors'
+                    '${_noteLine(x.to)}',
                 onTap: () => onOpen(x.to),
                 arrow: true,
               ),
@@ -155,10 +158,7 @@ class ThisVerse extends StatelessWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Commentary'),
-          subtitle: Text(
-            'The commentaries you have downloaded',
-            style: muted,
-          ),
+          subtitle: Text('The commentaries you have downloaded', style: muted),
           trailing: const Icon(Icons.chevron_right),
           onTap: onCommentary,
         ),
@@ -175,6 +175,27 @@ class ThisVerse extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  /// A second line on a cross reference row when the reader has a note on that passage.
+  String _noteLine(Ref target) {
+    final note = state.study
+        .notes(book: target.book, chapter: target.chapter)
+        .where((n) => _touches(n.verse, target))
+        .fold<Note?>(
+          null,
+          (a, n) => a == null || n.updated.isAfter(a.updated) ? n : a,
+        );
+    return note == null
+        ? ''
+        : '\nYou wrote a note here on ${_noteDate(note.updated)}.';
+  }
+
+  bool _touches(Ref? note, Ref target) {
+    if (note == null) return false;
+    final from = target.verseStart ?? 0, to = target.verseEnd ?? from;
+    final noteTo = note.verseEnd ?? note.verseStart ?? 0;
+    return (note.verseStart ?? 0) <= to && noteTo >= from;
   }
 
   bool _overlaps(Ref n) {
@@ -273,3 +294,5 @@ class _Line extends StatelessWidget {
     );
   }
 }
+
+String _noteDate(DateTime d) => '${d.day} ${monthName(d)} ${d.year}';

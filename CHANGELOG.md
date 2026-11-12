@@ -19,6 +19,13 @@ and your own words, and nothing in it writes text for you.
   the BSB's publisher printed. A phrase the open translation lacks is searched in the other
   translations. A word no verse has comes back with the words one letter away. On a Galaxy A32 a
   search takes under a quarter of a second; the first version took 7 to 15 seconds.
+- **What the BSB publisher printed.** The words of Jesus show in red and the words the translators
+  supplied in italics, with a line under the chapter title that says so; both are on until you switch
+  them off in Settings. More, then This verse, opens one verse with the verse in each translation on
+  your phone, the BSB translators' footnotes, the passages the BSB prints under its heading, the
+  cross references in full (Bible order, with OpenBible.info's votes and who they come from), the
+  commentaries, and your notes, with "You wrote a note here" on a cross reference you have written
+  on. The sixteen verses the BSB leaves empty say where it prints them instead.
 - **Search goes past the verses.** A word or short phrase also lists the Hebrew and Greek words
   behind it, most used first, each saying why it is listed: "holy" finds qodesh, hagios and qadosh,
   and "STEPBible glosses it 'holy' 168 times". It also searches the commentaries you have
