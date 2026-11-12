@@ -29,12 +29,26 @@ import 'today.dart';
 /// What a reader chooses in Settings.
 class Settings {
   final String translation;
-  const Settings({this.translation = defaultTranslation});
 
-  Settings copyWith({String? translation}) => Settings(translation: translation ?? this.translation);
+  /// The BSB publisher's marks on the text; both are on until the reader switches them off.
+  final bool redLetters, suppliedWords;
+  const Settings({
+    this.translation = defaultTranslation,
+    this.redLetters = true,
+    this.suppliedWords = true,
+  });
 
-  static Settings load(SharedPreferences p) =>
-      Settings(translation: p.getString('translation') ?? defaultTranslation);
+  Settings copyWith({String? translation, bool? redLetters, bool? suppliedWords}) => Settings(
+    translation: translation ?? this.translation,
+    redLetters: redLetters ?? this.redLetters,
+    suppliedWords: suppliedWords ?? this.suppliedWords,
+  );
+
+  static Settings load(SharedPreferences p) => Settings(
+    translation: p.getString('translation') ?? defaultTranslation,
+    redLetters: p.getBool('redLetters') ?? true,
+    suppliedWords: p.getBool('suppliedWords') ?? true,
+  );
 
   /// Older builds kept the model's settings and a Hugging Face token here; nothing reads them now.
   static Future<void> dropLegacyKeys(SharedPreferences p) async {
@@ -43,7 +57,11 @@ class Settings {
     }
   }
 
-  Future<void> save(SharedPreferences p) => p.setString('translation', translation);
+  Future<void> save(SharedPreferences p) async {
+    await p.setString('translation', translation);
+    await p.setBool('redLetters', redLetters);
+    await p.setBool('suppliedWords', suppliedWords);
+  }
 }
 
 class ReaderMessage implements Exception {

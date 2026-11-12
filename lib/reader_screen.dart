@@ -16,6 +16,7 @@ import 'prayer_sheet.dart' show passageText, shareOrigin, shareText;
 import 'selection_bar.dart';
 import 'settings_sheet.dart';
 import 'study_page_screen.dart';
+import 'mark_spans.dart';
 import 'section_notebook.dart';
 import 'theme.dart';
 import 'today_card.dart';
@@ -463,6 +464,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         : {for (final v in s.db.chapter(book, chapter, translation: parallel)) v.verse: v.text};
     final chapters = s.db.chapterCount(book, translation: translation);
     final highlights = s.study.highlights(book, chapter);
+    final marks = s.db.marksForChapter(book.id, chapter, translation: translation);
+    final showRed = s.settings.redLetters, showSupplied = s.settings.suppliedWords;
     final wide = MediaQuery.sizeOf(context).width >= wideLayoutBreakpoint;
     final tip = _tip && verses.isNotEmpty;
     final noted = {
@@ -541,6 +544,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           ),
                         ),
                       ),
+                      _MarksLegend(
+                        marks: marks.values,
+                        red: showRed,
+                        supplied: showSupplied,
+                      ),
                       Expanded(
                         child: verses.isEmpty
                             ? Center(
@@ -607,7 +615,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                                     fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
-                                                TextSpan(text: v.text),
+                                                ...markedText(
+                                                  v.text,
+                                                  marks[v.verse]?.spans ?? const [],
+                                                  red: showRed,
+                                                  supplied: showSupplied,
+                                                  redStyle: TextStyle(color: scheme.error),
+                                                ),
                                                 if (noted.contains(v.verse))
                                                   WidgetSpan(
                                                     alignment: PlaceholderAlignment.middle,
@@ -1121,3 +1135,40 @@ class _YourPrayer extends StatelessWidget {
 const _markGutter = 20.0;
 const _markTap = 36.0;
 const _markIcon = 14.0;
+
+/// Says what the red and the italics on this chapter's text are, whenever either is showing.
+class _MarksLegend extends StatelessWidget {
+  final Iterable<VerseMarkSet> marks;
+  final bool red, supplied;
+  const _MarksLegend({required this.marks, required this.red, required this.supplied});
+
+  @override
+  Widget build(BuildContext context) {
+    final spans = [for (final m in marks) ...m.spans];
+    final hasRed = red && spans.any((m) => m.kind == MarkKind.red);
+    final hasSupplied = supplied && spans.any((m) => m.kind == MarkKind.supplied);
+    if (!hasRed && !hasSupplied) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final base = Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
+      child: Text.rich(
+        TextSpan(
+          style: base,
+          children: [
+            if (hasRed)
+              TextSpan(
+                text: 'Red',
+                style: TextStyle(color: scheme.error),
+              ),
+            if (hasRed) const TextSpan(text: ': words of Jesus, as the BSB publisher marks them.'),
+            if (hasRed && hasSupplied) const TextSpan(text: '  '),
+            if (hasSupplied)
+              const TextSpan(text: 'Italic', style: TextStyle(fontStyle: FontStyle.italic)),
+            if (hasSupplied) const TextSpan(text: ': words the BSB translators supplied.'),
+          ],
+        ),
+      ),
+    );
+  }
+}
