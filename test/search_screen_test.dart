@@ -186,9 +186,14 @@ void main() {
     expect(find.byType(WordStudyScreen), findsOneWidget);
     expect(find.text('Word study'), findsOneWidget);
     expect(find.text('ἅγιος'), findsOneWidget);
-    expect(find.text('What it means'), findsOneWidget);
+    expect(find.text("Scholar's lexicon entry"), findsOneWidget);
     expect(find.textContaining('used 2 times'), findsNothing, reason: 'the study has its own words');
     expect(find.textContaining('You will find it twice in 2 verses'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.textContaining('OTHER WORDS GLOSSED'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.textContaining('OTHER WORDS GLOSSED'), findsOneWidget, reason: 'qadosh is one tap away');
   });
 

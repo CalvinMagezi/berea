@@ -156,6 +156,7 @@ Future<void> _loadData(Database db, List<VerseRow> bsb, String cache) async {
       '$_maxUnreconciledMarks',
     );
   }
+  stdout.writeln('BSB renderings: ${bible.importRenderings(tables)} number and phrase pairs');
   _requireWordsForEveryVerse(db);
   bible.importMarks(marks, 'BSB');
   stdout.writeln(
@@ -208,6 +209,7 @@ String _writeMeta(Database db) {
     'gloss_index',
     'bsb_words',
     'headings',
+    'bsb_renderings',
   ]) {
     final n = db.select('SELECT COUNT(*) AS n FROM $t').first['n'];
     stdout.writeln('$t: $n rows');

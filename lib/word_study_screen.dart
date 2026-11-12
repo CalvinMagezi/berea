@@ -15,6 +15,9 @@ const wordUsesPage = 30;
 /// Other words glossed with the pressed English word, at most.
 const glossedWordsShown = 6;
 
+/// How many of the BSB's phrases for a word show before "and n more".
+const _renderingsShown = 24;
+
 /// Opens a word study on [ref] for the [english] word the reader pressed (its [occurrence] in the
 /// verse by stem and its [wordIndex] among the verse's words, from 0), or on the original word at
 /// [pos]. Tapping a verse opens it in the reader.
@@ -206,17 +209,14 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   /// keeps more than one; no entry is the study's own until the reader picks one.
   List<LexEntry> _entries = const [];
 
-  /// The entry's definition in plain words, without the gloss itself; see [plainSenses].
-  List<String> _senses = const [];
+  /// The English phrases the BSB's own tables give this word, with how many times each is printed.
+  List<({String english, int count})> _renderings = const [];
   ({int uses, int verses}) _count = (uses: 0, verses: 0);
   List<(Book, int)> _books = const [];
   List<(String, int)> _glosses = const [];
   Book? _book;
   final _uses = <WordUse>[];
   var _more = false;
-
-  /// True when Berea chose the word from the English, so the reader is asked to check it.
-  var _guessed = false;
 
   /// True when the BSB tables say the translators supplied the pressed word.
   var _supplied = false;
@@ -246,8 +246,9 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
         wordIndex: widget.wordIndex,
       );
       _supplied = press.kind == PressKind.supplied;
-      _guessed = press.kind == PressKind.byMeaning;
-      start = press.tag;
+      // A guess by meaning is not shown as a fact: outside the BSB the study opens with the verse's
+      // words and none chosen.
+      start = press.kind == PressKind.byMeaning ? null : press.tag;
       // STEP numbers this verse's word differently; the word itself is still known.
       if (start == null && press.kind == PressKind.exact) _study(press.code!);
     }
@@ -270,10 +271,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
       _entries = all.length > 1 ? all : const [];
     }
     _entry = entry ?? widget.db.lexicon(code);
-    _senses = [
-      for (final sense in plainSenses(_entry?.definition ?? ''))
-        if (sense.toLowerCase() != _entry!.gloss.toLowerCase()) sense,
-    ];
+    _renderings = widget.db.bsbRenderings(code);
     _count = widget.db.wordCount(code);
     _books = widget.db.wordBooks(code);
     _glosses = widget.db.wordGlosses(code);
@@ -295,12 +293,10 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   }
 
   void _pick(WordTag w) => setState(() {
-    _guessed = false;
     _studyTag(w);
   });
 
   void _switchTo(GlossedWord g) => setState(() {
-    _guessed = false;
     _tag = null;
     _study(g.code, g.entry);
   });
@@ -367,8 +363,8 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
                   ),
               ] else ...[
                 ..._header(scheme),
-                ..._meaning(scheme),
                 ..._inThisVerse(scheme),
+                ..._bsbRenderings(scheme),
                 ..._scholarEntry(scheme),
                 ..._body(scheme),
               ],
@@ -381,6 +377,10 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
 
   /// Why no word was opened, when the BSB tables put the pressed word on a word that is not it.
   String _unknown(String english) {
+    if (_press?.kind == PressKind.byMeaning) {
+      return 'Only the BSB says which $_verseLanguage word stands behind each of its words. '
+          'Choose the word you pressed "$english" for from ${_ref.label}:';
+    }
     final placed = _press?.bsb;
     final entry = placed == null || placed.code.isEmpty ? null : widget.db.lexicon(placed.code);
     if (entry == null) {
@@ -456,31 +456,41 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   TextStyle _sectionTitle(ColorScheme scheme) =>
       TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: scheme.onSurface);
 
-  /// The gloss in large type, then the definition's senses in plain words when it has any.
-  List<Widget> _meaning(ColorScheme scheme) {
-    final gloss = _entry?.gloss ?? '';
+  /// How the BSB publisher's translation tables render the word: every English phrase, most
+  /// printed first, with its count. Only the BSB has such tables; another translation's study
+  /// opens with nothing here.
+  List<Widget> _bsbRenderings(ColorScheme scheme) {
+    if (_renderings.isEmpty) return const [];
+    final shown = _renderings.take(_renderingsShown).toList();
+    final rest = _renderings.length - shown.length;
     return [
       const SizedBox(height: 24),
-      Text('What it means', style: _sectionTitle(scheme)),
-      const SizedBox(height: 6),
-      if (gloss.isEmpty && _senses.isEmpty)
-        Text('No lexicon entry for $_code.')
-      else if (gloss.isNotEmpty)
-        SelectableText(
-          gloss,
-          style: TextStyle(color: scheme.primary, fontSize: 20, fontWeight: FontWeight.w600),
-        ),
-      if (_senses.length == 1)
+      Text('How the BSB translates it', style: _sectionTitle(scheme)),
+      const SizedBox(height: 2),
+      Text(
+        "Every English phrase the BSB publisher's tables give for ${_code!}, with how many times each is printed.",
+        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+      ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final r in shown)
+            Chip(
+              visualDensity: VisualDensity.compact,
+              label: Text('${r.english.isEmpty ? 'no English word of its own' : r.english} · ${r.count}'),
+            ),
+        ],
+      ),
+      if (rest > 0)
         Padding(
           padding: const EdgeInsets.only(top: 6),
-          child: SelectableText(_senses.first, style: const TextStyle(height: 1.45)),
+          child: Text(
+            'and $rest more, printed less often',
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+          ),
         ),
-      if (_senses.length > 1) ...[
-        const SizedBox(height: 14),
-        Text('Its senses', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
-        const SizedBox(height: 4),
-        for (final (i, sense) in _senses.indexed) _SenseRow(number: i + 1, text: sense),
-      ],
     ];
   }
 
@@ -512,7 +522,10 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     final full = greek ? widget.db.fullLexicon(_entry?.key ?? _code!) : null;
     final get = full == null && greek && !widget.db.hasFullLexicon ? widget.onGetLexicon : null;
     final named = greek && _entry != null ? definitionSourceLine(_entry!.source, definition.isNotEmpty) : '';
-    if (definition.isEmpty && full == null && get == null && named.isEmpty) return const [];
+    final gloss = _entry?.gloss ?? '';
+    if (definition.isEmpty && full == null && get == null && named.isEmpty && gloss.isEmpty) {
+      return const [];
+    }
     return [
       const SizedBox(height: 8),
       ExpansionTile(
@@ -523,6 +536,11 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
         title: Text("Scholar's lexicon entry", style: _sectionTitle(scheme)),
         subtitle: Text("Strong's $_code"),
         children: [
+          if (gloss.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text("STEPBible lists it as: $gloss", style: const TextStyle(height: 1.4)),
+            ),
           if (definition.isNotEmpty)
             SelectableText(definition, style: const TextStyle(height: 1.5)),
           if (named.isNotEmpty)
@@ -571,9 +589,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   List<Widget> _verseRow(ColorScheme scheme) => [
     const SizedBox(height: 16),
     Text(
-      _guessed
-          ? 'Chosen by meaning. Not the word you meant? Choose another from ${_ref.label}:'
-          : 'Words in ${_ref.label}',
+      'Words in ${_ref.label}',
       style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
     ),
     const SizedBox(height: 6),
@@ -631,7 +647,7 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
       ),
       if (_glosses.isNotEmpty) ...[
         const SizedBox(height: 10),
-        Text('Glossed as', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+        Text("STEPBible's glosses", style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
         const SizedBox(height: 4),
         Wrap(
           spacing: 6,
@@ -711,30 +727,6 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
   static String _plural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
 }
 
-/// One numbered sense of a word, the number in its own column so wrapped lines stay aligned.
-class _SenseRow extends StatelessWidget {
-  final int number;
-  final String text;
-  const _SenseRow({required this.number, required this.text});
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 3),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 24,
-          child: Text(
-            '$number.',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.45),
-          ),
-        ),
-        Expanded(child: SelectableText(text, style: const TextStyle(height: 1.45))),
-      ],
-    ),
-  );
-}
 
 /// One verse that uses the word, with the English words that render it marked.
 class _UseTile extends StatelessWidget {
