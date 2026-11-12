@@ -26,19 +26,6 @@ const _commentsPerWork = 5;
 /// recalled, and the verses come first.
 const _deepFirstWords = 2;
 
-/// The search icon some places carry; it shows the Search place.
-class SearchButton extends StatelessWidget {
-  final AppState state;
-  const SearchButton({super.key, required this.state});
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-    tooltip: 'Search the Bible',
-    icon: const Icon(Icons.search),
-    onPressed: state.openSearch,
-  );
-}
-
 /// The kinds of result Search lists, and the chip that shows only one of them.
 enum _Kind { all, verses, words, commentary }
 

@@ -104,9 +104,10 @@ void main() {
     expect(find.byType(SearchScreen), findsNothing);
   });
 
-  testWidgets('the reader\'s search icon opens Search with the keyboard up', (tester) async {
+  testWidgets('the Search button on the bar opens Search with the keyboard up', (tester) async {
     await pumpShell(tester, _phone);
-    await tester.tap(find.byTooltip('Search'));
+    expect(find.byTooltip('Search'), findsNothing, reason: 'the reader has no search icon');
+    await tester.tap(find.text('Search'));
     await tester.pumpAndSettle();
     expect(find.byType(SearchScreen), findsOneWidget);
     expect(tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus, isTrue);
@@ -196,7 +197,7 @@ void main() {
       await tester.tap(find.text(place).first);
       await tester.pumpAndSettle();
       expect(find.byTooltip('Settings'), findsWidgets, reason: place);
-      expect(find.byTooltip('Search the Bible'), findsWidgets, reason: '$place has search');
+      expect(find.byTooltip('Search the Bible'), findsNothing, reason: '$place has no search icon; the bar has Search');
     }
   });
 

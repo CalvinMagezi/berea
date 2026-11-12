@@ -171,7 +171,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           todayPrayer: () => s.prayerOfTheDay,
           refresh: s.dayChanged,
           onSettings: () => showSettingsSheet(context, s),
-          onSearch: s.openSearch,
         ),
         NavigatorPopHandler(
           enabled: _tab == HomeTab.notes,

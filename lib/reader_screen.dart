@@ -485,11 +485,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
           child: _ReaderTitle(name: book.name, chapter: chapter),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Search',
-            icon: const Icon(Icons.search),
-            onPressed: s.openSearch,
-          ),
           PopupMenuButton<String?>(
             tooltip: 'Parallel translation',
             icon: Icon(parallel == null ? Icons.view_agenda_outlined : Icons.view_agenda),

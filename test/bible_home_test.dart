@@ -86,7 +86,7 @@ void main() {
     expect(bar.contains(number.topLeft) && bar.contains(number.bottomRight), isTrue);
     expect(tester.getRect(name).height, number.height, reason: 'the name stays on one line');
     expect(tester.getRect(name).right, lessThanOrEqualTo(number.left));
-    final search = tester.getRect(find.byTooltip('Search'));
+    final search = tester.getRect(find.byTooltip('Parallel translation'));
     expect(number.right, lessThanOrEqualTo(search.left), reason: 'clear of the actions');
     expect(number.height, greaterThan(0));
 
