@@ -26,6 +26,12 @@ and your own words, and nothing in it writes text for you.
   cross references in full (Bible order, with OpenBible.info's votes and who they come from), the
   commentaries, and your notes, with "You wrote a note here" on a cross reference you have written
   on. The sixteen verses the BSB leaves empty say where it prints them instead.
+- **Word studies name their source.** A Greek definition now says whose it is: Abbott-Smith, as
+  corrected by Tyndale House for STEPBible. Entries whose definition is Middle Liddell's (share-alike,
+  so not in this download) or has no stated source show the gloss alone and say why: 3,855 of 9,552.
+  Definitions are no longer cut at 600 characters. A Strong's number opened on its own lists every
+  entry STEPBible keeps under it. The Greek of 48 verses the app was missing (Romans 16:25-27 among
+  them) and 425 original-language words it had dropped are back.
 - **Search goes past the verses.** A word or short phrase also lists the Hebrew and Greek words
   behind it, most used first, each saying why it is listed: "holy" finds qodesh, hagios and qadosh,
   and "STEPBible glosses it 'holy' 168 times". It also searches the commentaries you have

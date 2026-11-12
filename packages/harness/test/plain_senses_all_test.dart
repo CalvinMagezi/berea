@@ -14,7 +14,9 @@ void main() {
     final db = sqlite3.open(bibleDbFile().path, mode: OpenMode.readOnly);
     addTearDown(db.dispose);
     var empty = 0;
-    final rows = db.select('SELECT definition FROM lexicon');
+    final rows = db.select("SELECT definition FROM lexicon WHERE definition != ''");
+    // Greek entries whose definition is Middle Liddell's or has no stated source ship the gloss
+    // alone (3,855 on 2026-11-12); they are not counted here.
     for (final r in rows) {
       final senses = plainSenses(r['definition'] as String? ?? '');
       if (senses.isEmpty) empty++;
