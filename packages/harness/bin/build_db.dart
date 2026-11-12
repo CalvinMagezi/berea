@@ -482,7 +482,8 @@ void _loadGreek(Database db, String text, Map<Ref, List<BsbRow>> tables) {
     final eq = c[3].indexOf('=');
     final strongs = _strongs.allMatches(c[3]).map((m) => m[0]!).join(' ');
     final morph = eq < 0 ? '' : c[3].substring(eq + 1).trim();
-    stmt.execute([r.book, chapter, verse, r.pos, original, translit, c[2].trim(), strongs, morph]);
+    final gloss = c[2].replaceFirst(_otherNumbering, '').trim();
+    stmt.execute([r.book, chapter, verse, r.pos, original, translit, gloss, strongs, morph]);
     n++;
   }
   db.execute('COMMIT');
@@ -490,6 +491,9 @@ void _loadGreek(Database db, String text, Map<Ref, List<BsbRow>> tables) {
   _wordRowsRead += n;
   stdout.writeln('greek words: $n');
 }
+
+/// STEPBible prefixes the first English word of such a verse with the other numbering: "{14.24} To Him".
+final _otherNumbering = RegExp(r'^[\[\{]\d+\.\d+[\]\}]\s*');
 
 /// The number without its letter suffix, as the BSB tables write it: G1234a is G1234.
 String _base(String code) => code.replaceAll(RegExp(r'[A-Za-z]$'), '');
