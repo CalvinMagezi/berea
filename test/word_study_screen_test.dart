@@ -501,13 +501,37 @@ void main() {
     Future<void> show() async {
       await tester.pumpWidget(
         MaterialApp(
-          home: WordStudyScreen(key: UniqueKey(), db: db, code: 'G5048', onOpen: (_) {}, onGetLexicon: () {}),
+          home: WordStudyScreen(key: UniqueKey(), db: db, code: 'G5048', onOpen: (_) {}, onGetLexicon: () async {}),
         ),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text("Scholar's lexicon entry"));
       await tester.pumpAndSettle();
     }
+
+    // Tapping the hint opens Settings; a pack installed there shows without leaving the study.
+    final settingsOpened = <bool>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WordStudyScreen(
+          db: db,
+          code: 'G5048',
+          onOpen: (_) {},
+          onGetLexicon: () async {
+            settingsOpened.add(true);
+            db.attachMiddleLiddell(pack);
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Scholar's lexicon entry"));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Download Middle Liddell's definitions in Settings"));
+    await tester.pumpAndSettle();
+    expect(settingsOpened, [true]);
+    expect(find.text('to bring to an end, complete'), findsOneWidget);
+    db.detachMiddleLiddell();
 
     await show();
     expect(find.text("Download Middle Liddell's definitions in Settings"), findsOneWidget);

@@ -163,7 +163,9 @@ class WordStudyScreen extends StatefulWidget {
   final void Function(Ref verse) onOpen;
 
   /// Opens Settings at the full Greek lexicon; null where Settings cannot be reached.
-  final VoidCallback? onGetLexicon;
+  /// Opens Settings where the optional lexicon packs are; the screen refreshes when it closes, so
+  /// a pack installed there shows at once.
+  final Future<void> Function()? onGetLexicon;
 
   /// Null hides Save word.
   final KeepWord? onKeep;
@@ -530,9 +532,15 @@ class _WordStudyScreenState extends State<WordStudyScreen> {
     final definition = fromPack ?? _entry?.definition ?? '';
     final packed = fromPack != null;
     final full = greek ? widget.db.fullLexicon(_entry?.key ?? _code!) : null;
-    final get = full == null && greek && !widget.db.hasFullLexicon ? widget.onGetLexicon : null;
+    final getPack = widget.onGetLexicon == null
+        ? null
+        : () async {
+            await widget.onGetLexicon!();
+            if (mounted) setState(() => _study(_code!, _entry, true));
+          };
+    final get = full == null && greek && !widget.db.hasFullLexicon ? getPack : null;
     final getMiddleLiddell = _entry?.source == 'ML' && greek && !widget.db.hasMiddleLiddell
-        ? widget.onGetLexicon
+        ? getPack
         : null;
     final named = _entry == null
         ? ''
