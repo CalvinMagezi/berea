@@ -163,7 +163,8 @@ carry today's words to the Bible's: "exams" and "school" are in 0 BSB verses and
 only the name Job, 61 verses `[measured]`. Options: a public domain topical index (Nave, Torrey)
 under its author's name, if its licence reads clean; the 24 topic titles with references only,
 under the editor of decision 3; or word search alone.
-*Recommendation:* read the licence first, then pick one of the first two. No topic is removed
+*Recommendation:* read the licence first, then pick one of the first two. (Read 2026-11-12: Nave and Torrey are both public domain in their CrossWire modules; see
+`docs/plans/research-door-and-languages.md`.) No topic is removed
 in any release before one of them ships. *Cost of word search alone:* a reader with a question
 about their life has no door.
 
@@ -181,7 +182,8 @@ sections 9 and 10 that is not in Release E behind reach, search and language.
 **7. Languages.** Everything here deepens an English product. Berea already imports USFM, OSIS,
 Zefania and CSV, so offering a Luganda or Swahili Bible is mostly a licence question, plus book
 names in the reference parser and search on the text.
-*Recommendation:* find out whether one can be offered. If so it gets its own release straight
+*Recommendation:* find out whether one can be offered. (Read 2026-11-12: Biblica's Luganda and
+Swahili texts are CC BY-SA 4.0 on ebible.org; see `docs/plans/research-door-and-languages.md`.) If so it gets its own release straight
 after Release D and before Release E. If not, the README says so.
 *Cost of waiting:* every release until then serves English readers only.
 
