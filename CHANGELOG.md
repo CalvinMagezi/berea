@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.0-rc1
 
 Berea no longer has a chat or a language model. It shows Scripture, counted facts, named sources
 and your own words, and nothing in it writes text for you.
