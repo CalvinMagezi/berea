@@ -195,9 +195,9 @@ void main() {
     );
   });
 
-  test('the label claims no author, and shows one only when the file names one', () {
+  test('the label shows the author the file names, and none when it names none', () {
     expect(bookletLabel, isNot(contains('Calvin')));
-    expect(inner.author, isNull);
+    expect(inner.author, 'Calvin Magezi');
     expect(three.author, 'Calvin Magezi');
     final named = Booklet.parse(
       '---\nid: a\ntitle: A\nshort: A\nsubtitle: S\nauthor: Someone\n---\n## One {#one}\ntext\n',

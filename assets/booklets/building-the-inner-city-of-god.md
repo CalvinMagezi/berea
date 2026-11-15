@@ -3,6 +3,7 @@ id: inner-city
 title: Building the Inner City of God: A Visualized Spiritual Blueprint
 short: Building the Inner City of God
 subtitle: A Practical, Step-by-Step Visualized Guide to Cultivating an Interior Dwelling for God — From the Very First Brick to Lifelong Maintenance (Synthesized from Venerable Mary of Jesus of Agreda’s “The Mystical City of God”)
+author: Calvin Magezi
 ---
 
 ## Introduction: Why Build an Inner City for God? {#introduction}

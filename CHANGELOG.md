@@ -7,8 +7,8 @@ and your own words, and nothing in it writes text for you.
 
 - **Two booklets, built in and shown whole.** *Building the Inner City of God* (eight sections,
   twelve numbered steps) and *Three Ways We Fall* (eleven sections, with a seven-part prayer of
-  confession) are in Berea as text. The first is word for word, checked against its PDF; the second is its
-  author's own work, written for any reader and carrying no one's family, work or health. They are
+  confession) are in Berea as text. The first is its author's reconfiguration of Mary of Jesus of Agreda's *The Mystical City of God*,
+  word for word as he wrote it, checked against his PDF; the second is his own work, written for any reader and carrying no one's family, work or health. They are
   named sources: every screen says they were included by Berea's maintainer and are not Scripture
   and not written by Berea. Notes lists them. Plans reads each a section at a time, beside a Bible
   plan, and ticks the sections you read; there are no dates and no streak. Prayer opens three
