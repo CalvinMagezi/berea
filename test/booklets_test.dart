@@ -56,11 +56,11 @@ void main() {
       final reflections = three.section('reflections')!;
       final arenas = reflections.blocks.whereType<BookletList>().first.items;
       expect(arenas, [
-        'Husband',
-        'Father',
-        'CTO of two companies',
-        'Son of separated parents',
-        'Brother to sickle cell warriors',
+        'Spouse or closest friend',
+        'Parent or guardian',
+        'Work or study, and those you lead or serve',
+        'The family you came from',
+        'Anyone weak, sick or struggling within your reach',
       ]);
       final prayer = three.section('prayer')!;
       final parts = prayer.blocks.whereType<BookletHeading>().where((h) => h.level == 3).toList();
@@ -85,7 +85,7 @@ void main() {
     },
   );
 
-  test('the text is the booklets, whole: anchors from each, checked against the PDFs', () {
+  test('the text is whole: anchors from each booklet (the Inner City was checked against its PDF word for word)', () {
     final i = inner.plainText;
     final t = three.plainText;
     for (final line in [
@@ -99,7 +99,7 @@ void main() {
       expect(i, contains(line));
     }
     for (final line in [
-      'Brother to sickle cell warriors',
+      'Anyone weak, sick or struggling within your reach',
       'Where did I willfully cross a known line?',
       'Pardon is not the whole of repentance.',
       'Realign my aim for tomorrow.',
@@ -110,7 +110,21 @@ void main() {
     }
     // Word counts recorded when each file was checked against its PDF. A change to a booklet's
     // words changes these on purpose, so the edit is seen.
-    expect((inner.words, three.words), (2784, 2387));
+    expect((inner.words, three.words), (2784, 2440));
+  });
+
+  test('Three Ways We Fall names no one\'s own family, work or health', () {
+    final t = three.plainText.toLowerCase();
+    for (final word in [
+      'wife',
+      'husband',
+      'sickle',
+      'cto',
+      'separated parents',
+      'both companies',
+    ]) {
+      expect(t, isNot(contains(word)), reason: word);
+    }
   });
 
   test('Berea\'s own note on the table is not part of the booklet\'s text', () {
@@ -184,7 +198,7 @@ void main() {
   test('the label claims no author, and shows one only when the file names one', () {
     expect(bookletLabel, isNot(contains('Calvin')));
     expect(inner.author, isNull);
-    expect(three.author, isNull);
+    expect(three.author, 'Calvin Magezi');
     final named = Booklet.parse(
       '---\nid: a\ntitle: A\nshort: A\nsubtitle: S\nauthor: Someone\n---\n## One {#one}\ntext\n',
     );

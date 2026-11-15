@@ -30,7 +30,7 @@ const builtInSources = [
   ),
   DataSource(
     'Three Ways We Fall (booklet)',
-    'Included by Berea’s maintainer; author and licence not recorded',
+    'Written by Calvin Magezi, who includes it in Berea; licence not recorded',
     'An examination of conscience with a prayer of confession',
   ),
 ];

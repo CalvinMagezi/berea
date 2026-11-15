@@ -104,7 +104,7 @@ void main() {
       expect(find.text('BOOKLETS'), findsOneWidget);
       expect(find.text('Building the Inner City of God'), findsOneWidget);
       expect(find.text('Three Ways We Fall'), findsOneWidget);
-      expect(find.text('11 sections · about 12 minutes'), findsOneWidget);
+      expect(find.text('11 sections · about 13 minutes'), findsOneWidget);
 
       // The tile opens the booklet's contents, with its label and counted facts.
       await tester.tap(find.text('Three Ways We Fall'));
@@ -113,7 +113,7 @@ void main() {
         find.text('Sin, iniquity and transgression, with reflections and a prayer of confession'),
         findsOneWidget,
       );
-      expect(find.text(bookletLabel), findsOneWidget);
+      expect(find.text('$bookletLabel By Calvin Magezi.'), findsOneWidget);
       expect(find.text('0 of 11 sections read'), findsOneWidget);
 
       await tester.tap(find.text('Start reading'));
@@ -214,7 +214,7 @@ void main() {
       expect(find.text('Simple Everyday Practice'), findsOneWidget);
       await tester.tap(find.text('Prayer: A Prayer of Confession'));
       await tester.pumpAndSettle();
-      expect(find.text(bookletLabel), findsOneWidget);
+      expect(find.text('$bookletLabel By Calvin Magezi.'), findsOneWidget);
       expect(find.text('II. I have sinned'), findsOneWidget);
       expect(find.text('Pause. Name the person, the word, the omission.'), findsOneWidget);
       await reveal(tester, find.text('Read it in the booklet'));

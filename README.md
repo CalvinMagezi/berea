@@ -70,14 +70,15 @@ packs, your notes, pasted text, PDFs and EPUB books. Berea reads each source on 
 it into sections that remember where they came from (and the PDF page), and indexes them for
 search. Search a notebook from its own screen. Export your notes to Markdown.
 
-**Booklets.** Two booklets are built in, each shown whole and unaltered: *Building the Inner City of
+**Booklets.** Two booklets are built in, each shown whole: *Building the Inner City of
 God* (a synthesis of Venerable Mary of Jesus of Agreda's *The Mystical City of God*) and *Three Ways
-We Fall* (an examination of conscience with a prayer of confession). They are named sources, not
-Scripture and not written by Berea, and each screen says so. Notes lists them; Plans reads them a
+We Fall* (an examination of conscience with a prayer of confession, written by Calvin Magezi
+from his own research). They are named sources, not Scripture and not written by Berea, and each
+screen says so. Notes lists them; Plans reads them a
 section at a time and ticks the sections read, with no dates and no streak; Prayer opens the
 prayers in them. A booklet can be copied into a notebook, where it is searched with your own notes.
 A quotation that names a Bible reference opens that reference in the Bible. The text lives in
-`assets/booklets/` as plain markdown. Who wrote each booklet is not recorded in the files.
+`assets/booklets/` as plain markdown. Who wrote the Inner City booklet is not recorded in its file.
 
 **Backup.** One encrypted file (AES-256-GCM, key from your passphrase) that you keep wherever you
 like. Restore checks the file before it replaces anything. Backups from earlier versions still

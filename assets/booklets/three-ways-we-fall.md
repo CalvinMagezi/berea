@@ -3,6 +3,7 @@ id: three-ways
 title: Three Ways We Fall
 short: Three Ways We Fall
 subtitle: Sin, iniquity and transgression, with reflections and a prayer of confession
+author: Calvin Magezi
 ---
 
 ## Three Ways We Fall {#cover}
@@ -50,7 +51,7 @@ Chata’ah and hamartia come from archery and travel: to miss the target, or to 
 
 Failures of love and omission. The standard is active, self-giving love for God and neighbor, so missing the mark includes unintentional lapses, hasty errors, and good left undone (James 4:17).
 
-::: callout The blind spot for high-capacity men
+::: callout The blind spot for capable, busy people
 Excusing spiritual or relational neglect because you are busy doing good or urgent work.
 :::
 
@@ -71,7 +72,7 @@ Avon carries the sense of bending or twisting, like metal warped out of true. It
 
 Corrupted motives and inner weight. Avon also names the guilt that crooked choices leave on the soul: “as an heavy burden they are too heavy for me” (Psalm 38:4).
 
-::: callout The blind spot for high-capacity men
+::: callout The blind spot for capable, busy people
 Believing your motives are pure while subtly bending truth, fairness or family dynamics to serve yourself.
 :::
 
@@ -92,8 +93,8 @@ Pesha is the language of borders and treaties: willful revolt, or a breach of tr
 
 Deliberate relational betrayal: breaking faith with someone who has every right to rely on you, whether a spouse, a child, a team, or a covenant partner.
 
-::: callout The blind spot for high-capacity men
-Justifying boundary-crossing or relational neglect in the name of crisis management, company survival, or pressure.
+::: callout The blind spot for capable, busy people
+Justifying boundary-crossing or relational neglect in the name of crisis management, keeping the work alive, or pressure.
 :::
 
 > But he was wounded for our transgressions, he was bruised for our iniquities.
@@ -101,13 +102,13 @@ Justifying boundary-crossing or relational neglect in the name of crisis managem
 
 ## My Reflections: Where this meets my life {#reflections}
 
-Run five arenas of daily responsibility through the three lenses and the hidden failures surface. Do not rush to defend yourself: whoso confesseth and forsaketh them shall have mercy (Proverbs 28:13).
+Run five arenas of daily responsibility through the three lenses (these five are a start; name your own) and the hidden failures surface. Do not rush to defend yourself: whoso confesseth and forsaketh them shall have mercy (Proverbs 28:13).
 
-- Husband
-- Father
-- CTO of two companies
-- Son of separated parents
-- Brother to sickle cell warriors
+- Spouse or closest friend
+- Parent or guardian
+- Work or study, and those you lead or serve
+- The family you came from
+- Anyone weak, sick or struggling within your reach
 
 ### The nightly pattern, 10 to 15 minutes
 
@@ -122,23 +123,23 @@ Run five arenas of daily responsibility through the three lenses and the hidden 
 
 ### 1. Haste and distraction
 
-Proverbs warns that one who hastens with his feet misses the way. Where did moving too fast today, between two companies, messages and household noise, cause me to miss what God was actually asking of me?
+Proverbs warns that one who hastens with his feet misses the way. Where did moving too fast today, between work, messages and household noise, cause me to miss what God was actually asking of me?
 
 ### 2. Sins of omission and prayerlessness
 
-Scripture treats ceasing to pray for those entrusted to you as sin against the Lord (1 Samuel 12:23). Who in my home, my teams or my family needed my prayer, encouragement or presence today, and received silence instead?
+Scripture treats ceasing to pray for those entrusted to you as sin against the Lord (1 Samuel 12:23). Who in my home, my work or my family needed my prayer, encouragement or presence today, and received silence instead?
 
 ### 3. Hearing amiss (*parakoe*)
 
-The New Testament names a subtle failure: closing the ears, or hearing amiss. When my wife, one of my children, a co-founder or a sibling spoke today, was I listening to their heart, or only waiting to solve the problem and move on?
+The New Testament names a subtle failure: closing the ears, or hearing amiss. When a spouse, a child, a colleague or a sibling spoke today, was I listening to their heart, or only waiting to solve the problem and move on?
 
 ### 4. Giving leftovers to covenant
 
-Did I give my sharpest focus, patience and creativity to my companies, and offer my wife and children only my depleted, irritable leftovers?
+Did I give my sharpest focus, patience and creativity to my work, and offer those closest to me only my depleted, irritable leftovers?
 
-### 5. Neglecting the sickle cell warriors
+### 5. Neglecting the weak and the sick
 
-In the press of daily deadlines, did I fail to check on my siblings living with sickle cell, forgetting the daily reality of their pain or leaving them to carry it unseen?
+In the press of daily deadlines, did I fail to check on a relative or friend living with illness or hardship, forgetting the daily reality of their pain or leaving them to carry it unseen?
 
 ::: callout Name it, without excuses
 David did not hide behind “forgive my many sins.” He said what he had done (Psalm 32:5, Psalm 51). Before the day closes, I will bring the exact person, word or omission to mind.
@@ -155,27 +156,27 @@ David did not hide behind “forgive my many sins.” He said what he had done (
 
 ### 1. Self-rule under competence (*anomia*)
 
-Lawlessness is not only breaking rules. It is the mindset “I will do what I want,” leaning on my own authority instead of God’s. As the technical authority in both companies, where did I lead, design or decide today without asking for God’s wisdom?
+Lawlessness is not only breaking rules. It is the mindset “I will do what I want,” leaning on my own authority instead of God’s. Wherever I hold authority or expertise, where did I lead, design or decide today without asking for God’s wisdom?
 
 ### 2. Twisting truth or speech
 
-James calls the tongue a world of iniquity (James 3:6). Did I exaggerate progress, soften metrics, withhold bad news from stakeholders or my wife, or use sharp, sarcastic or dominating words to win?
+James calls the tongue a world of iniquity (James 3:6). Did I exaggerate progress, soften metrics, withhold bad news from those I answer to or those closest to me, or use sharp, sarcastic or dominating words to win?
 
 ### 3. Unrighteousness in leadership (*adikia*)
 
-Adikia is depriving another of what is rightfully theirs. Did I take undue credit, judge an engineer harshly without hearing their context, or let favoritism and impatience govern how I led?
+Adikia is depriving another of what is rightfully theirs. Did I take undue credit, judge a colleague harshly without hearing their context, or let favoritism and impatience govern how I led?
 
 ### 4. Weaponizing duty and fatigue
 
-Iniquity often dresses as virtue. Did I use my workload or family responsibilities to justify coldness toward my wife, harshness toward my children, or spiritual laziness?
+Iniquity often dresses as virtue. Did I use my workload or family responsibilities to justify coldness toward those closest to me, harshness toward children in my care, or spiritual laziness?
 
 ### 5. Generational crookedness
 
-Avon can echo across generations. As a son of separated parents, did I replay old defensive patterns today: withdrawal, triangulation, people-pleasing, or cynicism about covenant permanence?
+Avon can echo across generations. Did I replay old defensive patterns learned in the family I came from: withdrawal, triangulation, people-pleasing, or cynicism about commitment lasting?
 
 ### 6. Distorted compassion and savior-pride
 
-With my siblings who live with sickle cell, did compassion fatigue curdle into secret resentment at the disruption of their crises, or into prideful self-pity over how much I carry?
+When I care for someone who is sick or struggling, did compassion fatigue curdle into secret resentment at the disruption of their crises, or into prideful self-pity over how much I carry?
 
 ### 7. Feeding the crouching beast
 
@@ -190,28 +191,28 @@ God warned Cain that sin is crouching at the door (Genesis 4:7). What crooked de
 
 *Transgression is never accidental. It is knowingly stepping across a clear boundary, or violating the trust of someone who has every right to rely on you.*
 
-### 1. Breach of marital and fatherly trust
+### 1. Breach of trust in close relationships
 
-Pesha is the betrayal of a trusted relationship. Did I violate my wife’s trust today through my eyes, digital habits, unkept promises or emotional secrecy? Was I harsh with my children in a way that provoked them to anger (Ephesians 6:4)?
+Pesha is the betrayal of a trusted relationship. Did I violate the trust of someone close to me today through my eyes, digital habits, unkept promises or emotional secrecy? Was I harsh with a child in my care in a way that provoked them to anger (Ephesians 6:4)?
 
 ### 2. Hypocrisy in standards
 
-Paul warns against teaching a standard while knowingly breaking it yourself (Romans 2:21). Did I hold my team, my wife or my children to integrity, punctuality or self-control that I quietly exempted myself from?
+Paul warns against teaching a standard while knowingly breaking it yourself (Romans 2:21). Did I hold those I lead, those closest to me or children in my care to integrity, punctuality or self-control that I quietly exempted myself from?
 
 ### 3. Sacrificing people for security or economy
 
-The prophets condemned leaders who justified mistreating people in the name of economic strength or security. Did I knowingly overburden an employee, cut an ethical corner, or break a commitment in either company to protect revenue, timelines or reputation?
+The prophets condemned leaders who justified mistreating people in the name of economic strength or security. Did I knowingly overburden an employee, cut an ethical corner, or break a commitment in my work to protect revenue, timelines or reputation?
 
 ### 4. Abandoning the vulnerable
 
-The prophets named ignoring the vulnerable in your own reach as transgression. When a sibling with sickle cell, a struggling child or a team member needed concrete advocacy or protection that I had the power to give, did I knowingly step past them?
+The prophets named ignoring the vulnerable in your own reach as transgression. When a sick relative, a struggling child or a colleague needed concrete advocacy or protection that I had the power to give, did I knowingly step past them?
 
-### 5. Dishonoring separated parents
+### 5. Dishonoring parents
 
 Did I cross God’s explicit command to honor my father and my mother (Exodus 20:12) by speaking cynically, taking sides maliciously, or nursing unforgiveness toward them?
 
 ::: callout Make it right within 24 hours
-Pardon is not the whole of repentance. If I broke trust with my wife, a child, a sibling or a colleague, I will choose one concrete apology or repair and begin it within 24 hours.
+Pardon is not the whole of repentance. If I broke trust with a spouse, a child, a sibling, a friend or a colleague, I will choose one concrete apology or repair and begin it within 24 hours.
 :::
 
 #### A verse to carry
@@ -235,7 +236,7 @@ LORD, LORD God, merciful and gracious, slow to anger, great in kindness, keeping
 
 #### Psalm 32:5
 
-Father, I have sinned. I have missed the mark. I moved too fast and did not hear what you asked of me. I listened with half an ear to my wife, my children and my team. I gave my best to my work and my leftovers to my home. I left good undone, and I left prayer undone for those you placed in my care.
+Father, I have sinned. I have missed the mark. I moved too fast and did not hear what you asked of me. I listened with half an ear to those closest to me and those I work with. I gave my best to my work and my leftovers to my home. I left good undone, and I left prayer undone for those you placed in my care.
 
 *Pause. Name the person, the word, the omission.*
 
@@ -259,7 +260,7 @@ I have transgressed. I knew the line and I crossed it. I broke trust with people
 
 #### Nehemiah 9:2, 33
 
-As Israel stood and confessed their own sins and the iniquities of their fathers, so do I. You are just in all that has come, and I have done wickedly. Break in me the patterns I received, so that my children do not inherit them.
+As Israel stood and confessed their own sins and the iniquities of their fathers, so do I. You are just in all that has come, and I have done wickedly. Break in me the patterns I received, so that those who come after me do not inherit them.
 
 ### VI. Have mercy
 
