@@ -23,6 +23,16 @@ const builtInSources = [
     'Tyndale House, Cambridge, www.STEPBible.org',
   ),
   DataSource('Cross references', 'CC BY', 'OpenBible.info'),
+  DataSource(
+    'Building the Inner City of God (booklet)',
+    'Included by Berea’s maintainer; author and licence not recorded',
+    'Synthesized from Venerable Mary of Jesus of Agreda’s The Mystical City of God',
+  ),
+  DataSource(
+    'Three Ways We Fall (booklet)',
+    'Included by Berea’s maintainer; author and licence not recorded',
+    'An examination of conscience with a prayer of confession',
+  ),
 ];
 
 const downloadableSources = [

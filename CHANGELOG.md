@@ -5,6 +5,16 @@
 Berea no longer has a chat or a language model. It shows Scripture, counted facts, named sources
 and your own words, and nothing in it writes text for you.
 
+- **Two booklets, built in and shown whole.** *Building the Inner City of God* (eight sections,
+  twelve numbered steps) and *Three Ways We Fall* (eleven sections, with a seven-part prayer of
+  confession) are in Berea as text, word for word, checked against the PDFs they came from. They are
+  named sources: every screen says they were included by Berea's maintainer and are not Scripture
+  and not written by Berea. Notes lists them. Plans reads each a section at a time, beside a Bible
+  plan, and ticks the sections you read; there are no dates and no streak. Prayer opens three
+  stretches of them (the Prayer of Confession, the morning words and the daily rhythm of the Inner
+  City), kept apart from your own list, which they never touch. A quotation that names a reference
+  opens it in the Bible. A booklet can be added to a notebook. Reading progress stays on the device
+  and is not in a backup yet.
 - **Removed:** Study (the chat), Ask, Go deeper, drafting a study page, Listen, voice questions and
   dictation, the helper download and its settings, and Gemma and Ollama support. The Android APK is
   58 MB where 0.8.0 was 102 MB. Updating deletes the downloaded model and voice files, which can free

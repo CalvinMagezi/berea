@@ -2,6 +2,7 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'app_state.dart';
+import 'booklet_screens.dart';
 import 'export.dart';
 import 'note_dialog.dart';
 import 'notebook_store.dart';
@@ -188,6 +189,17 @@ class _NotesScreenState extends State<NotesScreen> {
             onOpen: (id) => openNotebook(context, _s, id),
             onNew: _newNotebook,
           ),
+          if (_s.booklets.isNotEmpty) ...[
+            const _Header('Booklets'),
+            for (final b in _s.booklets)
+              ListTile(
+                leading: const Icon(Icons.auto_stories_outlined),
+                title: Text(b.short),
+                subtitle: Text('${b.sections.length} sections · about ${b.minutes} minutes'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => openBooklet(context, _s, b),
+              ),
+          ],
         ],
         const _Header('Recent'),
         if (recent.isEmpty)

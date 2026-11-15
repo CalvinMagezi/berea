@@ -54,6 +54,9 @@ class PrayerScreen extends StatefulWidget {
   /// Opens Settings from the app bar; null hides the button.
   final VoidCallback? onSettings;
 
+  /// Opens the prayers taken from the booklets; null hides the row.
+  final VoidCallback? onBookletPrayers;
+
   /// Opens the Bible search, so it is one tap from here.
   const PrayerScreen({
     super.key,
@@ -63,6 +66,7 @@ class PrayerScreen extends StatefulWidget {
     this.share = shareText,
     this.refresh,
     this.onSettings,
+    this.onBookletPrayers,
   });
 
   @override
@@ -106,6 +110,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
             translation: widget.translation,
             onAdd: _add,
             onSettings: widget.onSettings,
+            onBookletPrayers: widget.onBookletPrayers,
           )
         : Center(
             child: ConstrainedBox(
@@ -180,6 +185,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
               trailing: const Icon(Icons.chevron_right),
               onTap: _stopped,
             ),
+          if (widget.onBookletPrayers case final open?) _BookletPrayersRow(onTap: open),
         ],
       ),
     );
@@ -247,6 +253,20 @@ class _PrayerRow extends StatelessWidget {
   }
 }
 
+/// The way into the prayers taken from the booklets, which sit apart from the person's list.
+class _BookletPrayersRow extends StatelessWidget {
+  final VoidCallback onTap;
+  const _BookletPrayersRow({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    leading: const Icon(Icons.auto_stories_outlined),
+    title: const Text('Prayers from booklets'),
+    trailing: const Icon(Icons.chevron_right),
+    onTap: onTap,
+  );
+}
+
 class _PrivacyLine extends StatelessWidget {
   const _PrivacyLine();
 
@@ -277,11 +297,13 @@ class _FirstTime extends StatelessWidget {
   final String Function() translation;
   final VoidCallback onAdd;
   final VoidCallback? onSettings;
+  final VoidCallback? onBookletPrayers;
   const _FirstTime({
     required this.passage,
     required this.translation,
     required this.onAdd,
     this.onSettings,
+    this.onBookletPrayers,
   });
 
   @override
@@ -342,6 +364,7 @@ class _FirstTime extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               const _PrivacyLine(),
+              if (onBookletPrayers case final open?) _BookletPrayersRow(onTap: open),
             ],
           ),
         ),

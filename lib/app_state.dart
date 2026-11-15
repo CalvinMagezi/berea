@@ -18,6 +18,7 @@ import 'commentary_packs.dart';
 import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'reminder_platform.dart';
+import 'booklets.dart';
 import 'plans.dart';
 import 'prayer_sheet.dart' show passageText;
 import 'prayer_store.dart';
@@ -122,6 +123,13 @@ class AppState extends ChangeNotifier {
   /// Prayers share study.sqlite, so they are backed up and restored with the notes.
   late final PrayerStore prayers = PrayerStore(study.db);
 
+  /// The booklets built into the app, read from its assets when it opens. Empty if none could
+  /// be read, so the places that list them simply show none.
+  List<Booklet> booklets = const [];
+
+  /// Which booklet sections are read and which booklets are running as plans.
+  late final BookletReading bookletReading = BookletReading(prefs);
+
   /// Said once after an update that removed the helper or the chat; null otherwise.
   String? upgradeNotice;
 
@@ -163,6 +171,7 @@ class AppState extends ChangeNotifier {
       s.reminderPlatform = LocalNotificationsPlatform();
     }
     s.prefs = prefs ?? await SharedPreferences.getInstance();
+    s.booklets = await loadBooklets();
     s.upgradeNotice = upgradeNoticeText(
       freedBytes: await removeHelperFiles(s.supportDir, s.prefs),
       chatsDeleted: s.study.chatsDeleted,

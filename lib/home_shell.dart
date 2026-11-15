@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import 'app_state.dart';
+import 'booklet_screens.dart';
 import 'brand/prayer_icon.dart';
 import 'notes_screen.dart';
 import 'plans_screen.dart';
@@ -169,6 +170,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           translation: () => s.settings.translation,
           refresh: s.dayChanged,
           onSettings: () => showSettingsSheet(context, s),
+          onBookletPrayers: s.booklets.isEmpty
+              ? null
+              : () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(builder: (_) => BookletPrayersScreen(state: s)),
+                ),
         ),
         NavigatorPopHandler(
           enabled: _tab == HomeTab.notes,
