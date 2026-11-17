@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:berea/app_state.dart';
+import 'package:berea/daily_practices.dart';
 import 'package:berea/daily_reminder.dart';
 import 'package:berea/plans.dart';
 import 'package:berea/reminder_settings.dart';
@@ -153,6 +154,85 @@ void main() {
     s.reminderPlatform = platform;
     return s;
   }
+
+  group('the daily practices share the schedule', () {
+    test('turning one on schedules it alone, with its own ids', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p);
+      expect(await s.turnOnPracticeReminder(Practice.reflection, 21 * 60), isTrue);
+      expect(s.practiceReminder(Practice.reflection).on, isTrue);
+      expect(s.practiceReminder(Practice.reflection).minutes, 21 * 60);
+      expect(s.practiceReminder(Practice.building).on, isFalse);
+      expect(p.scheduled.length, reminderDaysAhead);
+      expect(p.scheduled.every((m) => m.title == 'Daily reflection'), isTrue);
+    });
+
+    test('asking is refused: nothing is saved or scheduled', () async {
+      final p = FakePlatform()..granted = false;
+      final s = await open(platform: p);
+      expect(await s.turnOnPracticeReminder(Practice.building, 420), isFalse);
+      expect(s.practiceReminder(Practice.building).on, isFalse);
+      expect(p.scheduled, isEmpty);
+    });
+
+    test('both practices and the reading are scheduled together, none replacing another', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p, prefs: _running());
+      await s.turnOnReminder(390, referenceOnly: false);
+      await s.turnOnPracticeReminder(Practice.building, 420);
+      await s.turnOnPracticeReminder(Practice.reflection, 21 * 60);
+      expect(p.scheduled.length, reminderDaysAhead * 3);
+      final ids = p.scheduled.map((m) => m.id);
+      expect(ids.toSet(), hasLength(ids.length));
+    });
+
+    test('turning one off leaves the others', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p, prefs: _running());
+      await s.turnOnReminder(390, referenceOnly: false);
+      await s.turnOnPracticeReminder(Practice.reflection, 21 * 60);
+      await s.turnOffPracticeReminder(Practice.reflection);
+      expect(s.practiceReminder(Practice.reflection).on, isFalse);
+      expect(p.scheduled.length, reminderDaysAhead);
+      expect(p.scheduled.any((m) => m.title == 'Daily reflection'), isFalse);
+    });
+
+    test('turning off the reading leaves a practice', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p, prefs: _running());
+      await s.turnOnReminder(390, referenceOnly: false);
+      await s.turnOnPracticeReminder(Practice.building, 420);
+      await s.turnOffReminder();
+      expect(p.scheduled.length, reminderDaysAhead);
+      expect(p.scheduled.every((m) => m.title == 'Daily inner building'), isTrue);
+    });
+
+    test('turning off the last one clears everything', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p);
+      await s.turnOnPracticeReminder(Practice.building, 420);
+      await s.turnOffPracticeReminder(Practice.building);
+      expect(p.scheduled, isEmpty);
+    });
+
+    test('opening Berea again keeps a practice going', () async {
+      final p = FakePlatform();
+      final s = await open(
+        prefs: {'reflectionReminderOn': true, 'reflectionReminderMinutes': 1260},
+        platform: p,
+      );
+      await s.syncReminder();
+      expect(p.scheduled.length, reminderDaysAhead);
+    });
+
+    test('with nothing on, opening Berea does not touch the platform', () async {
+      final p = FakePlatform();
+      final s = await open(platform: p);
+      p.scheduled = [ReminderMessage(1, DateTime(2030), 'x', 'y')];
+      await s.syncReminder();
+      expect(p.scheduled, hasLength(1));
+    });
+  });
 
   group('turning it on and off', () {
     test('asking is refused: nothing is saved or scheduled', () async {

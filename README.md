@@ -56,13 +56,11 @@ licence. The packs are optional public domain downloads.
 
 **Plans.** Bible in a year, New Testament in 90 days, the Gospels in 30, Psalms and Proverbs in
 60. Today's reading, and the first verse of it, sit on the Bible. A plan ticks chapters, not
-days, and never counts a streak. Two booklets are built in and read as plans of their own, a
-section at a time, beside a Bible plan rather than instead of one (see Booklets below).
+days, and never counts a streak.
 
 **Prayer.** A prayer list of your own: what you are praying for, the verse you stand on, and how each
-prayer was answered. Berea writes no prayers; the words are yours. The Prayer place also opens
-prayers taken from the built-in booklets, shown whole under the booklet's name and kept apart from
-your list. Nothing from them is added to it.
+prayer was answered. Berea writes no prayers; the words are yours. The Prayer place also
+opens the two daily practices (see below), kept apart from your list.
 
 **Notes and notebooks.** Notes, study pages and highlights in one searchable place. A notebook
 gathers what you read on one passage or topic: Bible passages, commentary from the installed
@@ -70,16 +68,15 @@ packs, your notes, pasted text, PDFs and EPUB books. Berea reads each source on 
 it into sections that remember where they came from (and the PDF page), and indexes them for
 search. Search a notebook from its own screen. Export your notes to Markdown.
 
-**Booklets.** Two booklets are built in, each shown whole: *Building the Inner City of
-God* (Calvin Magezi's reconfiguration of Venerable Mary of Jesus of Agreda's *The Mystical City of
-God*) and *Three Ways
-We Fall* (an examination of conscience with a prayer of confession, written by Calvin Magezi
-from his own research). They are named sources, not Scripture and not written by Berea, and each
-screen says so. Notes lists them; Plans reads them a
-section at a time and ticks the sections read, with no dates and no streak; Prayer opens the
-prayers in them. A booklet can be copied into a notebook, where it is searched with your own notes.
-A quotation that names a Bible reference opens that reference in the Bible. The text lives in
-`assets/booklets/` as plain markdown.
+**Daily practices.** Two short practices, both from Calvin Magezi's own writing, and nothing else.
+*Daily inner building* shows one stone of an inner city a day, from the ground up and then round
+again, with the one thing to do with it: building a place where God can live. *Daily reflection*
+is five short steps through the day that is ending, by way of sin (missing the mark), iniquity
+(bent and twisted) and transgression (crossing a line), ending in mercy and one repair to begin.
+Both open from the Prayer place. Each can have a reminder in Settings, off until you turn it on,
+at a time you choose and set on this device; the reflection asks in the evening and the building
+names that day's stone in the morning. Nothing you think is written down or kept. The verses
+are read from the translation you chose, not typed into the app.
 
 **Backup.** One encrypted file (AES-256-GCM, key from your passphrase) that you keep wherever you
 like. Restore checks the file before it replaces anything. Backups from earlier versions still

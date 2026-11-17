@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'daily_practices.dart';
 import 'daily_reminder.dart';
 import 'device.dart';
 import 'helper_cleanup.dart';
@@ -18,7 +19,6 @@ import 'commentary_packs.dart';
 import 'notebook_store.dart';
 import 'pinned_download.dart';
 import 'reminder_platform.dart';
-import 'booklets.dart';
 import 'plans.dart';
 import 'prayer_sheet.dart' show passageText;
 import 'prayer_store.dart';
@@ -123,13 +123,6 @@ class AppState extends ChangeNotifier {
   /// Prayers share study.sqlite, so they are backed up and restored with the notes.
   late final PrayerStore prayers = PrayerStore(study.db);
 
-  /// The booklets built into the app, read from its assets when it opens. Empty if none could
-  /// be read, so the places that list them simply show none.
-  List<Booklet> booklets = const [];
-
-  /// Which booklet sections are read and which booklets are running as plans.
-  late final BookletReading bookletReading = BookletReading(prefs);
-
   /// Said once after an update that removed the helper or the chat; null otherwise.
   String? upgradeNotice;
 
@@ -171,7 +164,6 @@ class AppState extends ChangeNotifier {
       s.reminderPlatform = LocalNotificationsPlatform();
     }
     s.prefs = prefs ?? await SharedPreferences.getInstance();
-    s.booklets = await loadBooklets();
     s.upgradeNotice = upgradeNoticeText(
       freedBytes: await removeHelperFiles(s.supportDir, s.prefs),
       chatsDeleted: s.study.chatsDeleted,
@@ -543,7 +535,7 @@ class AppState extends ChangeNotifier {
     try {
       if (!await platform.requestPermission()) return false;
       // Scheduled before saved, so a failure leaves the earlier choice as it was.
-      await _scheduleReminder(platform, chosen);
+      await _scheduleAll(platform, reading: chosen);
       await prefs.setBool('reminderOn', true);
       await prefs.setInt('reminderMinutes', minutes);
       await prefs.setBool('reminderReferenceOnly', referenceOnly);
@@ -559,9 +551,51 @@ class AppState extends ChangeNotifier {
   Future<void> turnOffReminder() => _reminderRun(() async {
     await prefs.setBool('reminderOn', false);
     try {
-      await reminderPlatform?.replaceAll(const []);
+      // The practices' reminders, if on, are scheduled again without the reading.
+      await _clearAndReschedule();
     } on Object catch (e) {
       debugPrint('The daily notification could not be cleared: $e');
+    } finally {
+      notifyListeners();
+    }
+  });
+
+  /// What the reader chose for a daily practice's reminder, kept on this device. Off until
+  /// turned on.
+  PracticeReminder practiceReminder(Practice practice) => PracticeReminder(
+    on: prefs.getBool(practice.onKey) ?? false,
+    minutes: prefs.getInt(practice.minutesKey) ?? practice.defaultMinutes,
+  );
+
+  /// Turns [practice]'s reminder on at [minutes], asking to allow notifications first. False when
+  /// the person says no or there is nothing to schedule with; nothing is changed then.
+  Future<bool> turnOnPracticeReminder(Practice practice, int minutes) => _reminderRun(() async {
+    final platform = reminderPlatform;
+    if (platform == null) return false;
+    try {
+      if (!await platform.requestPermission()) return false;
+      // Scheduled before saved, so a failure leaves the earlier choice as it was.
+      await _scheduleAll(
+        platform,
+        practices: {practice: PracticeReminder(on: true, minutes: minutes)},
+      );
+      await prefs.setBool(practice.onKey, true);
+      await prefs.setInt(practice.minutesKey, minutes);
+    } on Object catch (e) {
+      debugPrint('The ${practice.title} reminder could not be turned on: $e');
+      return false;
+    } finally {
+      notifyListeners();
+    }
+    return true;
+  });
+
+  Future<void> turnOffPracticeReminder(Practice practice) => _reminderRun(() async {
+    await prefs.setBool(practice.onKey, false);
+    try {
+      await _clearAndReschedule();
+    } on Object catch (e) {
+      debugPrint('The ${practice.title} reminder could not be cleared: $e');
     } finally {
       notifyListeners();
     }
@@ -573,7 +607,7 @@ class AppState extends ChangeNotifier {
     final platform = reminderPlatform;
     if (platform == null) return;
     try {
-      await _scheduleReminder(platform, reminder);
+      await _scheduleAll(platform);
     } on Object catch (e) {
       debugPrint('The daily notification could not be scheduled: $e');
     }
@@ -589,22 +623,47 @@ class AppState extends ChangeNotifier {
     return run;
   }
 
-  Future<void> _scheduleReminder(ReminderPlatform platform, ReminderSettings settings) async {
-    // Off schedules nothing: turning it off already cancelled, and the plugin is not loaded for
-    // readers who never turned it on.
-    if (!settings.on) return;
+  /// Drops what is scheduled, then schedules whatever is still on.
+  Future<void> _clearAndReschedule() async {
+    final platform = reminderPlatform;
+    if (platform == null) return;
+    await _scheduleAll(platform, clearWhenNoneOn: true);
+  }
+
+  /// Schedules every reminder that is on, in one go, because the platform replaces all it holds.
+  /// [reading] and [practices] stand in for what is saved, so a choice can be tried before it is.
+  Future<void> _scheduleAll(
+    ReminderPlatform platform, {
+    ReminderSettings? reading,
+    Map<Practice, PracticeReminder> practices = const {},
+    bool clearWhenNoneOn = false,
+  }) async {
+    final readingNow = reading ?? reminder;
+    final practicesNow = {
+      for (final p in Practice.values) p: practices[p] ?? practiceReminder(p),
+    };
+    // None on schedules nothing: turning off already cancelled, and the plugin is not loaded
+    // for readers who never turned one on.
+    if (!readingNow.on && !practicesNow.values.any((r) => r.on)) {
+      if (clearWhenNoneOn) await platform.replaceAll(const []);
+      return;
+    }
     if (!await platform.allowed()) {
       await platform.replaceAll(const []);
       return;
     }
-    await platform.replaceAll(
-      buildReminders(
-        now: DateTime.now(),
-        settings: settings,
+    final now = DateTime.now();
+    await platform.replaceAll([
+      ...buildReminders(
+        now: now,
+        settings: readingNow,
         verseOn: readingVerse,
         textOf: (v) => passageText(db.passage(v, translation: this.settings.translation)),
       ),
-    );
+      for (final e in practicesNow.entries)
+        if (e.value.on)
+          ...buildPracticeReminders(practice: e.key, now: now, minutes: e.value.minutes),
+    ]);
   }
 
   static const maxLexiconPackBytes = 64 * 1024 * 1024;

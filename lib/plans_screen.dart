@@ -2,7 +2,6 @@ import 'package:berea_harness/berea_harness.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'app_state.dart';
-import 'booklet_screens.dart';
 import 'plans.dart';
 import 'setup_screen.dart' show deviceNoun;
 import 'settings_sheet.dart';
@@ -66,19 +65,11 @@ class _PlansScreenState extends State<PlansScreen> {
         ],
       ),
       body: progress == null
-          ? _list([
-              _section('Choose a plan'),
-              ..._planTiles(readingPlans),
-              BookletPlans(state: s),
-            ])
+          ? _list([_section('Choose a plan'), ..._planTiles(readingPlans)])
           : LayoutBuilder(
               builder: (_, c) => c.maxWidth >= _twoColumnWidth
                   ? _wide(progress)
-                  : _list([
-                      ..._running(progress),
-                      ..._others(progress.plan),
-                      BookletPlans(state: s),
-                    ]),
+                  : _list([..._running(progress), ..._others(progress.plan)]),
             ),
     );
   }
@@ -96,10 +87,7 @@ class _PlansScreenState extends State<PlansScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [..._running(progress), BookletPlans(state: s)],
-          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: _running(progress)),
         ),
         const SizedBox(width: 24),
         Expanded(
