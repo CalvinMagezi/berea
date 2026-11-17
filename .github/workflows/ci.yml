@@ -65,9 +65,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      # Pinned: Flutter 3.50 wants Gradle 9 and AGP 9, which the Android build here is not on yet
+      # (TECHDEBT.md). 3.47 is the oldest this project supports.
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.x
       - run: mkdir -p assets && touch assets/berea.sqlite && echo ci > assets/berea.sqlite.version
       - run: flutter pub get
       - run: bash tool/pin_pdfium.sh android-arm64

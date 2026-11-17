@@ -64,9 +64,11 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
+      # Pinned like the android job in ci.yml: current stable wants Gradle 9 and AGP 9 (TECHDEBT.md).
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.x
       - run: sudo apt-get install -y libsqlite3-dev
 
       - name: Build the Bible database
