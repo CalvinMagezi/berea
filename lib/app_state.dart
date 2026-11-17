@@ -658,7 +658,7 @@ class AppState extends ChangeNotifier {
         now: now,
         settings: readingNow,
         verseOn: readingVerse,
-        textOf: (v) => passageText(db.passage(v, translation: this.settings.translation)),
+        textOf: (v) => passageText(db.passage(v, translation: settings.translation)),
       ),
       for (final e in practicesNow.entries)
         if (e.value.on)
