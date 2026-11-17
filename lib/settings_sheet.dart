@@ -9,6 +9,7 @@ import 'backup.dart';
 import 'commentary_settings.dart';
 import 'practice_reminder_settings.dart';
 import 'reminder_settings.dart';
+import 'update_settings.dart';
 import 'share_berea.dart';
 
 const minPassphraseLength = 8;
@@ -556,6 +557,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
               ),
               ReminderSettingsSection(state: widget.state, onMessage: _say),
               PracticeReminderSettings(state: widget.state, onMessage: _say),
+              UpdateSettingsSection(state: widget.state, onMessage: _say),
               const Divider(height: 24),
               Text('Your data', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),

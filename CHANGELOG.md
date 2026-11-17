@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.0-rc1
+## 0.9.0
 
 Berea no longer has a chat or a language model. It shows Scripture, counted facts, named sources
 and your own words, and nothing in it writes text for you.
@@ -12,6 +12,12 @@ and your own words, and nothing in it writes text for you.
   mercy and one repair to begin. Both open from the Prayer place. Settings has a reminder for each,
   off until turned on, at a time you choose. The booklets' sections, reading ticks and notebook copy
   are gone; the full texts stay in the project history.
+- **Update from inside Berea (Android).** When Berea opens, at most once a day, it asks GitHub for
+  the newest release. If a newer one is out, a bar above the places says so; Update downloads it,
+  checks it against the checksum GitHub published, and opens Android's installer. Later puts the
+  bar away until the next release. Settings, Updates, turns the look off and has Check now. It
+  sends nothing about you. Releases are now built and signed in CI (Actions, Release), so a
+  phone no longer needs a cable and a laptop; see docs/releasing.md.
 - **Removed:** Study (the chat), Ask, Go deeper, drafting a study page, Listen, voice questions and
   dictation, the helper download and its settings, and Gemma and Ollama support. The Android APK is
   58 MB where 0.8.0 was 102 MB. Updating deletes the downloaded model and voice files, which can free

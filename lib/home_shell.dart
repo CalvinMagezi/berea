@@ -12,6 +12,7 @@ import 'practice_screens.dart';
 import 'prayer_screen.dart';
 import 'reader_screen.dart';
 import 'search_place_button.dart';
+import 'update_bar.dart';
 import 'search_screen.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
@@ -65,6 +66,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.state.openSearchRequest.addListener(_openSearch);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(widget.state.syncReminder());
+      unawaited(widget.state.updates.checkWhenOpened());
       _sayUpgrade();
     });
   }
@@ -185,6 +187,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         ),
       ],
     );
+    // The update bar sits at the foot of the page, above the places, where a thumb reaches it.
+    final page = Column(
+      children: [
+        Expanded(child: body),
+        UpdateBar(updates: s.updates),
+      ],
+    );
     return CallbackShortcuts(
       bindings: _shortcuts,
       child: Focus(
@@ -206,13 +215,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                       ),
                     ),
                     const VerticalDivider(width: 1),
-                    Expanded(child: body),
+                    Expanded(child: page),
                   ],
                 ),
               );
             }
             return Scaffold(
-              body: body,
+              body: page,
               bottomNavigationBar: _PlaceBar(state: s, selected: _tab, onSelect: _select),
             );
           },

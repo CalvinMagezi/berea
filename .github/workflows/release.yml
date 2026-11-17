@@ -1,0 +1,121 @@
+name: Release
+
+# Builds the signed Android app in CI and publishes it as a GitHub release, so a phone can update
+# itself from inside Berea. Run it from the Actions tab (or the GitHub mobile app) with a version,
+# or push a tag such as v0.9.1. Needs four repository secrets; see docs/releasing.md.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, such as 0.9.1 (CHANGELOG.md needs a "## 0.9.1" heading)
+        required: true
+        type: string
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out the version
+        id: v
+        run: |
+          raw="${{ github.event.inputs.version || github.ref_name }}"
+          version="${raw#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "'$raw' is not a version like 0.9.1 or 0.9.1-rc1." >&2; exit 1; }
+          grep -q "^## $version" CHANGELOG.md || { echo "Add a '## $version' section to CHANGELOG.md first." >&2; exit 1; }
+          if gh release view "v$version" >/dev/null 2>&1; then echo "Release v$version already exists." >&2; exit 1; fi
+          # Android only installs an update with a higher build number. This one rises with the
+          # version: 0.9.1 is 901, 0.10.0 is 1000.
+          IFS=. read -r major minor patch <<<"${version%%-*}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build=$((major * 10000 + minor * 100 + patch))" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then echo "pre=true" >> "$GITHUB_OUTPUT"; else echo "pre=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Check the signing secrets are set
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for name in KEYSTORE STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [[ -n "${!name}" ]] || { echo "Secret for $name is not set; see docs/releasing.md." >&2; exit 1; }
+          done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      # Pinned like the android job in ci.yml: current stable wants Gradle 9 and AGP 9 (TECHDEBT.md).
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.x
+      - run: sudo apt-get install -y libsqlite3-dev
+
+      - name: Build the Bible database
+        run: |
+          dart pub get
+          dart run bin/build_db.dart
+        working-directory: packages/harness
+
+      - run: flutter pub get
+      - run: bash tool/pin_pdfium.sh android-arm64
+      - run: python3 tool/guard_strings.py
+      - run: flutter analyze --fatal-infos
+      - run: flutter test
+
+      - name: Sign and build
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/berea-release.jks"
+          cat > android/key.properties <<PROPS
+          storeFile=$RUNNER_TEMP/berea-release.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          PROPS
+          flutter build apk --release --target-platform android-arm64 \
+            --build-name "${{ steps.v.outputs.version }}" --build-number "${{ steps.v.outputs.build }}"
+          rm -f android/key.properties "$RUNNER_TEMP/berea-release.jks"
+          cp build/app/outputs/flutter-apk/app-release.apk "build/berea-${{ steps.v.outputs.version }}-android-arm64.apk"
+          # A fixed name too: the site's releases/latest link and the in-app update both find it.
+          cp build/app/outputs/flutter-apk/app-release.apk "build/berea-android-arm64.apk"
+
+      - name: Check it is signed with the release key, not the debug key
+        run: |
+          apksigner="$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          "$apksigner" verify --print-certs build/berea-android-arm64.apk | tee "$RUNNER_TEMP/cert.txt"
+          ! grep -qi "Android Debug" "$RUNNER_TEMP/cert.txt"
+
+      - name: Publish the release
+        run: |
+          version="${{ steps.v.outputs.version }}"
+          sed -n "/^## $version/,/^## /p" CHANGELOG.md | sed '$d' > "$RUNNER_TEMP/notes.md"
+          flags=(--latest)
+          [[ "${{ steps.v.outputs.pre }}" == "true" ]] && flags=(--prerelease)
+          gh release create "v$version" "${flags[@]}" --target "${{ github.sha }}" \
+            --title "Berea $version" --notes-file "$RUNNER_TEMP/notes.md" \
+            "build/berea-$version-android-arm64.apk" build/berea-android-arm64.apk
