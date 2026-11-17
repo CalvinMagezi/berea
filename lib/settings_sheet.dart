@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'app_state.dart';
 import 'backup.dart';
 import 'commentary_settings.dart';
+import 'practice_reminder_settings.dart';
 import 'reminder_settings.dart';
 import 'share_berea.dart';
 
@@ -554,6 +555,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 onMessage: _say,
               ),
               ReminderSettingsSection(state: widget.state, onMessage: _say),
+              PracticeReminderSettings(state: widget.state, onMessage: _say),
               const Divider(height: 24),
               Text('Your data', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),

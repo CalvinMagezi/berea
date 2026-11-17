@@ -24,14 +24,14 @@ const builtInSources = [
   ),
   DataSource('Cross references', 'CC BY', 'OpenBible.info'),
   DataSource(
-    'Building the Inner City of God (booklet)',
+    'Daily inner building',
     'Written by Calvin Magezi, who includes it in Berea; no licence asked',
-    'His reconfiguration of Venerable Mary of Jesus of Agreda’s The Mystical City of God',
+    'Condensed from his reconfiguration of Venerable Mary of Jesus of Agreda’s The Mystical City of God',
   ),
   DataSource(
-    'Three Ways We Fall (booklet)',
+    'Daily reflection',
     'Written by Calvin Magezi, who includes it in Berea; no licence asked',
-    'An examination of conscience with a prayer of confession',
+    'Condensed from his examination of conscience on sin, iniquity and transgression',
   ),
 ];
 
