@@ -15,7 +15,9 @@ How it works, in plain language: [calvinmagezi.github.io/berea](https://calvinma
 ## Principles
 
 - **Zero data.** No account, no analytics, no crash reporting, no sync. The only network calls are
-  downloads you start yourself: the optional lexicon pack and the commentary packs.
+  downloads you start yourself (the optional lexicon pack and the commentary packs) and, on
+  Android, one look at GitHub's newest release when Berea opens, at most once a day, which sends
+  nothing about you and which Settings turns off.
 - **Fully offline.** Scripture, lexicon, cross references and your notes are on the device.
 - **Scripture first.** Berea shows only Scripture, a counted fact, a named source, your own words,
   or interface wording that never says what a verse means. A selection says who made it and by
@@ -289,8 +291,12 @@ docs/plans/            the plan this release follows, and its handover
 
 ## Privacy
 
-Berea makes no network request on its own. The optional lexicon and the commentary packs come from
-github.com, only when you tap Download. There is no telemetry, no account, and no cloud copy of
+Berea makes one network request on its own, and only on Android: when it opens, at most once a
+day, it asks github.com for the newest release so a bar can say a new version is out. The request
+carries no account, no identifier and nothing you wrote; Settings, Updates, turns it off. Nothing
+is downloaded until you tap Update, and Android installs it only if it is signed with the same key
+as the Berea it replaces. The optional lexicon and the commentary packs come from github.com, only
+when you tap Download. There is no telemetry, no account, and no cloud copy of
 anything you write. Backups are files you choose where to keep. Deleting the app deletes the data.
 
 Android cloud backup and device transfer are turned off, and the iOS data folder is excluded from
@@ -306,7 +312,7 @@ Open items with reasons are tracked in `TECHDEBT.md`. Changes are in `CHANGELOG.
 ## Contributing
 
 Issues and pull requests are welcome. Keep the principles: no network calls beyond the optional
-downloads, no accounts, no analytics, nothing in the app that writes text. Run the tests and the two
+downloads and the update look, no accounts, no analytics, nothing in the app that writes text. Run the tests and the two
 guards. Translations must be public domain or openly licensed to be bundled; anything else stays an
 import.
 

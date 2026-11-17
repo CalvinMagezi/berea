@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_update.dart';
 import 'daily_practices.dart';
 import 'daily_reminder.dart';
 import 'device.dart';
@@ -122,6 +123,9 @@ class AppState extends ChangeNotifier {
 
   /// Prayers share study.sqlite, so they are backed up and restored with the notes.
   late final PrayerStore prayers = PrayerStore(study.db);
+
+  /// Looks for a newer Berea and installs it when asked. Android only; elsewhere it does nothing.
+  late final UpdateService updates = UpdateService(prefs);
 
   /// Said once after an update that removed the helper or the chat; null otherwise.
   String? upgradeNotice;
