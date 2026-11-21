@@ -45,4 +45,5 @@ flutter:
   assets:
     - assets/berea.sqlite
     - assets/berea.sqlite.version
+    - assets/daily_prayers.json
     - licenses/pdfium/

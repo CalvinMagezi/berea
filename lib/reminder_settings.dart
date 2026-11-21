@@ -110,9 +110,9 @@ class _ReminderSheetState extends State<_ReminderSheet> {
   /// Today's message as the notification will show it.
   (String, String) _preview() {
     final s = widget.state;
-    final verse = s.readingVerse(DateTime.now());
-    if (verse == null) return ("Today's reading", 'Start a reading plan to have a verse to show.');
-    if (_referenceOnly) return ("Today's reading", verse.label);
+    final verse = s.verseOfTheDay(DateTime.now());
+    if (verse == null) return ('Verse of the day', 'There is no verse of the day in this Bible.');
+    if (_referenceOnly) return ('Verse of the day', verse.label);
     return (verse.label, passageText(s.db.passage(verse, translation: s.settings.translation)));
   }
 

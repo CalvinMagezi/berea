@@ -117,9 +117,11 @@ void main() {
     final state = await tester.runAsync(() => open({}));
     await pumpReader(tester, state!);
     expectTitle('John', 1);
-    expect(find.textContaining('TODAY\'S READING'), findsOneWidget);
+    expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
     expect(find.text('Start a reading plan'), findsOneWidget);
     expect(find.text('Six to choose from, 30 to 365 days'), findsOneWidget);
+    expect(find.text("A prayer from today's verse"), findsOneWidget, reason: 'no plan is needed');
+    expect(find.text('Read in context'), findsOneWidget);
     expect(find.textContaining('Where you stopped'), findsNothing);
     expect(find.byTooltip('Reading plans'), findsNothing);
     expect(state.prefs.getInt('readerBook'), 43, reason: 'a first open is remembered');
@@ -132,7 +134,7 @@ void main() {
 
     await tester.drag(find.byType(ListView), const Offset(0, -300));
     await tester.pumpAndSettle();
-    expect(find.textContaining('TODAY\'S READING'), findsNothing, reason: 'reading folds it');
+    expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'reading folds it');
     expect(find.byTooltip('Show today'), findsOneWidget);
   });
 
@@ -154,16 +156,16 @@ void main() {
     expectTitle('John', 3);
     expect(find.text('Where you stopped yesterday').hitTestable(), findsOneWidget);
     expect(find.text(tipT14), findsNothing);
-    expect(find.textContaining('TODAY\'S READING'), findsNothing, reason: 'seen today already');
+    expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'seen today already');
 
     await tester.tap(find.byTooltip('Show today'));
     await tester.pump();
-    expect(find.textContaining('TODAY\'S READING'), findsOneWidget);
+    expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
 
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Where you stopped'), findsNothing);
-    expect(find.textContaining('TODAY\'S READING'), findsNothing, reason: 'folds after a look');
+    expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'folds after a look');
   });
 
   testWidgets('left open past midnight, the folded card opens on the new day', (tester) async {
@@ -177,12 +179,12 @@ void main() {
       }),
     );
     await pumpReader(tester, state!);
-    expect(find.textContaining('TODAY\'S READING'), findsNothing, reason: 'seen today already');
+    expect(find.textContaining('VERSE OF THE DAY'), findsNothing, reason: 'seen today already');
 
     // The clock in a test does not move, so the remembered day stands in for yesterday's.
     await state.prefs.setString('todayCardFullOn', 'yesterday');
     await tester.pump(const Duration(hours: 24, seconds: 2));
-    expect(find.textContaining('TODAY\'S READING'), findsOneWidget);
+    expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
   });
 
   testWidgets('a jump from elsewhere starts the chapter at the top and moves the resume point', (
@@ -243,7 +245,7 @@ void main() {
         'activePlanStart': now.toIso8601String(),
       }),
     );
-    final daily = state!.readingVerse(now)!;
+    final daily = state!.verseOfTheDay(now)!;
     String line() => tester
         .widgetList<RichText>(find.byType(RichText))
         .map((t) => t.text.toPlainText())
@@ -267,6 +269,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(line(), 'Today · ${daily.label}');
     expect(find.text('Matthew 1-3'), findsOneWidget);
+  });
+
+  test('every day of the year has a verse and a prayer line for it', () async {
+    final state = await open({});
+    for (var d = 0; d < 366; d++) {
+      final day = DateTime(2024, 1, 1 + d);
+      final verse = state.verseOfTheDay(day);
+      expect(verse, isNotNull, reason: '$day');
+      expect(state.prayerFor(verse!), isNotEmpty, reason: verse.label);
+    }
+  });
+
+  testWidgets('Pray opens a new prayer with the verse of the day and its line', (tester) async {
+    final state = await tester.runAsync(() => open({'readerBook': 43}));
+    await pumpReader(tester, state!);
+    final verse = state.verseOfTheDay(DateTime.now())!;
+    await tester.tap(find.text('Pray'));
+    await tester.pumpAndSettle();
+    expect(find.text(state.prayerFor(verse)!), findsWidgets);
+    expect(find.widgetWithText(TextField, verse.label), findsOneWidget);
   });
 
   test('every book has a short name', () {

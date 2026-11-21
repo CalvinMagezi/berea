@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'app_state.dart';
 import 'plans.dart';
+import 'prayer_sheet.dart' show passageLookupFor, showPrayerSheet;
 import 'theme.dart';
 import 'today.dart';
 
@@ -16,7 +17,7 @@ const _fullNamesWidth = 560.0;
 /// A moment past midnight, so the new day has begun when the card looks again.
 const _pastMidnight = Duration(seconds: 1);
 
-/// Today on the Bible: the verse of the day and today's reading. In full on the first look of
+/// Today on the Bible: the verse of the day, a prayer from it, and today's reading. In full on the first look of
 /// the day, then one line that opens it again. Left open past midnight, it turns to the new day.
 class TodayCard extends StatefulWidget {
   final AppState state;
@@ -71,7 +72,7 @@ class _TodayCardState extends State<TodayCard> {
   }
 
   Widget _folded(BuildContext context, ColorScheme scheme) {
-    final daily = state.readingVerse(DateTime.now());
+    final daily = state.verseOfTheDay(DateTime.now());
     final reading = state.todaysReading;
     return InkWell(
       onTap: () => onFull(true),
@@ -125,7 +126,7 @@ class _TodayCardState extends State<TodayCard> {
 
   Widget _full(BuildContext context, ColorScheme scheme) {
     final now = DateTime.now();
-    final daily = state.readingVerse(now);
+    final daily = state.verseOfTheDay(now);
     final translation = state.settings.translation;
     final text = daily == null
         ? ''
@@ -139,7 +140,7 @@ class _TodayCardState extends State<TodayCard> {
             children: [
               Expanded(
                 child: Text(
-                  "TODAY'S READING · ${shortDate(now).toUpperCase()}",
+                  "VERSE OF THE DAY · ${shortDate(now).toUpperCase()}",
                   style: TextStyle(
                     fontSize: 11,
                     letterSpacing: _labelSpacing,
@@ -176,10 +177,37 @@ class _TodayCardState extends State<TodayCard> {
             ),
             Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
           ],
+          ..._prayerRow(context, scheme, daily),
           _planRow(scheme),
         ],
       ),
     );
+  }
+
+  /// A short prayer from the verse of the day. Pray opens it as the reader's own new prayer, with
+  /// the verse attached, to keep or change. Nothing when the verse has no line.
+  List<Widget> _prayerRow(BuildContext context, ColorScheme scheme, Ref? daily) {
+    final line = daily == null ? null : state.prayerFor(daily);
+    if (daily == null || line == null) return const [];
+    return [
+      ListTile(
+        contentPadding: const EdgeInsets.only(right: 8),
+        leading: Icon(Icons.volunteer_activism_outlined, color: scheme.primary),
+        title: Text(line),
+        subtitle: const Text("A prayer from today's verse"),
+        trailing: TextButton(
+          onPressed: () => showPrayerSheet(
+            context,
+            state.prayers,
+            title: line,
+            verse: daily.label,
+            passage: passageLookupFor(state.db, () => state.settings.translation),
+          ),
+          child: const Text('Pray'),
+        ),
+      ),
+      Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
+    ];
   }
 
 
