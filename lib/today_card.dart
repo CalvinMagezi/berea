@@ -71,7 +71,7 @@ class _TodayCardState extends State<TodayCard> {
   }
 
   Widget _folded(BuildContext context, ColorScheme scheme) {
-    final daily = state.readingVerse(DateTime.now());
+    final daily = state.verseOfTheDay(DateTime.now());
     final reading = state.todaysReading;
     return InkWell(
       onTap: () => onFull(true),
@@ -125,7 +125,7 @@ class _TodayCardState extends State<TodayCard> {
 
   Widget _full(BuildContext context, ColorScheme scheme) {
     final now = DateTime.now();
-    final daily = state.readingVerse(now);
+    final daily = state.verseOfTheDay(now);
     final translation = state.settings.translation;
     final text = daily == null
         ? ''
@@ -139,7 +139,7 @@ class _TodayCardState extends State<TodayCard> {
             children: [
               Expanded(
                 child: Text(
-                  "TODAY'S READING · ${shortDate(now).toUpperCase()}",
+                  "VERSE OF THE DAY · ${shortDate(now).toUpperCase()}",
                   style: TextStyle(
                     fontSize: 11,
                     letterSpacing: _labelSpacing,
@@ -181,7 +181,6 @@ class _TodayCardState extends State<TodayCard> {
       ),
     );
   }
-
 
   Widget _planRow(ColorScheme scheme) {
     final plan = state.activePlan;

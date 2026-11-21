@@ -57,9 +57,8 @@ abstract class ReminderPlatform {
   Future<void> replaceAll(List<ReminderMessage> messages);
 }
 
-/// The notifications for the next [days] days from [now]. Each shows the first verse of that day's
-/// reading, nothing else: no prayer, and none of the reader's own. A day with no reading gets no
-/// notification. A time already past today starts tomorrow.
+/// The notifications for the next [days] days from [now]. Each shows that day's verse of the day,
+/// nothing else: no prayer, and none of the reader's own. A time already past today starts tomorrow.
 List<ReminderMessage> buildReminders({
   required DateTime now,
   required ReminderSettings settings,
@@ -82,14 +81,14 @@ List<ReminderMessage> buildReminders({
     );
     if (!at.isAfter(now)) continue;
     final verse = verseOn(day);
-    // No plan means no reading on any later day either.
+    // A Bible built without the verse list has none on any day.
     if (verse == null) break;
     final words = textOf(verse);
     out.add(
       ReminderMessage(
         reminderId(day),
         at,
-        settings.referenceOnly ? "Today's reading" : verse.label,
+        settings.referenceOnly ? 'Verse of the day' : verse.label,
         settings.referenceOnly ? verse.label : words,
       ),
     );

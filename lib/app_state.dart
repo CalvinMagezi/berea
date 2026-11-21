@@ -511,14 +511,9 @@ class AppState extends ChangeNotifier {
     return plan == null ? null : planSchedule(plan)[planDay(plan) - 1];
   }
 
-  /// The first verse of the plan's reading for [date], which is the verse shown for the day.
-  /// Null when no plan runs: nothing stands in for it.
-  Ref? readingVerse(DateTime date) {
-    final plan = activePlan;
-    if (plan == null) return null;
-    final first = planSchedule(plan)[planDay(plan, on: date) - 1].firstOrNull;
-    return first == null ? null : Ref(first.book, first.chapter, 1, 1);
-  }
+  /// The verse of the day for [date]: one of the 366 single verses Scripture points to most,
+  /// chosen by the calendar, so it needs no reading plan. Null on a Bible built without the list.
+  Ref? verseOfTheDay(DateTime date) => db.dailyVerse(date);
 
   /// The daily notification the reader chose, kept on this device. Off until turned on.
   ReminderSettings get reminder => ReminderSettings(
@@ -661,7 +656,7 @@ class AppState extends ChangeNotifier {
       ...buildReminders(
         now: now,
         settings: readingNow,
-        verseOn: readingVerse,
+        verseOn: verseOfTheDay,
         textOf: (v) => passageText(db.passage(v, translation: settings.translation)),
       ),
       for (final e in practicesNow.entries)

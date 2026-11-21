@@ -5,6 +5,11 @@
 Berea no longer has a chat or a language model. It shows Scripture, counted facts, named sources
 and your own words, and nothing in it writes text for you.
 
+- **Verse of the day is back.** The card at the top of the Bible, on phone and desktop, shows the
+  day's verse again, with or without a reading plan: one of the 366 single verses Scripture points
+  to most, by cross-reference votes, chosen by the calendar, so no two days in a year share one.
+  Only Scripture: no prayer or other text is written for it. The daily notification shows the same
+  verse.
 - **Two daily practices.** *Daily inner building* and *Daily reflection*, from Calvin Magezi's own
   writing, replace the two long booklets (*Building the Inner City of God* and *Three Ways We Fall*),
   which were too much to take in. Building shows one stone of the inner city a day with the one
