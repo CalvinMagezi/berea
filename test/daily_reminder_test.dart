@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:berea/app_state.dart';
 import 'package:berea/daily_practices.dart';
 import 'package:berea/daily_reminder.dart';
-import 'package:berea/plans.dart';
 import 'package:berea/reminder_settings.dart';
 import 'package:berea/theme.dart';
 import 'package:berea_harness/berea_harness.dart';
@@ -151,6 +150,22 @@ void main() {
       supportDir: dir,
       prefs: await SharedPreferences.getInstance(),
     );
+    // The small Bible CI builds has no verse of the day list; give it one of 366 distinct verses.
+    final has = s.db.db.select(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'daily_verses'",
+    );
+    if (has.isEmpty) {
+      s.db.db.execute(
+        'CREATE TABLE daily_verses(day INTEGER PRIMARY KEY, book INTEGER, chapter INTEGER, verse INTEGER)',
+      );
+      for (var day = 1; day <= 366; day++) {
+        s.db.db.execute('INSERT INTO daily_verses VALUES(?, 43, ?, ?)', [
+          day,
+          1 + day ~/ 30,
+          1 + day % 30,
+        ]);
+      }
+    }
     s.reminderPlatform = platform;
     return s;
   }
@@ -331,10 +346,9 @@ void main() {
       expect(p.scheduled, isEmpty);
     });
 
-    test('a notification is the first verse of today\'s reading, never a prayer', () async {
+    test('a notification is the verse of the day, never a prayer', () async {
       final p = FakePlatform();
       final s = await open(platform: p);
-      s.startPlan(planById('nt-90')!);
       s.prayers.add(
         title: "$_readerName's surgery on Friday",
         forWhom: _readerName,
@@ -342,7 +356,12 @@ void main() {
       );
       await s.turnOnReminder(390, referenceOnly: false);
       expect(p.scheduled.length, reminderDaysAhead);
-      expect(p.scheduled.first.title, matches(RegExp(r'^Matthew \d+:1$')));
+      expect(p.scheduled.first.title, matches(RegExp(r'^John \d+:\d+$')));
+      expect(
+        {for (final m in p.scheduled) m.title}.length,
+        reminderDaysAhead,
+        reason: 'a new verse daily',
+      );
       for (final m in p.scheduled) {
         expect(m.body, isNot(contains('Pray')));
         expect(m.title + m.body, isNot(contains(_readerName)));
@@ -350,11 +369,11 @@ void main() {
       }
     });
 
-    test('with no plan running, turning the reminder on schedules nothing', () async {
+    test('with no plan running, the verse of the day is still scheduled', () async {
       final p = FakePlatform();
       final s = await open(platform: p);
       await s.turnOnReminder(390, referenceOnly: false);
-      expect(p.scheduled, isEmpty);
+      expect(p.scheduled.length, reminderDaysAhead);
     });
   });
 
