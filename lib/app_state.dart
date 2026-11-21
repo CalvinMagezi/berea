@@ -158,10 +158,8 @@ class AppState extends ChangeNotifier {
     Directory? supportDir,
     SharedPreferences? prefs,
     VoidCallback? onFirstSetup,
-    Map<String, String>? dailyPrayers,
   }) async {
     final s = AppState();
-    s.dailyPrayers = dailyPrayers ?? await _loadDailyPrayers();
     s.supportDir = supportDir ?? await getApplicationSupportDirectory();
     await excludeFromBackup(s.supportDir);
     s.db = BibleDb.open(await _ensureDb(s.supportDir, onFirstSetup));
@@ -186,20 +184,6 @@ class AppState extends ChangeNotifier {
     s.db.attachTopics(s.topicsPackPath);
     s.commentary = CommentaryShelf(Directory('${s.supportDir.path}/commentary'), s.touch);
     return s;
-  }
-
-  /// One short line of prayer for each verse of the day, by the verse's label ("Isaiah 41:10").
-  /// Empty when the file cannot be read, so the card shows the verse without a prayer.
-  Map<String, String> dailyPrayers = const {};
-
-  static Future<Map<String, String>> _loadDailyPrayers() async {
-    try {
-      final json = jsonDecode(await rootBundle.loadString('assets/daily_prayers.json'));
-      return (json as Map).cast<String, String>();
-    } on Object catch (e) {
-      debugPrint('The daily prayer lines did not load: $e');
-      return const {};
-    }
   }
 
   /// Opens the notes database. The notes merge first writes a safety copy beside it; if that
@@ -531,10 +515,6 @@ class AppState extends ChangeNotifier {
   /// The verse of the day for [date]: one of the 366 single verses Scripture points to most,
   /// chosen by the calendar, so it needs no reading plan. Null on a Bible built without the list.
   Ref? verseOfTheDay(DateTime date) => db.dailyVerse(date);
-
-  /// The short prayer written for [verse] of the day, or null when it has none.
-  String? prayerFor(Ref verse) =>
-      dailyPrayers[Ref(verse.book, verse.chapter, verse.verseStart).label];
 
   /// The daily notification the reader chose, kept on this device. Off until turned on.
   ReminderSettings get reminder => ReminderSettings(

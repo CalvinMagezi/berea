@@ -120,8 +120,7 @@ void main() {
     expect(find.textContaining('VERSE OF THE DAY'), findsOneWidget);
     expect(find.text('Start a reading plan'), findsOneWidget);
     expect(find.text('Six to choose from, 30 to 365 days'), findsOneWidget);
-    expect(find.text("A prayer from today's verse"), findsOneWidget, reason: 'no plan is needed');
-    expect(find.text('Read in context'), findsOneWidget);
+    expect(find.text('Read in context'), findsOneWidget, reason: 'the verse needs no plan');
     expect(find.textContaining('Where you stopped'), findsNothing);
     expect(find.byTooltip('Reading plans'), findsNothing);
     expect(state.prefs.getInt('readerBook'), 43, reason: 'a first open is remembered');
@@ -271,24 +270,17 @@ void main() {
     expect(find.text('Matthew 1-3'), findsOneWidget);
   });
 
-  test('every day of the year has a verse and a prayer line for it', () async {
+  test('every day has its own verse: no two days in a row or in a year are the same', () async {
     final state = await open({});
+    final seen = <String>{};
+    String? before;
     for (var d = 0; d < 366; d++) {
-      final day = DateTime(2024, 1, 1 + d);
-      final verse = state.verseOfTheDay(day);
-      expect(verse, isNotNull, reason: '$day');
-      expect(state.prayerFor(verse!), isNotEmpty, reason: verse.label);
+      final verse = state.verseOfTheDay(DateTime(2028, 1, 1 + d));
+      expect(verse, isNotNull);
+      expect(verse!.label, isNot(before), reason: 'day $d repeats the day before');
+      expect(seen.add(verse.label), isTrue, reason: '${verse.label} came twice in a year');
+      before = verse.label;
     }
-  });
-
-  testWidgets('Pray opens a new prayer with the verse of the day and its line', (tester) async {
-    final state = await tester.runAsync(() => open({'readerBook': 43}));
-    await pumpReader(tester, state!);
-    final verse = state.verseOfTheDay(DateTime.now())!;
-    await tester.tap(find.text('Pray'));
-    await tester.pumpAndSettle();
-    expect(find.text(state.prayerFor(verse)!), findsWidgets);
-    expect(find.widgetWithText(TextField, verse.label), findsOneWidget);
   });
 
   test('every book has a short name', () {

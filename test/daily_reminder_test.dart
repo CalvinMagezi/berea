@@ -114,7 +114,7 @@ void main() {
 
     test('reference only keeps the words off the lock screen', () {
       final out = build(morning, const ReminderSettings(on: true, referenceOnly: true));
-      expect(out.first.title, "Today's reading");
+      expect(out.first.title, 'Verse of the day');
       expect(out.first.body, 'Isaiah 41:10');
     });
 

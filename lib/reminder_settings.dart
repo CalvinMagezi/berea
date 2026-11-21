@@ -37,7 +37,7 @@ class ReminderSettingsSection extends StatelessWidget {
         Text('Daily prayer', style: Theme.of(context).textTheme.titleSmall),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text("Today's reading"),
+          title: const Text('Verse of the day'),
           subtitle: Text(
             'A notification each morning, set on this device. Your own prayers never appear in it.',
             style: muted,
@@ -127,7 +127,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text("Today's reading", style: Theme.of(context).textTheme.titleLarge),
+          Text('Verse of the day', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 4),
           Text(
             "The first verse of today's reading in the plan you started, at the time you choose. Set on this device; nothing is sent.",
